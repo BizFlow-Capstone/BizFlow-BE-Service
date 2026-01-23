@@ -21,7 +21,7 @@ namespace BizFlow.Api.Controllers
         }
 
         /// <summary>
-        /// Get all roles
+        /// Get all roles in table role in database
         /// </summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
