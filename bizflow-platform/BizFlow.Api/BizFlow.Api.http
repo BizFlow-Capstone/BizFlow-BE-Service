@@ -1,14 +1,14 @@
 @BizFlow.Api_HostAddress = https://localhost:7270
 
 ### Get all roles - English
-GET https://localhost:7270/api/role
+GET https://localhost:7270/api/roles
 Accept-Language: en
 Content-Type: application/json
 ###
 
 
 ### Get all roles - Vietnamese
-GET https://localhost:7270/api/role
+GET https://localhost:7270/api/roles
 Accept-Language: vi
 Content-Type: application/json
 ###
