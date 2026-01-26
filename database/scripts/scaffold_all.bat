@@ -1,4 +1,6 @@
 @echo off
+SETLOCAL EnableDelayedExpansion
+
 echo ================================================
 echo    SCAFFOLD ALL ENTITIES (Exclude History)
 echo ================================================
@@ -17,24 +19,28 @@ echo [INFO] Getting list of tables from database...
 echo.
 
 :: Lấy danh sách tất cả tables (trừ __MigrationHistory)
-set TABLES=
+set TABLES_LIST=
 
 :: Tạm thời lưu danh sách tables vào file
-docker exec bizflow-mysql mysql -uadmin -padmin bizflow_db -sN -e "SHOW TABLES;" > temp_tables.txt
+set TEMP_FILE=%TEMP%\temp_tables.txt
+docker exec bizflow-mysql mysql -uadmin -padmin bizflow_db -sN -e "SHOW TABLES;" 2>nul > "%TEMP_FILE%"
 
-:: Đọc file và build câu lệnh
-set SCAFFOLD_CMD=dotnet ef dbcontext scaffold "Server=localhost;Port=3307;Database=bizflow_db;User=admin;Password=admin;CharSet=utf8mb4;SslMode=none;" Pomelo.EntityFrameworkCore.MySql --context-dir ./Data --output-dir ../BizFlow.Domain/Entities --context BizFlowDbContext --force --no-onconfiguring --no-pluralize
-
-:: Thêm từng table (trừ __MigrationHistory)
-for /f "tokens=*" %%t in (temp_tables.txt) do (
+:: Đọc file và build danh sách tables
+for /f "tokens=*" %%t in (%TEMP_FILE%) do (
     if not "%%t"=="__MigrationHistory" (
         echo [INFO] Will scaffold table: %%t
-        set SCAFFOLD_CMD=!SCAFFOLD_CMD! --table %%t
+        set TABLES_LIST=!TABLES_LIST! --table %%t
     )
 )
 
 :: Xóa file tạm
-del temp_tables.txt
+del "%TEMP_FILE%" 2>nul
+
+if "!TABLES_LIST!"=="" (
+    echo [ERROR] No tables found in database!
+    pause
+    exit /b 1
+)
 
 echo.
 set /p CONFIRM="Do you want to scaffold all these tables? (Y/N): "
@@ -54,7 +60,7 @@ echo.
 cd /d "%~dp0..\..\bizflow-platform\BizFlow.Infrastructure"
 
 :: Chạy scaffold command
-%SCAFFOLD_CMD%
+dotnet ef dbcontext scaffold "Server=localhost;Port=3307;Database=bizflow_db;User=admin;Password=admin;CharSet=utf8mb4;SslMode=none;" Pomelo.EntityFrameworkCore.MySql --context-dir ./Data --output-dir ../BizFlow.Domain/Entities --context BizFlowDbContext --force --no-onconfiguring !TABLES_LIST!
 
 if errorlevel 1 (
     echo.

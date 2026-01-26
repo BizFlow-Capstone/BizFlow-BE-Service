@@ -1,4 +1,4 @@
--- Migration: 002_add_role_table
+-- Migration: 002_add_roles_table
 -- Description: Add Roles table
 -- Date: 2026-01-23
 
@@ -14,4 +14,5 @@ CREATE TABLE IF NOT EXISTS Roles (
 
 -- Insert this migration
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 
-VALUES ('002_add_role_table', '1.0.0');
+VALUES ('002_add_roles_table', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;

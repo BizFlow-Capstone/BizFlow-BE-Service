@@ -31,7 +31,6 @@ dotnet ef dbcontext scaffold ^
     --context BizFlowDbContext ^
     --force ^
     --no-onconfiguring ^
-    --no-pluralize ^
     --table Roles ^
     --table Users ^
     --table UserRoles

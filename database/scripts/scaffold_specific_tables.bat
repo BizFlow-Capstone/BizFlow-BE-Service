@@ -45,7 +45,7 @@ if /i not "%CONFIRM%"=="Y" (
 )
 
 :: Build scaffold command
-set SCAFFOLD_CMD=dotnet ef dbcontext scaffold "Server=localhost;Port=3307;Database=bizflow_db;User=admin;Password=admin;CharSet=utf8mb4;SslMode=none;" Pomelo.EntityFrameworkCore.MySql --context-dir ./Data --output-dir ../BizFlow.Domain/Entities --context BizFlowDbContext --force --no-onconfiguring --no-pluralize
+set SCAFFOLD_CMD=dotnet ef dbcontext scaffold "Server=localhost;Port=3307;Database=bizflow_db;User=admin;Password=admin;CharSet=utf8mb4;SslMode=none;" Pomelo.EntityFrameworkCore.MySql --context-dir ./Data --output-dir ../BizFlow.Domain/Entities --context BizFlowDbContext --force --no-onconfiguring
 
 :: Thêm từng table
 for %%t in (%TABLES%) do (

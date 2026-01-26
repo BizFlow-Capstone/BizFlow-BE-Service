@@ -11,4 +11,5 @@ CREATE TABLE IF NOT EXISTS __MigrationHistory (
 
 -- Insert this migration
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 
-VALUES ('001_create_initial_schema', '1.0.0');
+VALUES ('001_create_initial_schema', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;

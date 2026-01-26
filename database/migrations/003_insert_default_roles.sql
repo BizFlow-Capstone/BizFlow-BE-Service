@@ -10,4 +10,5 @@ INSERT INTO Roles (Id, Name, Description, CreatedAt, UpdatedAt) VALUES
 
 -- Insert this migration
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 
-VALUES ('003_insert_default_roles', '1.0.0');
+VALUES ('003_insert_default_roles', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;
