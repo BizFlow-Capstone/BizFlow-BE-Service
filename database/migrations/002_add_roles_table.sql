@@ -13,6 +13,6 @@ CREATE TABLE IF NOT EXISTS Roles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert this migration
-INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 
+INSERT INTO __MigrationHistory (MigrationId, ProductVersion)
 VALUES ('002_add_roles_table', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;
