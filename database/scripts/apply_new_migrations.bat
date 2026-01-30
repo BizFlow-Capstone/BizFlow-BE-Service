@@ -83,10 +83,11 @@ for /f "delims=" %%f in ('dir /b /on "%MIGRATIONS_DIR%\*.sql"') do (
     if errorlevel 1 (
         echo [RUNNING] Applying migration: !FILENAME!...
         
-        :: Chạy migration
-        docker exec -i bizflow-mysql mysql -uadmin -padmin bizflow_db < "%MIGRATIONS_DIR%\!FILENAME!" 2>&1 | findstr /v "Warning"
+        :: Chạy migration và lưu exit code
+        docker exec -i bizflow-mysql mysql -uadmin -padmin bizflow_db < "%MIGRATIONS_DIR%\!FILENAME!" 2>&1
+        set MIGRATION_EXIT_CODE=!ERRORLEVEL!
         
-        if errorlevel 1 (
+        if !MIGRATION_EXIT_CODE! neq 0 (
             echo [ERROR] Failed to apply migration: !FILENAME!
             echo Please check the error above and fix it.
             pause
