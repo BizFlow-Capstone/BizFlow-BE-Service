@@ -1,6 +1,6 @@
 ﻿using BizFlow.Application.Interfaces.Repositories;
-using BizFlow.Domain;
-using BizFlow.Infrastructure.Data;
+using BizFlow.Domain.Entities;
+using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 
 namespace BizFlow.Infrastructure.Repositories

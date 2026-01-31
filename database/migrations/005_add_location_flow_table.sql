@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS BusinessTypeTax (
     BusinessTypeId CHAR(36) NOT NULL,
     TaxType VARCHAR(50) NOT NULL COMMENT 'VAT, PIT',
     TaxRate DECIMAL(5,2) NOT NULL COMMENT 'Tax rate percentage',
-    CalculateOnPrice BOOLEAN NOT NULL DEFAULT TRUE,
+    CalculateOnPrice BOOLEAN NOT NULL,
     EffectiveFrom DATE NOT NULL,
     EffectiveTo DATE DEFAULT NULL,
     CreatedById CHAR(36) DEFAULT NULL,

@@ -1,6 +1,6 @@
 ﻿using Autofac;
 using BizFlow.Application.Interfaces.Repositories;
-using BizFlow.Infrastructure.Data;
+using BizFlow.Infrastructure.DataContext;
 using BizFlow.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

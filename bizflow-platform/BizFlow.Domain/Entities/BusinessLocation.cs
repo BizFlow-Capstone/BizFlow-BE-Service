@@ -1,8 +1,11 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class BusinessLocation
 {
-    public Guid BusinessLocationId { get; set; }
+    public int BusinessLocationId { get; set; }
 
     /// <summary>
     /// Location/store name

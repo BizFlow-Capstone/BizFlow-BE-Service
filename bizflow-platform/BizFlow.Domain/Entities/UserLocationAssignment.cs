@@ -1,8 +1,11 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class UserLocationAssignment
 {
-    public Guid UserLocationAssignmentId { get; set; }
+    public int UserLocationAssignmentId { get; set; }
 
     /// <summary>
     /// Assigned user
@@ -12,7 +15,7 @@ public partial class UserLocationAssignment
     /// <summary>
     /// Assigned location
     /// </summary>
-    public Guid BusinessLocationId { get; set; }
+    public int BusinessLocationId { get; set; }
 
     /// <summary>
     /// Is the owner of this location

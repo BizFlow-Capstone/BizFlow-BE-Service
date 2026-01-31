@@ -1,7 +1,7 @@
 ﻿using BizFlow.Application.DTOs;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
-using BizFlow.Domain;
+using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Services
 {

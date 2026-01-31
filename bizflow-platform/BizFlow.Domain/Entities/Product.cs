@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class Product
@@ -7,7 +10,7 @@ public partial class Product
     /// <summary>
     /// Warehouse/location of product
     /// </summary>
-    public Guid BusinessLocationId { get; set; }
+    public int BusinessLocationId { get; set; }
 
     /// <summary>
     /// Business type category
