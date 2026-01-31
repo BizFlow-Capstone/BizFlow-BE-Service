@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace BizFlow.Domain;
+namespace BizFlow.Domain.Entities;
 
 public partial class Role
 {
@@ -14,4 +11,6 @@ public partial class Role
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    public virtual ICollection<User> Users { get; set; } = new List<User>();
 }
