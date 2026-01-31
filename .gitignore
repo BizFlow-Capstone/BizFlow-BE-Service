@@ -27,7 +27,7 @@ uat.env
 *.sql.backup
 *.sql.bak
 *.dump
-
+data/mysql/
 # ==========================================
 # IDE & Editor
 # ==========================================
@@ -92,3 +92,4 @@ bld/
 *.snupkg
 **/packages/*
 !**/packages/build/
+
