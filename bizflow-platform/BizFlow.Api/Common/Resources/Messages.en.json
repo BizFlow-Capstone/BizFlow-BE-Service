@@ -41,5 +41,7 @@
   "LOCATION_RETRIEVED": "Business locations retrieved successfully",
   "LOCATION_STATUS_UPDATED": "Location status updated successfully",
   "LOCATION_ACCESS_DENIED": "You don't have permission to manage this location",
-  "LOCATION_ALREADY_EXISTS": "A location with this name already exists"
+  "LOCATION_ALREADY_EXISTS": "A location with this name already exists",
+  "HIRE_EMPLOYEES_RETRIEVED": "Hired employees retrieved successfully",
+  "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first."
 }

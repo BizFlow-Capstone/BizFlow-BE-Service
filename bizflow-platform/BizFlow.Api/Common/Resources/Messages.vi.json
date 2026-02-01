@@ -43,7 +43,5 @@
   "LOCATION_ACCESS_DENIED": "Bạn không có quyền quản lý địa điểm này",
   "LOCATION_ALREADY_EXISTS": "Địa điểm với tên này đã tồn tại",
   "HIRE_EMPLOYEES_RETRIEVED": "Lấy danh sách nhân viên đã thuê thành công",
-  "HIRE_CREATED": "Thuê nhân viên thành công",
-  "HIRE_NOT_FOUND": "Không tìm thấy thông tin thuê nhân viên",
-  "HIRE_EMPLOYEE_ALREADY_HIRED": "Nhân viên đã được thuê trước đó"
+  "HIRE_EMPLOYEES_NOT_HIRED": "Không thể phân công nhân viên chưa được thuê. Vui lòng thuê họ trước."
 }

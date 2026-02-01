@@ -19,7 +19,7 @@ set "FINAL_ENTITIES_DIR=%DOMAIN_DIR%\Entities"
 set "FINAL_DATACONTEXT_DIR=%INFRASTRUCTURE_DIR%\DataContext"
 
 :: Tables to scaffold
-set "TABLES=--table Roles --table User --table BusinessType --table BusinessTypeTax --table BusinessLocation --table UserLocationAssignment --table Product --table ProductPricePolicy --table Import --table Product_Import --table SaleItem"
+set "TABLES=--table Roles --table User --table BusinessType --table BusinessTypeTax --table BusinessLocation --table UserLocationAssignment --table Product --table ProductPricePolicy --table Import --table Product_Import --table SaleItem --table Hire"
 
 :: ============================================
 :: STEP 1: CHECK PREREQUISITES

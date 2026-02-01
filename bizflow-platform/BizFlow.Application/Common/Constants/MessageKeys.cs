@@ -66,8 +66,6 @@ namespace BizFlow.Application.Common.Constants
 
         // ============ HIRE ============
         public const string HireEmployeesRetrievedSuccessfully = "HIRE_EMPLOYEES_RETRIEVED";
-        public const string HireCreatedSuccessfully = "HIRE_CREATED";
-        public const string HireNotFound = "HIRE_NOT_FOUND";
-        public const string EmployeeAlreadyHired = "HIRE_EMPLOYEE_ALREADY_HIRED";
+        public const string EmployeesNotHired = "HIRE_EMPLOYEES_NOT_HIRED";
     }
 }

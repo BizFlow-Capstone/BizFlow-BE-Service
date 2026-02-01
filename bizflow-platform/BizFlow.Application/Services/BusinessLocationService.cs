@@ -1,4 +1,6 @@
 using BizFlow.Application.DTOs.Location;
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Mappers;
@@ -9,10 +11,12 @@ namespace BizFlow.Application.Services
     public class BusinessLocationService : IBusinessLocationService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IHireService _hireService;
 
-        public BusinessLocationService(IUnitOfWork unitOfWork)
+        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService)
         {
             _unitOfWork = unitOfWork;
+            _hireService = hireService;
         }
 
         public async Task<IEnumerable<BusinessLocationDto>> GetOwnedLocationsAsync(Guid userId)
@@ -66,16 +70,21 @@ namespace BizFlow.Application.Services
                 // Optional: Assign hired employees if provided
                 if (request.EmployeeIds != null && request.EmployeeIds.Any())
                 {
-                    foreach (var employeeId in request.EmployeeIds)
-                    {
-                        // Validate: Only assign employees that are hired by this owner
-                        var isHired = await _unitOfWork.Hires.IsEmployeeHiredByOwnerAsync(userId, employeeId);
-                        if (!isHired)
-                        {
-                            // Skip employees not hired by owner (silent skip)
-                            continue;
-                        }
+                    // Validate employees using HireService
+                    var validationResult = await _hireService.ValidateEmployeesForAssignmentAsync(userId, request.EmployeeIds);
 
+                    // If any employees are not hired, throw BadRequestException
+                    if (!validationResult.AllValid)
+                    {
+                        throw new BadRequestException(
+                            MessageKeys.EmployeesNotHired, 
+                            new { invalidEmployeeIds = validationResult.InvalidEmployeeIds }
+                        );
+                    }
+
+                    // All employees are valid - batch create assignments
+                    foreach (var employeeId in validationResult.ValidEmployeeIds)
+                    {
                         var employeeAssignment = new UserLocationAssignment
                         {
                             UserId = employeeId,

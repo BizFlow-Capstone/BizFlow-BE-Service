@@ -7,13 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Data\**" />
+    <EmbeddedResource Remove="Data\**" />
+    <None Remove="Data\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BizFlow.Application\BizFlow.Application.csproj" />
     <ProjectReference Include="..\BizFlow.Domain\BizFlow.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Configurations\" />
-    <Folder Include="Data\" />
   </ItemGroup>
 
   <ItemGroup>
