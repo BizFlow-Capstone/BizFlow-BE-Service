@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class User
@@ -63,15 +66,15 @@ public partial class User
 
     public DateTime UpdatedAt { get; set; }
 
-    public virtual ICollection<BusinessType> BusinessTypeCreatedBies { get; set; } = new List<BusinessType>();
-
-    public virtual ICollection<BusinessType> BusinessTypeModifiedBies { get; set; } = new List<BusinessType>();
-
     public virtual ICollection<BusinessTypeTax> BusinessTypeTaxes { get; set; } = new List<BusinessTypeTax>();
 
-    public virtual ICollection<Hire> HireEmployees { get; set; } = new List<Hire>();
+    public virtual ICollection<BusinessType> BusinessTypesCreatedBy { get; set; } = new List<BusinessType>();
 
-    public virtual ICollection<Hire> HireOwners { get; set; } = new List<Hire>();
+    public virtual ICollection<BusinessType> BusinessTypesModifiedBy { get; set; } = new List<BusinessType>();
+
+    public virtual ICollection<Hire> HiresEmployee { get; set; } = new List<Hire>();
+
+    public virtual ICollection<Hire> HiresOwner { get; set; } = new List<Hire>();
 
     public virtual Role Role { get; set; } = null!;
 

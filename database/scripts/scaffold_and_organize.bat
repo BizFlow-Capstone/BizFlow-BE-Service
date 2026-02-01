@@ -18,8 +18,8 @@ set "TEMP_DATA_DIR=%INFRASTRUCTURE_DIR%\TempData"
 set "FINAL_ENTITIES_DIR=%DOMAIN_DIR%\Entities"
 set "FINAL_DATACONTEXT_DIR=%INFRASTRUCTURE_DIR%\DataContext"
 
-:: Tables to scaffold
-set "TABLES=--table Roles --table User --table BusinessType --table BusinessTypeTax --table BusinessLocation --table UserLocationAssignment --table Product --table ProductPricePolicy --table Import --table Product_Import --table SaleItem --table Hire"
+:: Tables to scaffold (plural names in database)
+set "TABLES=--table Roles --table Users --table BusinessTypes --table BusinessTypeTaxes --table BusinessLocations --table UserLocationAssignments --table Products --table ProductPricePolicies --table Imports --table ProductsImports --table SaleItems --table Hires"
 
 :: ============================================
 :: STEP 1: CHECK PREREQUISITES
@@ -67,6 +67,7 @@ dotnet ef dbcontext scaffold "%CONNECTION_STRING%" Pomelo.EntityFrameworkCore.My
     --context BizFlowDbContext ^
     --force ^
     --no-onconfiguring ^
+    --no-pluralize ^
     %TABLES%
 
 if errorlevel 1 (
@@ -81,9 +82,69 @@ echo   [OK] Entities scaffolded successfully
 echo.
 
 :: ============================================
-:: STEP 4: FIX ENTITY NAMESPACES
+:: STEP 4: RENAME ENTITY FILES (Plural -> Singular)
 :: ============================================
-echo [STEP 4] Moving and fixing entity files...
+echo [STEP 4] Renaming entity files to singular...
+
+:: Rename files from plural to singular
+if exist "%TEMP_ENTITIES_DIR%\Roles.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Roles.cs" "Role.cs"
+    echo   [RENAME] Roles.cs -^> Role.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\BusinessTypes.cs" (
+    ren "%TEMP_ENTITIES_DIR%\BusinessTypes.cs" "BusinessType.cs"
+    echo   [RENAME] BusinessTypes.cs -^> BusinessType.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\BusinessTypeTaxes.cs" (
+    ren "%TEMP_ENTITIES_DIR%\BusinessTypeTaxes.cs" "BusinessTypeTax.cs"
+    echo   [RENAME] BusinessTypeTaxes.cs -^> BusinessTypeTax.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\BusinessLocations.cs" (
+    ren "%TEMP_ENTITIES_DIR%\BusinessLocations.cs" "BusinessLocation.cs"
+    echo   [RENAME] BusinessLocations.cs -^> BusinessLocation.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\UserLocationAssignments.cs" (
+    ren "%TEMP_ENTITIES_DIR%\UserLocationAssignments.cs" "UserLocationAssignment.cs"
+    echo   [RENAME] UserLocationAssignments.cs -^> UserLocationAssignment.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Products.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Products.cs" "Product.cs"
+    echo   [RENAME] Products.cs -^> Product.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\SaleItems.cs" (
+    ren "%TEMP_ENTITIES_DIR%\SaleItems.cs" "SaleItem.cs"
+    echo   [RENAME] SaleItems.cs -^> SaleItem.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\ProductPricePolicies.cs" (
+    ren "%TEMP_ENTITIES_DIR%\ProductPricePolicies.cs" "ProductPricePolicy.cs"
+    echo   [RENAME] ProductPricePolicies.cs -^> ProductPricePolicy.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Imports.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Imports.cs" "Import.cs"
+    echo   [RENAME] Imports.cs -^> Import.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\ProductsImports.cs" (
+    ren "%TEMP_ENTITIES_DIR%\ProductsImports.cs" "ProductImport.cs"
+    echo   [RENAME] ProductsImports.cs -^> ProductImport.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\ProductImports.cs" (
+    ren "%TEMP_ENTITIES_DIR%\ProductImports.cs" "ProductImport.cs"
+    echo   [RENAME] ProductImports.cs -^> ProductImport.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Hires.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Hires.cs" "Hire.cs"
+    echo   [RENAME] Hires.cs -^> Hire.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Users.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Users.cs" "User.cs"
+    echo   [RENAME] Users.cs -^> User.cs
+)
+echo.
+
+:: ============================================
+:: STEP 5: FIX ENTITY NAMESPACES AND CLASS NAMES
+:: ============================================
+echo [STEP 5] Moving and fixing entity files...
 
 :: Create Entities directory if not exists
 if not exist "%FINAL_ENTITIES_DIR%" mkdir "%FINAL_ENTITIES_DIR%"
@@ -96,8 +157,8 @@ for %%F in ("%TEMP_ENTITIES_DIR%\*.cs") do (
     set "FILENAME=%%~nxF"
     set "OUTPUT_FILE=%FINAL_ENTITIES_DIR%\%%~nxF"
     
-    :: Replace namespace using PowerShell one-liner
-    powershell -Command "(Get-Content '!INPUT_FILE!' -Raw) -replace 'namespace BizFlow\.Infrastructure\.TempEntities;?', 'namespace BizFlow.Domain.Entities;' -replace 'namespace BizFlow\.Infrastructure;?', 'namespace BizFlow.Domain.Entities;' -replace 'using BizFlow\.Infrastructure\.TempEntities;?\r?\n', '' -replace 'using BizFlow\.Infrastructure;?\r?\n', '' | Set-Content '!OUTPUT_FILE!' -NoNewline"
+    :: Replace namespace and class names using PowerShell
+    powershell -Command "$content = Get-Content '!INPUT_FILE!' -Raw; $content = $content -replace 'namespace BizFlow\.Infrastructure\.TempEntities', 'namespace BizFlow.Domain.Entities' -replace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', '' -replace 'public partial class Roles', 'public partial class Role' -replace 'public partial class BusinessTypes', 'public partial class BusinessType' -replace 'public partial class BusinessTypeTaxes', 'public partial class BusinessTypeTax' -replace 'public partial class BusinessLocations', 'public partial class BusinessLocation' -replace 'public partial class UserLocationAssignments', 'public partial class UserLocationAssignment' -replace 'public partial class Products', 'public partial class Product' -replace 'public partial class SaleItems', 'public partial class SaleItem' -replace 'public partial class ProductPricePolicies', 'public partial class ProductPricePolicy' -replace 'public partial class Imports', 'public partial class Import' -replace 'public partial class ProductsImports', 'public partial class ProductImport' -replace 'public partial class ProductImports', 'public partial class ProductImport' -replace 'public partial class Hires', 'public partial class Hire' -replace 'public partial class Users', 'public partial class User' -replace 'ICollection<Roles>', 'ICollection<Role>' -replace 'ICollection<BusinessTypes>', 'ICollection<BusinessType>' -replace 'ICollection<BusinessTypeTaxes>', 'ICollection<BusinessTypeTax>' -replace 'ICollection<BusinessLocations>', 'ICollection<BusinessLocation>' -replace 'ICollection<UserLocationAssignments>', 'ICollection<UserLocationAssignment>' -replace 'ICollection<Products>', 'ICollection<Product>' -replace 'ICollection<SaleItems>', 'ICollection<SaleItem>' -replace 'ICollection<ProductPricePolicies>', 'ICollection<ProductPricePolicy>' -replace 'ICollection<Imports>', 'ICollection<Import>' -replace 'ICollection<ProductsImports>', 'ICollection<ProductImport>' -replace 'ICollection<ProductImports>', 'ICollection<ProductImport>' -replace 'ICollection<Hires>', 'ICollection<Hire>' -replace 'ICollection<Users>', 'ICollection<User>' -replace 'List<Roles>', 'List<Role>' -replace 'List<BusinessTypes>', 'List<BusinessType>' -replace 'List<BusinessTypeTaxes>', 'List<BusinessTypeTax>' -replace 'List<BusinessLocations>', 'List<BusinessLocation>' -replace 'List<UserLocationAssignments>', 'List<UserLocationAssignment>' -replace 'List<Products>', 'List<Product>' -replace 'List<SaleItems>', 'List<SaleItem>' -replace 'List<ProductPricePolicies>', 'List<ProductPricePolicy>' -replace 'List<Imports>', 'List<Import>' -replace 'List<ProductsImports>', 'List<ProductImport>' -replace 'List<ProductImports>', 'List<ProductImport>' -replace 'List<Hires>', 'List<Hire>' -replace 'List<Users>', 'List<User>' -replace 'virtual Roles', 'virtual Role' -replace 'virtual BusinessTypes', 'virtual BusinessType' -replace 'virtual BusinessTypeTaxes', 'virtual BusinessTypeTax' -replace 'virtual BusinessLocations', 'virtual BusinessLocation' -replace 'virtual UserLocationAssignments', 'virtual UserLocationAssignment' -replace 'virtual Products', 'virtual Product' -replace 'virtual SaleItems', 'virtual SaleItem' -replace 'virtual ProductPricePolicies', 'virtual ProductPricePolicy' -replace 'virtual Imports', 'virtual Import' -replace 'virtual ProductsImports', 'virtual ProductImport' -replace 'virtual ProductImports', 'virtual ProductImport' -replace 'virtual Hires', 'virtual Hire' -replace 'virtual Users', 'virtual User'; Set-Content '!OUTPUT_FILE!' -Value $content -NoNewline"
     
     set /a ENTITY_COUNT+=1
     echo   [OK] Fixed: !FILENAME!
@@ -107,9 +168,9 @@ echo   Total entities: !ENTITY_COUNT!
 echo.
 
 :: ============================================
-:: STEP 5: FIX DBCONTEXT
+:: STEP 6: FIX DBCONTEXT
 :: ============================================
-echo [STEP 5] Moving and fixing DbContext...
+echo [STEP 6] Moving and fixing DbContext...
 
 :: Create DataContext directory if not exists
 if not exist "%FINAL_DATACONTEXT_DIR%" mkdir "%FINAL_DATACONTEXT_DIR%"
@@ -118,8 +179,8 @@ set "DBCONTEXT_INPUT=%TEMP_DATA_DIR%\BizFlowDbContext.cs"
 set "DBCONTEXT_OUTPUT=%FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs"
 
 if exist "%DBCONTEXT_INPUT%" (
-    :: Fix DbContext namespace and add Entity using
-    powershell -Command "$content = Get-Content '%DBCONTEXT_INPUT%' -Raw; $content = $content -replace 'namespace BizFlow\.Infrastructure\.TempData;?', 'namespace BizFlow.Infrastructure.DataContext;' -replace 'namespace BizFlow\.Infrastructure\.Data;?', 'namespace BizFlow.Infrastructure.DataContext;'; if ($content -notmatch 'using BizFlow\.Domain\.Entities;') { $content = $content -replace '(using .*?;\r?\n)', \"`$1using BizFlow.Domain.Entities;`r`n\" }; $content = $content -replace 'using BizFlow\.Infrastructure\.TempEntities;?\r?\n', ''; Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline"
+    :: Fix DbContext namespace, add Entity using, and update DbSet types
+    powershell -Command "$content = Get-Content '%DBCONTEXT_INPUT%' -Raw; $content = $content -replace 'namespace BizFlow\.Infrastructure\.TempData', 'namespace BizFlow.Infrastructure.DataContext'; if ($content -notmatch 'using BizFlow\.Domain\.Entities;') { $content = $content -replace '(using .*?;\r?\n)', \"`$1using BizFlow.Domain.Entities;`r`n\" }; $content = $content -replace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', '' -replace 'DbSet<Roles>', 'DbSet<Role>' -replace 'DbSet<BusinessTypes>', 'DbSet<BusinessType>' -replace 'DbSet<BusinessTypeTaxes>', 'DbSet<BusinessTypeTax>' -replace 'DbSet<BusinessLocations>', 'DbSet<BusinessLocation>' -replace 'DbSet<UserLocationAssignments>', 'DbSet<UserLocationAssignment>' -replace 'DbSet<Products>', 'DbSet<Product>' -replace 'DbSet<SaleItems>', 'DbSet<SaleItem>' -replace 'DbSet<ProductPricePolicies>', 'DbSet<ProductPricePolicy>' -replace 'DbSet<Imports>', 'DbSet<Import>' -replace 'DbSet<ProductsImports>', 'DbSet<ProductImport>' -replace 'DbSet<ProductImports>', 'DbSet<ProductImport>' -replace 'DbSet<Hires>', 'DbSet<Hire>' -replace 'DbSet<Users>', 'DbSet<User>' -replace 'modelBuilder\.Entity<Roles>', 'modelBuilder.Entity<Role>' -replace 'modelBuilder\.Entity<BusinessTypes>', 'modelBuilder.Entity<BusinessType>' -replace 'modelBuilder\.Entity<BusinessTypeTaxes>', 'modelBuilder.Entity<BusinessTypeTax>' -replace 'modelBuilder\.Entity<BusinessLocations>', 'modelBuilder.Entity<BusinessLocation>' -replace 'modelBuilder\.Entity<UserLocationAssignments>', 'modelBuilder.Entity<UserLocationAssignment>' -replace 'modelBuilder\.Entity<Products>', 'modelBuilder.Entity<Product>' -replace 'modelBuilder\.Entity<SaleItems>', 'modelBuilder.Entity<SaleItem>' -replace 'modelBuilder\.Entity<ProductPricePolicies>', 'modelBuilder.Entity<ProductPricePolicy>' -replace 'modelBuilder\.Entity<Imports>', 'modelBuilder.Entity<Import>' -replace 'modelBuilder\.Entity<ProductsImports>', 'modelBuilder.Entity<ProductImport>' -replace 'modelBuilder\.Entity<ProductImports>', 'modelBuilder.Entity<ProductImport>' -replace 'modelBuilder\.Entity<Hires>', 'modelBuilder.Entity<Hire>' -replace 'modelBuilder\.Entity<Users>', 'modelBuilder.Entity<User>'; Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline"
     
     echo   [OK] Fixed: BizFlowDbContext.cs
 ) else (
@@ -128,9 +189,9 @@ if exist "%DBCONTEXT_INPUT%" (
 echo.
 
 :: ============================================
-:: STEP 6: CLEANUP TEMP DIRECTORIES
+:: STEP 7: CLEANUP TEMP DIRECTORIES
 :: ============================================
-echo [STEP 6] Cleaning up temporary files...
+echo [STEP 7] Cleaning up temporary files...
 
 if exist "%TEMP_ENTITIES_DIR%" (
     rmdir /S /Q "%TEMP_ENTITIES_DIR%"
@@ -156,6 +217,10 @@ echo   DbContext: %FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs
 echo.
 echo [ENTITY COUNT]
 echo   Total: !ENTITY_COUNT! entities
+echo.
+echo [TRANSFORMATIONS]
+echo   - Database tables (plural) -^> Entity classes (singular)
+echo   - Example: BusinessLocations table -^> BusinessLocation class
 echo.
 echo [NEXT STEPS]
 echo   1. Review generated files

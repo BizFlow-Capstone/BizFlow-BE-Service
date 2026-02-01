@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class Import
@@ -19,12 +22,7 @@ public partial class Import
     /// </summary>
     public DateTime Date { get; set; }
 
-    /// <summary>
-    /// Import receipt image
-    /// </summary>
-    public string? ImportImage { get; set; }
-
     public string? Description { get; set; }
 
-    public virtual ICollection<ProductImport> ProductImports { get; set; } = new List<ProductImport>();
+    public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 }

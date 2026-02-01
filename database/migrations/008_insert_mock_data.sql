@@ -9,12 +9,12 @@
 SET @user_role_id = (SELECT Id FROM Roles WHERE Name = 'user' LIMIT 1);
 
 -- OWNERS
-INSERT INTO User (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
+INSERT INTO Users (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
 ('550e8400-e29b-41d4-a716-446655440001', 'shinkiriloveforever@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Shinkiri Love Forever', '0877725635', '1234567890', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440002', 'nganvhhse183096@fpt.edu.vn', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Vu Hoang Hieu Ngan', '0966288741', '9876543210', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW());
 
 -- EMPLOYEES
-INSERT INTO User (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
+INSERT INTO Users (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
 ('550e8400-e29b-41d4-a716-446655440003', 'tranvana@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Tran Van A', '0901234567', '1111222233', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440004', 'nguyenthib@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Nguyen Thi B', '0912345678', '2222333344', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440005', 'levanthanhc@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Le Van Thanh C', '0923456789', '3333444455', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW());
@@ -22,16 +22,16 @@ INSERT INTO User (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId,
 -- =============================================
 -- BUSINESS TYPES
 -- =============================================
-INSERT INTO BusinessType (BusinessTypeId, Code, Name, Description, Status, CreatedById, CreatedDate, LastModifiedDate) VALUES
+INSERT INTO BusinessTypes (BusinessTypeId, Code, Name, Description, Status, CreatedById, CreatedDate, LastModifiedDate) VALUES
 ('650e8400-e29b-41d4-a716-446655440001', 'RETAIL', 'Retail Store', 'Cửa hàng bán lẻ - Retail business', 'active', '550e8400-e29b-41d4-a716-446655440001', NOW(), NOW()),
 ('650e8400-e29b-41d4-a716-446655440002', 'RESTAURANT', 'Restaurant & Cafe', 'Nhà hàng và quán cafe', 'active', '550e8400-e29b-41d4-a716-446655440001', NOW(), NOW()),
 ('650e8400-e29b-41d4-a716-446655440003', 'GROCERY', 'Grocery Store', 'Cửa hàng tạp hóa', 'active', '550e8400-e29b-41d4-a716-446655440002', NOW(), NOW()),
 ('650e8400-e29b-41d4-a716-446655440004', 'BEAUTY', 'Beauty Salon', 'Salon làm đẹp', 'active', '550e8400-e29b-41d4-a716-446655440002', NOW(), NOW());
 
 -- =============================================
--- BUSINESS TYPE TAX
+-- BUSINESS TYPE TAXES
 -- =============================================
-INSERT INTO BusinessTypeTax (BusinessTypeTaxId, BusinessTypeId, TaxType, TaxRate, CalculateOnPrice, EffectiveFrom, EffectiveTo, CreatedById, CreatedDate) VALUES
+INSERT INTO BusinessTypeTaxes (BusinessTypeTaxId, BusinessTypeId, TaxType, TaxRate, CalculateOnPrice, EffectiveFrom, EffectiveTo, CreatedById, CreatedDate) VALUES
 -- VAT for Retail
 ('750e8400-e29b-41d4-a716-446655440001', '650e8400-e29b-41d4-a716-446655440001', 'VAT', 10.00, TRUE, '2024-01-01', NULL, '550e8400-e29b-41d4-a716-446655440001', NOW()),
 -- PIT for Retail
@@ -44,20 +44,20 @@ INSERT INTO BusinessTypeTax (BusinessTypeTaxId, BusinessTypeId, TaxType, TaxRate
 ('750e8400-e29b-41d4-a716-446655440005', '650e8400-e29b-41d4-a716-446655440004', 'VAT', 10.00, TRUE, '2024-01-01', NULL, '550e8400-e29b-41d4-a716-446655440002', NOW());
 
 -- =============================================
--- BUSINESS LOCATIONS
+-- BUSINESS LOCATIONS (INT AUTO_INCREMENT => IDs: 1, 2, 3, 4)
 -- =============================================
-INSERT INTO BusinessLocation (Name, Address, District, City, Phone, IsActive, TaxCode) VALUES
+INSERT INTO BusinessLocations (Name, Address, District, City, Phone, IsActive, IsDeleted, TaxCode) VALUES
 -- Shinkiri's locations (IDs: 1, 2)
-('Shinkiri Tech Store - HCM', '123 Nguyen Hue Street, Ben Nghe Ward', 'District 1', 'Ho Chi Minh City', '0877725635', TRUE, 'TAX-SHINKIRI-001'),
-('Shinkiri Tech Store - Hanoi', '456 Tran Hung Dao Street', 'Hoan Kiem', 'Hanoi', '0877725636', TRUE, 'TAX-SHINKIRI-002'),
+('Shinkiri Tech Store - HCM', '123 Nguyen Hue Street, Ben Nghe Ward', 'District 1', 'Ho Chi Minh City', '0877725635', TRUE, FALSE, 'TAX-SHINKIRI-001'),
+('Shinkiri Tech Store - Hanoi', '456 Tran Hung Dao Street', 'Hoan Kiem', 'Hanoi', '0877725636', TRUE, FALSE, 'TAX-SHINKIRI-002'),
 -- Ngan's locations (IDs: 3, 4)
-('Ngan Cafe & Bakery', '789 Le Loi Boulevard', 'District 3', 'Ho Chi Minh City', '0966288741', TRUE, 'TAX-NGAN-001'),
-('Ngan Beauty Salon', '234 Pasteur Street', 'District 1', 'Ho Chi Minh City', '0966288742', TRUE, 'TAX-NGAN-002');
+('Ngan Cafe & Bakery', '789 Le Loi Boulevard', 'District 3', 'Ho Chi Minh City', '0966288741', TRUE, FALSE, 'TAX-NGAN-001'),
+('Ngan Beauty Salon', '234 Pasteur Street', 'District 1', 'Ho Chi Minh City', '0966288742', TRUE, FALSE, 'TAX-NGAN-002');
 
 -- =============================================
--- USER LOCATION ASSIGNMENT 
+-- USER LOCATION ASSIGNMENTS
 -- =============================================
-INSERT INTO UserLocationAssignment (UserId, BusinessLocationId, IsOwner, IsActive) VALUES
+INSERT INTO UserLocationAssignments (UserId, BusinessLocationId, IsOwner, IsActive) VALUES
 -- OWNERS: Shinkiri owns 2 tech stores
 ('550e8400-e29b-41d4-a716-446655440001', 1, TRUE, TRUE),
 ('550e8400-e29b-41d4-a716-446655440001', 2, TRUE, TRUE),
@@ -74,9 +74,9 @@ INSERT INTO UserLocationAssignment (UserId, BusinessLocationId, IsOwner, IsActiv
 ('550e8400-e29b-41d4-a716-446655440005', 4, FALSE, TRUE);
 
 -- =============================================
--- PRODUCTS 
+-- PRODUCTS
 -- =============================================
-INSERT INTO Product (BusinessLocationId, BusinessTypeId, ProductName, CostPrice, Stock, Unit, Manufacturer) VALUES
+INSERT INTO Products (BusinessLocationId, BusinessTypeId, ProductName, CostPrice, Stock, Unit, Manufacturer) VALUES
 -- Shinkiri's Tech Store HCM (location_id: 1) - Products
 (1, '650e8400-e29b-41d4-a716-446655440001', 'iPhone 15 Pro Max', 25000000.00, 50, 'Unit', 'Apple'),
 (1, '650e8400-e29b-41d4-a716-446655440001', 'Samsung Galaxy S24 Ultra', 22000000.00, 30, 'Unit', 'Samsung'),
@@ -95,9 +95,9 @@ INSERT INTO Product (BusinessLocationId, BusinessTypeId, ProductName, CostPrice,
 (4, '650e8400-e29b-41d4-a716-446655440004', 'Face Mask Treatment', 500000.00, 30, 'Box', 'SK-II');
 
 -- =============================================
--- SALE ITEMS 
+-- SALE ITEMS
 -- =============================================
-INSERT INTO SaleItem (ProductId, Unit, Quantity) VALUES
+INSERT INTO SaleItems (ProductId, Unit, Quantity) VALUES
 -- Tech products
 (1, 'Unit', 1),
 (2, 'Unit', 1),
@@ -115,9 +115,9 @@ INSERT INTO SaleItem (ProductId, Unit, Quantity) VALUES
 (12, 'Box', 1);
 
 -- =============================================
--- PRODUCT PRICE POLICY 
+-- PRODUCT PRICE POLICIES
 -- =============================================
-INSERT INTO ProductPricePolicy (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
+INSERT INTO ProductPricePolicies (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
 -- Tech Store - Regular prices
 (1, 30000000.00, TRUE, NOW(), NULL),  -- iPhone 15 Pro Max
 (2, 27000000.00, TRUE, NOW(), NULL),  -- Galaxy S24
@@ -135,14 +135,14 @@ INSERT INTO ProductPricePolicy (SaleItemId, Price, IsDefault, StartAt, EndAt) VA
 (12, 800000.00, TRUE, NOW(), NULL);   -- Face Mask
 
 -- Promotion prices (limited time)
-INSERT INTO ProductPricePolicy (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
+INSERT INTO ProductPricePolicies (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
 (1, 28500000.00, FALSE, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY)),  -- iPhone promotion
 (7, 39000.00, FALSE, NOW(), DATE_ADD(NOW(), INTERVAL 14 DAY));    -- Cafe happy hour
 
 -- =============================================
--- IMPORTS 
+-- IMPORTS
 -- =============================================
-INSERT INTO Import (SchemaJson, TotalAmount, Date, Description) VALUES
+INSERT INTO Imports (SchemaJson, TotalAmount, Date, Description) VALUES
 (
     '{"supplier": "Apple Authorized Distributor", "invoice_number": "INV-2024-001", "payment_method": "Bank Transfer"}',
     2550000000.00,
@@ -169,9 +169,9 @@ INSERT INTO Import (SchemaJson, TotalAmount, Date, Description) VALUES
 );
 
 -- =============================================
--- PRODUCT_IMPORT
+-- PRODUCTS_IMPORTS
 -- =============================================
-INSERT INTO Product_Import (ImportId, ProductId, Quantity, TotalPrice) VALUES
+INSERT INTO ProductsImports (ImportId, ProductId, Quantity, TotalPrice) VALUES
 -- Import 1: Apple products
 (1, 1, 50, 1250000000.00),  -- iPhone 15 Pro Max x50
 (1, 3, 20, 900000000.00),   -- MacBook Pro x20

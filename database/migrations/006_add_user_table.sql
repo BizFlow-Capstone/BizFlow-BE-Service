@@ -1,12 +1,12 @@
 -- Migration: 006_add_user_table
--- Description: Add User table and relationships with Roles and UserLocationAssignment
+-- Description: Add Users table and relationships with Roles and UserLocationAssignments
 -- Date: 2026-01-31
 
 -- =============================================
--- USER TABLE (Application users)
+-- USERS TABLE (Application users)
 -- Medium data volume => UUID
 -- =============================================
-CREATE TABLE IF NOT EXISTS User (
+CREATE TABLE IF NOT EXISTS Users (
     UserId CHAR(36) NOT NULL PRIMARY KEY,
     Email VARCHAR(255) NOT NULL UNIQUE COMMENT 'User email (login)',
     PasswordHash VARCHAR(255) NOT NULL COMMENT 'Hashed password',
@@ -31,28 +31,28 @@ CREATE TABLE IF NOT EXISTS User (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
--- ADD FOREIGN KEY: UserLocationAssignment -> User
--- Link user assignments to the User table
+-- ADD FOREIGN KEY: UserLocationAssignments -> Users
+-- Link user assignments to the Users table
 -- =============================================
-ALTER TABLE UserLocationAssignment
+ALTER TABLE UserLocationAssignments
     ADD CONSTRAINT fk_user_location_assignment_user FOREIGN KEY (UserId) 
-        REFERENCES User(UserId) ON DELETE CASCADE ON UPDATE CASCADE;
+        REFERENCES Users(UserId) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- =============================================
--- ADD FOREIGN KEY: BusinessType -> User (CreatedById)
+-- ADD FOREIGN KEY: BusinessTypes -> Users (CreatedById)
 -- =============================================
-ALTER TABLE BusinessType
+ALTER TABLE BusinessTypes
     ADD CONSTRAINT fk_business_type_created_by FOREIGN KEY (CreatedById) 
-        REFERENCES User(UserId) ON DELETE SET NULL ON UPDATE CASCADE,
+        REFERENCES Users(UserId) ON DELETE SET NULL ON UPDATE CASCADE,
     ADD CONSTRAINT fk_business_type_modified_by FOREIGN KEY (ModifiedById) 
-        REFERENCES User(UserId) ON DELETE SET NULL ON UPDATE CASCADE;
+        REFERENCES Users(UserId) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- =============================================
--- ADD FOREIGN KEY: BusinessTypeTax -> User (CreatedById)
+-- ADD FOREIGN KEY: BusinessTypeTaxes -> Users (CreatedById)
 -- =============================================
-ALTER TABLE BusinessTypeTax
+ALTER TABLE BusinessTypeTaxes
     ADD CONSTRAINT fk_business_type_tax_created_by FOREIGN KEY (CreatedById) 
-        REFERENCES User(UserId) ON DELETE SET NULL ON UPDATE CASCADE;
+        REFERENCES Users(UserId) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Insert this migration
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 

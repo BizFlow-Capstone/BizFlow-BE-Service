@@ -22,7 +22,7 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<Guid>> GetHiredEmployeeIdsAsync(Guid ownerId)
         {
             return await _context.Hires
-                .Where(h => h.OwnerId == ownerId && h.IsActive)
+                .Where(h => h.OwnerId == ownerId && h.IsActive == true)
                 .Select(h => h.EmployeeId)
                 .ToListAsync();
         }

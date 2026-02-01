@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class SaleItem
@@ -11,9 +14,6 @@ public partial class SaleItem
     /// </summary>
     public string Unit { get; set; } = null!;
 
-    /// <summary>
-    /// Quantity
-    /// </summary>
     public int Quantity { get; set; }
 
     public virtual Product Product { get; set; } = null!;

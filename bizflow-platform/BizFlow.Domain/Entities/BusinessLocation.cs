@@ -20,7 +20,12 @@ public partial class BusinessLocation
     public bool? IsActive { get; set; }
 
     /// <summary>
-    /// Tax identification number
+    /// Soft delete flag
+    /// </summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Business tax code
     /// </summary>
     public string? TaxCode { get; set; }
 

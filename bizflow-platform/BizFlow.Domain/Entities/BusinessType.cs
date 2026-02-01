@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class BusinessType
@@ -10,6 +13,9 @@ public partial class BusinessType
 
     public string? Description { get; set; }
 
+    /// <summary>
+    /// active, inactive
+    /// </summary>
     public string Status { get; set; } = null!;
 
     public Guid? CreatedById { get; set; }

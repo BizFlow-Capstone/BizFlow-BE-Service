@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class Hire
@@ -15,9 +18,9 @@ public partial class Hire
     public Guid EmployeeId { get; set; }
 
     /// <summary>
-    /// Employment status
+    /// Hiring status
     /// </summary>
-    public bool IsActive { get; set; }
+    public bool? IsActive { get; set; }
 
     /// <summary>
     /// Start date of employment

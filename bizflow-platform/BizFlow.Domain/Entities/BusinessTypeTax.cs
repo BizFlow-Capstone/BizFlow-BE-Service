@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class BusinessTypeTax
@@ -16,7 +19,10 @@ public partial class BusinessTypeTax
     /// </summary>
     public decimal TaxRate { get; set; }
 
-    public bool CalculateOnPrice { get; set; }
+    /// <summary>
+    /// TRUE = calculate on price, FALSE = calculate on revenue
+    /// </summary>
+    public bool? CalculateOnPrice { get; set; }
 
     public DateOnly EffectiveFrom { get; set; }
 

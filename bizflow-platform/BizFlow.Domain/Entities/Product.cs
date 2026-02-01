@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BizFlow.Domain.Entities;
 
 public partial class Product
@@ -22,7 +25,7 @@ public partial class Product
     public decimal CostPrice { get; set; }
 
     /// <summary>
-    /// Stock quantity
+    /// Quantity in stock
     /// </summary>
     public int Stock { get; set; }
 
@@ -42,7 +45,7 @@ public partial class Product
 
     public virtual BusinessType BusinessType { get; set; } = null!;
 
-    public virtual ICollection<ProductImport> ProductImports { get; set; } = new List<ProductImport>();
+    public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
 }
