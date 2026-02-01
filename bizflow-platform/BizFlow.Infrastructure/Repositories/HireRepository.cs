@@ -14,37 +14,12 @@ namespace BizFlow.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<bool> IsEmployeeHiredByOwnerAsync(Guid ownerId, Guid employeeId)
-        {
-            return await _context.Hires
-                .AnyAsync(h => h.OwnerId == ownerId 
-                    && h.EmployeeId == employeeId 
-                    && h.IsActive);
-        }
-
         public async Task<IEnumerable<Guid>> GetHiredEmployeeIdsAsync(Guid ownerId)
         {
             return await _context.Hires
                 .Where(h => h.OwnerId == ownerId && h.IsActive)
                 .Select(h => h.EmployeeId)
                 .ToListAsync();
-        }
-
-        public async Task<Hire?> GetHireAsync(Guid ownerId, Guid employeeId)
-        {
-            return await _context.Hires
-                .FirstOrDefaultAsync(h => h.OwnerId == ownerId && h.EmployeeId == employeeId);
-        }
-
-        public async Task<Hire> AddAsync(Hire hire)
-        {
-            var entry = await _context.Hires.AddAsync(hire);
-            return entry.Entity;
-        }
-
-        public void Update(Hire hire)
-        {
-            _context.Hires.Update(hire);
         }
 
         public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
