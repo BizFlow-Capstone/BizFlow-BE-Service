@@ -79,7 +79,7 @@ namespace BizFlow.Api.Controllers.Location
         /// <summary>
         /// Updates location information (owner only)
         /// </summary>
-        [HttpPut("me/owned/{id:int}/update")]
+        [HttpPut("me/owned/{id:int}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

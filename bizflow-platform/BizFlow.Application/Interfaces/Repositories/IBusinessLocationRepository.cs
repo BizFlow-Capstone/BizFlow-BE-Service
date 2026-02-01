@@ -4,6 +4,8 @@ namespace BizFlow.Application.Interfaces.Repositories
 {
     public interface IBusinessLocationRepository
     {
+        // ============ Query Methods ============
+
         /// <summary>
         /// Get all locations owned by a user (is_owner = true)
         /// </summary>
@@ -39,9 +41,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId);
 
-        #endregion
-
-        #region Command Methods
+        // ============ Command Methods ============
 
         /// <summary>
         /// Add a new location
@@ -57,7 +57,5 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// Add user location assignment
         /// </summary>
         Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
-
-        #endregion
     }
 }

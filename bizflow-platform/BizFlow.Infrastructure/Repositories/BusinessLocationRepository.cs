@@ -99,7 +99,7 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId)
         {
             return await _context.UserLocationAssignments
-                .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive)
+                .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
                 .Select(ula => ula.UserId)
                 .ToListAsync();
         }

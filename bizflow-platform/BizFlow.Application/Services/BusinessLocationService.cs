@@ -106,12 +106,7 @@ namespace BizFlow.Application.Services
         /// </summary>
         public async Task<bool> UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive)
         {
-            // Check ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner)
-                return false;
-
-            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
             if (location == null)
                 return false;
 
@@ -127,12 +122,7 @@ namespace BizFlow.Application.Services
         /// </summary>
         public async Task<bool> UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request)
         {
-            // Check ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner)
-                return false;
-
-            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
             if (location == null)
                 return false;
 
@@ -156,6 +146,19 @@ namespace BizFlow.Application.Services
         #endregion
 
         #region Private Helper Methods
+
+        /// <summary>
+        /// Validates ownership and retrieves location
+        /// </summary>
+        /// <returns>Location if user is owner, null otherwise</returns>
+        private async Task<BusinessLocation?> ValidateOwnershipAndGetLocationAsync(Guid userId, int locationId)
+        {
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
+                return null;
+
+            return await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+        }
 
         /// <summary>
         /// Validates and assigns employees to a location
