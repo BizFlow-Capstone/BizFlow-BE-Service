@@ -19,7 +19,7 @@ public partial class BusinessTypeTax
     /// </summary>
     public decimal TaxRate { get; set; }
 
-    public bool? CalculateOnPrice { get; set; }
+    public bool CalculateOnPrice { get; set; }
 
     public DateOnly EffectiveFrom { get; set; }
 

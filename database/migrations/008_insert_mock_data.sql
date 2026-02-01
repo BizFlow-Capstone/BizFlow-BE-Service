@@ -9,18 +9,18 @@
 SET @user_role_id = (SELECT Id FROM Roles WHERE Name = 'user' LIMIT 1);
 
 -- OWNERS
-INSERT INTO User (user_id, email, password_hash, full_name, phone, tax_code, role_id, is_active, is_deleted, email_verified, created_at, updated_at) VALUES
+INSERT INTO User (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
 ('550e8400-e29b-41d4-a716-446655440001', 'shinkiriloveforever@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Shinkiri Love Forever', '0877725635', '1234567890', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440002', 'nganvhhse183096@fpt.edu.vn', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Vu Hoang Hieu Ngan', '0966288741', '9876543210', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW());
 
--- EMPLOYEES (nhân viên được thuê)
-INSERT INTO User (user_id, email, password_hash, full_name, phone, tax_code, role_id, is_active, is_deleted, email_verified, created_at, updated_at) VALUES
+-- EMPLOYEES
+INSERT INTO User (UserId, Email, PasswordHash, FullName, Phone, TaxCode, RoleId, IsActive, IsDeleted, EmailVerified, CreatedAt, UpdatedAt) VALUES
 ('550e8400-e29b-41d4-a716-446655440003', 'tranvana@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Tran Van A', '0901234567', '1111222233', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440004', 'nguyenthib@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Nguyen Thi B', '0912345678', '2222333344', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW()),
 ('550e8400-e29b-41d4-a716-446655440005', 'levanthanhc@gmail.com', '$2a$11$xQg.K8z6P8r6W8yZ1Y2Y2eJ8Z4Y5X6W7V8U9T0S1R2Q3P4O5N6M7L8', 'Le Van Thanh C', '0923456789', '3333444455', @user_role_id, TRUE, FALSE, TRUE, NOW(), NOW());
 
 -- =============================================
--- BUSINESS TYPES (Các loại hình kinh doanh)
+-- BUSINESS TYPES
 -- =============================================
 INSERT INTO BusinessType (BusinessTypeId, Code, Name, Description, Status, CreatedById, CreatedDate, LastModifiedDate) VALUES
 ('650e8400-e29b-41d4-a716-446655440001', 'RETAIL', 'Retail Store', 'Cửa hàng bán lẻ - Retail business', 'active', '550e8400-e29b-41d4-a716-446655440001', NOW(), NOW()),
@@ -29,7 +29,7 @@ INSERT INTO BusinessType (BusinessTypeId, Code, Name, Description, Status, Creat
 ('650e8400-e29b-41d4-a716-446655440004', 'BEAUTY', 'Beauty Salon', 'Salon làm đẹp', 'active', '550e8400-e29b-41d4-a716-446655440002', NOW(), NOW());
 
 -- =============================================
--- BUSINESS TYPE TAX (Thuế theo loại hình)
+-- BUSINESS TYPE TAX
 -- =============================================
 INSERT INTO BusinessTypeTax (BusinessTypeTaxId, BusinessTypeId, TaxType, TaxRate, CalculateOnPrice, EffectiveFrom, EffectiveTo, CreatedById, CreatedDate) VALUES
 -- VAT for Retail
@@ -44,9 +44,9 @@ INSERT INTO BusinessTypeTax (BusinessTypeTaxId, BusinessTypeId, TaxType, TaxRate
 ('750e8400-e29b-41d4-a716-446655440005', '650e8400-e29b-41d4-a716-446655440004', 'VAT', 10.00, TRUE, '2024-01-01', NULL, '550e8400-e29b-41d4-a716-446655440002', NOW());
 
 -- =============================================
--- BUSINESS LOCATIONS (Chi nhánh/cửa hàng)
+-- BUSINESS LOCATIONS
 -- =============================================
-INSERT INTO BusinessLocation (name, address, district, city, phone, is_active, tax_code) VALUES
+INSERT INTO BusinessLocation (Name, Address, District, City, Phone, IsActive, TaxCode) VALUES
 -- Shinkiri's locations (IDs: 1, 2)
 ('Shinkiri Tech Store - HCM', '123 Nguyen Hue Street, Ben Nghe Ward', 'District 1', 'Ho Chi Minh City', '0877725635', TRUE, 'TAX-SHINKIRI-001'),
 ('Shinkiri Tech Store - Hanoi', '456 Tran Hung Dao Street', 'Hoan Kiem', 'Hanoi', '0877725636', TRUE, 'TAX-SHINKIRI-002'),
@@ -55,9 +55,9 @@ INSERT INTO BusinessLocation (name, address, district, city, phone, is_active, t
 ('Ngan Beauty Salon', '234 Pasteur Street', 'District 1', 'Ho Chi Minh City', '0966288742', TRUE, 'TAX-NGAN-002');
 
 -- =============================================
--- USER LOCATION ASSIGNMENT (Phân công user)
+-- USER LOCATION ASSIGNMENT 
 -- =============================================
-INSERT INTO UserLocationAssignment (user_id, business_location_id, is_owner, is_active) VALUES
+INSERT INTO UserLocationAssignment (UserId, BusinessLocationId, IsOwner, IsActive) VALUES
 -- OWNERS: Shinkiri owns 2 tech stores
 ('550e8400-e29b-41d4-a716-446655440001', 1, TRUE, TRUE),
 ('550e8400-e29b-41d4-a716-446655440001', 2, TRUE, TRUE),
@@ -65,7 +65,7 @@ INSERT INTO UserLocationAssignment (user_id, business_location_id, is_owner, is_
 ('550e8400-e29b-41d4-a716-446655440002', 3, TRUE, TRUE),
 ('550e8400-e29b-41d4-a716-446655440002', 4, TRUE, TRUE),
 
--- EMPLOYEES: Staff hired to work at locations (is_owner = FALSE)
+-- EMPLOYEES: Staff hired to work at locations (IsOwner = FALSE)
 -- Tran Van A works at Shinkiri's HCM store (location_id: 1)
 ('550e8400-e29b-41d4-a716-446655440003', 1, FALSE, TRUE),
 -- Nguyen Thi B works at Ngan's Cafe (location_id: 3)
@@ -74,9 +74,9 @@ INSERT INTO UserLocationAssignment (user_id, business_location_id, is_owner, is_
 ('550e8400-e29b-41d4-a716-446655440005', 4, FALSE, TRUE);
 
 -- =============================================
--- PRODUCTS (Sản phẩm trong kho)
+-- PRODUCTS 
 -- =============================================
-INSERT INTO Product (business_location_id, BusinessTypeId, product_name, cost_price, stock, unit, manufacturer) VALUES
+INSERT INTO Product (BusinessLocationId, BusinessTypeId, ProductName, CostPrice, Stock, Unit, Manufacturer) VALUES
 -- Shinkiri's Tech Store HCM (location_id: 1) - Products
 (1, '650e8400-e29b-41d4-a716-446655440001', 'iPhone 15 Pro Max', 25000000.00, 50, 'Unit', 'Apple'),
 (1, '650e8400-e29b-41d4-a716-446655440001', 'Samsung Galaxy S24 Ultra', 22000000.00, 30, 'Unit', 'Samsung'),
@@ -95,9 +95,9 @@ INSERT INTO Product (business_location_id, BusinessTypeId, product_name, cost_pr
 (4, '650e8400-e29b-41d4-a716-446655440004', 'Face Mask Treatment', 500000.00, 30, 'Box', 'SK-II');
 
 -- =============================================
--- SALE ITEMS (Sản phẩm bán)
+-- SALE ITEMS 
 -- =============================================
-INSERT INTO SaleItem (product_id, unit, quantity) VALUES
+INSERT INTO SaleItem (ProductId, Unit, Quantity) VALUES
 -- Tech products
 (1, 'Unit', 1),
 (2, 'Unit', 1),
@@ -115,9 +115,9 @@ INSERT INTO SaleItem (product_id, unit, quantity) VALUES
 (12, 'Box', 1);
 
 -- =============================================
--- PRODUCT PRICE POLICY (Chính sách giá)
+-- PRODUCT PRICE POLICY 
 -- =============================================
-INSERT INTO ProductPricePolicy (sale_item_id, price, is_default, start_at, end_at) VALUES
+INSERT INTO ProductPricePolicy (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
 -- Tech Store - Regular prices
 (1, 30000000.00, TRUE, NOW(), NULL),  -- iPhone 15 Pro Max
 (2, 27000000.00, TRUE, NOW(), NULL),  -- Galaxy S24
@@ -135,14 +135,14 @@ INSERT INTO ProductPricePolicy (sale_item_id, price, is_default, start_at, end_a
 (12, 800000.00, TRUE, NOW(), NULL);   -- Face Mask
 
 -- Promotion prices (limited time)
-INSERT INTO ProductPricePolicy (sale_item_id, price, is_default, start_at, end_at) VALUES
+INSERT INTO ProductPricePolicy (SaleItemId, Price, IsDefault, StartAt, EndAt) VALUES
 (1, 28500000.00, FALSE, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY)),  -- iPhone promotion
 (7, 39000.00, FALSE, NOW(), DATE_ADD(NOW(), INTERVAL 14 DAY));    -- Cafe happy hour
 
 -- =============================================
--- IMPORTS (Phiếu nhập hàng)
+-- IMPORTS 
 -- =============================================
-INSERT INTO Import (schema_json, total_amount, date, Description) VALUES
+INSERT INTO Import (SchemaJson, TotalAmount, Date, Description) VALUES
 (
     '{"supplier": "Apple Authorized Distributor", "invoice_number": "INV-2024-001", "payment_method": "Bank Transfer"}',
     2550000000.00,
@@ -169,9 +169,9 @@ INSERT INTO Import (schema_json, total_amount, date, Description) VALUES
 );
 
 -- =============================================
--- PRODUCT_IMPORT (Chi tiết nhập hàng)
+-- PRODUCT_IMPORT
 -- =============================================
-INSERT INTO Product_Import (import_id, product_id, quantity, total_price) VALUES
+INSERT INTO Product_Import (ImportId, ProductId, Quantity, TotalPrice) VALUES
 -- Import 1: Apple products
 (1, 1, 50, 1250000000.00),  -- iPhone 15 Pro Max x50
 (1, 3, 20, 900000000.00),   -- MacBook Pro x20

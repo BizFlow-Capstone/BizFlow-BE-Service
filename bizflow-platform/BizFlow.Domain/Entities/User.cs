@@ -45,7 +45,7 @@ public partial class User
     /// <summary>
     /// Account status
     /// </summary>
-    public bool? IsActive { get; set; }
+    public bool IsActive { get; set; }
 
     /// <summary>
     /// Soft delete flag
@@ -71,6 +71,10 @@ public partial class User
     public virtual ICollection<BusinessType> BusinessTypeModifiedBies { get; set; } = new List<BusinessType>();
 
     public virtual ICollection<BusinessTypeTax> BusinessTypeTaxes { get; set; } = new List<BusinessTypeTax>();
+
+    public virtual ICollection<Hire> HireEmployees { get; set; } = new List<Hire>();
+
+    public virtual ICollection<Hire> HireOwners { get; set; } = new List<Hire>();
 
     public virtual Role Role { get; set; } = null!;
 

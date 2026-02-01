@@ -1,0 +1,38 @@
+using System;
+using System.Collections.Generic;
+
+namespace BizFlow.Domain.Entities;
+
+public partial class Hire
+{
+    public int HireId { get; set; }
+
+    /// <summary>
+    /// Owner who hired the employee
+    /// </summary>
+    public Guid OwnerId { get; set; }
+
+    /// <summary>
+    /// Employee being hired
+    /// </summary>
+    public Guid EmployeeId { get; set; }
+
+    /// <summary>
+    /// Employment status
+    /// </summary>
+    public bool IsActive { get; set; }
+
+    /// <summary>
+    /// Start date of employment
+    /// </summary>
+    public DateTime StartAt { get; set; }
+
+    /// <summary>
+    /// End date of employment (NULL if still active)
+    /// </summary>
+    public DateTime? EndAt { get; set; }
+
+    public virtual User Employee { get; set; } = null!;
+
+    public virtual User Owner { get; set; } = null!;
+}

@@ -49,17 +49,17 @@ CREATE TABLE IF NOT EXISTS BusinessTypeTax (
 -- Medium data volume => UUID
 -- =============================================
 CREATE TABLE IF NOT EXISTS BusinessLocation (
-    business_location_id CHAR(36) NOT NULL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL COMMENT 'Location/store name',
-    address TEXT NOT NULL,
-    district VARCHAR(100) DEFAULT NULL,
-    city VARCHAR(100) DEFAULT NULL,
-    phone VARCHAR(20) DEFAULT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    tax_code VARCHAR(50) DEFAULT NULL COMMENT 'Tax identification number',
-    INDEX idx_business_location_name (name),
-    INDEX idx_business_location_is_active (is_active),
-    INDEX idx_business_location_city (city)
+    BusinessLocationId CHAR(36) NOT NULL PRIMARY KEY,
+    Name VARCHAR(255) NOT NULL COMMENT 'Location/store name',
+    Address TEXT NOT NULL,
+    District VARCHAR(100) DEFAULT NULL,
+    City VARCHAR(100) DEFAULT NULL,
+    Phone VARCHAR(20) DEFAULT NULL,
+    IsActive BOOLEAN NOT NULL DEFAULT TRUE,
+    TaxCode VARCHAR(50) DEFAULT NULL COMMENT 'Tax identification number',
+    INDEX idx_business_location_name (Name),
+    INDEX idx_business_location_is_active (IsActive),
+    INDEX idx_business_location_city (City)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -68,16 +68,16 @@ CREATE TABLE IF NOT EXISTS BusinessLocation (
 -- Medium data volume => UUID
 -- =============================================
 CREATE TABLE IF NOT EXISTS UserLocationAssignment (
-    user_location_assignment_id CHAR(36) NOT NULL PRIMARY KEY,
-    user_id CHAR(36) NOT NULL COMMENT 'Assigned user',
-    business_location_id CHAR(36) NOT NULL COMMENT 'Assigned location',
-    is_owner BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Is the owner of this location',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_user_location_assignment_location FOREIGN KEY (business_location_id) 
-        REFERENCES BusinessLocation(business_location_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX idx_user_location_assignment_user (user_id),
-    INDEX idx_user_location_assignment_location (business_location_id),
-    UNIQUE INDEX idx_user_location_unique (user_id, business_location_id)
+    UserLocationAssignmentId CHAR(36) NOT NULL PRIMARY KEY,
+    UserId CHAR(36) NOT NULL COMMENT 'Assigned user',
+    BusinessLocationId CHAR(36) NOT NULL COMMENT 'Assigned location',
+    IsOwner BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Is the owner of this location',
+    IsActive BOOLEAN NOT NULL DEFAULT TRUE,
+    CONSTRAINT fk_user_location_assignment_location FOREIGN KEY (BusinessLocationId) 
+        REFERENCES BusinessLocation(BusinessLocationId) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_user_location_assignment_user (UserId),
+    INDEX idx_user_location_assignment_location (BusinessLocationId),
+    UNIQUE INDEX idx_user_location_unique (UserId, BusinessLocationId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -86,23 +86,23 @@ CREATE TABLE IF NOT EXISTS UserLocationAssignment (
 -- High data volume => BIGINT AUTO_INCREMENT
 -- =============================================
 CREATE TABLE IF NOT EXISTS Product (
-    product_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    business_location_id CHAR(36) NOT NULL COMMENT 'Warehouse/location of product',
+    ProductId BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    BusinessLocationId CHAR(36) NOT NULL COMMENT 'Warehouse/location of product',
     BusinessTypeId CHAR(36) NOT NULL COMMENT 'Business type category',
-    product_name VARCHAR(255) NOT NULL,
-    cost_price DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Cost price',
-    stock INT NOT NULL DEFAULT 0 COMMENT 'Stock quantity',
-    unit VARCHAR(50) NOT NULL DEFAULT 'Unit' COMMENT 'Unit of measurement',
-    image_url VARCHAR(500) DEFAULT NULL,
-    manufacturer VARCHAR(255) DEFAULT NULL COMMENT 'Manufacturer name',
-    CONSTRAINT fk_product_business_location FOREIGN KEY (business_location_id) 
-        REFERENCES BusinessLocation(business_location_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    ProductName VARCHAR(255) NOT NULL,
+    CostPrice DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Cost price',
+    Stock INT NOT NULL DEFAULT 0 COMMENT 'Stock quantity',
+    Unit VARCHAR(50) NOT NULL DEFAULT 'Unit' COMMENT 'Unit of measurement',
+    ImageUrl VARCHAR(500) DEFAULT NULL,
+    Manufacturer VARCHAR(255) DEFAULT NULL COMMENT 'Manufacturer name',
+    CONSTRAINT fk_product_business_location FOREIGN KEY (BusinessLocationId) 
+        REFERENCES BusinessLocation(BusinessLocationId) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_product_business_type FOREIGN KEY (BusinessTypeId) 
         REFERENCES BusinessType(BusinessTypeId) ON DELETE RESTRICT ON UPDATE CASCADE,
-    INDEX idx_product_business_location (business_location_id),
+    INDEX idx_product_business_location (BusinessLocationId),
     INDEX idx_product_business_type (BusinessTypeId),
-    INDEX idx_product_name (product_name),
-    INDEX idx_product_manufacturer (manufacturer)
+    INDEX idx_product_name (ProductName),
+    INDEX idx_product_manufacturer (Manufacturer)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -110,13 +110,13 @@ CREATE TABLE IF NOT EXISTS Product (
 -- High data volume => BIGINT AUTO_INCREMENT
 -- =============================================
 CREATE TABLE IF NOT EXISTS SaleItem (
-    sale_item_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    product_id BIGINT NOT NULL,
-    unit VARCHAR(50) NOT NULL DEFAULT 'Unit' COMMENT 'Unit of measurement',
-    quantity INT NOT NULL DEFAULT 1 COMMENT 'Quantity',
-    CONSTRAINT fk_sale_item_product FOREIGN KEY (product_id) 
-        REFERENCES Product(product_id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    INDEX idx_sale_item_product (product_id)
+    SaleItemId BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    ProductId BIGINT NOT NULL,
+    Unit VARCHAR(50) NOT NULL DEFAULT 'Unit' COMMENT 'Unit of measurement',
+    Quantity INT NOT NULL DEFAULT 1 COMMENT 'Quantity',
+    CONSTRAINT fk_sale_item_product FOREIGN KEY (ProductId) 
+        REFERENCES Product(ProductId) ON DELETE RESTRICT ON UPDATE CASCADE,
+    INDEX idx_sale_item_product (ProductId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -125,17 +125,17 @@ CREATE TABLE IF NOT EXISTS SaleItem (
 -- High data volume => BIGINT AUTO_INCREMENT
 -- =============================================
 CREATE TABLE IF NOT EXISTS ProductPricePolicy (
-    product_price_policy_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    sale_item_id BIGINT NOT NULL,
-    price DECIMAL(15,2) NOT NULL COMMENT 'Applied price',
-    is_default BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Is default price',
-    start_at DATETIME DEFAULT NULL,
-    end_at DATETIME DEFAULT NULL,
-    CONSTRAINT fk_product_price_policy_sale_item FOREIGN KEY (sale_item_id) 
-        REFERENCES SaleItem(sale_item_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX idx_price_policy_sale_item (sale_item_id),
-    INDEX idx_price_policy_is_default (is_default),
-    INDEX idx_price_policy_date_range (start_at, end_at)
+    ProductPricePolicyId BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    SaleItemId BIGINT NOT NULL,
+    Price DECIMAL(15,2) NOT NULL COMMENT 'Applied price',
+    IsDefault BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Is default price',
+    StartAt DATETIME DEFAULT NULL,
+    EndAt DATETIME DEFAULT NULL,
+    CONSTRAINT fk_product_price_policy_sale_item FOREIGN KEY (SaleItemId) 
+        REFERENCES SaleItem(SaleItemId) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_price_policy_sale_item (SaleItemId),
+    INDEX idx_price_policy_is_default (IsDefault),
+    INDEX idx_price_policy_date_range (StartAt, EndAt)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -144,13 +144,13 @@ CREATE TABLE IF NOT EXISTS ProductPricePolicy (
 -- High data volume => BIGINT AUTO_INCREMENT
 -- =============================================
 CREATE TABLE IF NOT EXISTS Import (
-    import_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    schema_json JSON DEFAULT NULL COMMENT 'Import data schema',
-    total_amount DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total amount',
-    date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Import date',
-    import_image VARCHAR(500) DEFAULT NULL COMMENT 'Import receipt image',
+    ImportId BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    SchemaJson JSON DEFAULT NULL COMMENT 'Import data schema',
+    TotalAmount DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total amount',
+    Date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Import date',
+    ImportImage VARCHAR(500) DEFAULT NULL COMMENT 'Import receipt image',
     Description TEXT,
-    INDEX idx_import_date (date)
+    INDEX idx_import_date (Date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
@@ -158,16 +158,16 @@ CREATE TABLE IF NOT EXISTS Import (
 -- High data volume => Composite Primary Key
 -- =============================================
 CREATE TABLE IF NOT EXISTS Product_Import (
-    import_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
-    quantity INT NOT NULL DEFAULT 0 COMMENT 'Import quantity',
-    total_price DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total price',
-    PRIMARY KEY (import_id, product_id),
-    CONSTRAINT fk_product_import_import FOREIGN KEY (import_id) 
-        REFERENCES Import(import_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_product_import_product FOREIGN KEY (product_id) 
-        REFERENCES Product(product_id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    INDEX idx_product_import_product (product_id)
+    ImportId BIGINT NOT NULL,
+    ProductId BIGINT NOT NULL,
+    Quantity INT NOT NULL DEFAULT 0 COMMENT 'Import quantity',
+    TotalPrice DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total price',
+    PRIMARY KEY (ImportId, ProductId),
+    CONSTRAINT fk_product_import_import FOREIGN KEY (ImportId) 
+        REFERENCES Import(ImportId) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_product_import_product FOREIGN KEY (ProductId) 
+        REFERENCES Product(ProductId) ON DELETE RESTRICT ON UPDATE CASCADE,
+    INDEX idx_product_import_product (ProductId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert this migration
