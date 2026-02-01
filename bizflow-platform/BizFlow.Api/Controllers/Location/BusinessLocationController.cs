@@ -17,7 +17,8 @@ namespace BizFlow.Api.Controllers.Location
 
         // TODO: Replace with actual user service when authentication is implemented
         // Mock user ID for testing (Shinkiri from mock data)
-        private static readonly Guid MockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
+        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
+        private static readonly Guid _employeeId = Guid.Parse("550e8400-e29b-41d4-a716-446655440003");
 
         public BusinessLocationController(
             IBusinessLocationService locationService,
@@ -35,7 +36,7 @@ namespace BizFlow.Api.Controllers.Location
         {
             // TODO: Get from JWT claims when auth is implemented
             // return Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "");
-            return MockCurrentUserId;
+            return _mockCurrentUserId;
         }
 
         #region Owner APIs
@@ -146,7 +147,8 @@ namespace BizFlow.Api.Controllers.Location
         {
             try
             {
-                var userId = GetCurrentUserId();
+                //var userId = GetCurrentUserId();
+                var userId = _employeeId;
                 var locations = await _locationService.GetWorkLocationsAsync(userId);
                 return Ok(locations, MessageKeys.LocationsRetrievedSuccessfully);
             }

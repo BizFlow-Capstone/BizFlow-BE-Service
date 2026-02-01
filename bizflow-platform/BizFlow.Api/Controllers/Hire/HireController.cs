@@ -27,6 +27,16 @@ namespace BizFlow.Api.Controllers
         }
 
         /// <summary>
+        /// Get current user ID (mock for now)
+        /// </summary>
+        private Guid GetCurrentUserId()
+        {
+            // TODO: Get from JWT claims when auth is implemented
+            // return Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "");
+            return _mockCurrentUserId;
+        }
+
+        /// <summary>
         /// Get all employees hired by the current user (owner)
         /// </summary>
         /// <returns>List of hired employees</returns>
@@ -36,7 +46,8 @@ namespace BizFlow.Api.Controllers
         {
             try
             {
-                var employees = await _hireService.GetHiredEmployeesAsync(_mockCurrentUserId);
+                var employees = await _hireService.GetHiredEmployeesAsync(GetCurrentUserId());
+
                 return Ok(employees, MessageKeys.HireEmployeesRetrievedSuccessfully);
             }
             catch (Exception ex)

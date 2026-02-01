@@ -33,9 +33,9 @@ namespace BizFlow.Infrastructure.Repositories
                 .Select(x => new
                 {
                     Hire = x.hire,
-                    FullName = x.user.FullName,
-                    Email = x.user.Email,
-                    Phone = x.user.Phone
+                    x.user.FullName,
+                    x.user.Email,
+                    x.user.Phone
                 })
                 .ToListAsync();
 
