@@ -14,6 +14,11 @@ namespace BizFlow.Infrastructure.Repositories
             _context = context;
         }
 
+        #region Query Methods
+
+        /// <summary>
+        /// Gets active hired employee IDs for an owner
+        /// </summary>
         public async Task<IEnumerable<Guid>> GetHiredEmployeeIdsAsync(Guid ownerId)
         {
             return await _context.Hires
@@ -22,6 +27,9 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Gets hired employees with user details (name, email, phone)
+        /// </summary>
         public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
         {
             var result = await _context.Hires
@@ -41,5 +49,7 @@ namespace BizFlow.Infrastructure.Repositories
 
             return result.Select(x => (x.Hire, x.FullName, x.Email, x.Phone));
         }
+
+        #endregion
     }
 }

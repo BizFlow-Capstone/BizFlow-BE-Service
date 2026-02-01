@@ -14,6 +14,11 @@ namespace BizFlow.Application.Services
             _unitOfWork = unitOfWork;
         }
 
+        #region Query Methods
+
+        /// <summary>
+        /// Gets all hired employees for an owner with details
+        /// </summary>
         public async Task<IEnumerable<HiredEmployeeDto>> GetHiredEmployeesAsync(Guid ownerId)
         {
             var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
@@ -21,6 +26,13 @@ namespace BizFlow.Application.Services
             return employees.Select(e => HireMapper.ToDto(e.hire, e.fullName, e.email, e.phone));
         }
 
+        #endregion
+
+        #region Validation Methods
+
+        /// <summary>
+        /// Validates which employees are hired and available for assignment
+        /// </summary>
         public async Task<EmployeeValidationResult> ValidateEmployeesForAssignmentAsync(Guid ownerId, IEnumerable<Guid> employeeIds)
         {
             var result = new EmployeeValidationResult();
@@ -46,5 +58,7 @@ namespace BizFlow.Application.Services
 
             return result;
         }
+
+        #endregion
     }
 }

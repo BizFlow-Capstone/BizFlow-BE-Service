@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BizFlow.Api.Controllers
 {
     /// <summary>
-    /// Controller for managing employee hiring
+    /// Manages employee hiring operations
     /// </summary>
     [Route("api/hire")]
     public class HireController : BaseApiController
@@ -26,34 +26,33 @@ namespace BizFlow.Api.Controllers
             _hireService = hireService;
         }
 
-        /// <summary>
-        /// Get current user ID (mock for now)
-        /// </summary>
-        private Guid GetCurrentUserId()
-        {
-            // TODO: Get from JWT claims when auth is implemented
-            // return Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "");
-            return _mockCurrentUserId;
-        }
+        #region API Endpoints
 
         /// <summary>
-        /// Get all employees hired by the current user (owner)
+        /// Gets all employees hired by current user
         /// </summary>
-        /// <returns>List of hired employees</returns>
         [HttpGet("me/employees")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployees()
         {
-            try
-            {
-                var employees = await _hireService.GetHiredEmployeesAsync(GetCurrentUserId());
-
-                return Ok(employees, MessageKeys.HireEmployeesRetrievedSuccessfully);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            var employees = await _hireService.GetHiredEmployeesAsync(GetCurrentUserId());
+            return Ok(employees, MessageKeys.HireEmployeesRetrievedSuccessfully);
         }
+
+        #endregion
+
+        #region Private Helper Methods
+
+        /// <summary>
+        /// Gets current user ID (mock implementation)
+        /// TODO: Replace with JWT claims when auth is implemented
+        /// </summary>
+        private Guid GetCurrentUserId()
+        {
+            // return Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "");
+            return _mockCurrentUserId;
+        }
+
+        #endregion
     }
 }

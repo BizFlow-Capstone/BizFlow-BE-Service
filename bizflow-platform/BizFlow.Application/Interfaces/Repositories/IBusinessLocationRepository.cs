@@ -30,6 +30,20 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<bool> IsOwnerOfLocationAsync(Guid userId, int locationId);
 
         /// <summary>
+        /// Checks if location name already exists for an owner
+        /// </summary>
+        Task<bool> IsExistedByNameAsync(Guid userId, string locationName);
+
+        /// <summary>
+        /// Gets employee IDs already assigned to a location
+        /// </summary>
+        Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId);
+
+        #endregion
+
+        #region Command Methods
+
+        /// <summary>
         /// Add a new location
         /// </summary>
         Task<BusinessLocation> AddAsync(BusinessLocation location);
@@ -43,5 +57,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// Add user location assignment
         /// </summary>
         Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
+
+        #endregion
     }
 }

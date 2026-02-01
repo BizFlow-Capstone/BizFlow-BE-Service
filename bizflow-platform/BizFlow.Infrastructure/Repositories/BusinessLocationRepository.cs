@@ -14,6 +14,11 @@ namespace BizFlow.Infrastructure.Repositories
             _context = context;
         }
 
+        #region Query Methods
+
+        /// <summary>
+        /// Gets all locations owned by a user (IsOwner = true)
+        /// </summary>
         public async Task<IEnumerable<BusinessLocation>> GetOwnedByUserIdAsync(Guid userId)
         {
             return await _context.UserLocationAssignments
@@ -22,6 +27,9 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Gets all locations where user works (IsOwner = false)
+        /// </summary>
         public async Task<IEnumerable<BusinessLocation>> GetWorkLocationsByUserIdAsync(Guid userId)
         {
             return await _context.UserLocationAssignments
@@ -30,11 +38,17 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Gets a location by ID
+        /// </summary>
         public async Task<BusinessLocation?> GetByIdAsync(int id)
         {
             return await _context.BusinessLocations.FindAsync(id);
         }
 
+        /// <summary>
+        /// Gets a location by ID with owner's full name
+        /// </summary>
         public async Task<(BusinessLocation? Location, string? OwnerName)> GetByIdWithOwnerAsync(int id)
         {
             var result = await (
@@ -53,6 +67,9 @@ namespace BizFlow.Infrastructure.Repositories
                 : (result.Location, result.OwnerName);
         }
 
+        /// <summary>
+        /// Checks if user is owner of a location
+        /// </summary>
         public async Task<bool> IsOwnerOfLocationAsync(Guid userId, int locationId)
         {
             return await _context.UserLocationAssignments
@@ -62,20 +79,60 @@ namespace BizFlow.Infrastructure.Repositories
                     ula.IsOwner);
         }
 
+        /// <summary>
+        /// Checks if location name already exists for an owner
+        /// </summary>
+        public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.UserId == userId && ula.IsOwner)
+                .Join(_context.BusinessLocations,
+                    ula => ula.BusinessLocationId,
+                    loc => loc.BusinessLocationId,
+                    (ula, loc) => loc)
+                .AnyAsync(loc => loc.Name == locationName);
+        }
+
+        /// <summary>
+        /// Gets employee IDs already assigned to a location
+        /// </summary>
+        public async Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive)
+                .Select(ula => ula.UserId)
+                .ToListAsync();
+        }
+
+        #endregion
+
+        #region Command Methods
+
+        /// <summary>
+        /// Adds a new location to database
+        /// </summary>
         public async Task<BusinessLocation> AddAsync(BusinessLocation location)
         {
             var entry = await _context.BusinessLocations.AddAsync(location);
             return entry.Entity;
         }
 
+        /// <summary>
+        /// Updates an existing location
+        /// </summary>
         public void Update(BusinessLocation location)
         {
             _context.BusinessLocations.Update(location);
         }
 
+        /// <summary>
+        /// Adds user-location assignment (owner or employee)
+        /// </summary>
         public async Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment)
         {
             await _context.UserLocationAssignments.AddAsync(assignment);
         }
+
+        #endregion
     }
 }

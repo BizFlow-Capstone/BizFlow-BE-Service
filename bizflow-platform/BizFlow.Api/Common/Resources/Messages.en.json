@@ -43,5 +43,6 @@
   "LOCATION_ACCESS_DENIED": "You don't have permission to manage this location",
   "LOCATION_ALREADY_EXISTS": "A location with this name already exists",
   "HIRE_EMPLOYEES_RETRIEVED": "Hired employees retrieved successfully",
-  "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first."
+  "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first.",
+  "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Some employees are already assigned to this location."
 }
