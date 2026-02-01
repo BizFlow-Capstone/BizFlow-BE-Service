@@ -11,13 +11,19 @@ namespace BizFlow.Infrastructure.Repositories
         private IDbContextTransaction? _transaction;
 
         public UnitOfWork(BizFlowDbContext dbContext,
-            IRoleRepository roleRepository)
+            IRoleRepository roleRepository,
+            IBusinessLocationRepository businessLocationRepository,
+            IHireRepository hireRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
+            BusinessLocations = businessLocationRepository;
+            Hires = hireRepository;
         }
 
         public IRoleRepository Roles { get; set; }
+        public IBusinessLocationRepository BusinessLocations { get; set; }
+        public IHireRepository Hires { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

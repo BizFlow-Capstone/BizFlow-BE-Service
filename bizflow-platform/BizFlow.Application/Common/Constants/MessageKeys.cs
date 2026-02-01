@@ -53,5 +53,21 @@ namespace BizFlow.Application.Common.Constants
         public const string UsernameAlreadyExists = "USER_USERNAME_EXISTS";
         public const string InvalidEmailFormat = "USER_INVALID_EMAIL";
         public const string PasswordTooWeak = "USER_PASSWORD_WEAK";
+
+        // ============ BUSINESS LOCATION ============
+        public const string LocationNotFound = "LOCATION_NOT_FOUND";
+        public const string LocationCreatedSuccessfully = "LOCATION_CREATED";
+        public const string LocationUpdatedSuccessfully = "LOCATION_UPDATED";
+        public const string LocationDeletedSuccessfully = "LOCATION_DELETED";
+        public const string LocationsRetrievedSuccessfully = "LOCATION_RETRIEVED";
+        public const string LocationStatusUpdated = "LOCATION_STATUS_UPDATED";
+        public const string LocationAccessDenied = "LOCATION_ACCESS_DENIED";
+        public const string LocationAlreadyExists = "LOCATION_ALREADY_EXISTS";
+
+        // ============ HIRE ============
+        public const string HireEmployeesRetrievedSuccessfully = "HIRE_EMPLOYEES_RETRIEVED";
+        public const string HireCreatedSuccessfully = "HIRE_CREATED";
+        public const string HireNotFound = "HIRE_NOT_FOUND";
+        public const string EmployeeAlreadyHired = "HIRE_EMPLOYEE_ALREADY_HIRED";
     }
 }

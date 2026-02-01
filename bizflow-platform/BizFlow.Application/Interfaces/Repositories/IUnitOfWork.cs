@@ -9,6 +9,8 @@ namespace BizFlow.Application.Interfaces.Repositories
     public interface IUnitOfWork : IAsyncDisposable
     {
         IRoleRepository Roles { get; }
+        IBusinessLocationRepository BusinessLocations { get; }
+        IHireRepository Hires { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

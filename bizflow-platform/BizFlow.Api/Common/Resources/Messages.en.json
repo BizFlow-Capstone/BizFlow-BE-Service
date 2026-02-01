@@ -11,14 +11,12 @@
   "COMMON_DATA_CREATED": "Data created successfully",
   "COMMON_DATA_UPDATED": "Data updated successfully",
   "COMMON_DATA_DELETED": "Data deleted successfully",
-
   "AUTH_LOGIN_SUCCESS": "Login successful",
   "AUTH_LOGIN_FAILED": "Login failed",
   "AUTH_LOGOUT_SUCCESS": "Logout successful",
   "AUTH_TOKEN_EXPIRED": "Session has expired",
   "AUTH_INVALID_TOKEN": "Invalid token",
   "AUTH_INVALID_CREDENTIALS": "Invalid email or password",
-
   "ROLE_NOT_FOUND": "Role with ID {0} not found",
   "ROLE_ALREADY_EXISTS": "Role '{0}' already exists",
   "ROLE_CREATED": "Role created successfully",
@@ -26,7 +24,6 @@
   "ROLE_DELETED": "Role deleted successfully",
   "ROLE_RETRIEVED": "Roles retrieved successfully",
   "ROLE_NAME_REQUIRED": "Role name is required",
-
   "USER_NOT_FOUND": "User not found",
   "USER_ALREADY_EXISTS": "User already exists",
   "USER_CREATED": "User created successfully",
@@ -36,5 +33,13 @@
   "USER_EMAIL_EXISTS": "Email is already in use",
   "USER_USERNAME_EXISTS": "Username is already taken",
   "USER_INVALID_EMAIL": "Invalid email format",
-  "USER_PASSWORD_WEAK": "Password must be at least 8 characters"
+  "USER_PASSWORD_WEAK": "Password must be at least 8 characters",
+  "LOCATION_NOT_FOUND": "Business location not found",
+  "LOCATION_CREATED": "Business location created successfully",
+  "LOCATION_UPDATED": "Business location updated successfully",
+  "LOCATION_DELETED": "Business location deleted successfully",
+  "LOCATION_RETRIEVED": "Business locations retrieved successfully",
+  "LOCATION_STATUS_UPDATED": "Location status updated successfully",
+  "LOCATION_ACCESS_DENIED": "You don't have permission to manage this location",
+  "LOCATION_ALREADY_EXISTS": "A location with this name already exists"
 }
