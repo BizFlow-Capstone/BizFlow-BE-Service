@@ -251,6 +251,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ProductName, "idx_product_name");
 
+            entity.HasIndex(e => e.Sku, "idx_product_sku");
+
             entity.HasIndex(e => e.Status, "idx_product_status");
 
             entity.Property(e => e.BusinessLocationId).HasComment("Warehouse/location of product");
@@ -261,11 +263,13 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
             entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
+            entity.Property(e => e.Sku)
+                .HasMaxLength(100)
+                .HasComment("Stock Keeping Unit code");
             entity.Property(e => e.Status)
                 .HasDefaultValueSql("'active'")
                 .HasComment("Product sale status")
-                .HasColumnType("enum('active','inactive','discontinued')")
-                .HasColumnName("status");
+                .HasColumnType("enum('active','inactive','discontinued')");
             entity.Property(e => e.Stock).HasComment("Quantity in stock");
             entity.Property(e => e.TrackInventory)
                 .IsRequired()

@@ -20,6 +20,11 @@ public partial class Product
     public string ProductName { get; set; } = null!;
 
     /// <summary>
+    /// Stock Keeping Unit code
+    /// </summary>
+    public string? Sku { get; set; }
+
+    /// <summary>
     /// Cost price
     /// </summary>
     public decimal CostPrice { get; set; }
