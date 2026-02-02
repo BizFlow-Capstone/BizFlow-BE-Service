@@ -17,29 +17,22 @@ namespace BizFlow.Application.Services
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<PaginatedResponse<ProductListItemDto>> GetProductsAsync(
-            Guid userId, int locationId, int pageNumber, int pageSize)
+        public async Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
         {
             // Validate ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, query.LocationId);
             if (!isOwner)
             {
                 throw new ForbiddenException(MessageKeys.LocationAccessDenied);
             }
 
-            var (products, totalCount) = await _unitOfWork.Products.GetByLocationIdAsync(
-                locationId, pageNumber, pageSize);
+            var (products, totalCount) = await _unitOfWork.Products.SearchAsync(query);
 
-            var items = products.Select(p => new ProductListItemDto
-            {
-                ProductId = p.ProductId,
-                Name = p.ProductName,
-                Sku = p.Sku,
-                Price = GetDefaultPrice(p),
-                TrackInventory = p.TrackInventory ?? true,
-                Stock = (p.TrackInventory ?? true) ? p.Stock : null,
-                Status = p.Status
-            });
+            var items = products.Select(MapToListItemDto);
+
+            // Use values with fallback (should be set by controller)
+            var pageNumber = query.PageNumber ?? 1;
+            var pageSize = query.PageSize ?? 10;
 
             return new PaginatedResponse<ProductListItemDto>(items, totalCount, pageNumber, pageSize);
         }
@@ -165,7 +158,45 @@ namespace BizFlow.Application.Services
             return true;
         }
 
+        public async Task<bool> DeleteProductAsync(Guid userId, long productId)
+        {
+            var product = await _unitOfWork.Products.GetByIdAsync(productId);
+            if (product == null)
+            {
+                throw new NotFoundException(MessageKeys.ProductNotFound);
+            }
+
+            // Validate ownership
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
+            if (!isOwner)
+            {
+                return false;
+            }
+
+            // TODO: Check if product can be deleted (no sale history, no imports, etc.)
+            // For now, soft delete the product
+            product.IsDeleted = true;
+            _unitOfWork.Products.Update(product);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        }
+
         #region Private Helpers
+
+        private ProductListItemDto MapToListItemDto(Product product)
+        {
+            return new ProductListItemDto
+            {
+                ProductId = product.ProductId,
+                Name = product.ProductName,
+                Sku = product.Sku,
+                Price = GetDefaultPrice(product),
+                TrackInventory = product.TrackInventory ?? true,
+                Stock = (product.TrackInventory ?? true) ? product.Stock : null,
+                Status = product.Status
+            };
+        }
 
         /// <summary>
         /// Gets default price from sale item with unit matching product's base unit
@@ -188,3 +219,4 @@ namespace BizFlow.Application.Services
         #endregion
     }
 }
+

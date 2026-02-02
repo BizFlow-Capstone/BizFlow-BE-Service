@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Product;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Interfaces.Repositories
@@ -7,10 +8,9 @@ namespace BizFlow.Application.Interfaces.Repositories
         // ============ Query Methods ============
 
         /// <summary>
-        /// Get products by location with pagination
+        /// Get products with search, filter, and pagination
         /// </summary>
-        Task<(IEnumerable<Product> Items, int TotalCount)> GetByLocationIdAsync(
-            int locationId, int pageNumber, int pageSize);
+        Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query);
 
         /// <summary>
         /// Get product by ID

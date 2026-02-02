@@ -44,6 +44,7 @@ var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<GoogleAuthConfig>(builder.Configuration.GetSection("GoogleAuth"));
+builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(PaginationSettings.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {

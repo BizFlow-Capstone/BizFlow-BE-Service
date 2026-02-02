@@ -50,5 +50,6 @@
   "PRODUCT_RETRIEVED": "Lấy danh sách sản phẩm thành công",
   "PRODUCT_CREATED": "Tạo sản phẩm thành công",
   "PRODUCT_STATUS_UPDATED": "Cập nhật trạng thái sản phẩm thành công",
-  "PRODUCT_ACCESS_DENIED": "Bạn không có quyền quản lý sản phẩm này"
+  "PRODUCT_ACCESS_DENIED": "Bạn không có quyền quản lý sản phẩm này",
+  "PRODUCT_DELETED": "Xóa sản phẩm thành công"
 }

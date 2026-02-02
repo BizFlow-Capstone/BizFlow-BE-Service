@@ -1,9 +1,11 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
+using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace BizFlow.Api.Controllers.Product
@@ -15,6 +17,7 @@ namespace BizFlow.Api.Controllers.Product
     public class ProductController : BaseApiController
     {
         private readonly IProductService _productService;
+        private readonly PaginationSettings _paginationSettings;
 
         // TODO: Replace with actual JWT-based user identification
         private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
@@ -22,28 +25,30 @@ namespace BizFlow.Api.Controllers.Product
         public ProductController(
             IProductService productService,
             IMessageService messageService,
+            IOptions<PaginationSettings> paginationSettings,
             ILogger<ProductController> logger)
             : base(messageService, logger)
         {
             _productService = productService;
+            _paginationSettings = paginationSettings.Value;
         }
 
         #region Product APIs
 
         /// <summary>
-        /// Get all products by location with pagination
+        /// Search and filter products with pagination
         /// </summary>
         [HttpGet("products")]
-        [SwaggerOperation(Summary = "Get product list with pagination")]
+        [SwaggerOperation(Summary = "Search/filter products with pagination")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetProducts(
-            [FromQuery] int locationId,
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParams query)
         {
+            // Apply pagination defaults from settings
+            ApplyPaginationDefaults(query);
+
             var userId = GetCurrentUserId();
-            var result = await _productService.GetProductsAsync(userId, locationId, pageNumber, pageSize);
+            var result = await _productService.SearchProductsAsync(userId, query);
             return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
         }
 
@@ -98,6 +103,27 @@ namespace BizFlow.Api.Controllers.Product
             return Ok(MessageKeys.ProductStatusUpdated);
         }
 
+        /// <summary>
+        /// Delete product (soft delete)
+        /// </summary>
+        [HttpDelete("product/{productId:long}")]
+        [SwaggerOperation(Summary = "Delete product (soft delete)")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteProduct(long productId)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _productService.DeleteProductAsync(userId, productId);
+
+            if (!success)
+            {
+                return Forbidden(MessageKeys.ProductAccessDenied);
+            }
+
+            return Ok(MessageKeys.ProductDeletedSuccessfully);
+        }
+
         #endregion
 
         #region Private Helper Methods
@@ -107,6 +133,22 @@ namespace BizFlow.Api.Controllers.Product
             return _mockCurrentUserId;
         }
 
+        /// <summary>
+        /// Apply default pagination values from settings if not provided
+        /// </summary>
+        private void ApplyPaginationDefaults(PaginationParams pagination)
+        {
+            pagination.PageNumber ??= _paginationSettings.DefaultPageNumber;
+            pagination.PageSize ??= _paginationSettings.DefaultPageSize;
+
+            // Clamp page size to max allowed
+            if (pagination.PageSize > _paginationSettings.MaxPageSize)
+            {
+                pagination.PageSize = _paginationSettings.MaxPageSize;
+            }
+        }
+
         #endregion
     }
 }
+

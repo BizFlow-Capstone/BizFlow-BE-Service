@@ -76,5 +76,6 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductCreatedSuccessfully = "PRODUCT_CREATED";
         public const string ProductStatusUpdated = "PRODUCT_STATUS_UPDATED";
         public const string ProductAccessDenied = "PRODUCT_ACCESS_DENIED";
+        public const string ProductDeletedSuccessfully = "PRODUCT_DELETED";
     }
 }

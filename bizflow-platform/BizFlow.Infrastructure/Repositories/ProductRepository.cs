@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
@@ -16,16 +17,28 @@ namespace BizFlow.Infrastructure.Repositories
 
         // ============ Query Methods ============
 
-        public async Task<(IEnumerable<Product> Items, int TotalCount)> GetByLocationIdAsync(
-            int locationId, int pageNumber, int pageSize)
+        /// <summary>
+        /// Extensible search with filters - add new filters in ApplyFilters method
+        /// </summary>
+        public async Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query)
         {
-            var query = _dbContext.Products
-                .Where(p => p.BusinessLocationId == locationId && !p.IsDeleted)
-                .OrderByDescending(p => p.ProductId);
+            var baseQuery = _dbContext.Products
+                .Where(p => p.BusinessLocationId == query.LocationId && !p.IsDeleted)
+                .AsQueryable();
 
-            var totalCount = await query.CountAsync();
+            // Apply filters (extensible - add more in ApplyFilters)
+            baseQuery = ApplyFilters(baseQuery, query);
 
-            var items = await query
+            // Count before pagination
+            var totalCount = await baseQuery.CountAsync();
+
+            // Use provided values or fallback to defaults (should be set by controller)
+            var pageNumber = query.PageNumber ?? 1;
+            var pageSize = query.PageSize ?? 10;
+
+            // Apply pagination and include related data
+            var items = await baseQuery
+                .OrderByDescending(p => p.ProductId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .Include(p => p.SaleItems)
@@ -33,6 +46,63 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
 
             return (items, totalCount);
+        }
+
+        /// <summary>
+        /// Extensible filter method - add new filter conditions here
+        /// </summary>
+        private static IQueryable<Product> ApplyFilters(IQueryable<Product> query, ProductQueryParams filters)
+        {
+            // ============ SEARCH ============
+            if (!string.IsNullOrWhiteSpace(filters.Name))
+            {
+                query = query.Where(p => p.ProductName.Contains(filters.Name));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filters.Sku))
+            {
+                query = query.Where(p => p.Sku != null && p.Sku.Contains(filters.Sku));
+            }
+
+            // ============ FILTER ============
+            if (filters.MinCostPrice.HasValue)
+            {
+                query = query.Where(p => p.CostPrice >= filters.MinCostPrice.Value);
+            }
+
+            if (filters.MaxCostPrice.HasValue)
+            {
+                query = query.Where(p => p.CostPrice <= filters.MaxCostPrice.Value);
+            }
+
+            if (filters.MinStock.HasValue)
+            {
+                query = query.Where(p => p.Stock >= filters.MinStock.Value);
+            }
+
+            if (filters.MaxStock.HasValue)
+            {
+                query = query.Where(p => p.Stock <= filters.MaxStock.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filters.Status))
+            {
+                query = query.Where(p => p.Status == filters.Status.ToLower());
+            }
+
+            if (filters.TrackInventory.HasValue)
+            {
+                query = query.Where(p => p.TrackInventory == filters.TrackInventory.Value);
+            }
+
+            // ============ ADD MORE FILTERS HERE ============
+            // Example:
+            // if (!string.IsNullOrWhiteSpace(filters.Manufacturer))
+            // {
+            //     query = query.Where(p => p.Manufacturer != null && p.Manufacturer.Contains(filters.Manufacturer));
+            // }
+
+            return query;
         }
 
         public async Task<Product?> GetByIdAsync(long productId)
@@ -82,3 +152,4 @@ namespace BizFlow.Infrastructure.Repositories
         }
     }
 }
+

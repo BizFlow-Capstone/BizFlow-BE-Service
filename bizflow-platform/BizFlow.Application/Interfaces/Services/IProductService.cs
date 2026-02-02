@@ -6,10 +6,9 @@ namespace BizFlow.Application.Interfaces.Services
     public interface IProductService
     {
         /// <summary>
-        /// Get products by location with pagination
+        /// Search and filter products with pagination
         /// </summary>
-        Task<PaginatedResponse<ProductListItemDto>> GetProductsAsync(
-            Guid userId, int locationId, int pageNumber, int pageSize);
+        Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query);
 
         /// <summary>
         /// Get product sale items (price tiers)
@@ -25,5 +24,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Update product status
         /// </summary>
         Task<bool> UpdateProductStatusAsync(Guid userId, long productId, string status);
+
+        /// <summary>
+        /// Delete product (soft delete, only if not in business)
+        /// </summary>
+        Task<bool> DeleteProductAsync(Guid userId, long productId);
     }
 }
