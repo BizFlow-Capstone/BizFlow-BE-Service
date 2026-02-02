@@ -11,6 +11,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IRoleRepository Roles { get; }
         IBusinessLocationRepository BusinessLocations { get; }
         IHireRepository Hires { get; }
+        IProductRepository Products { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
