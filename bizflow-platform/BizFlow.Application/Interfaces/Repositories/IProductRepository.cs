@@ -22,10 +22,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<Product?> GetByIdWithSaleItemsAsync(long productId);
 
-        /// <summary>
-        /// Check if product belongs to location
-        /// </summary>
-        Task<bool> BelongsToLocationAsync(long productId, int locationId);
+
 
         // ============ Command Methods ============
 

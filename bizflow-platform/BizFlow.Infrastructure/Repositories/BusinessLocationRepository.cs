@@ -17,14 +17,24 @@ namespace BizFlow.Infrastructure.Repositories
         #region Query Methods
 
         /// <summary>
+        /// Base query with common filters (active location)
+        /// </summary>
+        private IQueryable<BusinessLocation> GetBaseQuery()
+        {
+            return _context.BusinessLocations.Where(loc => !loc.IsDeleted);
+        }
+
+        /// <summary>
         /// Gets all locations owned by a user (IsOwner = true)
         /// </summary>
         public async Task<IEnumerable<BusinessLocation>> GetOwnedByUserIdAsync(Guid userId)
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.UserId == userId && ula.IsOwner)
-                .Select(ula => ula.BusinessLocation)
-                .Where(loc => !loc.IsDeleted)
+                .Join(GetBaseQuery(),
+                    ula => ula.BusinessLocationId,
+                    loc => loc.BusinessLocationId,
+                    (ula, loc) => loc)
                 .ToListAsync();
         }
 
@@ -35,8 +45,10 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.UserId == userId && !ula.IsOwner)
-                .Select(ula => ula.BusinessLocation)
-                .Where(loc => !loc.IsDeleted)
+                .Join(GetBaseQuery(),
+                    ula => ula.BusinessLocationId,
+                    loc => loc.BusinessLocationId,
+                    (ula, loc) => loc)
                 .ToListAsync();
         }
 
@@ -45,8 +57,8 @@ namespace BizFlow.Infrastructure.Repositories
         /// </summary>
         public async Task<BusinessLocation?> GetByIdAsync(int id)
         {
-            return await _context.BusinessLocations
-                .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id && !loc.IsDeleted);
+            return await GetBaseQuery()
+                .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id);
         }
 
         /// <summary>
@@ -55,8 +67,8 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<(BusinessLocation? Location, string? OwnerName)> GetByIdWithOwnerAsync(int id)
         {
             var result = await (
-                from loc in _context.BusinessLocations
-                where loc.BusinessLocationId == id && !loc.IsDeleted
+                from loc in GetBaseQuery()
+                where loc.BusinessLocationId == id
                 join ula in _context.UserLocationAssignments
                     on loc.BusinessLocationId equals ula.BusinessLocationId
                 where ula.IsOwner
@@ -89,11 +101,11 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.UserId == userId && ula.IsOwner)
-                .Join(_context.BusinessLocations,
+                .Join(GetBaseQuery(),
                     ula => ula.BusinessLocationId,
                     loc => loc.BusinessLocationId,
                     (ula, loc) => loc)
-                .AnyAsync(loc => loc.Name == locationName && !loc.IsDeleted);
+                .AnyAsync(loc => loc.Name == locationName);
         }
 
         /// <summary>

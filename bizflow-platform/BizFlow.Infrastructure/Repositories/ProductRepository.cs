@@ -18,12 +18,21 @@ namespace BizFlow.Infrastructure.Repositories
         // ============ Query Methods ============
 
         /// <summary>
+        /// Base query with common filters (active product, active location)
+        /// </summary>
+        private IQueryable<Product> GetBaseQuery()
+        {
+            return _dbContext.Products
+                .Where(p => !p.IsDeleted && !p.BusinessLocation.IsDeleted);
+        }
+
+        /// <summary>
         /// Extensible search with filters - add new filters in ApplyFilters method
         /// </summary>
         public async Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query)
         {
-            var baseQuery = _dbContext.Products
-                .Where(p => p.BusinessLocationId == query.LocationId && !p.IsDeleted)
+            var baseQuery = GetBaseQuery()
+                .Where(p => p.BusinessLocationId == query.LocationId)
                 .AsQueryable();
 
             // Apply filters (extensible - add more in ApplyFilters)
@@ -107,25 +116,19 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<Product?> GetByIdAsync(long productId)
         {
-            return await _dbContext.Products
-                .FirstOrDefaultAsync(p => p.ProductId == productId && !p.IsDeleted);
+            return await GetBaseQuery()
+                .FirstOrDefaultAsync(p => p.ProductId == productId);
         }
 
         public async Task<Product?> GetByIdWithSaleItemsAsync(long productId)
         {
-            return await _dbContext.Products
+            return await GetBaseQuery()
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
-                .FirstOrDefaultAsync(p => p.ProductId == productId && !p.IsDeleted);
+                .FirstOrDefaultAsync(p => p.ProductId == productId);
         }
 
-        public async Task<bool> BelongsToLocationAsync(long productId, int locationId)
-        {
-            return await _dbContext.Products
-                .AnyAsync(p => p.ProductId == productId 
-                    && p.BusinessLocationId == locationId 
-                    && !p.IsDeleted);
-        }
+
 
         // ============ Command Methods ============
 
