@@ -1,38 +1,38 @@
 -- Migration: 012_add_product_tracking_fields
--- Description: Add track_inventory, status, and IsDeleted fields to Products table
+-- Description: Add TrackInventory, status, and IsDeleted fields to Products table
 -- Date: 2026-02-02
 
 -- =============================================
--- ADD track_inventory COLUMN TO Products
+-- ADD TrackInventory COLUMN TO Products
 -- =============================================
 
 -- Check if column exists before adding (idempotent)
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
     WHERE TABLE_SCHEMA = 'bizflow_db' 
     AND TABLE_NAME = 'Products' 
-    AND COLUMN_NAME = 'track_inventory');
+    AND COLUMN_NAME = 'TrackInventory');
 
 SET @sql_add_col = IF(@col_exists = 0,
-    'ALTER TABLE Products ADD COLUMN track_inventory BOOLEAN NOT NULL DEFAULT TRUE COMMENT ''Whether to track inventory quantity'' AFTER manufacturer',
-    'SELECT "Column track_inventory already exists in Products" AS Info');
+    'ALTER TABLE Products ADD COLUMN TrackInventory BOOLEAN NOT NULL DEFAULT TRUE COMMENT ''Whether to track inventory quantity'' AFTER manufacturer',
+    'SELECT "Column TrackInventory already exists in Products" AS Info');
 
 PREPARE stmt FROM @sql_add_col;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- =============================================
--- ADD status COLUMN TO Products
+-- ADD Status COLUMN TO Products
 -- =============================================
 
 -- Check if column exists before adding (idempotent)
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
     WHERE TABLE_SCHEMA = 'bizflow_db' 
     AND TABLE_NAME = 'Products' 
-    AND COLUMN_NAME = 'status');
+    AND COLUMN_NAME = 'Status');
 
 SET @sql_add_col = IF(@col_exists = 0,
-    'ALTER TABLE Products ADD COLUMN status ENUM(''active'', ''inactive'', ''discontinued'') NOT NULL DEFAULT ''active'' COMMENT ''Product sale status'' AFTER track_inventory',
-    'SELECT "Column status already exists in Products" AS Info');
+    'ALTER TABLE Products ADD COLUMN Status ENUM(''active'', ''inactive'', ''discontinued'') NOT NULL DEFAULT ''active'' COMMENT ''Product sale status'' AFTER TrackInventory',
+    'SELECT "Column Status already exists in Products" AS Info');
 
 PREPARE stmt FROM @sql_add_col;
 EXECUTE stmt;

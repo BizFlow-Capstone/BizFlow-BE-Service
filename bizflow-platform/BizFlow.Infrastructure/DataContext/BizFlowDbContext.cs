@@ -270,8 +270,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.TrackInventory)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
-                .HasComment("Whether to track inventory quantity")
-                .HasColumnName("track_inventory");
+                .HasComment("Whether to track inventory quantity");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'Unit'")
