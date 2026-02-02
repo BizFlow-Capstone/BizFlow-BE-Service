@@ -149,6 +149,30 @@ namespace BizFlow.Application.Services
             return true;
         }
 
+        /// <summary>
+        /// Adds employees to a location (owner only)
+        /// </summary>
+        public async Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds)
+        {
+            // Verify ownership
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(ownerId, locationId);
+            if (!isOwner)
+                return false;
+
+            // Validate location exists
+            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+            if (location == null)
+            {
+                throw new NotFoundException(MessageKeys.LocationNotFound);
+            }
+
+            // Reuse existing assignment logic
+            await AssignEmployeesToLocationAsync(ownerId, locationId, employeeIds);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        }
+
         #endregion
 
         #region Private Helper Methods

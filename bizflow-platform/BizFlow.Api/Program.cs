@@ -152,6 +152,9 @@ builder.Services.AddSwaggerGen(c =>
     {
         c.IncludeXmlComments(xmlPath);
     }
+
+    // Enable Swagger annotations
+    c.EnableAnnotations();
 });
 
 

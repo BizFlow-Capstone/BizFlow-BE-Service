@@ -68,5 +68,6 @@ namespace BizFlow.Application.Common.Constants
         public const string HireEmployeesRetrievedSuccessfully = "HIRE_EMPLOYEES_RETRIEVED";
         public const string EmployeesNotHired = "HIRE_EMPLOYEES_NOT_HIRED";
         public const string EmployeesAlreadyAssigned = "LOCATION_EMPLOYEES_ALREADY_ASSIGNED";
+        public const string EmployeesAddedSuccessfully = "LOCATION_EMPLOYEES_ADDED";
     }
 }

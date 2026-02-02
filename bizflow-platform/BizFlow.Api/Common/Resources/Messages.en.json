@@ -44,5 +44,6 @@
   "LOCATION_ALREADY_EXISTS": "A location with this name already exists",
   "HIRE_EMPLOYEES_RETRIEVED": "Hired employees retrieved successfully",
   "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first.",
-  "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Some employees are already assigned to this location."
+  "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Some employees are already assigned to this location.",
+  "LOCATION_EMPLOYEES_ADDED": "Employees added to location successfully"
 }

@@ -3,6 +3,7 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BizFlow.Api.Controllers
 {
@@ -32,6 +33,7 @@ namespace BizFlow.Api.Controllers
         /// Gets basic employee list with id and name only (for selection/dropdowns)
         /// </summary>
         [HttpGet("employees")]
+        [SwaggerOperation(Summary = "Get employee list for dropdown selection")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployees()
         {
@@ -43,6 +45,7 @@ namespace BizFlow.Api.Controllers
         /// Gets detailed employee list with full information (for management)
         /// </summary>
         [HttpGet("employees/details")]
+        [SwaggerOperation(Summary = "Get full employee details for management")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployeeDetails()
         {

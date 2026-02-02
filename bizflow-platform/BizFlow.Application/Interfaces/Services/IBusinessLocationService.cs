@@ -28,5 +28,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Update location info (owner only)
         /// </summary>
         Task<bool> UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request);
+
+        /// <summary>
+        /// Add employees to a location (owner only)
+        /// </summary>
+        Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds);
     }
 }

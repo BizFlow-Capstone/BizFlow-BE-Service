@@ -44,5 +44,6 @@
   "LOCATION_ALREADY_EXISTS": "Địa điểm với tên này đã tồn tại",
   "HIRE_EMPLOYEES_RETRIEVED": "Lấy danh sách nhân viên đã thuê thành công",
   "HIRE_EMPLOYEES_NOT_HIRED": "Không thể phân công nhân viên chưa được thuê. Vui lòng thuê họ trước.",
-  "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Một số nhân viên đã được phân công vào địa điểm này rồi."
+  "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Một số nhân viên đã được phân công vào địa điểm này rồi.",
+  "LOCATION_EMPLOYEES_ADDED": "Thêm nhân viên vào địa điểm thành công"
 }
