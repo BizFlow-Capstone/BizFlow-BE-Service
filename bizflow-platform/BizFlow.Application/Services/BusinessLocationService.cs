@@ -172,6 +172,22 @@ namespace BizFlow.Application.Services
             return true;
         }
 
+        /// <summary>
+        /// Deletes a location (soft delete) - owner only
+        /// </summary>
+        public async Task<bool> DeleteLocationAsync(Guid userId, int locationId)
+        {
+            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
+            if (location == null)
+                return false;
+
+            location.IsDeleted = true;
+            _unitOfWork.BusinessLocations.Update(location);
+            await _unitOfWork.SaveChangesAsync();
+
+            return true;
+        }
+
         #endregion
 
         #region Private Helper Methods

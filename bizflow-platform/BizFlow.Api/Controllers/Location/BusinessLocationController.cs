@@ -123,6 +123,27 @@ namespace BizFlow.Api.Controllers.Location
             return Ok(MessageKeys.EmployeesAddedSuccessfully);
         }
 
+        /// <summary>
+        /// Delete location (soft delete) - owner only
+        /// </summary>
+        [HttpDelete("me/owned/{id:int}")]
+        [SwaggerOperation(Summary = "Delete a location (soft delete)")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteLocation(int id)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _locationService.DeleteLocationAsync(userId, id);
+
+            if (!success)
+            {
+                return Forbidden(MessageKeys.LocationAccessDenied);
+            }
+
+            return Ok(MessageKeys.LocationDeletedSuccessfully);
+        }
+
         #endregion
 
         #region Employee APIs

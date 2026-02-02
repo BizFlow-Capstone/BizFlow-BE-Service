@@ -86,7 +86,7 @@ namespace BizFlow.Api.Controllers.Product
         /// Update product status
         /// </summary>
         [HttpPut("product/{productId:long}/status")]
-        [SwaggerOperation(Summary = "Update product status (active/inactive/discontinued)")]
+        [SwaggerOperation(Summary = "Update product status (active/inactive)")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

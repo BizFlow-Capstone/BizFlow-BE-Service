@@ -24,6 +24,7 @@ namespace BizFlow.Infrastructure.Repositories
             return await _context.UserLocationAssignments
                 .Where(ula => ula.UserId == userId && ula.IsOwner)
                 .Select(ula => ula.BusinessLocation)
+                .Where(loc => !loc.IsDeleted)
                 .ToListAsync();
         }
 
@@ -35,6 +36,7 @@ namespace BizFlow.Infrastructure.Repositories
             return await _context.UserLocationAssignments
                 .Where(ula => ula.UserId == userId && !ula.IsOwner)
                 .Select(ula => ula.BusinessLocation)
+                .Where(loc => !loc.IsDeleted)
                 .ToListAsync();
         }
 
@@ -43,7 +45,8 @@ namespace BizFlow.Infrastructure.Repositories
         /// </summary>
         public async Task<BusinessLocation?> GetByIdAsync(int id)
         {
-            return await _context.BusinessLocations.FindAsync(id);
+            return await _context.BusinessLocations
+                .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id && !loc.IsDeleted);
         }
 
         /// <summary>
@@ -53,7 +56,7 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var result = await (
                 from loc in _context.BusinessLocations
-                where loc.BusinessLocationId == id
+                where loc.BusinessLocationId == id && !loc.IsDeleted
                 join ula in _context.UserLocationAssignments
                     on loc.BusinessLocationId equals ula.BusinessLocationId
                 where ula.IsOwner
@@ -90,7 +93,7 @@ namespace BizFlow.Infrastructure.Repositories
                     ula => ula.BusinessLocationId,
                     loc => loc.BusinessLocationId,
                     (ula, loc) => loc)
-                .AnyAsync(loc => loc.Name == locationName);
+                .AnyAsync(loc => loc.Name == locationName && !loc.IsDeleted);
         }
 
         /// <summary>

@@ -33,5 +33,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Add employees to a location (owner only)
         /// </summary>
         Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds);
+
+        /// <summary>
+        /// Delete location (soft delete) - owner only
+        /// </summary>
+        Task<bool> DeleteLocationAsync(Guid userId, int locationId);
     }
 }
