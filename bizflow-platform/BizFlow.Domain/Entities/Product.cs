@@ -41,6 +41,21 @@ public partial class Product
     /// </summary>
     public string? Manufacturer { get; set; }
 
+    /// <summary>
+    /// Whether to track inventory quantity
+    /// </summary>
+    public bool? TrackInventory { get; set; }
+
+    /// <summary>
+    /// Product sale status
+    /// </summary>
+    public string Status { get; set; } = null!;
+
+    /// <summary>
+    /// Soft delete flag
+    /// </summary>
+    public bool IsDeleted { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
     public virtual BusinessType BusinessType { get; set; } = null!;

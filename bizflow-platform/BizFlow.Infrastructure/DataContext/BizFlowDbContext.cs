@@ -245,9 +245,13 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.BusinessTypeId, "idx_product_business_type");
 
+            entity.HasIndex(e => e.IsDeleted, "idx_product_is_deleted");
+
             entity.HasIndex(e => e.Manufacturer, "idx_product_manufacturer");
 
             entity.HasIndex(e => e.ProductName, "idx_product_name");
+
+            entity.HasIndex(e => e.Status, "idx_product_status");
 
             entity.Property(e => e.BusinessLocationId).HasComment("Warehouse/location of product");
             entity.Property(e => e.BusinessTypeId).HasComment("Business type category");
@@ -255,8 +259,19 @@ public partial class BizFlowDbContext : DbContext
                 .HasPrecision(15, 2)
                 .HasComment("Cost price");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
+            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
+            entity.Property(e => e.Status)
+                .HasDefaultValueSql("'active'")
+                .HasComment("Product sale status")
+                .HasColumnType("enum('active','inactive','discontinued')")
+                .HasColumnName("status");
             entity.Property(e => e.Stock).HasComment("Quantity in stock");
+            entity.Property(e => e.TrackInventory)
+                .IsRequired()
+                .HasDefaultValueSql("'1'")
+                .HasComment("Whether to track inventory quantity")
+                .HasColumnName("track_inventory");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'Unit'")

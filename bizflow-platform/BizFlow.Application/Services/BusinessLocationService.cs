@@ -166,7 +166,6 @@ namespace BizFlow.Application.Services
                 throw new NotFoundException(MessageKeys.LocationNotFound);
             }
 
-            // Reuse existing assignment logic
             await AssignEmployeesToLocationAsync(ownerId, locationId, employeeIds);
             await _unitOfWork.SaveChangesAsync();
 
