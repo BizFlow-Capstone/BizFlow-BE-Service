@@ -17,9 +17,26 @@ namespace BizFlow.Application.Services
         #region Query Methods
 
         /// <summary>
-        /// Gets all hired employees for an owner with details
+        /// Gets basic employee summaries (id, name) for selection/dropdowns
         /// </summary>
-        public async Task<IEnumerable<HiredEmployeeDto>> GetHiredEmployeesAsync(Guid ownerId)
+        public async Task<EmployeeSummaryListDto> GetEmployeeSummariesAsync(Guid ownerId)
+        {
+            var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
+
+            return new EmployeeSummaryListDto
+            {
+                Employees = employees.Select(e => new EmployeeSummaryDto
+                {
+                    UserId = e.hire.EmployeeId.ToString(),
+                    UserName = e.fullName
+                }).ToList()
+            };
+        }
+
+        /// <summary>
+        /// Gets all hired employees for an owner with full details (for management)
+        /// </summary>
+        public async Task<IEnumerable<HiredEmployeeDto>> GetHiredEmployeeDetailsAsync(Guid ownerId)
         {
             var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
 

@@ -1,7 +1,7 @@
 namespace BizFlow.Application.DTOs.Hire
 {
     /// <summary>
-    /// DTO for hired employee information
+    /// DTO for hired employee detailed information (for management)
     /// </summary>
     public class HiredEmployeeDto
     {
@@ -11,15 +11,5 @@ namespace BizFlow.Application.DTOs.Hire
         public string? Phone { get; set; }
         public DateTime StartAt { get; set; }
         public DateTime? EndAt { get; set; }
-    }
-
-    /// <summary>
-    /// Result of employee validation for assignment
-    /// </summary>
-    public class EmployeeValidationResult
-    {
-        public List<Guid> ValidEmployeeIds { get; set; } = new();
-        public List<Guid> InvalidEmployeeIds { get; set; } = new();
-        public bool AllValid => InvalidEmployeeIds.Count == 0;
     }
 }

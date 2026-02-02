@@ -9,7 +9,7 @@ namespace BizFlow.Api.Controllers
     /// <summary>
     /// Manages employee hiring operations
     /// </summary>
-    [Route("api/hire")]
+    [Route("api/my-employee")]
     public class HireController : BaseApiController
     {
         private readonly IHireService _hireService;
@@ -29,13 +29,24 @@ namespace BizFlow.Api.Controllers
         #region API Endpoints
 
         /// <summary>
-        /// Gets all employees hired by current user
+        /// Gets basic employee list with id and name only (for selection/dropdowns)
         /// </summary>
-        [HttpGet("me/employees")]
+        [HttpGet("employees")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployees()
         {
-            var employees = await _hireService.GetHiredEmployeesAsync(GetCurrentUserId());
+            var response = await _hireService.GetEmployeeSummariesAsync(GetCurrentUserId());
+            return Ok(response, MessageKeys.HireEmployeesRetrievedSuccessfully);
+        }
+
+        /// <summary>
+        /// Gets detailed employee list with full information (for management)
+        /// </summary>
+        [HttpGet("employees/details")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMyHiredEmployeeDetails()
+        {
+            var employees = await _hireService.GetHiredEmployeeDetailsAsync(GetCurrentUserId());
             return Ok(employees, MessageKeys.HireEmployeesRetrievedSuccessfully);
         }
 
