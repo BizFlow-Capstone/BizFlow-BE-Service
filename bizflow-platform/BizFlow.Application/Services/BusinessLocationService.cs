@@ -122,8 +122,14 @@ namespace BizFlow.Application.Services
         /// </summary>
         public async Task<bool> UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request)
         {
-            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
+            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
             if (location == null)
+            {
+                throw new NotFoundException(MessageKeys.LocationNotFound);
+            }
+
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
                 return false;
 
             // Check if name is being changed and if new name already exists for this owner
