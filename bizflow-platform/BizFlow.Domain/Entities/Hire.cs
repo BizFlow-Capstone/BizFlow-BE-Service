@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace BizFlow.Domain.Entities;
 
 public partial class Hire
