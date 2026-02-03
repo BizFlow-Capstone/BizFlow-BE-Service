@@ -5,6 +5,7 @@ using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Mappers;
+using AutoMapper;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Services
@@ -13,11 +14,13 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHireService _hireService;
+        private readonly IMapper _mapper;
 
-        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService)
+        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _hireService = hireService;
+            _mapper = mapper;
         }
 
         #region Query Methods
@@ -32,8 +35,11 @@ namespace BizFlow.Application.Services
             var result = new List<BusinessLocationDto>();
             foreach (var loc in locations)
             {
+                // Retrieve OwnerName for each location to pass into Mapper context
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                result.Add(BusinessLocationMapper.ToDto(loc, ownerName));
+                
+                // Use AutoMapper with Items dictionary to pass dynamic data (OwnerName)
+                result.Add(_mapper.Map<BusinessLocationDto>(loc, opt => opt.Items["OwnerName"] = ownerName));
             }
             
             return result;
@@ -50,7 +56,7 @@ namespace BizFlow.Application.Services
             foreach (var loc in locations)
             {
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                result.Add(BusinessLocationMapper.ToDto(loc, ownerName));
+                result.Add(_mapper.Map<BusinessLocationDto>(loc, opt => opt.Items["OwnerName"] = ownerName));
             }
             
             return result;
@@ -75,7 +81,7 @@ namespace BizFlow.Application.Services
                 }
 
                 // Create the location using mapper
-                var location = BusinessLocationMapper.ToEntity(request);
+                var location = _mapper.Map<BusinessLocation>(request);
 
                 var createdLocation = await _unitOfWork.BusinessLocations.AddAsync(location);
                 await _unitOfWork.SaveChangesAsync();
@@ -97,8 +103,16 @@ namespace BizFlow.Application.Services
                 }
 
                 await _unitOfWork.SaveChangesAsync();
-
-                return BusinessLocationMapper.ToDto(createdLocation);
+                
+                // Get Owner Name (Current User) to return full DTO
+                /* To keep consistency, we should fetch it or assume it from Context. 
+                   The CreateLocationRequest doesn't have it. 
+                   However, BusinessLocationMapper.ToDto(createdLocation) previously returned null ownerName implicitly?
+                   Let's check previous ToDto impl. It probably just mapped fields.
+                   Here we can map without OwnerName or pass generic "Me"? 
+                   Actually CreateLocation usually returns the object. OwnerName is nice to have. */
+                   
+                return _mapper.Map<BusinessLocationDto>(createdLocation);
             });
         }
 
@@ -143,7 +157,9 @@ namespace BizFlow.Application.Services
                 }
             }
 
-            BusinessLocationMapper.UpdateEntity(location, request);
+            // Update entity using Mapper
+            _mapper.Map(request, location); // Map UpdateRequest -> Existing Entity
+            
             _unitOfWork.BusinessLocations.Update(location);
             await _unitOfWork.SaveChangesAsync();
 

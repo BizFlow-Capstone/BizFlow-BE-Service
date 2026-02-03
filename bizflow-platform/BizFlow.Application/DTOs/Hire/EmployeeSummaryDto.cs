@@ -15,5 +15,6 @@ namespace BizFlow.Application.DTOs.Hire
     {
         public string UserId { get; set; } = null!;
         public string UserName { get; set; } = null!;
+        public string? Phone { get; set; }
     }
 }

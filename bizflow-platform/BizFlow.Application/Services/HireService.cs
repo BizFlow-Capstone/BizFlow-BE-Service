@@ -2,16 +2,19 @@ using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Mappers;
+using AutoMapper;
 
 namespace BizFlow.Application.Services
 {
     public class HireService : IHireService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
 
-        public HireService(IUnitOfWork unitOfWork)
+        public HireService(IUnitOfWork unitOfWork, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
 
         #region Query Methods
@@ -25,11 +28,7 @@ namespace BizFlow.Application.Services
 
             return new EmployeeSummaryListDto
             {
-                Employees = employees.Select(e => new EmployeeSummaryDto
-                {
-                    UserId = e.hire.EmployeeId.ToString(),
-                    UserName = e.fullName
-                }).ToList()
+                Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
             };
         }
 
@@ -40,7 +39,7 @@ namespace BizFlow.Application.Services
         {
             var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
 
-            return employees.Select(e => HireMapper.ToDto(e.hire, e.fullName, e.email, e.phone));
+            return _mapper.Map<IEnumerable<HiredEmployeeDto>>(employees);
         }
 
         #endregion
