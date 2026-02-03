@@ -63,6 +63,7 @@ namespace BizFlow.Application.Common.Constants
         public const string LocationStatusUpdated = "LOCATION_STATUS_UPDATED";
         public const string LocationAccessDenied = "LOCATION_ACCESS_DENIED";
         public const string LocationAlreadyExists = "LOCATION_ALREADY_EXISTS";
+        public const string EmployeesRetrievedSuccessfully = "LOCATION_EMPLOYEES_RETRIEVED";
 
         // ============ HIRE ============
         public const string HireEmployeesRetrievedSuccessfully = "HIRE_EMPLOYEES_RETRIEVED";

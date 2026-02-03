@@ -46,6 +46,7 @@
   "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first.",
   "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Some employees are already assigned to this location.",
   "LOCATION_EMPLOYEES_ADDED": "Employees added to location successfully",
+  "LOCATION_EMPLOYEES_RETRIEVED": "Employees retrieved from location successfully",
   "PRODUCT_NOT_FOUND": "Product not found",
   "PRODUCT_RETRIEVED": "Products retrieved successfully",
   "PRODUCT_CREATED": "Product created successfully",

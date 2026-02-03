@@ -144,6 +144,20 @@ namespace BizFlow.Api.Controllers.Location
             return Ok(MessageKeys.LocationDeletedSuccessfully);
         }
 
+        /// <summary>
+        /// Get employees assigned to a specific location (owner only)
+        /// </summary>
+        [HttpGet("me/owned/{locationId:int}/employees")]
+        [SwaggerOperation(Summary = "Get employees assigned to a specific location")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetEmployeesByLocation(int locationId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _locationService.GetEmployeesByLocationAsync(userId, locationId);
+            return Ok(result, MessageKeys.EmployeesRetrievedSuccessfully);
+        }
+
         #endregion
 
         #region Employee APIs

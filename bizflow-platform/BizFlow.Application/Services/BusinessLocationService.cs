@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.DTOs.Location;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
@@ -170,6 +171,32 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
 
             return true;
+        }
+
+        /// <summary>
+        /// Get employees assigned to a location (owner only)
+        /// </summary>
+        public async Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId)
+        {
+            // Verify ownership
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
+            {
+                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+            }
+
+            var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);
+
+            return new EmployeeSummaryListDto
+            {
+                Employees = employees.Select(e => new EmployeeSummaryDto
+                {
+                    UserId = e.UserId.ToString(),
+                    UserName = e.FullName
+                    // Email provided but not used in SummaryDto, if needed we can add it, 
+                    // but the user requested "same as GetMyHiredEmployees" which returns SummaryList
+                }).ToList()
+            };
         }
 
         /// <summary>
