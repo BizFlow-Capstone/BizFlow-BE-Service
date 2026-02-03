@@ -111,6 +111,21 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Gets basic info of employees assigned to a location
+        /// </summary>
+        public async Task<IEnumerable<(Guid UserId, string FullName, string Email)>> GetEmployeesByLocationIdAsync(int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
+                .Join(_context.Users,
+                    ula => ula.UserId,
+                    user => user.UserId,
+                    (ula, user) => new { user.UserId, user.FullName, user.Email })
+                .Select(x => new ValueTuple<Guid, string, string>(x.UserId, x.FullName, x.Email))
+                .ToListAsync();
+        }
+
         #endregion
 
         #region Command Methods

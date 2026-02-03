@@ -3,6 +3,8 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
+using BizFlow.Application.Specifications.Products;
+using BizFlow.Infrastructure.Specifications;
 
 namespace BizFlow.Infrastructure.Repositories
 {
@@ -18,91 +20,49 @@ namespace BizFlow.Infrastructure.Repositories
         // ============ Query Methods ============
 
         /// <summary>
-        /// Extensible search with filters - add new filters in ApplyFilters method
+        /// Extensible search using Specification Pattern
         /// </summary>
         public async Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query)
         {
-            var baseQuery = _dbContext.Products
-                .Where(p => p.BusinessLocationId == query.LocationId)
-                .AsQueryable();
+            // 1. Get Total Count (using Count Spec)
+            var countSpec = new ProductSearchSpec(query, isCount: true);
+            var countQuery = SpecificationEvaluator<Product>.GetQuery(_dbContext.Products.AsQueryable(), countSpec);
+            var totalCount = await countQuery.CountAsync();
 
-            // Apply filters (extensible - add more in ApplyFilters)
-            baseQuery = ApplyFilters(baseQuery, query);
+            if (totalCount == 0)
+            {
+                return (new List<Product>(), 0);
+            }
 
-            // Count before pagination
-            var totalCount = await baseQuery.CountAsync();
-
-            // Use provided values or fallback to defaults (should be set by controller)
+            // 2. Deferred Join Strategy:
+            // Use 'filterOnly=true' spec (Sorts + Filters, NO Includes, NO Paging inside Spec)
+            var filterSpec = new ProductSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Product>.GetQuery(_dbContext.Products.AsQueryable(), filterSpec);
+            
+            // Manually apply Paging to get just IDs
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 10;
-
-            // Apply pagination and include related data
-            var items = await baseQuery
-                .OrderByDescending(p => p.ProductId)
+            
+            var ids = await filterQuery
+                .Select(p => p.ProductId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+            {
+                return (new List<Product>(), totalCount);
+            }
+
+            // Fetch full entities by IDs
+            var items = await _dbContext.Products
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
+                .Where(p => ids.Contains(p.ProductId))
+                .OrderByDescending(p => p.ProductId) 
                 .ToListAsync();
 
             return (items, totalCount);
-        }
-
-        /// <summary>
-        /// Extensible filter method - add new filter conditions here
-        /// </summary>
-        private static IQueryable<Product> ApplyFilters(IQueryable<Product> query, ProductQueryParams filters)
-        {
-            // ============ SEARCH ============
-            if (!string.IsNullOrWhiteSpace(filters.Name))
-            {
-                query = query.Where(p => p.ProductName.Contains(filters.Name));
-            }
-
-            if (!string.IsNullOrWhiteSpace(filters.Sku))
-            {
-                query = query.Where(p => p.Sku != null && p.Sku.Contains(filters.Sku));
-            }
-
-            // ============ FILTER ============
-            if (filters.MinCostPrice.HasValue)
-            {
-                query = query.Where(p => p.CostPrice >= filters.MinCostPrice.Value);
-            }
-
-            if (filters.MaxCostPrice.HasValue)
-            {
-                query = query.Where(p => p.CostPrice <= filters.MaxCostPrice.Value);
-            }
-
-            if (filters.MinStock.HasValue)
-            {
-                query = query.Where(p => p.Stock >= filters.MinStock.Value);
-            }
-
-            if (filters.MaxStock.HasValue)
-            {
-                query = query.Where(p => p.Stock <= filters.MaxStock.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(filters.Status))
-            {
-                query = query.Where(p => p.Status == filters.Status.ToLower());
-            }
-
-            if (filters.TrackInventory.HasValue)
-            {
-                query = query.Where(p => p.TrackInventory == filters.TrackInventory.Value);
-            }
-
-            // ============ ADD MORE FILTERS HERE ============
-            // Example:
-            // if (!string.IsNullOrWhiteSpace(filters.Manufacturer))
-            // {
-            //     query = query.Where(p => p.Manufacturer != null && p.Manufacturer.Contains(filters.Manufacturer));
-            // }
-
-            return query;
         }
 
         public async Task<Product?> GetByIdAsync(long productId)
@@ -146,4 +106,3 @@ namespace BizFlow.Infrastructure.Repositories
         }
     }
 }
-
