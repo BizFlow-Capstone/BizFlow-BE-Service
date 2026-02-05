@@ -245,6 +245,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.BusinessTypeId, "idx_product_business_type");
 
+            entity.HasIndex(e => e.ImagePublicId, "idx_product_image_publicid");
+
             entity.HasIndex(e => e.IsDeleted, "idx_product_is_deleted");
 
             entity.HasIndex(e => e.Manufacturer, "idx_product_manufacturer");
@@ -260,6 +262,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CostPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Cost price");
+            entity.Property(e => e.ImagePublicId).HasComment("Cloudinary public ID for image deletion");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
             entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");

@@ -42,6 +42,11 @@ public partial class Product
     public string? ImageUrl { get; set; }
 
     /// <summary>
+    /// Cloudinary public ID for image deletion
+    /// </summary>
+    public string? ImagePublicId { get; set; }
+
+    /// <summary>
     /// Manufacturer name
     /// </summary>
     public string? Manufacturer { get; set; }
