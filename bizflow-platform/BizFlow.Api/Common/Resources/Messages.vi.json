@@ -52,5 +52,6 @@
   "PRODUCT_CREATED": "Tạo sản phẩm thành công",
   "PRODUCT_STATUS_UPDATED": "Cập nhật trạng thái sản phẩm thành công",
   "PRODUCT_ACCESS_DENIED": "Bạn không có quyền quản lý sản phẩm này",
-  "PRODUCT_DELETED": "Xóa sản phẩm thành công"
+  "PRODUCT_DELETED": "Xóa sản phẩm thành công",
+  "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS": "Đơn vị quy đổi '{0}' trùng với đơn vị gốc của sản phẩm"
 }

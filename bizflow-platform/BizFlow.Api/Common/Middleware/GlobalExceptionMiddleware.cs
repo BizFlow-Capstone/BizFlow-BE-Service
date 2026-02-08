@@ -56,7 +56,7 @@ public class GlobalExceptionMiddleware
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 response.Success = false;
                 response.MessageCode = badRequestEx.MessageKey;
-                response.Message = messageService.GetMessage(badRequestEx.MessageKey);
+                response.Message = messageService.GetMessage(badRequestEx.MessageKey, badRequestEx.Args);
                 response.Errors = badRequestEx.Errors;
                 break;
 

@@ -1,5 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("BizFlow.Api")]
+
 namespace BizFlow.Application.DTOs.Product
 {
     /// <summary>
@@ -31,7 +35,8 @@ namespace BizFlow.Application.DTOs.Product
 
         public int Stock { get; set; } = 0;
 
-        public string? ImageUrl { get; set; }
+        internal Stream? ImageStream { get; set; }
+        internal string? ImageFileName { get; set; }
 
         [MaxLength(255)]
         public string? Manufacturer { get; set; }

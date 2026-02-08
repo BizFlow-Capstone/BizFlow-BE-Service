@@ -100,6 +100,17 @@ namespace BizFlow.Infrastructure.Repositories
             return entry.Entity;
         }
 
+        public async Task<List<string>> GetAllImagePublicIdsAsync()
+        {
+            return await _dbContext.Products
+                .Where(p => !string.IsNullOrEmpty(p.ImagePublicId))
+                .Select(p => p.ImagePublicId!)
+                .ToListAsync();
+        }
+
+
+
+
         public async Task AddPricePolicyAsync(ProductPricePolicy pricePolicy)
         {
             await _dbContext.ProductPricePolicies.AddAsync(pricePolicy);

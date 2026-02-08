@@ -75,8 +75,14 @@ namespace BizFlow.Api.Controllers.Product
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> CreateProduct([FromBody] CreateProductRequest request)
+        public async Task<IActionResult> CreateProduct([FromForm] CreateProductRequest request, IFormFile? image)
         {
+            if (image != null)
+            {
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
+
             var userId = GetCurrentUserId();
             var product = await _productService.CreateProductAsync(userId, request);
             return Created(product, MessageKeys.ProductCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId });

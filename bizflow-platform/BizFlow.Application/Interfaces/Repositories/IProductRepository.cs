@@ -22,6 +22,10 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<Product?> GetByIdWithSaleItemsAsync(long productId);
 
+        /// <summary>
+        /// Get all non-null ImagePublicIds from Products table (for cleanup job)
+        /// </summary>
+        Task<List<string>> GetAllImagePublicIdsAsync();
 
 
         // ============ Command Methods ============

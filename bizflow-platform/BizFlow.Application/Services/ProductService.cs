@@ -11,10 +11,12 @@ namespace BizFlow.Application.Services
     public class ProductService : IProductService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICloudinaryService _cloudinaryService;
 
-        public ProductService(IUnitOfWork unitOfWork)
+        public ProductService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService)
         {
             _unitOfWork = unitOfWork;
+            _cloudinaryService = cloudinaryService;
         }
 
         public async Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
@@ -67,13 +69,27 @@ namespace BizFlow.Application.Services
 
         public async Task<ProductListItemDto> CreateProductAsync(Guid userId, CreateProductRequest request)
         {
-            // Validate ownership
+            // 1. Validate ownership
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, request.LocationId);
             if (!isOwner)
             {
                 throw new ForbiddenException(MessageKeys.LocationAccessDenied);
             }
 
+            // 2. Validate PriceTiers (fail fast)
+            if (request.PriceTiers != null && request.PriceTiers.Any())
+            {
+                var duplicateUnitTier = request.PriceTiers.FirstOrDefault(t => 
+                    string.Equals(t.Unit?.Trim(), request.Unit?.Trim(), StringComparison.OrdinalIgnoreCase));
+                
+                if (duplicateUnitTier != null)
+                {
+                    // Pass null for errors, and the unit name as a message argument
+                    throw new BadRequestException(MessageKeys.ProductDuplicateUnitInPriceTiers, null, duplicateUnitTier.Unit ?? "");
+                }
+            }
+
+            // 3. Build Product Entity Graph
             var product = new Product
             {
                 BusinessLocationId = request.LocationId,
@@ -84,56 +100,82 @@ namespace BizFlow.Application.Services
                 Unit = request.Unit,
                 CostPrice = request.CostPrice,
                 Stock = request.Stock,
-                ImageUrl = request.ImageUrl,
                 Manufacturer = request.Manufacturer,
                 Status = "active",
                 IsDeleted = false
             };
 
-            await _unitOfWork.Products.AddAsync(product);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Add sale items (price tiers)
-            decimal? defaultPrice = null;
-            foreach (var tier in request.PriceTiers)
+            // 3.1 Create Default Sale Item & Price Policy
+            var defaultSaleItem = new SaleItem
             {
-                var saleItem = new SaleItem
-                {
-                    ProductId = product.ProductId,
-                    Unit = tier.Unit,
-                    Quantity = tier.Quantity
-                };
-                await _unitOfWork.Products.AddSaleItemAsync(saleItem);
-                await _unitOfWork.SaveChangesAsync();
+                Unit = request.Unit,
+                Quantity = 1,
+                Product = product // Navigation property check
+            };
+            
+            var defaultPricePolicy = new ProductPricePolicy
+            {
+                Price = request.CostPrice,
+                IsDefault = true,
+                StartAt = DateTime.UtcNow,
+                SaleItem = defaultSaleItem
+            };
+            
+            defaultSaleItem.ProductPricePolicies.Add(defaultPricePolicy);
+            product.SaleItems.Add(defaultSaleItem);
 
-                // Each sale item has its own price policy, IsDefault = true means this is the current active price
-                var pricePolicy = new ProductPricePolicy
+            // 3.2 Create Additional Sale Items from PriceTiers
+            if (request.PriceTiers != null)
+            {
+                foreach (var tier in request.PriceTiers)
                 {
-                    SaleItemId = saleItem.SaleItemId,
-                    Price = tier.Price,
-                    IsDefault = true, 
-                    StartAt = DateTime.UtcNow
-                };
-                await _unitOfWork.Products.AddPricePolicyAsync(pricePolicy);
+                    var saleItem = new SaleItem
+                    {
+                        Unit = tier.Unit,
+                        Quantity = tier.Quantity,
+                        Product = product
+                    };
 
-                // Default price is the price of sale item matching product's base unit
-                if (!defaultPrice.HasValue && string.Equals(tier.Unit, request.Unit, StringComparison.OrdinalIgnoreCase))
-                {
-                    defaultPrice = tier.Price;
+                    var pricePolicy = new ProductPricePolicy
+                    {
+                        Price = tier.Price,
+                        IsDefault = true,
+                        StartAt = DateTime.UtcNow,
+                        SaleItem = saleItem
+                    };
+
+                    saleItem.ProductPricePolicies.Add(pricePolicy);
+                    product.SaleItems.Add(saleItem);
                 }
             }
-            await _unitOfWork.SaveChangesAsync();
 
-            return new ProductListItemDto
+            if (request.ImageStream != null)
             {
-                ProductId = product.ProductId,
-                Name = product.ProductName,
-                Sku = product.Sku,
-                Price = defaultPrice.HasValue ? defaultPrice.Value : 0,
-                TrackInventory = product.TrackInventory ?? true,
-                Stock = (product.TrackInventory ?? true) ? product.Stock : null,
-                Status = product.Status
-            };
+                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image");
+                if (uploadResult.Success)
+                {
+                    product.ImageUrl = uploadResult.Url;
+                    product.ImagePublicId = uploadResult.PublicId;
+                }
+            }
+
+            // 5. Save to Database (Single Transaction)
+            try 
+            {
+                await _unitOfWork.Products.AddAsync(product);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                // Rollback: Delete image from Cloudinary if DB save fails
+                if (!string.IsNullOrEmpty(product.ImagePublicId))
+                {
+                    await _cloudinaryService.DeleteImageAsync(product.ImagePublicId);
+                }
+                throw; 
+            }
+
+            return MapToListItemDto(product);
         }
 
         public async Task<bool> UpdateProductStatusAsync(Guid userId, long productId, string status)
