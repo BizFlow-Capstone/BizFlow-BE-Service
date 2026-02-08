@@ -38,41 +38,64 @@ namespace BizFlow.Infrastructure.Services
                 };
             }
 
-            try
+            // Retry logic
+            int maxRetries = _settings.MaxRetries > 0 ? _settings.MaxRetries : 3;
+            int attempt = 0;
+            CloudinaryUploadResult lastResult = null;
+
+            while (attempt < maxRetries)
             {
-                var uploadParams = new ImageUploadParams
+                attempt++;
+                try
                 {
-                    File = new FileDescription(fileName, fileStream),
-                    UploadPreset = uploadPreset,
-                    Transformation = new Transformation().Quality("auto").FetchFormat("auto")
-                };
+                    var uploadParams = new ImageUploadParams
+                    {
+                        File = new FileDescription(fileName, fileStream),
+                        UploadPreset = uploadPreset,
+                        Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+                    };
 
-                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                    // Reset stream position if retrying
+                    if (attempt > 1 && fileStream.CanSeek)
+                    {
+                        fileStream.Position = 0;
+                    }
 
-                if (uploadResult.Error != null)
-                {
-                    return new CloudinaryUploadResult
+                    var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+                    if (uploadResult.Error == null)
+                    {
+                        return new CloudinaryUploadResult
+                        {
+                            Success = true,
+                            Url = uploadResult.SecureUrl.ToString(),
+                            PublicId = uploadResult.PublicId
+                        };
+                    }
+                    
+                    lastResult = new CloudinaryUploadResult
                     {
                         Success = false,
                         Error = uploadResult.Error.Message
                     };
                 }
+                catch (Exception ex)
+                {
+                    lastResult = new CloudinaryUploadResult
+                    {
+                        Success = false,
+                        Error = ex.Message
+                    };
+                }
 
-                return new CloudinaryUploadResult
+                // Wait before retrying (exponential backoff: 500ms, 1000ms, 2000ms)
+                if (attempt < maxRetries)
                 {
-                    Success = true,
-                    Url = uploadResult.SecureUrl.ToString(),
-                    PublicId = uploadResult.PublicId
-                };
+                    await Task.Delay(500 * (int)Math.Pow(2, attempt - 1));
+                }
             }
-            catch (Exception ex)
-            {
-                return new CloudinaryUploadResult
-                {
-                    Success = false,
-                    Error = ex.Message
-                };
-            }
+
+            return lastResult ?? new CloudinaryUploadResult { Success = false, Error = "Upload failed after multiple attempts" };
         }
 
         public async Task<bool> DeleteImageAsync(string publicId)

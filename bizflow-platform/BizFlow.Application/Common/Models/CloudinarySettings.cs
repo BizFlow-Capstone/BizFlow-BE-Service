@@ -7,5 +7,6 @@
         public string ApiKey { get; set; }
         public string ApiSecret { get; set; }
         public Dictionary<string, string> UploadPresets { get; set; } = new();
+        public int MaxRetries { get; set; }
     }
 }

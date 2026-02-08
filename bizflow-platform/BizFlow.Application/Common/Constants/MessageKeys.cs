@@ -79,5 +79,6 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductAccessDenied = "PRODUCT_ACCESS_DENIED";
         public const string ProductDeletedSuccessfully = "PRODUCT_DELETED";
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
+        public const string ProductImageUploadFailed = "PRODUCT_IMAGE_UPLOAD_FAILED";
     }
 }

@@ -152,11 +152,14 @@ namespace BizFlow.Application.Services
             if (request.ImageStream != null)
             {
                 var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Products");
-                if (uploadResult.Success)
+                
+                if (!uploadResult.Success)
                 {
-                    product.ImageUrl = uploadResult.Url;
-                    product.ImagePublicId = uploadResult.PublicId;
+                    throw new BadRequestException(MessageKeys.ProductImageUploadFailed, null, uploadResult.Error ?? "Unknown error");
                 }
+
+                product.ImageUrl = uploadResult.Url;
+                product.ImagePublicId = uploadResult.PublicId;
             }
 
             // 5. Save to Database (Single Transaction)
