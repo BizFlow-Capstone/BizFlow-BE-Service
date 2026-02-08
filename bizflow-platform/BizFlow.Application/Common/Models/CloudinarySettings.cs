@@ -6,6 +6,6 @@
         public string CloudName { get; set;}
         public string ApiKey { get; set; }
         public string ApiSecret { get; set; }
-        public string UploadPreset { get; set; }
+        public Dictionary<string, string> UploadPresets { get; set; } = new();
     }
 }

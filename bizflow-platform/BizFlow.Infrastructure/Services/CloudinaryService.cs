@@ -18,7 +18,7 @@ namespace BizFlow.Infrastructure.Services
             _settings = settings.Value;
         }
 
-        public async Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName)
+        public async Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName, string presetKey)
         {
             if (fileStream == null || fileStream.Length == 0)
             {
@@ -29,12 +29,21 @@ namespace BizFlow.Infrastructure.Services
                 };
             }
 
+            if (!_settings.UploadPresets.TryGetValue(presetKey, out var uploadPreset))
+            {
+                return new CloudinaryUploadResult
+                {
+                    Success = false,
+                    Error = $"Upload preset not found for key: {presetKey}"
+                };
+            }
+
             try
             {
                 var uploadParams = new ImageUploadParams
                 {
                     File = new FileDescription(fileName, fileStream),
-                    UploadPreset = _settings.UploadPreset,
+                    UploadPreset = uploadPreset,
                     Transformation = new Transformation().Quality("auto").FetchFormat("auto")
                 };
 

@@ -151,7 +151,7 @@ namespace BizFlow.Application.Services
 
             if (request.ImageStream != null)
             {
-                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image");
+                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Products");
                 if (uploadResult.Success)
                 {
                     product.ImageUrl = uploadResult.Url;

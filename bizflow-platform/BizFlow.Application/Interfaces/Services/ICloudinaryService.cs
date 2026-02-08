@@ -12,7 +12,7 @@ namespace BizFlow.Application.Interfaces.Services
         /// <param name="fileName">Image file name</param>
         /// <param name="folder">Folder path in Cloudinary (default: "products")</param>
         /// <returns>Upload result with URL and PublicId</returns>
-        Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName);
+        Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName, string presetKey);
 
         /// <summary>
         /// Delete image from Cloudinary by PublicId
