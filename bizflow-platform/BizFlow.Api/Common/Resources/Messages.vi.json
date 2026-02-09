@@ -54,5 +54,7 @@
   "PRODUCT_ACCESS_DENIED": "Bạn không có quyền quản lý sản phẩm này",
   "PRODUCT_DELETED": "Xóa sản phẩm thành công",
   "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS": "Đơn vị quy đổi '{0}' trùng với đơn vị gốc của sản phẩm",
-  "PRODUCT_IMAGE_UPLOAD_FAILED": "Tải ảnh sản phẩm thất bại: {0}"
+  "PRODUCT_IMAGE_UPLOAD_FAILED": "Tải ảnh sản phẩm thất bại: {0}",
+  "PRODUCT_UPDATED": "Cập nhật sản phẩm thành công",
+  "PRODUCT_CANNOT_CHANGE_LOCATION": "Không thể thay đổi địa điểm của sản phẩm sau khi tạo"
 }

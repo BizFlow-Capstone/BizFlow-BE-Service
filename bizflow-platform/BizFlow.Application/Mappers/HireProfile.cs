@@ -21,7 +21,8 @@ namespace BizFlow.Application.Mappers
             // Custom mapping for EmployeeSummaryDto from Tuple
             CreateMap<(UserLocationAssignment hire, string fullName, string email, string phone), EmployeeSummaryDto>()
                 .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.hire.UserId.ToString()))
-                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.fullName));
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.fullName))
+                .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.phone));
         }
     }
 }

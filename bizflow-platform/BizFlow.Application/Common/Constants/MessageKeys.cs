@@ -80,5 +80,7 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductDeletedSuccessfully = "PRODUCT_DELETED";
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
         public const string ProductImageUploadFailed = "PRODUCT_IMAGE_UPLOAD_FAILED";
+        public const string ProductUpdatedSuccessfully = "PRODUCT_UPDATED";
+        public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
     }
 }

@@ -21,6 +21,11 @@ namespace BizFlow.Application.Interfaces.Services
         Task<ProductListItemDto> CreateProductAsync(Guid userId, CreateProductRequest request);
 
         /// <summary>
+        /// Update an existing product
+        /// </summary>
+        Task<ProductListItemDto> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request);
+
+        /// <summary>
         /// Update product status
         /// </summary>
         Task<bool> UpdateProductStatusAsync(Guid userId, long productId, string status);

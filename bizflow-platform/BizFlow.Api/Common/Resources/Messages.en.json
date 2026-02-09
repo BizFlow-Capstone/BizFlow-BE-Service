@@ -54,5 +54,7 @@
   "PRODUCT_ACCESS_DENIED": "You don't have permission to manage this product",
   "PRODUCT_DELETED": "Product deleted successfully",
   "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS": "Conversion unit '{0}' matches the product's base unit",
-  "PRODUCT_IMAGE_UPLOAD_FAILED": "Failed to upload product image: {0}"
+  "PRODUCT_IMAGE_UPLOAD_FAILED": "Failed to upload product image: {0}",
+  "PRODUCT_UPDATED": "Product updated successfully",
+  "PRODUCT_CANNOT_CHANGE_LOCATION": "Cannot change product location after creation"
 }

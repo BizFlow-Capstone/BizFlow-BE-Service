@@ -89,6 +89,28 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Update an existing product
+        /// </summary>
+        [HttpPut("product/{id:long}")]
+        [SwaggerOperation(Summary = "Update an existing product (including image)")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateProduct(long id, [FromForm] UpdateProductRequest request, IFormFile? image)
+        {
+            if (image != null)
+            {
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
+
+            var userId = GetCurrentUserId();
+            var product = await _productService.UpdateProductAsync(userId, id, request);
+            return Ok(product, MessageKeys.ProductUpdatedSuccessfully);
+        }
+
+        /// <summary>
         /// Update product status
         /// </summary>
         [HttpPut("product/{productId:long}/status")]
