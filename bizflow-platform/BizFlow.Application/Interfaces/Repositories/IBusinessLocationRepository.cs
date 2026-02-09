@@ -44,7 +44,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// <summary>
         /// Gets basic info of employees assigned to a location
         /// </summary>
-        Task<IEnumerable<(Guid UserId, string FullName, string Email)>> GetEmployeesByLocationIdAsync(int locationId);
+        Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId);
 
         // ============ Command Methods ============
 

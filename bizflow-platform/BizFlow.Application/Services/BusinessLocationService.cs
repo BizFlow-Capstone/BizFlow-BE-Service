@@ -158,7 +158,7 @@ namespace BizFlow.Application.Services
             }
 
             // Update entity using Mapper
-            _mapper.Map(request, location); // Map UpdateRequest -> Existing Entity
+            _mapper.Map(request, location); 
             
             _unitOfWork.BusinessLocations.Update(location);
             await _unitOfWork.SaveChangesAsync();
@@ -205,13 +205,7 @@ namespace BizFlow.Application.Services
 
             return new EmployeeSummaryListDto
             {
-                Employees = employees.Select(e => new EmployeeSummaryDto
-                {
-                    UserId = e.UserId.ToString(),
-                    UserName = e.FullName
-                    // Email provided but not used in SummaryDto, if needed we can add it, 
-                    // but the user requested "same as GetMyHiredEmployees" which returns SummaryList
-                }).ToList()
+                Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
             };
         }
 
