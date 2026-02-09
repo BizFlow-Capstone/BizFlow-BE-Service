@@ -55,17 +55,17 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.IsActive, "idx_business_location_is_active");
 
-            entity.HasIndex(e => e.IsDeleted, "idx_business_location_is_deleted");
-
             entity.HasIndex(e => e.Name, "idx_business_location_name");
 
             entity.Property(e => e.Address).HasColumnType("text");
             entity.Property(e => e.City).HasMaxLength(100);
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.District).HasMaxLength(100);
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'");
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Name).HasComment("Location/store name");
             entity.Property(e => e.Phone).HasMaxLength(20);
             entity.Property(e => e.TaxCode)
@@ -247,8 +247,6 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ImagePublicId, "idx_product_image_publicid");
 
-            entity.HasIndex(e => e.IsDeleted, "idx_product_is_deleted");
-
             entity.HasIndex(e => e.Manufacturer, "idx_product_manufacturer");
 
             entity.HasIndex(e => e.ProductName, "idx_product_name");
@@ -262,9 +260,11 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CostPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Cost price");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.ImagePublicId).HasComment("Cloudinary public ID for image deletion");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
@@ -407,11 +407,13 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.Email).HasComment("User email (login)");
             entity.Property(e => e.EmailVerified).HasComment("Email verification status");
             entity.Property(e => e.FullName).HasComment("Full name");
             entity.Property(e => e.IsActive).HasComment("Account status");
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.LastLoginAt)
                 .HasComment("Last login timestamp")
                 .HasColumnType("datetime");

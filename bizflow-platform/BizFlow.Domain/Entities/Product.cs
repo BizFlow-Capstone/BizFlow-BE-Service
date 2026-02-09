@@ -62,9 +62,9 @@ public partial class Product
     public string Status { get; set; } = null!;
 
     /// <summary>
-    /// Soft delete flag
+    /// Soft delete timestamp
     /// </summary>
-    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 

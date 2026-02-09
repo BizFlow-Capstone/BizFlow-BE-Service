@@ -48,9 +48,9 @@ public partial class User
     public bool IsActive { get; set; }
 
     /// <summary>
-    /// Soft delete flag
+    /// Soft delete timestamp
     /// </summary>
-    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
 
     /// <summary>
     /// Email verification status
