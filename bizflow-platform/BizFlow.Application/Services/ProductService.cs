@@ -102,7 +102,7 @@ namespace BizFlow.Application.Services
                 Stock = request.Stock,
                 Manufacturer = request.Manufacturer,
                 Status = "active",
-                IsDeleted = false
+                DeletedAt = null
             };
 
             // 3.1 Create Default Sale Item & Price Policy
@@ -220,7 +220,7 @@ namespace BizFlow.Application.Services
 
             // TODO: Check if product can be deleted (no sale history, no imports, etc.)
             // For now, soft delete the product
-            product.IsDeleted = true;
+            product.DeletedAt = DateTime.UtcNow;
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
 

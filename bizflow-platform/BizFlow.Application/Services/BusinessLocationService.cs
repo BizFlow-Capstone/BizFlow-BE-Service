@@ -224,7 +224,7 @@ namespace BizFlow.Application.Services
             if (location == null)
                 return false;
 
-            location.IsDeleted = true;
+            location.DeletedAt = DateTime.UtcNow;
             _unitOfWork.BusinessLocations.Update(location);
             await _unitOfWork.SaveChangesAsync();
 
