@@ -19,7 +19,7 @@ namespace BizFlow.Application.DTOs.Product
 
         [Required]
         [MaxLength(255)]
-        public string Name { get; set; } = null!;
+        public string ProductName { get; set; } = null!;
 
         [MaxLength(100)]
         public string? Sku { get; set; }

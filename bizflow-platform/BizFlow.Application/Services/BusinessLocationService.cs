@@ -38,8 +38,9 @@ namespace BizFlow.Application.Services
                 // Retrieve OwnerName for each location to pass into Mapper context
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
                 
-                // Use AutoMapper with Items dictionary to pass dynamic data (OwnerName)
-                result.Add(_mapper.Map<BusinessLocationDto>(loc, opt => opt.Items["OwnerName"] = ownerName));
+                var dto = _mapper.Map<BusinessLocationDto>(loc);
+                dto.OwnerName = ownerName;
+                result.Add(dto);
             }
             
             return result;
@@ -56,7 +57,9 @@ namespace BizFlow.Application.Services
             foreach (var loc in locations)
             {
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                result.Add(_mapper.Map<BusinessLocationDto>(loc, opt => opt.Items["OwnerName"] = ownerName));
+                var dto = _mapper.Map<BusinessLocationDto>(loc);
+                dto.OwnerName = ownerName;
+                result.Add(dto);
             }
             
             return result;
@@ -104,15 +107,12 @@ namespace BizFlow.Application.Services
 
                 await _unitOfWork.SaveChangesAsync();
                 
-                // Get Owner Name (Current User) to return full DTO
-                /* To keep consistency, we should fetch it or assume it from Context. 
-                   The CreateLocationRequest doesn't have it. 
-                   However, BusinessLocationMapper.ToDto(createdLocation) previously returned null ownerName implicitly?
-                   Let's check previous ToDto impl. It probably just mapped fields.
-                   Here we can map without OwnerName or pass generic "Me"? 
-                   Actually CreateLocation usually returns the object. OwnerName is nice to have. */
+                var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(createdLocation.BusinessLocationId);
                    
-                return _mapper.Map<BusinessLocationDto>(createdLocation);
+                var dto = _mapper.Map<BusinessLocationDto>(createdLocation);
+                dto.OwnerName = ownerName;
+                
+                return dto;
             });
         }
 

@@ -94,7 +94,7 @@ namespace BizFlow.Application.Services
             {
                 BusinessLocationId = request.LocationId,
                 BusinessTypeId = request.BusinessTypeId,
-                ProductName = request.Name,
+                ProductName = request.ProductName,
                 Sku = request.Sku,
                 TrackInventory = request.TrackInventory,
                 Unit = request.Unit,
