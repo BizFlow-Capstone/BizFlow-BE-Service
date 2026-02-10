@@ -95,7 +95,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .AnyAsync(ula => 
                     ula.UserId == userId && 
                     ula.BusinessLocationId == locationId && 
-                    ula.IsActive);
+                    ula.IsActive == true);
         }
 
         /// <summary>
