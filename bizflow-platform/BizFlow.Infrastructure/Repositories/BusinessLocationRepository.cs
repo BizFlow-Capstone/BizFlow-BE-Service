@@ -87,6 +87,18 @@ namespace BizFlow.Infrastructure.Repositories
         }
 
         /// <summary>
+        /// Checks if user has access to location (owner or assigned employee)
+        /// </summary>
+        public async Task<bool> HasAccessToLocationAsync(Guid userId, int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .AnyAsync(ula => 
+                    ula.UserId == userId && 
+                    ula.BusinessLocationId == locationId && 
+                    ula.IsActive);
+        }
+
+        /// <summary>
         /// Checks if location name already exists for an owner
         /// </summary>
         public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)

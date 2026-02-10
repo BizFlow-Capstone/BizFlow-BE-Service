@@ -21,9 +21,9 @@ namespace BizFlow.Application.Services
 
         public async Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
         {
-            // Validate ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, query.LocationId);
-            if (!isOwner)
+            // Validate access (owner or employee)
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, query.LocationId);
+            if (!hasAccess)
             {
                 throw new ForbiddenException(MessageKeys.LocationAccessDenied);
             }
@@ -47,9 +47,9 @@ namespace BizFlow.Application.Services
                 throw new NotFoundException(MessageKeys.ProductNotFound);
             }
 
-            // Validate ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
-            if (!isOwner)
+            // Validate access (owner or employee)
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, product.BusinessLocationId);
+            if (!hasAccess)
             {
                 throw new ForbiddenException(MessageKeys.LocationAccessDenied);
             }
@@ -110,7 +110,7 @@ namespace BizFlow.Application.Services
             {
                 Unit = request.Unit,
                 Quantity = 1,
-                Product = product // Navigation property check
+                Product = product
             };
             
             var defaultPricePolicy = new ProductPricePolicy
@@ -223,10 +223,8 @@ namespace BizFlow.Application.Services
             product.CostPrice = request.CostPrice;
             product.Stock = request.Stock;
             product.Manufacturer = request.Manufacturer;
-            // Status not updated here, use dedicated API
 
             // 5. Update Image
-            // Handle image removal
             if (request.RemoveImage && !string.IsNullOrEmpty(product.ImagePublicId))
             {
                 await _cloudinaryService.DeleteImageAsync(product.ImagePublicId);
@@ -255,26 +253,19 @@ namespace BizFlow.Application.Services
             }
 
             // 6. Smart Update for SaleItems
-            // Build expected sale items from request
             var expectedSaleItems = new List<(string Unit, int Quantity, decimal Price)>
             {
-                // Default sale item (base unit)
                 (request.Unit, 1, request.CostPrice)
             };
             
-            // Add price tiers
             if (request.PriceTiers != null)
             {
                 expectedSaleItems.AddRange(request.PriceTiers.Select(t => (t.Unit, t.Quantity, t.Price)));
             }
 
-            // Get existing sale items
             var existingSaleItems = product.SaleItems.ToList();
 
-            // Track which existing items to keep
             var processedExistingItemIds = new HashSet<long>();
-
-            // Update or add sale items
             foreach (var (unit, quantity, price) in expectedSaleItems)
             {
                 // Try to find matching existing sale item (same unit AND quantity)
@@ -291,12 +282,10 @@ namespace BizFlow.Application.Services
                     var defaultPolicy = existingItem.ProductPricePolicies.FirstOrDefault(pp => pp.IsDefault);
                     if (defaultPolicy != null)
                     {
-                        // Update existing policy price
                         defaultPolicy.Price = price;
                     }
                     else
                     {
-                        // Create new default policy if somehow missing
                         existingItem.ProductPricePolicies.Add(new ProductPricePolicy
                         {
                             Price = price,
@@ -334,12 +323,10 @@ namespace BizFlow.Application.Services
 
             foreach (var itemToRemove in itemsToRemove)
             {
-                // Soft delete: Set DeletedAt instead of physically removing
                 itemToRemove.DeletedAt = DateTime.UtcNow;
             }
 
             // 7. Save
-            // Note: If validation fails DB constraint (foreign keys), it will throw.
             try 
             {
                 _unitOfWork.Products.Update(product);
@@ -347,10 +334,8 @@ namespace BizFlow.Application.Services
             }
             catch (Exception)
             {
-                // If update fails, and we uploaded a new image, we should probably delete it?
-                // But we don't track the "newly uploaded" id easily here if we overwrote the property.
-                // For now, standard transaction rollback by UnitOfWork will happen for DB.
-                // Image cleanup is harder.
+                // If DB save fails after image upload, the image becomes orphaned on Cloudinary.
+                // ImageCleanupJob (Hangfire scheduled) will automatically clean it up.
                 throw; 
             }
 
@@ -393,8 +378,6 @@ namespace BizFlow.Application.Services
                 return false;
             }
 
-            // TODO: Check if product can be deleted (no sale history, no imports, etc.)
-            // For now, soft delete the product
             product.DeletedAt = DateTime.UtcNow;
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();

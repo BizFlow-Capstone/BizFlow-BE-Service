@@ -33,7 +33,7 @@ namespace BizFlow.Api.Controllers
         /// Gets basic employee list with id and name only (for selection/dropdowns)
         /// </summary>
         [HttpGet("employees")]
-        [SwaggerOperation(Summary = "Get employee list for dropdown selection")]
+        [SwaggerOperation(Summary = "Get employee list", Description = "Returns hired employees (id + name only). For dropdowns/selection.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployees()
         {
@@ -45,7 +45,7 @@ namespace BizFlow.Api.Controllers
         /// Gets detailed employee list with full information (for management)
         /// </summary>
         [HttpGet("employees/details")]
-        [SwaggerOperation(Summary = "Get full employee details for management")]
+        [SwaggerOperation(Summary = "Get employee details", Description = "Returns complete employee information. For management/admin pages.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyHiredEmployeeDetails()
         {

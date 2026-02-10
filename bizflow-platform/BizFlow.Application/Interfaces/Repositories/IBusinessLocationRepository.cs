@@ -32,6 +32,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<bool> IsOwnerOfLocationAsync(Guid userId, int locationId);
 
         /// <summary>
+        /// Check if user has access to location (owner or assigned employee)
+        /// </summary>
+        Task<bool> HasAccessToLocationAsync(Guid userId, int locationId);
+
+        /// <summary>
         /// Checks if location name already exists for an owner
         /// </summary>
         Task<bool> IsExistedByNameAsync(Guid userId, string locationName);
