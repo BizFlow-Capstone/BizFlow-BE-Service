@@ -74,9 +74,20 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<Product?> GetByIdWithSaleItemsAsync(long productId)
         {
             return await _dbContext.Products
+                .Where(p => p.ProductId == productId)
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
-                .FirstOrDefaultAsync(p => p.ProductId == productId);
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<Product?> GetByIdWithDetailsAsync(long productId)
+        {
+            return await _dbContext.Products
+                .Where(p => p.ProductId == productId)
+                .Include(p => p.SaleItems)
+                    .ThenInclude(s => s.ProductPricePolicies)
+                .Include(p => p.BusinessLocation)
+                .FirstOrDefaultAsync();
         }
 
 

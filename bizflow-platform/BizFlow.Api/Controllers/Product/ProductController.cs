@@ -53,6 +53,21 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Get product detail by ID
+        /// </summary>
+        [HttpGet("product/{productId:long}")]
+        [SwaggerOperation(Summary = "Get product detail", Description = "Returns detailed product information including images, prices, and sale items. Owner or Employee access.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetProductDetail(long productId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.GetProductDetailAsync(userId, productId);
+            return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
+        }
+
+        /// <summary>
         /// Get product sale items (price tiers)
         /// </summary>
         [HttpGet("product/{productId:long}/sale-items")]

@@ -6,6 +6,7 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
+using AutoMapper;
 
 namespace BizFlow.Application.Services
 {
@@ -13,11 +14,13 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICloudinaryService _cloudinaryService;
+        private readonly IMapper _mapper;
 
-        public ProductService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService)
+        public ProductService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _cloudinaryService = cloudinaryService;
+            _mapper = mapper;
         }
 
         public async Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
@@ -31,13 +34,31 @@ namespace BizFlow.Application.Services
 
             var (products, totalCount) = await _unitOfWork.Products.SearchAsync(query);
 
-            var items = products.Select(MapToListItemDto);
+            var items = products.Select(MapToListItemDto).ToList();
 
             // Use values with fallback (should be set by controller)
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 10;
 
             return new PaginatedResponse<ProductListItemDto>(items, totalCount, pageNumber, pageSize);
+        }
+
+        public async Task<ProductDetailDto?> GetProductDetailAsync(Guid userId, long productId)
+        {
+            var product = await _unitOfWork.Products.GetByIdWithDetailsAsync(productId);
+            if (product == null)
+            {
+                throw new NotFoundException(MessageKeys.ProductNotFound);
+            }
+
+            // Validate access (owner or employee)
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, product.BusinessLocationId);
+            if (!hasAccess)
+            {
+                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+            }
+
+            return _mapper.Map<ProductDetailDto>(product);
         }
 
         public async Task<ProductSaleItemsResponseDto?> GetProductSaleItemsAsync(Guid userId, long productId)
@@ -55,17 +76,7 @@ namespace BizFlow.Application.Services
                 throw new ForbiddenException(MessageKeys.LocationAccessDenied);
             }
 
-            return new ProductSaleItemsResponseDto
-            {
-                ProductId = product.ProductId,
-                SaleItems = product.SaleItems.Select(s => new SaleItemDto
-                {
-                    SaleItemId = s.SaleItemId,
-                    Unit = s.Unit,
-                    Quantity = s.Quantity,
-                    Price = s.ProductPricePolicies.FirstOrDefault(pp => pp.IsDefault)?.Price ?? 0
-                }).ToList()
-            };
+            return _mapper.Map<ProductSaleItemsResponseDto>(product);
         }
 
         public async Task<ProductListItemDto> CreateProductAsync(Guid userId, CreateProductRequest request)
@@ -393,26 +404,7 @@ namespace BizFlow.Application.Services
             return true;
         }
 
-        #region Private Helpers
-
-        private ProductListItemDto MapToListItemDto(Product product)
-        {
-            return new ProductListItemDto
-            {
-                ProductId = product.ProductId,
-                Name = product.ProductName,
-                Sku = product.Sku,
-                Price = GetDefaultPrice(product),
-                TrackInventory = product.TrackInventory ?? true,
-                Stock = (product.TrackInventory ?? true) ? product.Stock : null,
-                Status = product.Status
-            };
-        }
-
-        /// <summary>
-        /// Gets default price from sale item with unit matching product's base unit
-        /// </summary>
-        private static decimal GetDefaultPrice(Product product)
+        public static decimal GetDefaultPrice(Product product)
         {
             // Find sale item where unit matches product's base unit
             var matchingSaleItem = product.SaleItems
@@ -427,7 +419,11 @@ namespace BizFlow.Application.Services
             return defaultPolicy?.Price ?? 0;
         }
 
-        #endregion
+        private ProductListItemDto MapToListItemDto(Product product)
+        {
+            var dto = _mapper.Map<ProductListItemDto>(product);
+            dto.Price = GetDefaultPrice(product);
+            return dto;
+        }
     }
 }
-

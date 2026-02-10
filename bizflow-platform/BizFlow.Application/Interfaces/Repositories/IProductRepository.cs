@@ -23,6 +23,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Product?> GetByIdWithSaleItemsAsync(long productId);
 
         /// <summary>
+        /// Get product by ID with all related data (SaleItems, PricePolicies, BusinessLocation)
+        /// </summary>
+        Task<Product?> GetByIdWithDetailsAsync(long productId);
+
+        /// <summary>
         /// Get all non-null ImagePublicIds from Products table (for cleanup job)
         /// </summary>
         Task<List<string>> GetAllImagePublicIdsAsync();
