@@ -357,7 +357,14 @@ namespace BizFlow.Application.Services
                 return false;
             }
 
-            product.Status = status.ToLower();
+            // Validate status value
+            var normalizedStatus = status.ToLower();
+            if (normalizedStatus != ProductStatus.Active && normalizedStatus != ProductStatus.Inactive)
+            {
+                throw new BadRequestException(MessageKeys.ProductInvalidStatus);
+            }
+
+            product.Status = normalizedStatus;
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
 

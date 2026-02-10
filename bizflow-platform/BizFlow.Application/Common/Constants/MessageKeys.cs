@@ -82,5 +82,6 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductImageUploadFailed = "PRODUCT_IMAGE_UPLOAD_FAILED";
         public const string ProductUpdatedSuccessfully = "PRODUCT_UPDATED";
         public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
+        public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
     }
 }
