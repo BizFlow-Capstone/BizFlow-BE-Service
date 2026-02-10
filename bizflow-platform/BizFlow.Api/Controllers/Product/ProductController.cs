@@ -39,7 +39,7 @@ namespace BizFlow.Api.Controllers.Product
         /// Search and filter products with pagination
         /// </summary>
         [HttpGet("products")]
-        [SwaggerOperation(Summary = "Search/filter products with pagination")]
+        [SwaggerOperation(Summary = "Search/filter products", Description = "Supports filtering by name, SKU, status, business type. Returns paginated results. Owner or Employee access.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParams query)
@@ -53,10 +53,25 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Get product detail by ID
+        /// </summary>
+        [HttpGet("product/{productId:long}")]
+        [SwaggerOperation(Summary = "Get product detail", Description = "Returns detailed product information including images, prices, and sale items. Owner or Employee access.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetProductDetail(long productId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.GetProductDetailAsync(userId, productId);
+            return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
+        }
+
+        /// <summary>
         /// Get product sale items (price tiers)
         /// </summary>
         [HttpGet("product/{productId:long}/sale-items")]
-        [SwaggerOperation(Summary = "Get product price tiers")]
+        [SwaggerOperation(Summary = "Get product sale items", Description = "Returns all price tiers (unit conversions) for a product. Owner or Employee access.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -71,22 +86,50 @@ namespace BizFlow.Api.Controllers.Product
         /// Create a new product
         /// </summary>
         [HttpPost("product")]
-        [SwaggerOperation(Summary = "Create a new product with price tiers")]
+        [SwaggerOperation(Summary = "Create product", Description = "Upload image via multipart/form-data. PriceTiers as JSON string: [{'Unit':'Thùng','Quantity':12,'Price':120000}]. Owner only.")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> CreateProduct([FromBody] CreateProductRequest request)
+        public async Task<IActionResult> CreateProduct([FromForm] CreateProductRequest request, IFormFile? image)
         {
+            if (image != null)
+            {
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
+
             var userId = GetCurrentUserId();
             var product = await _productService.CreateProductAsync(userId, request);
             return Created(product, MessageKeys.ProductCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId });
         }
 
         /// <summary>
+        /// Update an existing product
+        /// </summary>
+        [HttpPut("product/{id:long}")]
+        [SwaggerOperation(Summary = "Update product", Description = "Cannot change location. Missing sale items will be soft-deleted. Set RemoveImage=true to remove image. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateProduct(long id, [FromForm] UpdateProductRequest request, IFormFile? image)
+        {
+            if (image != null)
+            {
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
+
+            var userId = GetCurrentUserId();
+            var product = await _productService.UpdateProductAsync(userId, id, request);
+            return Ok(product, MessageKeys.ProductUpdatedSuccessfully);
+        }
+
+        /// <summary>
         /// Update product status
         /// </summary>
         [HttpPut("product/{productId:long}/status")]
-        [SwaggerOperation(Summary = "Update product status (active/inactive)")]
+        [SwaggerOperation(Summary = "Update product status", Description = "Toggle active/inactive. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -107,7 +150,7 @@ namespace BizFlow.Api.Controllers.Product
         /// Delete product (soft delete)
         /// </summary>
         [HttpDelete("product/{productId:long}")]
-        [SwaggerOperation(Summary = "Delete product (soft delete)")]
+        [SwaggerOperation(Summary = "Delete product", Description = "Soft delete - sets DeletedAt timestamp. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

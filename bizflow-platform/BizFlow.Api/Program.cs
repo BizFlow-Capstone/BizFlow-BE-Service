@@ -10,17 +10,47 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json;
+using BizFlow.Application.Mappers;
+using Hangfire;
+using Hangfire.MySql;
+using BizFlow.Infrastructure.Jobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Hangfire Configuration
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseStorage(
+        new MySqlStorage(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            new MySqlStorageOptions
+            {
+                TablesPrefix = "hf_"
+            }
+        )
+    ));
+
+// Add the processing server as IHostedService
+builder.Services.AddHangfireServer();
+
 // Add services to the container.
 
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllers(options =>
+{
+    // Register custom model binder for handling JSON strings in form data
+    options.ModelBinderProviders.Insert(0, new BizFlow.Api.Common.ModelBinders.FormDataJsonModelBinderProvider());
+})
+.AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
 builder.Services.AddEndpointsApiExplorer();
+
+// Add AutoMapper
+builder.Services.AddAutoMapper(typeof(LocationProfile).Assembly);
 
 // Add HttpContextAccessor
 builder.Services.AddHttpContextAccessor();
@@ -45,6 +75,7 @@ var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<GoogleAuthConfig>(builder.Configuration.GetSection("GoogleAuth"));
 builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(PaginationSettings.SectionName));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -184,5 +215,15 @@ app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Hangfire Dashboard
+app.UseHangfireDashboard();
+
+// Schedule Recurring Job
+RecurringJob.AddOrUpdate<ImageCleanupJob>(
+    "image-cleanup",
+    job => job.ExecuteAsync(),
+    Cron.Daily
+);
 
 app.Run();

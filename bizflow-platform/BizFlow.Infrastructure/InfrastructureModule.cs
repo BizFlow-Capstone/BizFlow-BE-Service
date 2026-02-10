@@ -4,6 +4,11 @@ using BizFlow.Infrastructure.DataContext;
 using BizFlow.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using BizFlow.Infrastructure.Jobs;
+using BizFlow.Application.Common.Models;
+using CloudinaryDotNet;
+using BizFlow.Application.Interfaces.Services;
+using BizFlow.Infrastructure.Services;
 
 namespace BizFlow.Infrastructure
 {
@@ -43,7 +48,7 @@ namespace BizFlow.Infrastructure
                .InstancePerLifetimeScope();
 
             builder.RegisterAssemblyTypes(ThisAssembly)
-               .Where(t => t.Name.EndsWith("Service"))
+               .Where(t => t.Name.EndsWith("Service") && t.Name != "CloudinaryService")
                .AsImplementedInterfaces()
                .InstancePerLifetimeScope();
 
@@ -51,6 +56,24 @@ namespace BizFlow.Infrastructure
                .Where(t => t.Name.EndsWith("Strategy"))
                .AsImplementedInterfaces()
                .InstancePerLifetimeScope();
+
+            // Register Cloudinary as Singleton
+            builder.Register(c =>
+            {
+                var settings = _configuration.GetSection("CloudinarySettings").Get<CloudinarySettings>();
+                if (settings == null) throw new InvalidOperationException("CloudinarySettings not configured");
+                
+                var account = new Account(settings.CloudName, settings.ApiKey, settings.ApiSecret);
+                return new Cloudinary(account);
+            }).SingleInstance();
+
+            // Register CloudinaryService as Singleton (it uses the Singleton Cloudinary instance)
+            builder.RegisterType<CloudinaryService>()
+                   .As<ICloudinaryService>()
+                   .SingleInstance();
+
+            // Register Jobs
+            builder.RegisterType<ImageCleanupJob>().AsSelf().InstancePerDependency();
         }
     }
 }

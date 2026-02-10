@@ -1,9 +1,11 @@
+using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.DTOs.Location;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Mappers;
+using AutoMapper;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Services
@@ -12,11 +14,13 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHireService _hireService;
+        private readonly IMapper _mapper;
 
-        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService)
+        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _hireService = hireService;
+            _mapper = mapper;
         }
 
         #region Query Methods
@@ -31,8 +35,12 @@ namespace BizFlow.Application.Services
             var result = new List<BusinessLocationDto>();
             foreach (var loc in locations)
             {
+                // Retrieve OwnerName for each location to pass into Mapper context
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                result.Add(BusinessLocationMapper.ToDto(loc, ownerName));
+                
+                var dto = _mapper.Map<BusinessLocationDto>(loc);
+                dto.OwnerName = ownerName;
+                result.Add(dto);
             }
             
             return result;
@@ -49,7 +57,9 @@ namespace BizFlow.Application.Services
             foreach (var loc in locations)
             {
                 var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                result.Add(BusinessLocationMapper.ToDto(loc, ownerName));
+                var dto = _mapper.Map<BusinessLocationDto>(loc);
+                dto.OwnerName = ownerName;
+                result.Add(dto);
             }
             
             return result;
@@ -74,7 +84,7 @@ namespace BizFlow.Application.Services
                 }
 
                 // Create the location using mapper
-                var location = BusinessLocationMapper.ToEntity(request);
+                var location = _mapper.Map<BusinessLocation>(request);
 
                 var createdLocation = await _unitOfWork.BusinessLocations.AddAsync(location);
                 await _unitOfWork.SaveChangesAsync();
@@ -96,8 +106,13 @@ namespace BizFlow.Application.Services
                 }
 
                 await _unitOfWork.SaveChangesAsync();
-
-                return BusinessLocationMapper.ToDto(createdLocation);
+                
+                var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(createdLocation.BusinessLocationId);
+                   
+                var dto = _mapper.Map<BusinessLocationDto>(createdLocation);
+                dto.OwnerName = ownerName;
+                
+                return dto;
             });
         }
 
@@ -142,7 +157,9 @@ namespace BizFlow.Application.Services
                 }
             }
 
-            BusinessLocationMapper.UpdateEntity(location, request);
+            // Update entity using Mapper
+            _mapper.Map(request, location); 
+            
             _unitOfWork.BusinessLocations.Update(location);
             await _unitOfWork.SaveChangesAsync();
 
@@ -173,6 +190,26 @@ namespace BizFlow.Application.Services
         }
 
         /// <summary>
+        /// Get employees assigned to a location (owner only)
+        /// </summary>
+        public async Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId)
+        {
+            // Verify ownership
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
+            {
+                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+            }
+
+            var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);
+
+            return new EmployeeSummaryListDto
+            {
+                Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
+            };
+        }
+
+        /// <summary>
         /// Deletes a location (soft delete) - owner only
         /// </summary>
         public async Task<bool> DeleteLocationAsync(Guid userId, int locationId)
@@ -181,7 +218,7 @@ namespace BizFlow.Application.Services
             if (location == null)
                 return false;
 
-            location.IsDeleted = true;
+            location.DeletedAt = DateTime.UtcNow;
             _unitOfWork.BusinessLocations.Update(location);
             await _unitOfWork.SaveChangesAsync();
 

@@ -22,6 +22,16 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<Product?> GetByIdWithSaleItemsAsync(long productId);
 
+        /// <summary>
+        /// Get product by ID with all related data (SaleItems, PricePolicies, BusinessLocation)
+        /// </summary>
+        Task<Product?> GetByIdWithDetailsAsync(long productId);
+        Task<bool> HasHistoryAsync(long productId);
+
+        /// <summary>
+        /// Get all non-null ImagePublicIds from Products table (for cleanup job)
+        /// </summary>
+        Task<List<string>> GetAllImagePublicIdsAsync();
 
 
         // ============ Command Methods ============
@@ -40,6 +50,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// Add sale item to product
         /// </summary>
         Task<SaleItem> AddSaleItemAsync(SaleItem saleItem);
+        void Delete(Product product);
 
         /// <summary>
         /// Add price policy to sale item

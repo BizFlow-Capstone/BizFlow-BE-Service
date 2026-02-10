@@ -63,6 +63,7 @@ namespace BizFlow.Application.Common.Constants
         public const string LocationStatusUpdated = "LOCATION_STATUS_UPDATED";
         public const string LocationAccessDenied = "LOCATION_ACCESS_DENIED";
         public const string LocationAlreadyExists = "LOCATION_ALREADY_EXISTS";
+        public const string EmployeesRetrievedSuccessfully = "LOCATION_EMPLOYEES_RETRIEVED";
 
         // ============ HIRE ============
         public const string HireEmployeesRetrievedSuccessfully = "HIRE_EMPLOYEES_RETRIEVED";
@@ -77,5 +78,10 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductStatusUpdated = "PRODUCT_STATUS_UPDATED";
         public const string ProductAccessDenied = "PRODUCT_ACCESS_DENIED";
         public const string ProductDeletedSuccessfully = "PRODUCT_DELETED";
+        public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
+        public const string ProductImageUploadFailed = "PRODUCT_IMAGE_UPLOAD_FAILED";
+        public const string ProductUpdatedSuccessfully = "PRODUCT_UPDATED";
+        public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
+        public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
     }
 }

@@ -87,6 +87,18 @@ namespace BizFlow.Infrastructure.Repositories
         }
 
         /// <summary>
+        /// Checks if user has access to location (owner or assigned employee)
+        /// </summary>
+        public async Task<bool> HasAccessToLocationAsync(Guid userId, int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .AnyAsync(ula => 
+                    ula.UserId == userId && 
+                    ula.BusinessLocationId == locationId && 
+                    ula.IsActive == true);
+        }
+
+        /// <summary>
         /// Checks if location name already exists for an owner
         /// </summary>
         public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)
@@ -108,6 +120,21 @@ namespace BizFlow.Infrastructure.Repositories
             return await _context.UserLocationAssignments
                 .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
                 .Select(ula => ula.UserId)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Gets basic info of employees assigned to a location
+        /// </summary>
+        public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
+                .Join(_context.Users,
+                    ula => ula.UserId,
+                    user => user.UserId,
+                    (ula, user) => new { user.UserId, user.FullName, user.Email, user.Phone })
+                .Select(x => new ValueTuple<Guid, string, string, string>(x.UserId, x.FullName, x.Email, x.Phone))
                 .ToListAsync();
         }
 

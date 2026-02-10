@@ -46,10 +46,16 @@
   "HIRE_EMPLOYEES_NOT_HIRED": "Cannot assign employees that are not hired. Please hire them first.",
   "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Some employees are already assigned to this location.",
   "LOCATION_EMPLOYEES_ADDED": "Employees added to location successfully",
+  "LOCATION_EMPLOYEES_RETRIEVED": "Employees retrieved from location successfully",
   "PRODUCT_NOT_FOUND": "Product not found",
   "PRODUCT_RETRIEVED": "Products retrieved successfully",
   "PRODUCT_CREATED": "Product created successfully",
   "PRODUCT_STATUS_UPDATED": "Product status updated successfully",
   "PRODUCT_ACCESS_DENIED": "You don't have permission to manage this product",
-  "PRODUCT_DELETED": "Product deleted successfully"
+  "PRODUCT_DELETED": "Product deleted successfully",
+  "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS": "Conversion unit '{0}' matches the product's base unit",
+  "PRODUCT_IMAGE_UPLOAD_FAILED": "Failed to upload product image: {0}",
+  "PRODUCT_UPDATED": "Product updated successfully",
+  "PRODUCT_CANNOT_CHANGE_LOCATION": "Cannot change product location after creation",
+  "PRODUCT_INVALID_STATUS": "Invalid status value. Allowed values: 'active', 'inactive'"
 }

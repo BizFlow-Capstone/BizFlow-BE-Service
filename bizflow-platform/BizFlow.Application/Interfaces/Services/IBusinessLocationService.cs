@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.DTOs.Location;
 
 namespace BizFlow.Application.Interfaces.Services
@@ -33,6 +34,11 @@ namespace BizFlow.Application.Interfaces.Services
         /// Add employees to a location (owner only)
         /// </summary>
         Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds);
+
+        /// <summary>
+        /// Get employees assigned to a location (owner only)
+        /// </summary>
+        Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId);
 
         /// <summary>
         /// Delete location (soft delete) - owner only

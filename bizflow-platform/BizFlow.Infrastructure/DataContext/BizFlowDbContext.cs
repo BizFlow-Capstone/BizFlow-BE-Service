@@ -1,10 +1,5 @@
-using System;
-using BizFlow.Domain.Entities;
-using System.Collections.Generic;
-using BizFlow.Domain.Entities;
 using BizFlow.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using BizFlow.Domain.Entities;
 
 namespace BizFlow.Infrastructure.DataContext;
 
@@ -55,17 +50,17 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.IsActive, "idx_business_location_is_active");
 
-            entity.HasIndex(e => e.IsDeleted, "idx_business_location_is_deleted");
-
             entity.HasIndex(e => e.Name, "idx_business_location_name");
 
             entity.Property(e => e.Address).HasColumnType("text");
             entity.Property(e => e.City).HasMaxLength(100);
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.District).HasMaxLength(100);
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'");
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Name).HasComment("Location/store name");
             entity.Property(e => e.Phone).HasMaxLength(20);
             entity.Property(e => e.TaxCode)
@@ -245,7 +240,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.BusinessTypeId, "idx_product_business_type");
 
-            entity.HasIndex(e => e.IsDeleted, "idx_product_is_deleted");
+            entity.HasIndex(e => e.ImagePublicId, "idx_product_image_publicid");
 
             entity.HasIndex(e => e.Manufacturer, "idx_product_manufacturer");
 
@@ -260,8 +255,11 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CostPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Cost price");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ImagePublicId).HasComment("Cloudinary public ID for image deletion");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
@@ -342,6 +340,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ProductId, "idx_sale_item_product");
 
+            entity.HasIndex(e => e.DeletedAt, "idx_saleitems_deletedat");
+
+            entity.Property(e => e.DeletedAt).HasColumnType("datetime");
             entity.Property(e => e.Quantity).HasDefaultValueSql("'1'");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
@@ -404,11 +405,13 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.Email).HasComment("User email (login)");
             entity.Property(e => e.EmailVerified).HasComment("Email verification status");
             entity.Property(e => e.FullName).HasComment("Full name");
             entity.Property(e => e.IsActive).HasComment("Account status");
-            entity.Property(e => e.IsDeleted).HasComment("Soft delete flag");
             entity.Property(e => e.LastLoginAt)
                 .HasComment("Last login timestamp")
                 .HasColumnType("datetime");

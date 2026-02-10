@@ -16,6 +16,8 @@ public partial class SaleItem
 
     public int Quantity { get; set; }
 
+    public DateTime? DeletedAt { get; set; }
+
     public virtual Product Product { get; set; } = null!;
 
     public virtual ICollection<ProductPricePolicy> ProductPricePolicies { get; set; } = new List<ProductPricePolicy>();

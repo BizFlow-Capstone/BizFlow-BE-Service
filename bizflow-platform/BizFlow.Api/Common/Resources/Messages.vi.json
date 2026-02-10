@@ -46,10 +46,16 @@
   "HIRE_EMPLOYEES_NOT_HIRED": "Không thể phân công nhân viên chưa được thuê. Vui lòng thuê họ trước.",
   "LOCATION_EMPLOYEES_ALREADY_ASSIGNED": "Một số nhân viên đã được phân công vào địa điểm này rồi.",
   "LOCATION_EMPLOYEES_ADDED": "Thêm nhân viên vào địa điểm thành công",
+  "LOCATION_EMPLOYEES_RETRIEVED": "Lấy danh sách nhân viên của địa điểm thành công",
   "PRODUCT_NOT_FOUND": "Không tìm thấy sản phẩm",
   "PRODUCT_RETRIEVED": "Lấy danh sách sản phẩm thành công",
   "PRODUCT_CREATED": "Tạo sản phẩm thành công",
   "PRODUCT_STATUS_UPDATED": "Cập nhật trạng thái sản phẩm thành công",
   "PRODUCT_ACCESS_DENIED": "Bạn không có quyền quản lý sản phẩm này",
-  "PRODUCT_DELETED": "Xóa sản phẩm thành công"
+  "PRODUCT_DELETED": "Xóa sản phẩm thành công",
+  "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS": "Đơn vị quy đổi '{0}' trùng với đơn vị gốc của sản phẩm",
+  "PRODUCT_IMAGE_UPLOAD_FAILED": "Tải ảnh sản phẩm thất bại: {0}",
+  "PRODUCT_UPDATED": "Cập nhật sản phẩm thành công",
+  "PRODUCT_CANNOT_CHANGE_LOCATION": "Không thể thay đổi địa điểm của sản phẩm sau khi tạo",
+  "PRODUCT_INVALID_STATUS": "Giá trị trạng thái không hợp lệ. Chỉ chấp nhận: 'active', 'inactive'"
 }

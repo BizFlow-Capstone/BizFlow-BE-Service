@@ -36,7 +36,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Gets all locations owned by current user
         /// </summary>
         [HttpGet("me/owned")]
-        [SwaggerOperation(Summary = "Get all business locations owned by current user")]
+        [SwaggerOperation(Summary = "Get owned locations", Description = "Returns all locations where user is owner.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetOwnedLocations()
         {
@@ -49,7 +49,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Creates a new business location (current user becomes owner)
         /// </summary>
         [HttpPost("create")]
-        [SwaggerOperation(Summary = "Create a new business location")]
+        [SwaggerOperation(Summary = "Create location", Description = "Creates new location and assigns current user as owner.")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateLocation([FromBody] CreateLocationRequest request)
@@ -63,7 +63,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Updates location active status (owner only)
         /// </summary>
         [HttpPut("me/owned/{id:int}/status")]
-        [SwaggerOperation(Summary = "Enable or disable a location")]
+        [SwaggerOperation(Summary = "Update location status", Description = "Toggle IsActive flag. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -84,7 +84,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Updates location information (owner only)
         /// </summary>
         [HttpPut("me/owned/{id:int}")]
-        [SwaggerOperation(Summary = "Update location details (name, address, phone)")]
+        [SwaggerOperation(Summary = "Update location info", Description = "Update name, address, phone, city. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -105,7 +105,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Adds employees to a location (owner only)
         /// </summary>
         [HttpPost("{locationId:int}/employees")]
-        [SwaggerOperation(Summary = "Assign hired employees to a location")]
+        [SwaggerOperation(Summary = "Assign employees", Description = "Add employees to location. Must be hired first. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -127,7 +127,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Delete location (soft delete) - owner only
         /// </summary>
         [HttpDelete("me/owned/{id:int}")]
-        [SwaggerOperation(Summary = "Delete a location (soft delete)")]
+        [SwaggerOperation(Summary = "Delete location", Description = "Soft delete - sets DeletedAt. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -144,6 +144,20 @@ namespace BizFlow.Api.Controllers.Location
             return Ok(MessageKeys.LocationDeletedSuccessfully);
         }
 
+        /// <summary>
+        /// Get employees assigned to a specific location (owner only)
+        /// </summary>
+        [HttpGet("me/owned/{locationId:int}/employees")]
+        [SwaggerOperation(Summary = "Get location employees", Description = "Returns employees assigned to this location. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetEmployeesByLocation(int locationId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _locationService.GetEmployeesByLocationAsync(userId, locationId);
+            return Ok(result, MessageKeys.EmployeesRetrievedSuccessfully);
+        }
+
         #endregion
 
         #region Employee APIs
@@ -152,7 +166,7 @@ namespace BizFlow.Api.Controllers.Location
         /// Gets all locations where current user works at (as employee)
         /// </summary>
         [HttpGet("work-at-locations")]
-        [SwaggerOperation(Summary = "Get locations where current user is assigned to work")]
+        [SwaggerOperation(Summary = "Get work locations", Description = "Returns locations where current user works as employee (Employee role).")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetWorkAtLocations()
         {
