@@ -105,6 +105,11 @@ namespace BizFlow.Infrastructure.Repositories
             _dbContext.Products.Update(product);
         }
 
+        public void Delete(Product product)
+        {
+            _dbContext.Products.Remove(product);
+        }
+
         public async Task<SaleItem> AddSaleItemAsync(SaleItem saleItem)
         {
             var entry = await _dbContext.SaleItems.AddAsync(saleItem);
@@ -125,6 +130,23 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task AddPricePolicyAsync(ProductPricePolicy pricePolicy)
         {
             await _dbContext.ProductPricePolicies.AddAsync(pricePolicy);
+        }
+        public async Task<bool> HasHistoryAsync(long productId)
+        {
+            // Check imports history
+            var hasImports = await _dbContext.Products
+                .Where(p => p.ProductId == productId)
+                .AnyAsync(p => p.ProductsImports.Any());
+
+            if (hasImports) return true;
+
+            // Check orders history (via SaleItems)
+            // TODO: Implement actual check when Order entity is available
+            // var hasOrders = await _dbContext.SaleItems
+            //     .Where(s => s.ProductId == productId)
+            //     .AnyAsync(s => s.OrderDetails.Any());
+            
+            return false; 
         }
     }
 }

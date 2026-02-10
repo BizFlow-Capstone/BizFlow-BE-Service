@@ -397,8 +397,21 @@ namespace BizFlow.Application.Services
                 return false;
             }
 
-            product.DeletedAt = DateTime.UtcNow;
-            _unitOfWork.Products.Update(product);
+            // Validate business history (imports, orders)
+            var hasHistory = await _unitOfWork.Products.HasHistoryAsync(productId);
+            
+            if (hasHistory)
+            {
+                 // Soft Delete if used
+                product.DeletedAt = DateTime.UtcNow;
+                _unitOfWork.Products.Update(product);
+            }
+            else
+            {
+                // Hard Delete if unused
+                _unitOfWork.Products.Delete(product);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             return true;
