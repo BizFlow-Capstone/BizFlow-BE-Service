@@ -12,5 +12,8 @@ public partial class BizFlowDbContext
 
         // Global Query Filter: Soft Delete for Product (+ Parent Location Check)
         modelBuilder.Entity<Product>().HasQueryFilter(e => e.DeletedAt == null && e.BusinessLocation.DeletedAt == null);
+
+        // Global Query Filter: Soft Delete for SaleItem (+ Parent Product Check)
+        modelBuilder.Entity<SaleItem>().HasQueryFilter(s => s.DeletedAt == null && s.Product.DeletedAt == null);
     }
 }

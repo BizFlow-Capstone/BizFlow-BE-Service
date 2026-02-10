@@ -327,14 +327,15 @@ namespace BizFlow.Application.Services
                 }
             }
 
-            // REMOVE: Delete sale items that are no longer in the request
+            // SOFT DELETE: Mark sale items as deleted that are no longer in the request
             var itemsToRemove = existingSaleItems
                 .Where(s => !processedExistingItemIds.Contains(s.SaleItemId))
                 .ToList();
 
             foreach (var itemToRemove in itemsToRemove)
             {
-                product.SaleItems.Remove(itemToRemove);
+                // Soft delete: Set DeletedAt instead of physically removing
+                itemToRemove.DeletedAt = DateTime.UtcNow;
             }
 
             // 7. Save

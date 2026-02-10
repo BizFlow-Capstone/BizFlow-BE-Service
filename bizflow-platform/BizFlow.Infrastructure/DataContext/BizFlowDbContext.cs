@@ -345,6 +345,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ProductId, "idx_sale_item_product");
 
+            entity.HasIndex(e => e.DeletedAt, "idx_saleitems_deletedat");
+
+            entity.Property(e => e.DeletedAt).HasColumnType("datetime");
             entity.Property(e => e.Quantity).HasDefaultValueSql("'1'");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
