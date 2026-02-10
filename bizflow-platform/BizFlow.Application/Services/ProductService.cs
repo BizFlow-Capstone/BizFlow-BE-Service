@@ -5,6 +5,7 @@ using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 
 namespace BizFlow.Application.Services
 {
@@ -101,7 +102,7 @@ namespace BizFlow.Application.Services
                 CostPrice = request.CostPrice,
                 Stock = request.Stock,
                 Manufacturer = request.Manufacturer,
-                Status = "active",
+                Status = ProductStatus.Active,
                 DeletedAt = null
             };
 
