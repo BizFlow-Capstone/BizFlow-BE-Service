@@ -8,6 +8,31 @@ public partial class Import
     public long ImportId { get; set; }
 
     /// <summary>
+    /// Auto-generated import code (e.g. PNK-2026-001)
+    /// </summary>
+    public string? ImportCode { get; set; }
+
+    /// <summary>
+    /// INVOICE, INVENTORY_ADJUSTMENT, RETURN
+    /// </summary>
+    public string ImportType { get; set; } = null!;
+
+    /// <summary>
+    /// DRAFT, CONFIRMED, CANCELLED
+    /// </summary>
+    public string Status { get; set; } = null!;
+
+    /// <summary>
+    /// FK to BusinessLocations
+    /// </summary>
+    public int BusinessLocationId { get; set; }
+
+    /// <summary>
+    /// Supplier name (free text)
+    /// </summary>
+    public string? Supplier { get; set; }
+
+    /// <summary>
     /// Import data schema
     /// </summary>
     public string? SchemaJson { get; set; }
@@ -18,11 +43,33 @@ public partial class Import
     public decimal TotalAmount { get; set; }
 
     /// <summary>
-    /// Import date
+    /// Record creation timestamp
     /// </summary>
-    public DateTime Date { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Last update timestamp
+    /// </summary>
+    public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Date goods were received / import date
+    /// </summary>
+    public DateTime? Date { get; set; }
 
     public string? Description { get; set; }
+
+    /// <summary>
+    /// URL of attached image/document
+    /// </summary>
+    public string? ImageUrl { get; set; }
+
+    /// <summary>
+    /// Cloudinary public ID for image deletion
+    /// </summary>
+    public string? ImagePublicId { get; set; }
+
+    public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 }

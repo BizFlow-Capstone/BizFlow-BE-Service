@@ -233,20 +233,66 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
+            entity.HasIndex(e => e.BusinessLocationId, "idx_import_business_location");
+
+            entity.HasIndex(e => e.ImportCode, "idx_import_code").IsUnique();
+
+            entity.HasIndex(e => e.CreatedAt, "idx_import_created_at");
+
             entity.HasIndex(e => e.Date, "idx_import_date");
+
+            entity.HasIndex(e => e.Status, "idx_import_status");
 
             entity.HasIndex(e => e.TotalAmount, "idx_import_total_amount");
 
+            entity.HasIndex(e => e.ImportType, "idx_import_type");
+
+            entity.Property(e => e.BusinessLocationId)
+                .HasDefaultValueSql("'1'")
+                .HasComment("FK to BusinessLocations");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("Record creation timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.Date)
-                .HasComment("Import date")
+                .HasComment("Date goods were received / import date")
                 .HasColumnType("datetime");
             entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.ImagePublicId)
+                .HasMaxLength(100)
+                .HasComment("Cloudinary public ID for image deletion");
+            entity.Property(e => e.ImageUrl)
+                .HasMaxLength(500)
+                .HasComment("URL of attached image/document");
+            entity.Property(e => e.ImportCode)
+                .HasMaxLength(50)
+                .HasComment("Auto-generated import code (e.g. PNK-2026-001)");
+            entity.Property(e => e.ImportType)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'INVOICE'")
+                .HasComment("INVOICE, INVENTORY_ADJUSTMENT, RETURN");
             entity.Property(e => e.SchemaJson)
                 .HasComment("Import data schema")
                 .HasColumnType("json");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'DRAFT'")
+                .HasComment("DRAFT, CONFIRMED, CANCELLED");
+            entity.Property(e => e.Supplier)
+                .HasMaxLength(200)
+                .HasComment("Supplier name (free text)");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(15, 2)
                 .HasComment("Total amount");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasComment("Last update timestamp")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.BusinessLocation).WithMany(p => p.Imports)
+                .HasForeignKey(d => d.BusinessLocationId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_import_business_location");
         });
 
         modelBuilder.Entity<ProductPricePolicy>(entity =>
@@ -341,10 +387,21 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ProductId, "idx_product_import_product");
 
+            entity.Property(e => e.BaseUnit)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'Unit'")
+                .HasComment("Base/smallest inventory unit");
+            entity.Property(e => e.CostPrice)
+                .HasPrecision(15, 2)
+                .HasComment("Cost price per import unit");
             entity.Property(e => e.Quantity).HasComment("Import quantity");
             entity.Property(e => e.TotalPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Total price");
+            entity.Property(e => e.Unit)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'Unit'")
+                .HasComment("Import unit (e.g. thÃ¹ng, gÃ³i)");
 
             entity.HasOne(d => d.Import).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ImportId)
