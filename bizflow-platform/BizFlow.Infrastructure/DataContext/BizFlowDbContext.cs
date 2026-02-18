@@ -398,10 +398,6 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.TotalPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Total price");
-            entity.Property(e => e.Unit)
-                .HasMaxLength(50)
-                .HasDefaultValueSql("'Unit'")
-                .HasComment("Import unit (e.g. thÃ¹ng, gÃ³i)");
 
             entity.HasOne(d => d.Import).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ImportId)

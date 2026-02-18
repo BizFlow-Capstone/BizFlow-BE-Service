@@ -15,11 +15,6 @@ public partial class ProductImport
     public int Quantity { get; set; }
 
     /// <summary>
-    /// Import unit (e.g. thÃ¹ng, gÃ³i)
-    /// </summary>
-    public string Unit { get; set; } = null!;
-
-    /// <summary>
     /// Cost price per import unit
     /// </summary>
     public decimal CostPrice { get; set; }
