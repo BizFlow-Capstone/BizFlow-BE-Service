@@ -52,12 +52,9 @@ public partial class Import
     /// </summary>
     public DateTime? UpdatedAt { get; set; }
 
-    /// <summary>
-    /// Date goods were received / import date
-    /// </summary>
-    public DateTime? Date { get; set; }
+    public DateTime? ReceivedAt { get; set; }
 
-    public string? Description { get; set; }
+    public string? Note { get; set; }
 
     /// <summary>
     /// URL of attached image/document

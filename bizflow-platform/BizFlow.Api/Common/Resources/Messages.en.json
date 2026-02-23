@@ -57,5 +57,20 @@
   "PRODUCT_IMAGE_UPLOAD_FAILED": "Failed to upload product image: {0}",
   "PRODUCT_UPDATED": "Product updated successfully",
   "PRODUCT_CANNOT_CHANGE_LOCATION": "Cannot change product location after creation",
-  "PRODUCT_INVALID_STATUS": "Invalid status value. Allowed values: 'active', 'inactive'"
+  "PRODUCT_INVALID_STATUS": "Invalid status value. Allowed values: 'active', 'inactive'",
+  "IMPORT_NOT_FOUND": "Import not found",
+  "IMPORT_RETRIEVED": "Imports retrieved successfully",
+  "IMPORT_CREATED": "Import created successfully",
+  "IMPORT_UPDATED": "Import updated successfully",
+  "IMPORT_CONFIRMED": "Import confirmed successfully",
+  "IMPORT_CANCELLED": "Import cancelled successfully",
+  "IMPORT_DELETED": "Import deleted successfully",
+  "IMPORT_TEMPLATE_RETRIEVED": "Import template retrieved successfully",
+  "IMPORT_ONLY_DRAFT_CAN_BE_EDITED": "Only DRAFT imports can be edited",
+  "IMPORT_ONLY_DRAFT_CAN_BE_DELETED": "Only DRAFT imports can be deleted",
+  "IMPORT_INVALID_ACTION": "Invalid action. Allowed values: 'CONFIRMED', 'CANCELLED'",
+  "IMPORT_DATE_REQUIRED_ON_CONFIRM": "Received date is required when confirming an import",
+  "IMPORT_PRODUCT_NOT_FOUND": "One or more products in the import were not found",
+  "IMPORT_LOCATION_NOT_FOUND": "Business location for this import was not found",
+  "IMPORT_ALREADY_CANCELLED": "This import has already been cancelled"
 }

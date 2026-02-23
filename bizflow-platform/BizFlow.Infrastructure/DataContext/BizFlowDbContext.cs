@@ -219,6 +219,10 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.TemplateCode, "idx_import_schema_template_code").IsUnique();
 
+            entity.Property(e => e.IsActive)
+                .IsRequired()
+                .HasDefaultValueSql("'1'")
+                .HasComment("Whether this schema template is available for use");
             entity.Property(e => e.Name)
                 .HasMaxLength(100)
                 .HasComment("Human-readable name of the template");
@@ -239,7 +243,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.CreatedAt, "idx_import_created_at");
 
-            entity.HasIndex(e => e.Date, "idx_import_date");
+            entity.HasIndex(e => e.ReceivedAt, "idx_import_date");
 
             entity.HasIndex(e => e.Status, "idx_import_status");
 
@@ -254,10 +258,6 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasComment("Record creation timestamp")
                 .HasColumnType("datetime");
-            entity.Property(e => e.Date)
-                .HasComment("Date goods were received / import date")
-                .HasColumnType("datetime");
-            entity.Property(e => e.Description).HasColumnType("text");
             entity.Property(e => e.ImagePublicId)
                 .HasMaxLength(100)
                 .HasComment("Cloudinary public ID for image deletion");
@@ -271,6 +271,8 @@ public partial class BizFlowDbContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'INVOICE'")
                 .HasComment("INVOICE, INVENTORY_ADJUSTMENT, RETURN");
+            entity.Property(e => e.Note).HasColumnType("text");
+            entity.Property(e => e.ReceivedAt).HasColumnType("datetime");
             entity.Property(e => e.SchemaJson)
                 .HasComment("Import data schema")
                 .HasColumnType("json");
