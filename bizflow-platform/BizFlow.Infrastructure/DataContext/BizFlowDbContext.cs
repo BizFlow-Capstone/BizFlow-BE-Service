@@ -18,6 +18,10 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<Hire> Hires { get; set; }
 
+    public virtual DbSet<ImportSchemaVersion> ImportSchemaVersions { get; set; }
+
+    public virtual DbSet<ImportSchema> ImportSchemas { get; set; }
+
     public virtual DbSet<Import> Imports { get; set; }
 
     public virtual DbSet<ProductPricePolicy> ProductPricePolicies { get; set; }
@@ -184,26 +188,113 @@ public partial class BizFlowDbContext : DbContext
                 .HasConstraintName("fk_hire_owner");
         });
 
+        modelBuilder.Entity<ImportSchemaVersion>(entity =>
+        {
+            entity.HasKey(e => e.ImportSchemaVersionId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.IsActive, "idx_import_schema_version_is_active");
+
+            entity.HasIndex(e => e.ImportSchemaId, "idx_import_schema_version_schema_id");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("When this version was created")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ImportSchemaId).HasComment("Reference to parent ImportSchema");
+            entity.Property(e => e.IsActive).HasComment("Only one active version per schema at a time");
+            entity.Property(e => e.SchemaJson).HasComment("JSON schema definition for the import template");
+
+            entity.HasOne(d => d.ImportSchema).WithMany(p => p.ImportSchemaVersions)
+                .HasForeignKey(d => d.ImportSchemaId)
+                .HasConstraintName("fk_import_schema_version_schema");
+        });
+
+        modelBuilder.Entity<ImportSchema>(entity =>
+        {
+            entity.HasKey(e => e.ImportSchemaId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.TemplateCode, "idx_import_schema_template_code").IsUnique();
+
+            entity.Property(e => e.IsActive)
+                .IsRequired()
+                .HasDefaultValueSql("'1'")
+                .HasComment("Whether this schema template is available for use");
+            entity.Property(e => e.Name)
+                .HasMaxLength(100)
+                .HasComment("Human-readable name of the template");
+            entity.Property(e => e.TemplateCode)
+                .HasMaxLength(50)
+                .HasComment("Unique code identifying the template type");
+        });
+
         modelBuilder.Entity<Import>(entity =>
         {
             entity.HasKey(e => e.ImportId).HasName("PRIMARY");
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
-            entity.HasIndex(e => e.Date, "idx_import_date");
+            entity.HasIndex(e => e.BusinessLocationId, "idx_import_business_location");
+
+            entity.HasIndex(e => e.ImportCode, "idx_import_code").IsUnique();
+
+            entity.HasIndex(e => e.CreatedAt, "idx_import_created_at");
+
+            entity.HasIndex(e => e.ReceivedAt, "idx_import_date");
+
+            entity.HasIndex(e => e.Status, "idx_import_status");
 
             entity.HasIndex(e => e.TotalAmount, "idx_import_total_amount");
 
-            entity.Property(e => e.Date)
-                .HasComment("Import date")
+            entity.HasIndex(e => e.ImportType, "idx_import_type");
+
+            entity.Property(e => e.BusinessLocationId)
+                .HasDefaultValueSql("'1'")
+                .HasComment("FK to BusinessLocations");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("Record creation timestamp")
                 .HasColumnType("datetime");
-            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.ImagePublicId)
+                .HasMaxLength(100)
+                .HasComment("Cloudinary public ID for image deletion");
+            entity.Property(e => e.ImageUrl)
+                .HasMaxLength(500)
+                .HasComment("URL of attached image/document");
+            entity.Property(e => e.ImportCode)
+                .HasMaxLength(50)
+                .HasComment("Auto-generated import code (e.g. PNK-2026-001)");
+            entity.Property(e => e.ImportType)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'INVOICE'")
+                .HasComment("INVOICE, INVENTORY_ADJUSTMENT, RETURN");
+            entity.Property(e => e.Note).HasColumnType("text");
+            entity.Property(e => e.ReceivedAt).HasColumnType("datetime");
             entity.Property(e => e.SchemaJson)
                 .HasComment("Import data schema")
                 .HasColumnType("json");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'DRAFT'")
+                .HasComment("DRAFT, CONFIRMED, CANCELLED");
+            entity.Property(e => e.Supplier)
+                .HasMaxLength(200)
+                .HasComment("Supplier name (free text)");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(15, 2)
                 .HasComment("Total amount");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasComment("Last update timestamp")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.BusinessLocation).WithMany(p => p.Imports)
+                .HasForeignKey(d => d.BusinessLocationId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_import_business_location");
         });
 
         modelBuilder.Entity<ProductPricePolicy>(entity =>
@@ -298,6 +389,13 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ProductId, "idx_product_import_product");
 
+            entity.Property(e => e.BaseUnit)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'Unit'")
+                .HasComment("Base/smallest inventory unit");
+            entity.Property(e => e.CostPrice)
+                .HasPrecision(15, 2)
+                .HasComment("Cost price per import unit");
             entity.Property(e => e.Quantity).HasComment("Import quantity");
             entity.Property(e => e.TotalPrice)
                 .HasPrecision(15, 2)

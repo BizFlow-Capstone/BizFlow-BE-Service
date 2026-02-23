@@ -57,5 +57,20 @@
   "PRODUCT_IMAGE_UPLOAD_FAILED": "Tải ảnh sản phẩm thất bại: {0}",
   "PRODUCT_UPDATED": "Cập nhật sản phẩm thành công",
   "PRODUCT_CANNOT_CHANGE_LOCATION": "Không thể thay đổi địa điểm của sản phẩm sau khi tạo",
-  "PRODUCT_INVALID_STATUS": "Giá trị trạng thái không hợp lệ. Chỉ chấp nhận: 'active', 'inactive'"
+  "PRODUCT_INVALID_STATUS": "Giá trị trạng thái không hợp lệ. Chỉ chấp nhận: 'active', 'inactive'",
+  "IMPORT_NOT_FOUND": "Không tìm thấy phiếu nhập kho",
+  "IMPORT_RETRIEVED": "Lấy danh sách phiếu nhập kho thành công",
+  "IMPORT_CREATED": "Tạo phiếu nhập kho thành công",
+  "IMPORT_UPDATED": "Cập nhật phiếu nhập kho thành công",
+  "IMPORT_CONFIRMED": "Xác nhận phiếu nhập kho thành công",
+  "IMPORT_CANCELLED": "Hủy phiếu nhập kho thành công",
+  "IMPORT_DELETED": "Xóa phiếu nhập kho thành công",
+  "IMPORT_TEMPLATE_RETRIEVED": "Lấy mẫu phiếu nhập kho thành công",
+  "IMPORT_ONLY_DRAFT_CAN_BE_EDITED": "Chỉ có thể chỉnh sửa phiếu nhập ở trạng thái DRAFT",
+  "IMPORT_ONLY_DRAFT_CAN_BE_DELETED": "Chỉ có thể xóa phiếu nhập ở trạng thái DRAFT",
+  "IMPORT_INVALID_ACTION": "Hành động không hợp lệ. Chỉ chấp nhận: 'CONFIRMED', 'CANCELLED'",
+  "IMPORT_DATE_REQUIRED_ON_CONFIRM": "Ngày nhận hàng là bắt buộc khi xác nhận phiếu nhập",
+  "IMPORT_PRODUCT_NOT_FOUND": "Một hoặc nhiều sản phẩm trong phiếu nhập không tồn tại",
+  "IMPORT_LOCATION_NOT_FOUND": "Không tìm thấy địa điểm kinh doanh cho phiếu nhập này",
+  "IMPORT_ALREADY_CANCELLED": "Phiếu nhập này đã bị hủy"
 }

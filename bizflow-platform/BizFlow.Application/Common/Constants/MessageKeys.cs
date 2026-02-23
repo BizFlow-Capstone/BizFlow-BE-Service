@@ -83,5 +83,22 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductUpdatedSuccessfully = "PRODUCT_UPDATED";
         public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
         public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
+
+        // ============ IMPORT ============
+        public const string ImportNotFound = "IMPORT_NOT_FOUND";
+        public const string ImportRetrievedSuccessfully = "IMPORT_RETRIEVED";
+        public const string ImportCreatedSuccessfully = "IMPORT_CREATED";
+        public const string ImportUpdatedSuccessfully = "IMPORT_UPDATED";
+        public const string ImportConfirmedSuccessfully = "IMPORT_CONFIRMED";
+        public const string ImportCancelledSuccessfully = "IMPORT_CANCELLED";
+        public const string ImportDeletedSuccessfully = "IMPORT_DELETED";
+        public const string ImportTemplateRetrievedSuccessfully = "IMPORT_TEMPLATE_RETRIEVED";
+        public const string ImportOnlyDraftCanBeEdited = "IMPORT_ONLY_DRAFT_CAN_BE_EDITED";
+        public const string ImportOnlyDraftCanBeDeleted = "IMPORT_ONLY_DRAFT_CAN_BE_DELETED";
+        public const string ImportInvalidAction = "IMPORT_INVALID_ACTION";
+        public const string ImportDateRequiredOnConfirm = "IMPORT_DATE_REQUIRED_ON_CONFIRM";
+        public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
+        public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
+        public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
     }
 }

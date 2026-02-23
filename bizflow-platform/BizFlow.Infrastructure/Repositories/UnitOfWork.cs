@@ -14,19 +14,22 @@ namespace BizFlow.Infrastructure.Repositories
             IRoleRepository roleRepository,
             IBusinessLocationRepository businessLocationRepository,
             IHireRepository hireRepository,
-            IProductRepository productRepository)
+            IProductRepository productRepository,
+            IImportRepository importRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
             BusinessLocations = businessLocationRepository;
             Hires = hireRepository;
             Products = productRepository;
+            Imports = importRepository;
         }
 
         public IRoleRepository Roles { get; set; }
         public IBusinessLocationRepository BusinessLocations { get; set; }
         public IHireRepository Hires { get; set; }
         public IProductRepository Products { get; set; }
+        public IImportRepository Imports { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

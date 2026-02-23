@@ -32,6 +32,8 @@ public partial class BusinessLocation
     /// </summary>
     public string? TaxCode { get; set; }
 
+    public virtual ICollection<Import> Imports { get; set; } = new List<Import>();
+
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 
     public virtual ICollection<UserLocationAssignment> UserLocationAssignments { get; set; } = new List<UserLocationAssignment>();

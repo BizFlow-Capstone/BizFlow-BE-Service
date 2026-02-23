@@ -15,9 +15,19 @@ public partial class ProductImport
     public int Quantity { get; set; }
 
     /// <summary>
+    /// Cost price per import unit
+    /// </summary>
+    public decimal CostPrice { get; set; }
+
+    /// <summary>
     /// Total price
     /// </summary>
     public decimal TotalPrice { get; set; }
+
+    /// <summary>
+    /// Base/smallest inventory unit
+    /// </summary>
+    public string BaseUnit { get; set; } = null!;
 
     public virtual Import Import { get; set; } = null!;
 
