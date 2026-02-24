@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BizFlow.Application\BizFlow.Application.csproj" />
     <ProjectReference Include="..\BizFlow.Domain\BizFlow.Domain.csproj" />
+    <ProjectReference Include="..\BizFlow.Api\BizFlow.Api.csproj" />
   </ItemGroup>
 
 </Project>

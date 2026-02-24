@@ -764,5 +764,584 @@ namespace BizFlow.Application.Tests.Services
         }
 
         #endregion
+
+        // ===========================================================
+        // NOTE: Tests below exist because mocks can mask real bugs.
+        // If mapper profile is misconfigured or SaveChanges fails in
+        // reality, the tests above still pass (mocks hide it).
+        // These tests enforce that the service wires up correctly.
+        // ===========================================================
+
+        #region Mapper & SaveChanges Strict Verification
+
+        [Fact]
+        public async Task CreateProductAsync_CallsMapper_ExactlyOnce()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var locationId = 1;
+            var request = new CreateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                ProductName = "Strict Test",
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockUnitOfWork.Setup(x => x.Products.AddAsync(It.IsAny<Product>())).ReturnsAsync((Product p) => p);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.CreateProductAsync(userId, request);
+
+            // Assert — mapper MUST be called exactly once; if it's 0 the return value would be wrong
+            _mockMapper.Verify(x => x.Map<ProductListItemDto>(It.IsAny<Product>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateProductAsync_CallsSaveChanges_ExactlyOnce()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var locationId = 1;
+            var request = new CreateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                ProductName = "SaveChanges test",
+                Unit = "kg",
+                CostPrice = 50m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockUnitOfWork.Setup(x => x.Products.AddAsync(It.IsAny<Product>())).ReturnsAsync((Product p) => p);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.CreateProductAsync(userId, request);
+
+            // Assert — EF SaveChanges must be called after AddAsync
+            _mockUnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_CallsMapper_ExactlyOnce()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem>()
+            };
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.UpdateProductAsync(userId, productId, request);
+
+            // Assert
+            _mockMapper.Verify(x => x.Map<ProductListItemDto>(product), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_CallsSaveChanges_ExactlyOnce()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem>()
+            };
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.UpdateProductAsync(userId, productId, request);
+
+            // Assert
+            _mockUnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WhenSaveChangesFails_ThrowsAndDoesNotSwallow()
+        {
+            // Arrange — real bug scenario: SaveChanges throws (e.g. DB constraint violation)
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem>()
+            };
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Override the constructor default: SaveChanges now throws
+            _mockUnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("DB constraint violated"));
+
+            // Act & Assert — service must NOT swallow DB exceptions
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _productService.UpdateProductAsync(userId, productId, request));
+        }
+
+        [Fact]
+        public async Task CreateProductAsync_WhenSaveChangesFails_AndNoImage_StillThrows()
+        {
+            // Arrange — no image, so no Cloudinary rollback needed; just confirms re-throw
+            var userId = Guid.NewGuid();
+            var locationId = 1;
+            var request = new CreateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                ProductName = "DB fail",
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockUnitOfWork.Setup(x => x.Products.AddAsync(It.IsAny<Product>())).ReturnsAsync((Product p) => p);
+            _mockUnitOfWork.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new Exception("EF Core error"));
+
+            // Act & Assert
+            await Assert.ThrowsAsync<Exception>(
+                () => _productService.CreateProductAsync(userId, request));
+
+            // Cloudinary delete should NOT be called (no image was uploaded)
+            _mockCloudinaryService.Verify(x => x.DeleteImageAsync(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task DeleteProductAsync_CallsSaveChanges_WhenHardDeleting()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product { ProductId = productId, BusinessLocationId = locationId };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockUnitOfWork.Setup(x => x.Products.HasHistoryAsync(productId)).ReturnsAsync(false);
+
+            // Act
+            await _productService.DeleteProductAsync(userId, productId);
+
+            // Assert — SaveChanges must be called after Delete
+            _mockUnitOfWork.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+            _mockUnitOfWork.Verify(x => x.Products.Delete(product), Times.Once);
+        }
+
+        #endregion
+
+        #region UpdateProductAsync - SaleItem Smart Merge Tests
+
+        [Fact]
+        public async Task UpdateProductAsync_WithMatchingExistingSaleItem_UpdatesPricePolicyInPlace()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+
+            var existingPolicy = new ProductPricePolicy { Price = 80m, IsDefault = true, StartAt = DateTime.UtcNow };
+            var existingSaleItem = new SaleItem
+            {
+                SaleItemId = 5,
+                Unit = "kg",
+                Quantity = 1,
+                ProductPricePolicies = new List<ProductPricePolicy> { existingPolicy }
+            };
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem> { existingSaleItem }
+            };
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 120m,     // Updated price
+                PriceTiers = new List<PriceTierRequest>()
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(product)).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.UpdateProductAsync(userId, productId, request);
+
+            // Assert — price policy updated in-place, no new SaleItem added
+            Assert.Equal(120m, existingPolicy.Price);
+            Assert.Single(product.SaleItems);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WithRemovedPriceTier_SoftDeletesObsoleteSaleItem()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+
+            var defaultPolicy = new ProductPricePolicy { Price = 100m, IsDefault = true, StartAt = DateTime.UtcNow };
+            var packPolicy   = new ProductPricePolicy { Price = 450m, IsDefault = true, StartAt = DateTime.UtcNow };
+
+            var baseItem = new SaleItem
+            {
+                SaleItemId = 1, Unit = "kg", Quantity = 1,
+                ProductPricePolicies = new List<ProductPricePolicy> { defaultPolicy }
+            };
+            var packItem = new SaleItem
+            {
+                SaleItemId = 2, Unit = "pack", Quantity = 5,
+                ProductPricePolicies = new List<ProductPricePolicy> { packPolicy }
+            };
+
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem> { baseItem, packItem }
+            };
+
+            // Request removes the "pack" tier
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>() // no extra tiers
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(product)).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.UpdateProductAsync(userId, productId, request);
+
+            // Assert — pack item soft-deleted (DeletedAt set)
+            Assert.Null(baseItem.DeletedAt);
+            Assert.NotNull(packItem.DeletedAt);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WithNewPriceTier_AddsNewSaleItem()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+
+            var defaultPolicy = new ProductPricePolicy { Price = 100m, IsDefault = true, StartAt = DateTime.UtcNow };
+            var baseItem = new SaleItem
+            {
+                SaleItemId = 1, Unit = "kg", Quantity = 1,
+                ProductPricePolicies = new List<ProductPricePolicy> { defaultPolicy }
+            };
+
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem> { baseItem }
+            };
+
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>
+                {
+                    new() { Unit = "box", Quantity = 10, Price = 900m }  // brand new tier
+                }
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(product)).Returns(new ProductListItemDto());
+
+            // Act
+            await _productService.UpdateProductAsync(userId, productId, request);
+
+            // Assert — new "box" SaleItem added
+            Assert.Equal(2, product.SaleItems.Count);
+            Assert.Contains(product.SaleItems, s => s.Unit == "box" && s.Quantity == 10);
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WithDuplicateUnitInPriceTiers_ThrowsBadRequestException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product
+            {
+                ProductId = productId,
+                BusinessLocationId = locationId,
+                Unit = "kg",
+                SaleItems = new List<SaleItem>()
+            };
+
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>
+                {
+                    new() { Unit = "KG", Quantity = 5, Price = 80m } // Duplicate of main unit (case-insensitive)
+                }
+            };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<BadRequestException>(
+                () => _productService.UpdateProductAsync(userId, productId, request));
+        }
+
+        #endregion
+
+        #region UpdateProductStatusAsync - Status normalization Tests
+
+        [Fact]
+        public async Task UpdateProductStatusAsync_WithUpperCaseActiveStatus_NormalizesAndUpdates()
+        {
+            // Arrange — service calls .ToLower() before comparing, so "ACTIVE" should pass
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product { ProductId = productId, BusinessLocationId = locationId, Status = ProductStatus.Inactive };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+
+            // Act
+            var result = await _productService.UpdateProductStatusAsync(userId, productId, "ACTIVE");
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal(ProductStatus.Active, product.Status);
+        }
+
+        [Fact]
+        public async Task UpdateProductStatusAsync_SetToInactive_UpdatesStatusCorrectly()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product { ProductId = productId, BusinessLocationId = locationId, Status = ProductStatus.Active };
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdAsync(productId)).ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId)).ReturnsAsync(true);
+
+            // Act
+            var result = await _productService.UpdateProductStatusAsync(userId, productId, ProductStatus.Inactive);
+
+            // Assert
+            Assert.True(result);
+            Assert.Equal(ProductStatus.Inactive, product.Status);
+            _mockUnitOfWork.Verify(x => x.Products.Update(product), Times.Once);
+        }
+
+        #endregion
+
+        #region SearchProductsAsync - Default Pagination Tests
+
+        [Fact]
+        public async Task SearchProductsAsync_WithNullPageParams_UsesDefaultPagination()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var locationId = 1;
+            var query = new ProductQueryParams { LocationId = locationId, PageNumber = null, PageSize = null };
+
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.HasAccessToLocationAsync(userId, locationId)).ReturnsAsync(true);
+            _mockUnitOfWork.Setup(x => x.Products.SearchAsync(query)).ReturnsAsync((new List<Product>(), 0));
+            _mockMapper.Setup(x => x.Map<ProductListItemDto>(It.IsAny<Product>())).Returns(new ProductListItemDto());
+
+            // Act
+            var result = await _productService.SearchProductsAsync(userId, query);
+
+            // Assert — defaults: page 1, size 10
+            Assert.Equal(1, result.PageNumber);
+            Assert.Equal(10, result.PageSize);
+        }
+
+        #endregion
+
+        #region GetDefaultPrice Static Helper Tests
+
+        [Fact]
+        public void GetDefaultPrice_WithMatchingUnitAndDefaultPolicy_ReturnsPrice()
+        {
+            // Arrange
+            var product = new Product
+            {
+                Unit = "kg",
+                SaleItems = new List<SaleItem>
+                {
+                    new()
+                    {
+                        Unit = "kg",
+                        Quantity = 1,
+                        ProductPricePolicies = new List<ProductPricePolicy>
+                        {
+                            new() { Price = 150m, IsDefault = true, StartAt = DateTime.UtcNow }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var price = ProductService.GetDefaultPrice(product);
+
+            // Assert
+            Assert.Equal(150m, price);
+        }
+
+        [Fact]
+        public void GetDefaultPrice_WithNoMatchingSaleItem_ReturnsZero()
+        {
+            // Arrange
+            var product = new Product
+            {
+                Unit = "kg",
+                SaleItems = new List<SaleItem>
+                {
+                    new() { Unit = "box", Quantity = 5, ProductPricePolicies = new List<ProductPricePolicy>() }
+                }
+            };
+
+            // Act
+            var price = ProductService.GetDefaultPrice(product);
+
+            // Assert
+            Assert.Equal(0m, price);
+        }
+
+        [Fact]
+        public void GetDefaultPrice_WithNoDefaultPolicy_ReturnsZero()
+        {
+            // Arrange — matching unit but no IsDefault=true policy
+            var product = new Product
+            {
+                Unit = "kg",
+                SaleItems = new List<SaleItem>
+                {
+                    new()
+                    {
+                        Unit = "kg",
+                        Quantity = 1,
+                        ProductPricePolicies = new List<ProductPricePolicy>
+                        {
+                            new() { Price = 200m, IsDefault = false, StartAt = DateTime.UtcNow }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var price = ProductService.GetDefaultPrice(product);
+
+            // Assert
+            Assert.Equal(0m, price);
+        }
+
+        [Fact]
+        public void GetDefaultPrice_IsCaseInsensitiveUnitMatch()
+        {
+            // Arrange — product.Unit = "KG", SaleItem.Unit = "kg"
+            var product = new Product
+            {
+                Unit = "KG",
+                SaleItems = new List<SaleItem>
+                {
+                    new()
+                    {
+                        Unit = "kg",
+                        Quantity = 1,
+                        ProductPricePolicies = new List<ProductPricePolicy>
+                        {
+                            new() { Price = 99m, IsDefault = true, StartAt = DateTime.UtcNow }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var price = ProductService.GetDefaultPrice(product);
+
+            // Assert — OrdinalIgnoreCase match
+            Assert.Equal(99m, price);
+        }
+
+        #endregion
+
+      
     }
 }
