@@ -10,7 +10,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json;
-using BizFlow.Application.Mappers;
 using Hangfire;
 using Hangfire.MySql;
 using BizFlow.Infrastructure.Jobs;
@@ -48,9 +47,6 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
 builder.Services.AddEndpointsApiExplorer();
-
-// Add AutoMapper
-builder.Services.AddAutoMapper(typeof(LocationProfile).Assembly);
 
 // Add HttpContextAccessor
 builder.Services.AddHttpContextAccessor();
