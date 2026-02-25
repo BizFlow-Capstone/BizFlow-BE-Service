@@ -19,6 +19,7 @@ namespace BizFlow.Application.Common.Constants
         public const string Unauthorized = "COMMON_UNAUTHORIZED";
         public const string Forbidden = "COMMON_FORBIDDEN";
         public const string InternalServerError = "COMMON_INTERNAL_SERVER_ERROR";
+        public const string DatabaseUpdateError = "COMMON_DATABASE_UPDATE_ERROR";
         public const string ValidationError = "COMMON_VALIDATION_ERROR";
         public const string DataRetrievedSuccessfully = "COMMON_DATA_RETRIEVED";
         public const string DataCreatedSuccessfully = "COMMON_DATA_CREATED";

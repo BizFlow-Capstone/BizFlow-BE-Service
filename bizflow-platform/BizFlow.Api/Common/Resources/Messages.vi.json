@@ -6,6 +6,7 @@
   "COMMON_UNAUTHORIZED": "Bạn chưa đăng nhập",
   "COMMON_FORBIDDEN": "Bạn không có quyền truy cập",
   "COMMON_INTERNAL_SERVER_ERROR": "Lỗi hệ thống, vui lòng thử lại sau",
+  "COMMON_DATABASE_UPDATE_ERROR": "Lưu dữ liệu thất bại. Vui lòng kiểm tra lại thông tin và thử lại",
   "COMMON_VALIDATION_ERROR": "Dữ liệu không hợp lệ",
   "COMMON_DATA_RETRIEVED": "Lấy dữ liệu thành công",
   "COMMON_DATA_CREATED": "Tạo dữ liệu thành công",

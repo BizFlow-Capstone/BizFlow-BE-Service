@@ -6,6 +6,7 @@
   "COMMON_UNAUTHORIZED": "Please login to continue",
   "COMMON_FORBIDDEN": "You do not have permission to access this resource",
   "COMMON_INTERNAL_SERVER_ERROR": "Internal server error, please try again later",
+  "COMMON_DATABASE_UPDATE_ERROR": "Failed to save data. Please check your input and try again",
   "COMMON_VALIDATION_ERROR": "Invalid data",
   "COMMON_DATA_RETRIEVED": "Data retrieved successfully",
   "COMMON_DATA_CREATED": "Data created successfully",
