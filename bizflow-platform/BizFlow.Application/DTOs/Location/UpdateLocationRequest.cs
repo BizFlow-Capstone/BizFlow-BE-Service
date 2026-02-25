@@ -7,10 +7,12 @@ namespace BizFlow.Application.DTOs.Location
     /// </summary>
     public class UpdateLocationRequest
     {
+        [Required(ErrorMessage = "Name is required")]
         [StringLength(255, MinimumLength = 1)]
-        public string? Name { get; set; }
+        public string Name { get; set; } = null!;
 
-        public string? Address { get; set; }
+        [Required(ErrorMessage = "Address is required")]
+        public string Address { get; set; } = null!;
 
         [StringLength(100)]
         public string? District { get; set; }
