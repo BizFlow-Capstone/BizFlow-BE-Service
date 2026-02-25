@@ -12,6 +12,7 @@ namespace BizFlow.Infrastructure.Repositories
 
         public UnitOfWork(BizFlowDbContext dbContext,
             IRoleRepository roleRepository,
+            IBusinessTypeRepository businessTypeRepository,
             IBusinessLocationRepository businessLocationRepository,
             IHireRepository hireRepository,
             IProductRepository productRepository,
@@ -20,6 +21,7 @@ namespace BizFlow.Infrastructure.Repositories
         {
             _dbContext = dbContext;
             Roles = roleRepository;
+            BusinessTypes = businessTypeRepository;
             BusinessLocations = businessLocationRepository;
             Hires = hireRepository;
             Products = productRepository;
@@ -28,6 +30,7 @@ namespace BizFlow.Infrastructure.Repositories
         }
 
         public IRoleRepository Roles { get; set; }
+        public IBusinessTypeRepository BusinessTypes { get; set; }
         public IBusinessLocationRepository BusinessLocations { get; set; }
         public IHireRepository Hires { get; set; }
         public IProductRepository Products { get; set; }
