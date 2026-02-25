@@ -37,7 +37,7 @@ namespace BizFlow.Application.Services
         {
             var schema = await _unitOfWork.ImportSchemas.GetByIdWithVersionsAsync(id);
             if (schema == null)
-                throw new NotFoundException(MessageKeys.ImportSchemaNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             return _mapper.Map<ImportSchemaResponse>(schema);
         }
@@ -84,7 +84,7 @@ namespace BizFlow.Application.Services
         {
             var schema = await _unitOfWork.ImportSchemas.GetByIdWithVersionsAsync(id);
             if (schema == null)
-                throw new NotFoundException(MessageKeys.ImportSchemaNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             // Update basic fields if provided
             if (!string.IsNullOrWhiteSpace(request.Name))
@@ -140,7 +140,7 @@ namespace BizFlow.Application.Services
         {
             var schema = await _unitOfWork.ImportSchemas.GetByIdAsync(id);
             if (schema == null)
-                throw new NotFoundException(MessageKeys.ImportSchemaNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             // Deactivate all schemas first
             await _unitOfWork.ImportSchemas.DeactivateAllAsync();
@@ -161,7 +161,7 @@ namespace BizFlow.Application.Services
         {
             var schema = await _unitOfWork.ImportSchemas.GetByIdAsync(id);
             if (schema == null)
-                throw new NotFoundException(MessageKeys.ImportSchemaNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             // Cannot delete active schema
             if (schema.IsActive == true)

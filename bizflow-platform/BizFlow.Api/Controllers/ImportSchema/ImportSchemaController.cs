@@ -35,7 +35,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
         public async Task<IActionResult> GetAll()
         {
             var result = await _importSchemaService.GetAllAsync();
-            return Ok(result, MessageKeys.ImportSchemaRetrieved);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -50,7 +50,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             try
             {
                 var result = await _importSchemaService.GetByIdAsync(id);
-                return Ok(result, MessageKeys.ImportSchemaRetrieved);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -70,7 +70,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             try
             {
                 var result = await _importSchemaService.CreateAsync(request);
-                return Created(result, MessageKeys.ImportSchemaCreated, nameof(GetById), new { id = result.ImportSchemaId });
+                return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetById), new { id = result.ImportSchemaId });
             }
             catch (BadRequestException ex)
             {
@@ -91,7 +91,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             try
             {
                 var result = await _importSchemaService.UpdateAsync(id, request);
-                return Ok(result, MessageKeys.ImportSchemaUpdated);
+                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -115,7 +115,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             try
             {
                 await _importSchemaService.ActivateAsync(id);
-                return Ok(MessageKeys.ImportSchemaActivated);
+                return Ok(MessageKeys.DataUpdatedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -136,7 +136,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             try
             {
                 await _importSchemaService.DeleteAsync(id);
-                return Ok(MessageKeys.ImportSchemaDeleted);
+                return Ok(MessageKeys.DataDeletedSuccessfully);
             }
             catch (NotFoundException ex)
             {

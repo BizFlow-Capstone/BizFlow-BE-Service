@@ -47,7 +47,7 @@ namespace BizFlow.Api.Controllers.Import
             try
             {
                 var result = await _importService.GetTemplateAsync();
-                return Ok(result, MessageKeys.ImportTemplateRetrievedSuccessfully);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -69,7 +69,7 @@ namespace BizFlow.Api.Controllers.Import
             {
                 var userId = GetCurrentUserId();
                 var result = await _importService.CreateImportAsync(userId, request);
-                return Created(result, MessageKeys.ImportCreatedSuccessfully, nameof(GetImportDetail), new { importId = result.ImportId });
+                return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetImportDetail), new { importId = result.ImportId });
             }
             catch (NotFoundException ex)
             {
@@ -95,7 +95,7 @@ namespace BizFlow.Api.Controllers.Import
             {
                 var userId = GetCurrentUserId();
                 var result = await _importService.UpdateImportAsync(userId, importId, request);
-                return Ok(result, MessageKeys.ImportUpdatedSuccessfully);
+                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -147,7 +147,7 @@ namespace BizFlow.Api.Controllers.Import
 
             var userId = GetCurrentUserId();
             var result = await _importService.ListImportsAsync(userId, query);
-            return OkPaginated(result, MessageKeys.ImportRetrievedSuccessfully);
+            return OkPaginated(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -163,7 +163,7 @@ namespace BizFlow.Api.Controllers.Import
             {
                 var userId = GetCurrentUserId();
                 var result = await _importService.GetImportDetailAsync(userId, importId);
-                return Ok(result, MessageKeys.ImportRetrievedSuccessfully);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
             }
             catch (NotFoundException ex)
             {
@@ -185,7 +185,7 @@ namespace BizFlow.Api.Controllers.Import
             {
                 var userId = GetCurrentUserId();
                 await _importService.DeleteImportAsync(userId, importId);
-                return Ok(MessageKeys.ImportDeletedSuccessfully);
+                return Ok(MessageKeys.DataDeletedSuccessfully);
             }
             catch (NotFoundException ex)
             {
