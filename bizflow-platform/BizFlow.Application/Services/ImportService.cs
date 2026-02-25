@@ -27,11 +27,16 @@ namespace BizFlow.Application.Services
 
         public async Task<ImportSchemaDto> GetTemplateAsync()
         {
-            var version = await _unitOfWork.Imports.GetActiveSchemaVersionAsync();
-            if (version == null)
+            var activeSchema = await _unitOfWork.ImportSchemas.GetActiveAsync();
+            if (activeSchema == null)
                 throw new NotFoundException(MessageKeys.ImportNotFound);
 
-            return new ImportSchemaDto { SchemaJson = version.SchemaJson };
+            var activeVersion = activeSchema.ImportSchemaVersions
+                .FirstOrDefault(v => v.IsActive);
+            if (activeVersion == null)
+                throw new NotFoundException(MessageKeys.ImportNotFound);
+
+            return new ImportSchemaDto { SchemaJson = activeVersion.SchemaJson };
         }
 
         // =========================================================

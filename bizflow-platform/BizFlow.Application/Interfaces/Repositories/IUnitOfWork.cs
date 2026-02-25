@@ -13,6 +13,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IHireRepository Hires { get; }
         IProductRepository Products { get; }
         IImportRepository Imports { get; }
+        IImportSchemaRepository ImportSchemas { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

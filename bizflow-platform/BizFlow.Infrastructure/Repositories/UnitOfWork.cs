@@ -15,7 +15,8 @@ namespace BizFlow.Infrastructure.Repositories
             IBusinessLocationRepository businessLocationRepository,
             IHireRepository hireRepository,
             IProductRepository productRepository,
-            IImportRepository importRepository)
+            IImportRepository importRepository,
+            IImportSchemaRepository importSchemaRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -23,6 +24,7 @@ namespace BizFlow.Infrastructure.Repositories
             Hires = hireRepository;
             Products = productRepository;
             Imports = importRepository;
+            ImportSchemas = importSchemaRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -30,6 +32,7 @@ namespace BizFlow.Infrastructure.Repositories
         public IHireRepository Hires { get; set; }
         public IProductRepository Products { get; set; }
         public IImportRepository Imports { get; set; }
+        public IImportSchemaRepository ImportSchemas { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

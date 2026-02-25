@@ -100,5 +100,15 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
+
+        // ============ IMPORT SCHEMA ============
+        public const string ImportSchemaNotFound = "IMPORT_SCHEMA_NOT_FOUND";
+        public const string ImportSchemaRetrieved = "IMPORT_SCHEMA_RETRIEVED";
+        public const string ImportSchemaCreated = "IMPORT_SCHEMA_CREATED";
+        public const string ImportSchemaUpdated = "IMPORT_SCHEMA_UPDATED";
+        public const string ImportSchemaActivated = "IMPORT_SCHEMA_ACTIVATED";
+        public const string ImportSchemaDeleted = "IMPORT_SCHEMA_DELETED";
+        public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
+        public const string ImportSchemaTemplateCodeConflict = "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT";
     }
 }
