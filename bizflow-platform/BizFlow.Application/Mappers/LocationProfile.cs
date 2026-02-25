@@ -10,6 +10,8 @@ namespace BizFlow.Application.Mappers
         public LocationProfile()
         {
             CreateMap<CreateLocationRequest, BusinessLocation>();
+            CreateMap<UpdateLocationRequest, BusinessLocation>()
+                .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));
             
             CreateMap<BusinessLocation, BusinessLocationDto>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.BusinessLocationId));
