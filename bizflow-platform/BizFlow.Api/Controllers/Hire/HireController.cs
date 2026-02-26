@@ -38,7 +38,7 @@ namespace BizFlow.Api.Controllers
         public async Task<IActionResult> GetMyHiredEmployees()
         {
             var response = await _hireService.GetEmployeeSummariesAsync(GetCurrentUserId());
-            return Ok(response, MessageKeys.HireEmployeesRetrievedSuccessfully);
+            return Ok(response, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -50,7 +50,7 @@ namespace BizFlow.Api.Controllers
         public async Task<IActionResult> GetMyHiredEmployeeDetails()
         {
             var employees = await _hireService.GetHiredEmployeeDetailsAsync(GetCurrentUserId());
-            return Ok(employees, MessageKeys.HireEmployeesRetrievedSuccessfully);
+            return Ok(employees, MessageKeys.DataRetrievedSuccessfully);
         }
 
         #endregion

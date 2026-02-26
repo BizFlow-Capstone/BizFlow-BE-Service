@@ -2,6 +2,7 @@
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Text.Json;
 
@@ -79,6 +80,22 @@ public class GlobalExceptionMiddleware
                 response.Success = false;
                 response.MessageCode = forbiddenEx.MessageKey;
                 response.Message = messageService.GetMessage(forbiddenEx.MessageKey);
+                break;
+
+            case DbUpdateException dbUpdateEx:
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                response.Success = false;
+                response.MessageCode = MessageKeys.DatabaseUpdateError;
+                response.Message = messageService.GetMessage(MessageKeys.DatabaseUpdateError);
+
+                if (_env.IsDevelopment())
+                {
+                    response.Errors = new
+                    {
+                        exception = dbUpdateEx.GetType().Name,
+                        message = dbUpdateEx.InnerException?.Message ?? dbUpdateEx.Message
+                    };
+                }
                 break;
 
             default:

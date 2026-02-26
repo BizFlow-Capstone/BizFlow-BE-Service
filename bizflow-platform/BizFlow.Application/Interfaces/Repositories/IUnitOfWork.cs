@@ -9,10 +9,12 @@ namespace BizFlow.Application.Interfaces.Repositories
     public interface IUnitOfWork : IAsyncDisposable
     {
         IRoleRepository Roles { get; }
+        IBusinessTypeRepository BusinessTypes { get; }
         IBusinessLocationRepository BusinessLocations { get; }
         IHireRepository Hires { get; }
         IProductRepository Products { get; }
         IImportRepository Imports { get; }
+        IImportSchemaRepository ImportSchemas { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

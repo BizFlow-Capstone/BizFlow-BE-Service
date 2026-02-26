@@ -49,7 +49,7 @@ namespace BizFlow.Api.Controllers.Product
 
             var userId = GetCurrentUserId();
             var result = await _productService.SearchProductsAsync(userId, query);
-            return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace BizFlow.Api.Controllers.Product
         {
             var userId = GetCurrentUserId();
             var result = await _productService.GetProductDetailAsync(userId, productId);
-            return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace BizFlow.Api.Controllers.Product
         {
             var userId = GetCurrentUserId();
             var result = await _productService.GetProductSaleItemsAsync(userId, productId);
-            return Ok(result, MessageKeys.ProductsRetrievedSuccessfully);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -100,7 +100,7 @@ namespace BizFlow.Api.Controllers.Product
 
             var userId = GetCurrentUserId();
             var product = await _productService.CreateProductAsync(userId, request);
-            return Created(product, MessageKeys.ProductCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId });
+            return Created(product, MessageKeys.DataCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId });
         }
 
         /// <summary>
@@ -122,7 +122,7 @@ namespace BizFlow.Api.Controllers.Product
 
             var userId = GetCurrentUserId();
             var product = await _productService.UpdateProductAsync(userId, id, request);
-            return Ok(product, MessageKeys.ProductUpdatedSuccessfully);
+            return Ok(product, MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>
@@ -140,10 +140,10 @@ namespace BizFlow.Api.Controllers.Product
 
             if (!success)
             {
-                return Forbidden(MessageKeys.ProductAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.ProductStatusUpdated);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>
@@ -161,10 +161,10 @@ namespace BizFlow.Api.Controllers.Product
 
             if (!success)
             {
-                return Forbidden(MessageKeys.ProductAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.ProductDeletedSuccessfully);
+            return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
         #endregion

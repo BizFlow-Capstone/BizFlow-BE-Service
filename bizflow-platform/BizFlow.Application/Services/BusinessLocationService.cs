@@ -140,7 +140,7 @@ namespace BizFlow.Application.Services
             var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
             if (location == null)
             {
-                throw new NotFoundException(MessageKeys.LocationNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
@@ -180,7 +180,7 @@ namespace BizFlow.Application.Services
             var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
             if (location == null)
             {
-                throw new NotFoundException(MessageKeys.LocationNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             await AssignEmployeesToLocationAsync(ownerId, locationId, employeeIds);
@@ -198,7 +198,7 @@ namespace BizFlow.Application.Services
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
             if (!isOwner)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
 
             var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);

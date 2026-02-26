@@ -6,6 +6,7 @@
   "COMMON_UNAUTHORIZED": "Bạn chưa đăng nhập",
   "COMMON_FORBIDDEN": "Bạn không có quyền truy cập",
   "COMMON_INTERNAL_SERVER_ERROR": "Lỗi hệ thống, vui lòng thử lại sau",
+  "COMMON_DATABASE_UPDATE_ERROR": "Lưu dữ liệu thất bại. Vui lòng kiểm tra lại thông tin và thử lại",
   "COMMON_VALIDATION_ERROR": "Dữ liệu không hợp lệ",
   "COMMON_DATA_RETRIEVED": "Lấy dữ liệu thành công",
   "COMMON_DATA_CREATED": "Tạo dữ liệu thành công",
@@ -72,5 +73,13 @@
   "IMPORT_DATE_REQUIRED_ON_CONFIRM": "Ngày nhận hàng là bắt buộc khi xác nhận phiếu nhập",
   "IMPORT_PRODUCT_NOT_FOUND": "Một hoặc nhiều sản phẩm trong phiếu nhập không tồn tại",
   "IMPORT_LOCATION_NOT_FOUND": "Không tìm thấy địa điểm kinh doanh cho phiếu nhập này",
-  "IMPORT_ALREADY_CANCELLED": "Phiếu nhập này đã bị hủy"
+  "IMPORT_ALREADY_CANCELLED": "Phiếu nhập này đã bị hủy",
+  "IMPORT_SCHEMA_NOT_FOUND": "Không tìm thấy schema nhập kho",
+  "IMPORT_SCHEMA_RETRIEVED": "Lấy danh sách schema nhập kho thành công",
+  "IMPORT_SCHEMA_CREATED": "Tạo schema nhập kho thành công",
+  "IMPORT_SCHEMA_UPDATED": "Cập nhật schema nhập kho thành công",
+  "IMPORT_SCHEMA_ACTIVATED": "Kích hoạt schema nhập kho thành công",
+  "IMPORT_SCHEMA_DELETED": "Xóa schema nhập kho thành công",
+  "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Không thể xóa schema đang hoạt động. Vui lòng hủy kích hoạt trước",
+  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này"
 }
