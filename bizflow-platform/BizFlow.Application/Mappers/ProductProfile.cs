@@ -13,12 +13,14 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
                 .ForMember(dest => dest.BusinessLocationName, opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.Name : ""))
                 .ForMember(dest => dest.TrackInventory, opt => opt.MapFrom(src => src.TrackInventory ?? true))
+                .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.ImageUrl))
                 .ForMember(dest => dest.SaleItems, opt => opt.MapFrom(src => src.SaleItems));
 
             // Product entity to ProductListItemDto
             CreateMap<Product, ProductListItemDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
                 .ForMember(dest => dest.TrackInventory, opt => opt.MapFrom(src => src.TrackInventory ?? true))
+                .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.ImageUrl))
                 .ForMember(dest => dest.Stock, opt => opt.MapFrom(src => 
                     (src.TrackInventory ?? true) ? src.Stock : (int?)null));
 
