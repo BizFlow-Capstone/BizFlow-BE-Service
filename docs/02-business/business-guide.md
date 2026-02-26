@@ -627,6 +627,7 @@ Tổng TNCN = 7.5 triệu
 ```
 
 ## 6. Features Overview
+
 Tổng quan tính năng theo từng role và module.
 
 ### 6.1 User Features (Owner & Employee)
@@ -837,6 +838,7 @@ Phân loại theo độ ưu tiên triển khai:
 ---
 
 ### 6.6 Mobile vs Web Feature Parity
+
 
 | Feature | Mobile (Flutter) | Web (ReactJS) | Notes |
 |---------|:----------------:|:-------------:|-------|
