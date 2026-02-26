@@ -25,5 +25,8 @@ namespace BizFlow.Application.DTOs.Import
         public bool SaveAsDraft { get; set; } = false;
 
         public List<ImportItemRequest> Items { get; set; } = new();
+
+        internal Stream? ImageStream { get; set; }
+        internal string? ImageFileName { get; set; }
     }
 }

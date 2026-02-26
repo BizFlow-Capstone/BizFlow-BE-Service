@@ -59,14 +59,20 @@ namespace BizFlow.Api.Controllers.Import
         /// Create a new import (DRAFT)
         /// </summary>
         [HttpPost("import")]
-        [SwaggerOperation(Summary = "Create import", Description = "Creates a new DRAFT import with items. TotalAmount is server-calculated.")]
+        [SwaggerOperation(Summary = "Create import", Description = "Creates a new DRAFT import with items. Upload image via multipart/form-data. Items as JSON string. TotalAmount is server-calculated.")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> CreateImport([FromBody] CreateImportRequest request)
+        public async Task<IActionResult> CreateImport([FromForm] CreateImportRequest request, IFormFile? image)
         {
             try
             {
+                if (image != null)
+                {
+                    request.ImageStream = image.OpenReadStream();
+                    request.ImageFileName = image.FileName;
+                }
+
                 var userId = GetCurrentUserId();
                 var result = await _importService.CreateImportAsync(userId, request);
                 return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetImportDetail), new { importId = result.ImportId });

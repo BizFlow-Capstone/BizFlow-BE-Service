@@ -75,6 +75,7 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
+        public const string ImportImageUploadFailed = "IMPORT_IMAGE_UPLOAD_FAILED";
 
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";

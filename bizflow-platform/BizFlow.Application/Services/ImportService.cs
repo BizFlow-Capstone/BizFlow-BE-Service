@@ -13,11 +13,13 @@ namespace BizFlow.Application.Services
     public class ImportService : IImportService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICloudinaryService _cloudinaryService;
         private readonly IMapper _mapper;
 
-        public ImportService(IUnitOfWork unitOfWork, IMapper mapper)
+        public ImportService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
+            _cloudinaryService = cloudinaryService;
             _mapper = mapper;
         }
 
@@ -76,30 +78,56 @@ namespace BizFlow.Application.Services
                 UpdatedAt = request.SaveAsDraft ? null : DateTime.UtcNow
             };
 
-            await _unitOfWork.Imports.AddAsync(import);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Add items after import is saved (FK ImportId)
-            foreach (var item in items)
-                item.ImportId = import.ImportId;
-
-            import.ProductsImports = items;
-
-            // If CONFIRMED → update stock immediately
-            if (!request.SaveAsDraft)
+            // Upload image if provided
+            if (request.ImageStream != null)
             {
-                foreach (var item in items)
-                {
-                    var product = await _unitOfWork.Products.GetByIdAsync(item.ProductId);
-                    if (product == null)
-                        throw new NotFoundException(MessageKeys.ImportProductNotFound);
+                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Imports");
 
-                    product.Stock = product.Stock + item.Quantity;
-                    _unitOfWork.Products.Update(product);
+                if (!uploadResult.Success)
+                {
+                    throw new BadRequestException(MessageKeys.ImportImageUploadFailed, null, uploadResult.Error ?? "Unknown error");
                 }
+
+                import.ImageUrl = uploadResult.Url;
+                import.ImagePublicId = uploadResult.PublicId;
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                await _unitOfWork.Imports.AddAsync(import);
+                await _unitOfWork.SaveChangesAsync();
+
+                // Add items after import is saved (FK ImportId)
+                foreach (var item in items)
+                    item.ImportId = import.ImportId;
+
+                import.ProductsImports = items;
+
+                // If CONFIRMED → update stock immediately
+                if (!request.SaveAsDraft)
+                {
+                    foreach (var item in items)
+                    {
+                        var product = await _unitOfWork.Products.GetByIdAsync(item.ProductId);
+                        if (product == null)
+                            throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+                        product.Stock = product.Stock + item.Quantity;
+                        _unitOfWork.Products.Update(product);
+                    }
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                // Rollback: Delete image from Cloudinary if DB save fails
+                if (!string.IsNullOrEmpty(import.ImagePublicId))
+                {
+                    await _cloudinaryService.DeleteImageAsync(import.ImagePublicId);
+                }
+                throw;
+            }
 
             var result = _mapper.Map<ImportSummaryDto>(import);
             result.BusinessLocationName = location.Name;

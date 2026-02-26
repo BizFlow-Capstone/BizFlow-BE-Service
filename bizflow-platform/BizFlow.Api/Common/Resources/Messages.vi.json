@@ -74,6 +74,7 @@
   "IMPORT_PRODUCT_NOT_FOUND": "Một hoặc nhiều sản phẩm trong phiếu nhập không tồn tại",
   "IMPORT_LOCATION_NOT_FOUND": "Không tìm thấy địa điểm kinh doanh cho phiếu nhập này",
   "IMPORT_ALREADY_CANCELLED": "Phiếu nhập này đã bị hủy",
+  "IMPORT_IMAGE_UPLOAD_FAILED": "Tải ảnh phiếu nhập thất bại: {0}",
   "IMPORT_SCHEMA_NOT_FOUND": "Không tìm thấy schema nhập kho",
   "IMPORT_SCHEMA_RETRIEVED": "Lấy danh sách schema nhập kho thành công",
   "IMPORT_SCHEMA_CREATED": "Tạo schema nhập kho thành công",
