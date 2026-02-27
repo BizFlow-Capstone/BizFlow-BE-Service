@@ -77,6 +77,19 @@ namespace BizFlow.Infrastructure.Repositories
             return await _dbContext.Imports.CountAsync();
         }
 
+        public async Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds)
+        {
+            var ids = publicIds.ToList();
+            if (ids.Count == 0) return new HashSet<string>();
+
+            var existing = await _dbContext.Imports
+                .Where(i => i.ImagePublicId != null && ids.Contains(i.ImagePublicId))
+                .Select(i => i.ImagePublicId!)
+                .ToListAsync();
+
+            return new HashSet<string>(existing);
+        }
+
         // ============ Command Methods ============
 
         public async Task<Import> AddAsync(Import import)

@@ -13,13 +13,13 @@ namespace BizFlow.Application.Services
     public class ProductService : IProductService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ICloudinaryService _cloudinaryService;
+        private readonly IImageService _imageService;
         private readonly IMapper _mapper;
 
-        public ProductService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService, IMapper mapper)
+        public ProductService(IUnitOfWork unitOfWork, IImageService imageService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
-            _cloudinaryService = cloudinaryService;
+            _imageService = imageService;
             _mapper = mapper;
         }
 
@@ -163,15 +163,9 @@ namespace BizFlow.Application.Services
 
             if (request.ImageStream != null)
             {
-                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Products");
-                
-                if (!uploadResult.Success)
-                {
-                    throw new BadRequestException(MessageKeys.ProductImageUploadFailed, null, uploadResult.Error ?? "Unknown error");
-                }
-
-                product.ImageUrl = uploadResult.Url;
-                product.ImagePublicId = uploadResult.PublicId;
+                var imageInfo = await _imageService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Products");
+                product.ImageUrl = imageInfo.Url;
+                product.ImagePublicId = imageInfo.PublicId;
             }
 
             // 5. Save to Database (Single Transaction)
@@ -182,11 +176,7 @@ namespace BizFlow.Application.Services
             }
             catch (Exception)
             {
-                // Rollback: Delete image from Cloudinary if DB save fails
-                if (!string.IsNullOrEmpty(product.ImagePublicId))
-                {
-                    await _cloudinaryService.DeleteImageAsync(product.ImagePublicId);
-                }
+                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
                 throw; 
             }
 
@@ -239,7 +229,7 @@ namespace BizFlow.Application.Services
             // 5. Update Image
             if (request.RemoveImage && !string.IsNullOrEmpty(product.ImagePublicId))
             {
-                await _cloudinaryService.DeleteImageAsync(product.ImagePublicId);
+                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
                 product.ImageUrl = null;
                 product.ImagePublicId = null;
             }
@@ -247,21 +237,10 @@ namespace BizFlow.Application.Services
             // Handle new image upload (if provided)
             if (request.ImageStream != null)
             {
-                // Delete old image if exists
-                if (!string.IsNullOrEmpty(product.ImagePublicId))
-                {
-                    await _cloudinaryService.DeleteImageAsync(product.ImagePublicId);
-                }
-
-                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Products");
-                
-                if (!uploadResult.Success)
-                {
-                    throw new BadRequestException(MessageKeys.ProductImageUploadFailed, null, uploadResult.Error ?? "Unknown error");
-                }
-
-                product.ImageUrl = uploadResult.Url;
-                product.ImagePublicId = uploadResult.PublicId;
+                var imageInfo = await _imageService.UploadImageAsync(
+                    request.ImageStream, request.ImageFileName ?? "image", "Products");
+                product.ImageUrl = imageInfo.Url;
+                product.ImagePublicId = imageInfo.PublicId;
             }
 
             // 6. Smart Update for SaleItems

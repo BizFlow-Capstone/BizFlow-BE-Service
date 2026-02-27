@@ -31,7 +31,10 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// <summary>
         /// Get all non-null ImagePublicIds from Products table (for cleanup job)
         /// </summary>
-        Task<List<string>> GetAllImagePublicIdsAsync();
+        /// <summary>
+        /// Check which of the given PublicIds exist in the database (for orphan detection)
+        /// </summary>
+        Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds);
 
 
         // ============ Command Methods ============

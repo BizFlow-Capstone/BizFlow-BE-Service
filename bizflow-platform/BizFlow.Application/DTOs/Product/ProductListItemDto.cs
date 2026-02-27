@@ -8,6 +8,7 @@ namespace BizFlow.Application.DTOs.Product
         public long ProductId { get; set; }
         public string Name { get; set; } = null!;
         public string? Sku { get; set; }
+        public string? ImageUrl { get; set; }
         public decimal Price { get; set; }
         public bool TrackInventory { get; set; }
         public int? Stock { get; set; }

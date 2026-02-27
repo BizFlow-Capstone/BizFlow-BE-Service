@@ -117,30 +117,49 @@ namespace BizFlow.Infrastructure.Services
             }
         }
 
-        public async Task<List<string>> GetAllPublicIdsAsync(string folder = "products")
+        /// <summary>
+        /// Get a page of resources from Cloudinary with their upload timestamps.
+        /// Uses cursor-based pagination to avoid loading everything into memory.
+        /// </summary>
+        /// <param name="prefix">Folder prefix to filter by (e.g. "bizflow_products/")</param>
+        /// <param name="cursor">Pagination cursor from previous call (null for first page)</param>
+        /// <param name="maxResults">Max results per page (default 100)</param>
+        /// <returns>Page of (PublicId, CreatedAt) tuples and next cursor (null if no more pages)</returns>
+        public async Task<CloudinaryResourcePage> GetResourcePageAsync(string prefix, string? cursor = null, int maxResults = 100)
         {
-            var publicIds = new List<string>();
-
             try
             {
-                var listParams = new ListResourcesParams
+                var listParams = new ListResourcesByPrefixParams
                 {
                     Type = "upload",
-                    MaxResults = 500
+                    Prefix = prefix,
+                    MaxResults = maxResults,
+                    NextCursor = cursor
                 };
 
-                var listResult = await _cloudinary.ListResourcesAsync(listParams);
+                var result = await _cloudinary.ListResourcesAsync(listParams);
 
-                foreach (var resource in listResult.Resources)
+                var resources = result.Resources
+                    .Select(r => new CloudinaryResourceInfo(
+                        r.PublicId,
+                        DateTime.TryParse(r.CreatedAt, out var dt) ? dt : DateTime.UtcNow))
+                    .ToList();
+
+                return new CloudinaryResourcePage
                 {
-                    publicIds.Add(resource.PublicId);
-                }
-
-                return publicIds;
+                    Resources = resources,
+                    NextCursor = result.NextCursor
+                };
             }
-            catch
+            catch (Exception ex)
             {
-                return publicIds;
+                // Log the actual error so we know why the scan failed
+                Console.Error.WriteLine($"[CloudinaryService] GetResourcePageAsync failed for prefix '{prefix}': {ex.Message}");
+                return new CloudinaryResourcePage
+                {
+                    Resources = new List<CloudinaryResourceInfo>(),
+                    NextCursor = null
+                };
             }
         }
     }

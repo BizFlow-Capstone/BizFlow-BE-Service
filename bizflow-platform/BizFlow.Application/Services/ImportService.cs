@@ -13,11 +13,13 @@ namespace BizFlow.Application.Services
     public class ImportService : IImportService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IImageService _imageService;
         private readonly IMapper _mapper;
 
-        public ImportService(IUnitOfWork unitOfWork, IMapper mapper)
+        public ImportService(IUnitOfWork unitOfWork, IImageService imageService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
+            _imageService = imageService;
             _mapper = mapper;
         }
 
@@ -76,30 +78,45 @@ namespace BizFlow.Application.Services
                 UpdatedAt = request.SaveAsDraft ? null : DateTime.UtcNow
             };
 
-            await _unitOfWork.Imports.AddAsync(import);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Add items after import is saved (FK ImportId)
-            foreach (var item in items)
-                item.ImportId = import.ImportId;
-
-            import.ProductsImports = items;
-
-            // If CONFIRMED → update stock immediately
-            if (!request.SaveAsDraft)
+            // Upload image if provided
+            if (request.ImageStream != null)
             {
-                foreach (var item in items)
-                {
-                    var product = await _unitOfWork.Products.GetByIdAsync(item.ProductId);
-                    if (product == null)
-                        throw new NotFoundException(MessageKeys.ImportProductNotFound);
-
-                    product.Stock = product.Stock + item.Quantity;
-                    _unitOfWork.Products.Update(product);
-                }
+                var imageInfo = await _imageService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Imports");
+                import.ImageUrl = imageInfo.Url;
+                import.ImagePublicId = imageInfo.PublicId;
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                await _unitOfWork.Imports.AddAsync(import);
+                await _unitOfWork.SaveChangesAsync();
+
+                // Add items after import is saved (FK ImportId)
+                foreach (var item in items)
+                    item.ImportId = import.ImportId;
+
+                import.ProductsImports = items;
+
+                // If CONFIRMED → update stock immediately
+                if (!request.SaveAsDraft)
+                {
+                    foreach (var item in items)
+                    {
+                        var product = await _unitOfWork.Products.GetByIdAsync(item.ProductId);
+                        if (product == null)
+                            throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+                        product.Stock = product.Stock + item.Quantity;
+                        _unitOfWork.Products.Update(product);
+                    }
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                throw;
+            }
 
             var result = _mapper.Map<ImportSummaryDto>(import);
             result.BusinessLocationName = location.Name;
@@ -125,6 +142,23 @@ namespace BizFlow.Application.Services
             import.Note = request.Note;
             import.ReceivedAt = request.ReceivedAt;
             import.UpdatedAt = DateTime.UtcNow;
+
+            // Update Image
+            if (request.RemoveImage && !string.IsNullOrEmpty(import.ImagePublicId))
+            {
+                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
+                import.ImageUrl = null;
+                import.ImagePublicId = null;
+            }
+
+            // Handle new image upload (if provided)
+            if (request.ImageStream != null)
+            {
+                var imageInfo = await _imageService.UploadImageAsync(
+                    request.ImageStream, request.ImageFileName ?? "image", "Imports");
+                import.ImageUrl = imageInfo.Url;
+                import.ImagePublicId = imageInfo.PublicId;
+            }
 
             // Always replace items — null or empty list = remove all
             foreach (var old in import.ProductsImports.ToList())
