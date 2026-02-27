@@ -1,3 +1,5 @@
+using BizFlow.Application.Common.Models;
+
 namespace BizFlow.Application.Interfaces.Services
 {
     /// <summary>
@@ -8,25 +10,17 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Upload image to Cloudinary
         /// </summary>
-        /// <param name="fileStream">Image file stream</param>
-        /// <param name="fileName">Image file name</param>
-        /// <param name="folder">Folder path in Cloudinary (default: "products")</param>
-        /// <returns>Upload result with URL and PublicId</returns>
         Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName, string presetKey);
 
         /// <summary>
         /// Delete image from Cloudinary by PublicId
         /// </summary>
-        /// <param name="publicId">Cloudinary public ID</param>
-        /// <returns>True if deleted successfully</returns>
         Task<bool> DeleteImageAsync(string publicId);
 
         /// <summary>
-        /// Get all PublicIds from Cloudinary folder
+        /// Get a page of resources from Cloudinary with timestamps (cursor-based pagination)
         /// </summary>
-        /// <param name="folder">Folder path (default: "products")</param>
-        /// <returns>List of PublicIds</returns>
-        Task<List<string>> GetAllPublicIdsAsync(string folder = "products");
+        Task<CloudinaryResourcePage> GetResourcePageAsync(string prefix, string? cursor = null, int maxResults = 100);
     }
 
     /// <summary>

@@ -12,9 +12,14 @@ namespace BizFlow.Application
         protected override void Load(ContainerBuilder builder)
         {
             builder.RegisterAssemblyTypes(ThisAssembly)
-               .Where(t => t.Name.EndsWith("Service"))
+               .Where(t => t.Name.EndsWith("Service") && t.Name != "ImageService")
                .AsImplementedInterfaces()
                .InstancePerLifetimeScope();
+
+            // ImageService is Singleton — stateless, only depends on Singleton services
+            builder.RegisterType<BizFlow.Application.Services.ImageService>()
+                   .AsImplementedInterfaces()
+                   .SingleInstance();
         }
     }
 }

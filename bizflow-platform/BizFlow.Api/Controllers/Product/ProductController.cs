@@ -14,10 +14,9 @@ namespace BizFlow.Api.Controllers.Product
     /// Product Management APIs
     /// </summary>
     [Route("api/my-business")]
-    public class ProductController : BaseApiController
+    public class ProductController : PaginatedApiController
     {
         private readonly IProductService _productService;
-        private readonly PaginationSettings _paginationSettings;
 
         // TODO: Replace with actual JWT-based user identification
         private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
@@ -27,10 +26,9 @@ namespace BizFlow.Api.Controllers.Product
             IMessageService messageService,
             IOptions<PaginationSettings> paginationSettings,
             ILogger<ProductController> logger)
-            : base(messageService, logger)
+            : base(messageService, logger, paginationSettings)
         {
             _productService = productService;
-            _paginationSettings = paginationSettings.Value;
         }
 
         #region Product APIs
@@ -177,20 +175,6 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
-        /// Apply default pagination values from settings if not provided
-        /// </summary>
-        private void ApplyPaginationDefaults(PaginationParams pagination)
-        {
-            pagination.PageNumber ??= _paginationSettings.DefaultPageNumber;
-            pagination.PageSize ??= _paginationSettings.DefaultPageSize;
-
-            // Clamp page size to max allowed
-            if (pagination.PageSize > _paginationSettings.MaxPageSize)
-            {
-                pagination.PageSize = _paginationSettings.MaxPageSize;
-            }
-        }
-
         #endregion
     }
 }

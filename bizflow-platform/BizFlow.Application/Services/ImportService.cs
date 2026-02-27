@@ -13,13 +13,13 @@ namespace BizFlow.Application.Services
     public class ImportService : IImportService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ICloudinaryService _cloudinaryService;
+        private readonly IImageService _imageService;
         private readonly IMapper _mapper;
 
-        public ImportService(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService, IMapper mapper)
+        public ImportService(IUnitOfWork unitOfWork, IImageService imageService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
-            _cloudinaryService = cloudinaryService;
+            _imageService = imageService;
             _mapper = mapper;
         }
 
@@ -81,15 +81,9 @@ namespace BizFlow.Application.Services
             // Upload image if provided
             if (request.ImageStream != null)
             {
-                var uploadResult = await _cloudinaryService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Imports");
-
-                if (!uploadResult.Success)
-                {
-                    throw new BadRequestException(MessageKeys.ImportImageUploadFailed, null, uploadResult.Error ?? "Unknown error");
-                }
-
-                import.ImageUrl = uploadResult.Url;
-                import.ImagePublicId = uploadResult.PublicId;
+                var imageInfo = await _imageService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Imports");
+                import.ImageUrl = imageInfo.Url;
+                import.ImagePublicId = imageInfo.PublicId;
             }
 
             try
@@ -121,11 +115,6 @@ namespace BizFlow.Application.Services
             }
             catch (Exception)
             {
-                // Rollback: Delete image from Cloudinary if DB save fails
-                if (!string.IsNullOrEmpty(import.ImagePublicId))
-                {
-                    await _cloudinaryService.DeleteImageAsync(import.ImagePublicId);
-                }
                 throw;
             }
 
@@ -153,6 +142,23 @@ namespace BizFlow.Application.Services
             import.Note = request.Note;
             import.ReceivedAt = request.ReceivedAt;
             import.UpdatedAt = DateTime.UtcNow;
+
+            // Update Image
+            if (request.RemoveImage && !string.IsNullOrEmpty(import.ImagePublicId))
+            {
+                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
+                import.ImageUrl = null;
+                import.ImagePublicId = null;
+            }
+
+            // Handle new image upload (if provided)
+            if (request.ImageStream != null)
+            {
+                var imageInfo = await _imageService.UploadImageAsync(
+                    request.ImageStream, request.ImageFileName ?? "image", "Imports");
+                import.ImageUrl = imageInfo.Url;
+                import.ImagePublicId = imageInfo.PublicId;
+            }
 
             // Always replace items — null or empty list = remove all
             foreach (var old in import.ProductsImports.ToList())

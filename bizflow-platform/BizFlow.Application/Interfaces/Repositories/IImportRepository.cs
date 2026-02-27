@@ -28,6 +28,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<int> CountAsync();
 
+        /// <summary>
+        /// Check which of the given PublicIds exist in the database (for orphan detection)
+        /// </summary>
+        Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds);
+
         // ============ Command Methods ============
 
         Task<Import> AddAsync(Import import);

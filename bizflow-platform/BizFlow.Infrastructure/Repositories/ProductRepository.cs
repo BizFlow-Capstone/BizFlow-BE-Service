@@ -116,12 +116,17 @@ namespace BizFlow.Infrastructure.Repositories
             return entry.Entity;
         }
 
-        public async Task<List<string>> GetAllImagePublicIdsAsync()
+        public async Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds)
         {
-            return await _dbContext.Products
-                .Where(p => !string.IsNullOrEmpty(p.ImagePublicId))
+            var ids = publicIds.ToList();
+            if (ids.Count == 0) return new HashSet<string>();
+
+            var existing = await _dbContext.Products
+                .Where(p => p.ImagePublicId != null && ids.Contains(p.ImagePublicId))
                 .Select(p => p.ImagePublicId!)
                 .ToListAsync();
+
+            return new HashSet<string>(existing);
         }
 
 

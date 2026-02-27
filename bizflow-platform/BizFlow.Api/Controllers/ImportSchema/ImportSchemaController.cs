@@ -74,7 +74,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
 
@@ -99,7 +99,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
 
@@ -144,7 +144,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
     }

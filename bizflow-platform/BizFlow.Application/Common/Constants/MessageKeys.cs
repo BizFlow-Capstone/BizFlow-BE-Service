@@ -25,6 +25,9 @@ namespace BizFlow.Application.Common.Constants
         public const string DataCreatedSuccessfully = "COMMON_DATA_CREATED";
         public const string DataUpdatedSuccessfully = "COMMON_DATA_UPDATED";
         public const string DataDeletedSuccessfully = "COMMON_DATA_DELETED";
+        public const string ImageFileTooLarge = "IMAGE_FILE_TOO_LARGE";
+        public const string ImageInvalidFileType = "IMAGE_INVALID_FILE_TYPE";
+        public const string ImageUploadFailed = "IMAGE_UPLOAD_FAILED";
 
         // ============ AUTHENTICATION ============
         public const string LoginSuccess = "AUTH_LOGIN_SUCCESS";
@@ -64,7 +67,6 @@ namespace BizFlow.Application.Common.Constants
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
-        public const string ProductImageUploadFailed = "PRODUCT_IMAGE_UPLOAD_FAILED";
         public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
         public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
 
@@ -75,7 +77,6 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
-        public const string ImportImageUploadFailed = "IMPORT_IMAGE_UPLOAD_FAILED";
 
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
