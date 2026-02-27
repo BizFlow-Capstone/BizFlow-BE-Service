@@ -24,11 +24,6 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Import?> GetByIdWithItemsAsync(long importId);
 
         /// <summary>
-        /// Get active import schema version
-        /// </summary>
-        Task<ImportSchemaVersion?> GetActiveSchemaVersionAsync();
-
-        /// <summary>
         /// Count all imports (for import code generation)
         /// </summary>
         Task<int> CountAsync();

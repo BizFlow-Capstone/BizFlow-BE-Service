@@ -29,7 +29,7 @@ namespace BizFlow.Application.Services
             var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, query.LocationId);
             if (!hasAccess)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
 
             var (products, totalCount) = await _unitOfWork.Products.SearchAsync(query);
@@ -48,14 +48,14 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdWithDetailsAsync(productId);
             if (product == null)
             {
-                throw new NotFoundException(MessageKeys.ProductNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             // Validate access (owner or employee)
             var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, product.BusinessLocationId);
             if (!hasAccess)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
 
             return _mapper.Map<ProductDetailDto>(product);
@@ -66,14 +66,14 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdWithSaleItemsAsync(productId);
             if (product == null)
             {
-                throw new NotFoundException(MessageKeys.ProductNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             // Validate access (owner or employee)
             var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, product.BusinessLocationId);
             if (!hasAccess)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
 
             return _mapper.Map<ProductSaleItemsResponseDto>(product);
@@ -85,7 +85,7 @@ namespace BizFlow.Application.Services
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, request.LocationId);
             if (!isOwner)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
 
             // 2. Validate PriceTiers (fail fast)
@@ -198,14 +198,14 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdWithSaleItemsAsync(productId);
             if (product == null)
             {
-                throw new NotFoundException(MessageKeys.ProductNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             // 1. Validate ownership
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
             if (!isOwner)
             {
-                throw new ForbiddenException(MessageKeys.LocationAccessDenied);
+                throw new ForbiddenException(MessageKeys.Forbidden);
             }
             
             // 2. Prevent changing product location
@@ -358,7 +358,7 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
             {
-                throw new NotFoundException(MessageKeys.ProductNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             // Validate ownership
@@ -387,7 +387,7 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
             {
-                throw new NotFoundException(MessageKeys.ProductNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
             }
 
             // Validate ownership

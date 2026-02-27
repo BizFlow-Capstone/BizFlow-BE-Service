@@ -42,7 +42,7 @@ namespace BizFlow.Api.Controllers.Location
         {
             var userId = GetCurrentUserId();
             var locations = await _locationService.GetOwnedLocationsAsync(userId);
-            return Ok(locations, MessageKeys.LocationsRetrievedSuccessfully);
+            return Ok(locations, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace BizFlow.Api.Controllers.Location
         {
             var userId = GetCurrentUserId();
             var location = await _locationService.CreateLocationAsync(userId, request);
-            return Created(location, MessageKeys.LocationCreatedSuccessfully, nameof(GetOwnedLocations), null!);
+            return Created(location, MessageKeys.DataCreatedSuccessfully, nameof(GetOwnedLocations), null!);
         }
 
         /// <summary>
@@ -74,10 +74,10 @@ namespace BizFlow.Api.Controllers.Location
             
             if (!success)
             {
-                return Forbidden(MessageKeys.LocationAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.LocationStatusUpdated);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>
@@ -95,10 +95,10 @@ namespace BizFlow.Api.Controllers.Location
             
             if (!success)
             {
-                return Forbidden(MessageKeys.LocationAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.LocationUpdatedSuccessfully);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>
@@ -117,10 +117,10 @@ namespace BizFlow.Api.Controllers.Location
             
             if (!success)
             {
-                return Forbidden(MessageKeys.LocationAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.EmployeesAddedSuccessfully);
+            return Ok(MessageKeys.DataCreatedSuccessfully);
         }
 
         /// <summary>
@@ -138,10 +138,10 @@ namespace BizFlow.Api.Controllers.Location
 
             if (!success)
             {
-                return Forbidden(MessageKeys.LocationAccessDenied);
+                return Forbidden(MessageKeys.Forbidden);
             }
 
-            return Ok(MessageKeys.LocationDeletedSuccessfully);
+            return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
         /// <summary>
@@ -155,7 +155,7 @@ namespace BizFlow.Api.Controllers.Location
         {
             var userId = GetCurrentUserId();
             var result = await _locationService.GetEmployeesByLocationAsync(userId, locationId);
-            return Ok(result, MessageKeys.EmployeesRetrievedSuccessfully);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         #endregion
@@ -173,7 +173,7 @@ namespace BizFlow.Api.Controllers.Location
             //var userId = GetCurrentUserId();
             var userId = _employeeId;
             var locations = await _locationService.GetWorkLocationsAsync(userId);
-            return Ok(locations, MessageKeys.LocationsRetrievedSuccessfully);
+            return Ok(locations, MessageKeys.DataRetrievedSuccessfully);
         }
 
         #endregion

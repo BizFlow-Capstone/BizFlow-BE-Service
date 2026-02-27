@@ -217,8 +217,16 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
-            entity.HasIndex(e => e.TemplateCode, "idx_import_schema_template_code").IsUnique();
+            entity.HasIndex(e => e.DeletedAt, "idx_importschemas_deletedat");
 
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("When this schema was first created")
+                .HasColumnType("datetime");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp; NULL means not deleted")
+                .HasColumnType("datetime");
+            entity.Property(e => e.EverActivated).HasComment("True if this schema has ever been set as active (gates soft vs hard delete)");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")

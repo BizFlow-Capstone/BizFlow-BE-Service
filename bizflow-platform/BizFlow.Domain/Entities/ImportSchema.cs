@@ -22,5 +22,20 @@ public partial class ImportSchema
     /// </summary>
     public bool? IsActive { get; set; }
 
+    /// <summary>
+    /// True if this schema has ever been set as active (gates soft vs hard delete)
+    /// </summary>
+    public bool EverActivated { get; set; }
+
+    /// <summary>
+    /// When this schema was first created
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Soft delete timestamp; NULL means not deleted
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+
     public virtual ICollection<ImportSchemaVersion> ImportSchemaVersions { get; set; } = new List<ImportSchemaVersion>();
 }

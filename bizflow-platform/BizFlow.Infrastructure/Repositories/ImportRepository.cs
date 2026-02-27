@@ -72,17 +72,6 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<ImportSchemaVersion?> GetActiveSchemaVersionAsync()
-        {
-            var activeSchema = await _dbContext.ImportSchemas
-                .Where(s => s.IsActive == true)
-                .Include(s => s.ImportSchemaVersions)
-                .FirstOrDefaultAsync();
-
-            return activeSchema?.ImportSchemaVersions
-                .FirstOrDefault(v => v.IsActive);
-        }
-
         public async Task<int> CountAsync()
         {
             return await _dbContext.Imports.CountAsync();

@@ -27,11 +27,16 @@ namespace BizFlow.Application.Services
 
         public async Task<ImportSchemaDto> GetTemplateAsync()
         {
-            var version = await _unitOfWork.Imports.GetActiveSchemaVersionAsync();
-            if (version == null)
-                throw new NotFoundException(MessageKeys.ImportNotFound);
+            var activeSchema = await _unitOfWork.ImportSchemas.GetActiveAsync();
+            if (activeSchema == null)
+                throw new NotFoundException(MessageKeys.NotFound);
 
-            return new ImportSchemaDto { SchemaJson = version.SchemaJson };
+            var activeVersion = activeSchema.ImportSchemaVersions
+                .FirstOrDefault(v => v.IsActive);
+            if (activeVersion == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            return new ImportSchemaDto { SchemaJson = activeVersion.SchemaJson };
         }
 
         // =========================================================
@@ -109,7 +114,7 @@ namespace BizFlow.Application.Services
         {
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
-                throw new NotFoundException(MessageKeys.ImportNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             if (import.Status != ImportStatus.Draft)
                 throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
@@ -154,7 +159,7 @@ namespace BizFlow.Application.Services
         {
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
-                throw new NotFoundException(MessageKeys.ImportNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             // Must be DRAFT to confirm
             if (import.Status != ImportStatus.Draft)
@@ -214,7 +219,7 @@ namespace BizFlow.Application.Services
         {
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
-                throw new NotFoundException(MessageKeys.ImportNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             return _mapper.Map<ImportDetailDto>(import);
         }
@@ -227,7 +232,7 @@ namespace BizFlow.Application.Services
         {
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
-                throw new NotFoundException(MessageKeys.ImportNotFound);
+                throw new NotFoundException(MessageKeys.NotFound);
 
             if (import.Status == ImportStatus.Cancelled)
                 throw new BadRequestException(MessageKeys.ImportAlreadyCancelled);

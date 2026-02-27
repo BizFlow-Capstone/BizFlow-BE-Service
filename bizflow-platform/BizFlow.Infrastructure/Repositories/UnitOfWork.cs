@@ -12,24 +12,30 @@ namespace BizFlow.Infrastructure.Repositories
 
         public UnitOfWork(BizFlowDbContext dbContext,
             IRoleRepository roleRepository,
+            IBusinessTypeRepository businessTypeRepository,
             IBusinessLocationRepository businessLocationRepository,
             IHireRepository hireRepository,
             IProductRepository productRepository,
-            IImportRepository importRepository)
+            IImportRepository importRepository,
+            IImportSchemaRepository importSchemaRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
+            BusinessTypes = businessTypeRepository;
             BusinessLocations = businessLocationRepository;
             Hires = hireRepository;
             Products = productRepository;
             Imports = importRepository;
+            ImportSchemas = importSchemaRepository;
         }
 
         public IRoleRepository Roles { get; set; }
+        public IBusinessTypeRepository BusinessTypes { get; set; }
         public IBusinessLocationRepository BusinessLocations { get; set; }
         public IHireRepository Hires { get; set; }
         public IProductRepository Products { get; set; }
         public IImportRepository Imports { get; set; }
+        public IImportSchemaRepository ImportSchemas { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
