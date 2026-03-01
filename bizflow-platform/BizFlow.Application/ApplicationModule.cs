@@ -36,14 +36,11 @@ namespace BizFlow.Application
                 });
                 return config.CreateMapper();
             }).As<IMapper>().InstancePerLifetimeScope();
-<<<<<<< HEAD
-=======
             
             // ImageService is Singleton — stateless, only depends on Singleton services
             builder.RegisterType<BizFlow.Application.Services.ImageService>()
                    .AsImplementedInterfaces()
                    .SingleInstance();
->>>>>>> 0b57e8e5b67e1a06fc1bd31cd1e6b1a1a949492a
         }
     }
 }
