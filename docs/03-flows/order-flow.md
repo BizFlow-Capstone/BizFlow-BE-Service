@@ -41,7 +41,7 @@
                    │            │            │
                    ▼            ▼            ▼
            ┌───────────┐  ┌───────────┐  ┌───────────┐
-           │ COMPLETED │  │ CANCELLED │  │  (Edit)   │
+           │ COMPLETED │  │ HOT DELETE│  │  (Edit)   │
            └─────┬─────┘  └───────────┘  └───────────┘
                  │                            │
                  │  ┌──────────────────────┐  │
@@ -319,9 +319,9 @@ User tạo đơn hàng thủ công qua app/web.
      │               │                 │                 │
      │               │                 │ Check Stock     │
      │               │                 │ (warning nếu    │
-     │               │                 │  không đủ)       │
+     │               │                 │  không đủ)      │
      │               │                 │                 │
-     │        [Nếu cần confirm]          │                 │
+     │        [Nếu cần confirm]        │                 │
      │               │◄────────────────│                 │
      │ Hiển thị      │ 200 + warnings  │                 │
      │ cảnh báo stock│                 │                 │
@@ -330,7 +330,7 @@ User tạo đơn hàng thủ công qua app/web.
      │──────────────►│ confirmLow=true │                 │
      │               │────────────────►│                 │
      │               │                 │                 │
-     │        [Tạo order - KHÔNG trừ kho, KHÔNG ghi nợ] │
+     │        [Tạo order - KHÔNG trừ kho, KHÔNG ghi nợ]  │
      │               │                 │────────────────►│
      │               │                 │   INSERT Order  │
      │               │                 │   Status=pending│
@@ -608,11 +608,11 @@ User nói/nhắn tin tự nhiên → AI parse → App hiển thị draft → Use
      │               │ (RAG + LLM)     │                   │
      │               │────────────────►│                   │
      │               │                 │                   │
-     │               │                 │ Match products   │
-     │               │                 │ from location    │
-     │               │                 │─────────────────►│
-     │               │                 │ GET /products    │
-     │               │                 │◄─────────────────│
+     │               │                 │ Match products    │
+     │               │                 │ from location     │
+     │               │                 │─────────────────► │
+     │               │                 │ GET /products     │
+     │               │                 │◄───────────────── │
      │               │                 │                   │
      │               │ Draft Order     │                   │
      │               │ (không lưu DB)  │                   │
@@ -931,7 +931,7 @@ Phải rollback stock + debt, sau đó clone thành đơn mới.
          ▼
 ┌────────────────────────────┐
 │ Owner clicks               │
-│ "Sửa đơn hoàn tất"          │
+│ "Sửa đơn hoàn tất"         │
 └────────────┬───────────────┘
              │
              ▼
