@@ -263,7 +263,7 @@ Response (201 Created):
 
 ### Business Rules
 
-**RULE-DEBTOR-01: Chỉ Owner tạo được Debtor**
+#### **RULE-DEBTOR-01: Chỉ Owner tạo được Debtor**
 
 ```csharp
 var assignment = await _unitOfWork.UserLocationAssignments
@@ -273,7 +273,7 @@ if (assignment == null || !assignment.IsOwner)
     throw new ForbiddenException("Only owner can create debtors");
 ```
 
-**RULE-DEBTOR-02: Phone unique trong location (nếu có)**
+#### **RULE-DEBTOR-02: Phone unique trong location (nếu có)**
 
 ```csharp
 if (!string.IsNullOrEmpty(request.Phone))
@@ -288,7 +288,7 @@ if (!string.IsNullOrEmpty(request.Phone))
 }
 ```
 
-**RULE-DEBTOR-03: Balance bắt đầu = 0**
+#### **RULE-DEBTOR-03: Balance bắt đầu = 0**
 
 ```csharp
 var debtor = new Debtor
@@ -419,10 +419,10 @@ Khi khách trả nợ, Owner hoặc Employee ghi nhận thanh toán.
 
 ### Sequence Diagram
 
-```
-┌─────────────┐     ┌─────────┐     ┌─────────────┐     ┌──────────┐
+```markdown
+┌──────────────┐     ┌─────────┐     ┌─────────────┐     ┌──────────┐
 │Owner/Employee│     │  App    │     │  Backend    │     │    DB    │
-└──────┬──────┘     └────┬────┘     └──────┬──────┘     └────┬─────┘
+└──────┬───────┘     └───┬─────┘     └─────┬───────┘     └───┬──────┘
        │                 │                 │                 │
        │ Chọn debtor     │                 │                 │
        │────────────────►│                 │                 │
@@ -484,14 +484,14 @@ Response (201 Created):
 
 ### Business Rules
 
-**RULE-PAYMENT-01: Amount phải dương**
+#### **RULE-PAYMENT-01: Amount phải dương**
 
 ```csharp
 if (request.Amount <= 0)
     throw new ValidationException("Payment amount must be positive");
 ```
 
-**RULE-PAYMENT-02: Cho phép trả dư (tạo credit)**
+#### **RULE-PAYMENT-02: Cho phép trả dư (tạo credit)**
 
 ```csharp
 // Không validate amount vs outstanding debt
@@ -506,7 +506,7 @@ var balanceAfter = debtor.CurrentBalance;
 // Balance mới = -500,000 + 700,000 = +200,000 (có credit 200k)
 ```
 
-**RULE-PAYMENT-03: Lưu balance snapshot**
+#### **RULE-PAYMENT-03: Lưu balance snapshot**
 
 ```csharp
 var transaction = new DebtorPaymentTransaction
@@ -522,7 +522,7 @@ var transaction = new DebtorPaymentTransaction
 };
 ```
 
-**RULE-PAYMENT-04: Owner + Employee đều được ghi nhận**
+#### **RULE-PAYMENT-04: Owner + Employee đều được ghi nhận**
 
 ```csharp
 // Cả Owner và Employee đều có quyền record payment
@@ -578,6 +578,7 @@ Response (204 No Content)
 ```
 
 **Rules**:
+
 - Chỉ Owner được xóa
 - Soft delete (set DeletedAt)
 - Phải hết nợ mới được xóa (hoặc confirm forgivable)
@@ -773,15 +774,15 @@ order.CancelReason = request.Reason;
 
 | Method | Endpoint | Description | Who |
 |--------|----------|-------------|-----|
-| `POST` | `/api/v1/debtors` | Tạo debtor mới | Owner |
-| `GET` | `/api/v1/debtors` | List debtors | Owner, Employee |
-| `GET` | `/api/v1/debtors/{id}` | Debtor detail | Owner, Employee |
-| `PUT` | `/api/v1/debtors/{id}` | Update debtor | Owner |
-| `DELETE` | `/api/v1/debtors/{id}` | Soft delete | Owner |
-| `POST` | `/api/v1/debtors/{id}/payments` | Record payment | Owner, Employee |
-| `GET` | `/api/v1/debtors/{id}/payments` | Payment history | Owner, Employee |
-| `GET` | `/api/v1/debtors/summary` | Debt summary | Owner |
-| `GET` | `/api/v1/debtors/aging` | Aging report | Owner |
+| `POST` | `/api/debtors` | Tạo debtor mới | Owner |
+| `GET` | `/api/debtors` | List debtors | Owner, Employee |
+| `GET` | `/api/debtors/{id}` | Debtor detail | Owner, Employee |
+| `PUT` | `/api/debtors/{id}` | Update debtor | Owner |
+| `DELETE` | `/api/debtors/{id}` | Soft delete | Owner |
+| `POST` | `/api/debtors/{id}/payments` | Record payment | Owner, Employee |
+| `GET` | `/api/debtors/{id}/payments` | Payment history | Owner, Employee |
+| `GET` | `/api/debtors/summary` | Debt summary | Owner |
+| `GET` | `/api/debtors/aging` | Aging report | Owner |
 
 ---
 
@@ -789,15 +790,15 @@ order.CancelReason = request.Reason;
 
 ### Debtor Card Display
 
-```
+```markdown
 ┌─────────────────────────────────────────────────────────┐
-│  👤 Anh Ba                                    📞 0901...│
+│  👤 Anh Ba                                   📞 0901...│
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  [State: Đang nợ]                                       │
-│  🔴 Nợ: 1,500,000đ                                      │
+│     Nợ: 1,500,000đ                                      │
 │  Limit: 5,000,000đ                                      │
-│  ━━━━━━━━━━━━━━━░░░░░░░░░░  30%                        │
+│  ━━━━━━━━━━━━━━━░░░░░░░░░░  30%                         │
 │                                                         │
 │  Đơn gần nhất: 20/02/2026                               │
 │  Trả gần nhất: 15/02/2026                               │
@@ -806,21 +807,21 @@ order.CancelReason = request.Reason;
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  👤 Chị Lan                                   📞 0909...│
+│  👤 Chị Lan                                  📞 0909...│
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  [State: Có credit]                                     │
-│  🟢 Dư: 200,000đ                                        │
+│     Dư: 200,000đ                                        │
 │                                                         │
 │  [Xem chi tiết]                                         │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  👤 Anh Năm                                   📞 0908...│
+│  👤 Anh Năm                                  📞 0908...│
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  [State: Hết nợ]                                        │
-│  ⚪ Balance: 0đ                                          │
+│     Balance: 0đ                                         │
 │                                                         │
 │  [Xem chi tiết]                                         │
 └─────────────────────────────────────────────────────────┘
@@ -836,7 +837,7 @@ order.CancelReason = request.Reason;
 
 ### Credit Limit Bar
 
-```
+```markdown
 Nợ: 1,500,000đ / Limit: 5,000,000đ
 ━━━━━━━━━━━━━━━░░░░░░░░░░░  30%  (Xanh)
 
