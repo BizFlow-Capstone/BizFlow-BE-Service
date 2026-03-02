@@ -17,6 +17,7 @@
 9. [Stock Rules & Integration](#9-stock-rules--integration)
 10. [API Endpoints Summary](#10-api-endpoints-summary)
 11. [Error Codes](#11-error-codes)
+12. [Business Rules Summary](#12-business-rules-summary)
 
 ---
 
@@ -36,13 +37,14 @@
 ```markdown
 Product (Sản phẩm)
 ├── Thông tin chung: Tên, SKU, Ảnh, Nhà sản xuất
-├── Tồn kho: Stock (theo base unit), CostPrice (giá vốn)
+├── Giá: SellingPrice (giá bán base unit), CostPrice (giá vốn cached)
+├── Tồn kho: Stock (theo base unit)
 ├── Flag: TrackInventory (có quản lý kho không?)
 │
 ├── SaleItem 1 (Base Unit - tự động tạo)
 │   ├── Unit: "Bao" (= Product.Unit)
 │   ├── Quantity: 1
-│   └── PricePolicy: 95,000đ (default)
+│   └── PricePolicy: 95,000đ (default, = Product.SellingPrice)
 │
 ├── SaleItem 2 (Price Tier - user tạo thêm)
 │   ├── Unit: "Thùng"
@@ -71,6 +73,7 @@ Product 1 ──── N SaleItem 1 ──── N ProductPricePolicy
    ├── Unit (đơn vị tính nhỏ nhất / base unit)
    ├── Stock (tồn kho theo base unit)
    ├── SellingPrice (giá bán theo base unit)
+   ├── CostPrice (giá vốn cached - auto-update from Import)
    └── TrackInventory (có quản lý tồn kho?)
 ```
 
@@ -82,8 +85,8 @@ Product 1 ──── N SaleItem 1 ──── N ProductPricePolicy
 | **Scope** | Thông tin chung của sản phẩm | Đơn vị + giá bán cụ thể |
 | **Unit** | Base unit (đơn vị nhỏ nhất) | Đơn vị bán (có thể = base hoặc lớn hơn) |
 | **Stock** | Có (nếu TrackInventory) | Không |
-| **Giá** | CostPrice (giá vốn) | PricePolicy (giá bán) |
-| **Ví dụ** | Xi măng Hà Tiên - Stock 150 bao | Bao (1) - 95k, Thùng (12 bao) - 1.08M |
+| **Giá** | SellingPrice (giá bán), CostPrice (giá vốn cached) | PricePolicy (giá bán theo đơn vị) |
+| **Ví dụ** | Xi măng Hà Tiên - Bán 95k, Vốn 80k, Stock 150 bao | Bao (1) - 95k, Thùng (12 bao) - 1.08M |
 
 > **Lưu ý dịch vụ/F&B**: Đối với ngành dịch vụ và F&B, sản phẩm không cần quản lý tồn kho → `TrackInventory = false`. SaleItem vẫn dùng để quản lý giá bán.
 
@@ -109,6 +112,7 @@ CREATE TABLE Products (
     
     -- Giá & Tồn kho
     SellingPrice DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Giá bán theo base unit',
+    CostPrice DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Giá vốn cached (auto-update from Import)',
     Stock INT NOT NULL DEFAULT 0 COMMENT 'Tồn kho theo base unit',
     
     -- Ảnh sản phẩm (Cloudinary)
@@ -183,7 +187,8 @@ public partial class Product
     public string? Sku { get; set; }
     public string Unit { get; set; } = null!;         // Base unit
     
-    public decimal CostPrice { get; set; }
+    public decimal SellingPrice { get; set; }          // Giá bán base unit
+    public decimal CostPrice { get; set; }             // Giá vốn cached (auto-update from Import)
     public int Stock { get; set; }
     
     public string? ImageUrl { get; set; }
@@ -198,6 +203,7 @@ public partial class Product
     public virtual BusinessType BusinessType { get; set; } = null!;
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
+    public virtual ICollection<StockMovement> StockMovements { get; set; } = new List<StockMovement>();
 }
 
 public partial class SaleItem
@@ -241,7 +247,8 @@ public partial class ProductPricePolicy
 │ ProductName                 │
 │ Sku                         │
 │ Unit ◄───── Base unit       │
-│ CostPrice                   │
+│ SellingPrice                │
+│ CostPrice (cached)          │
 │ Stock                       │
 │ ImageUrl / ImagePublicId    │
 │ TrackInventory              │
@@ -312,7 +319,7 @@ public partial class ProductPricePolicy
 
 ### Flow Diagram
 
-```
+```markdown
 Owner tạo sản phẩm mới
         │
         ▼
@@ -344,7 +351,7 @@ Owner tạo sản phẩm mới
 │    ├── Unit = Product.Unit  │
 │    ├── Quantity = 1         │
 │    └── PricePolicy:         │
-│        Price = CostPrice    │
+│        Price = SellingPrice │
 │        IsDefault = true     │
 └───────────┬─────────────────┘
             │
@@ -383,12 +390,72 @@ Khi tạo product, hệ thống **luôn** tạo 1 SaleItem mặc định:
 
 - `Unit` = Product.Unit (base unit)
 - `Quantity` = 1
-- `PricePolicy.Price` = Product.SellingPrice
+- `PricePolicy.Price` = **Product.SellingPrice** (giá bán, không phải giá vốn)
 - `PricePolicy.IsDefault` = true
 
-> ⚠️ **Điểm thảo luận**: Hiện tại default SaleItem lấy giá = `SellingPrice` (giá bán). Nhưng giá vốn thường **khác** giá bán. Cần xem xét: có nên yêu cầu user nhập `SellingPrice` riêng cho base unit không? Hay để user tự cập nhật sau?
+> ✅ **Quyết định**: Default SaleItem lấy giá = `SellingPrice` (giá bán). User nhập giá bán khi tạo sản phẩm. `CostPrice` là giá vốn riêng, không liên quan đến giá bán trên SaleItem.
 
-**RULE-PROD-02: PriceTier Unit không được trùng Base Unit**
+**RULE-PROD-02: CostPrice là cached value**
+
+`Product.CostPrice` đóng vai trò **read-optimized cache** để hiển thị nhanh giá vốn trên UI:
+
+| Thời điểm | CostPrice = ? | Nguồn |
+|------------|---------------|------|
+| Tạo product (chưa nhập hàng) | User tự nhập (optional, default 0) | Input |
+| Import lần 1 confirmed | `ProductImport.CostPrice` | Auto-update |
+| Import lần N confirmed | **Giá vốn nhập gần nhất** | Auto-update |
+| Tính báo cáo lợi nhuận | Query từ `ProductImport` (FIFO/weighted avg) | **Nguồn chính xác** |
+
+```csharp
+// Trong ConfirmImportAsync (import-flow)
+// Auto-update cached CostPrice = giá nhập gần nhất
+product.CostPrice = productImport.CostPrice;
+```
+
+> **Lưu ý**: `Product.CostPrice` dùng cho UI dashboard (ước lượng). Báo cáo tài chính chính xác phải query từ `ProductImport`.
+
+**RULE-PROD-03: SKU cảnh báo trùng, không block**
+
+SKU là mã do nhà sản xuất/chuỗi cung ứng đặt. Với HKD Việt Nam, SKU có thể nhập thủ công và trùng lặp do nhiều lý do. Hệ thống **cảnh báo** nhưng **không chặn**:
+
+```
+User nhập SKU
+    │
+    ▼
+Check trùng trong cùng Location?
+    │
+  ┌─┴──┐
+  │    │
+ Trùng  Không trùng
+  │    │
+  ▼    ▼
+⚠️ WARNING      ✅ OK
+"SKU này đã tồn tại
+cho sản phẩm [X]."
+  │
+  ▼
+Vẫn cho phép tạo/cập nhật
+```
+
+```csharp
+// Trả warnings[] trong response, không throw exception
+if (!string.IsNullOrWhiteSpace(request.Sku))
+{
+    var existingProduct = await _unitOfWork.Products
+        .FindBySkuInLocationAsync(request.LocationId, request.Sku, excludeProductId: null);
+    
+    if (existingProduct != null)
+    {
+        response.Warnings.Add(new Warning
+        {
+            Code = "PRODUCT_DUPLICATE_SKU",
+            Message = $"SKU '{request.Sku}' đã tồn tại cho sản phẩm '{existingProduct.ProductName}'"
+        });
+    }
+}
+```
+
+**RULE-PROD-04: PriceTier Unit không được trùng Base Unit**
 
 ```csharp
 // Validate: không cho PriceTier có Unit giống Product.Unit
@@ -401,7 +468,7 @@ if (duplicateUnitTier != null)
 
 > Vì base unit đã có SaleItem mặc định → PriceTier chỉ dành cho đơn vị khác.
 
-**RULE-PROD-03: Image Upload Rollback**
+**RULE-PROD-05: Image Upload Rollback**
 
 ```
 Upload image → Save DB
@@ -433,8 +500,8 @@ Upload image → Save DB
 | LocationId | int | ✅ **Required** - Location ID |
 | Name | string | Search theo tên (contains, case-insensitive) |
 | Sku | string | Search theo SKU |
-| MinCostPrice | decimal | Filter giá vốn tối thiểu |
-| MaxCostPrice | decimal | Filter giá vốn tối đa |
+| MinSellingPrice | decimal | Filter giá bán tối thiểu |
+| MaxSellingPrice | decimal | Filter giá bán tối đa |
 | MinStock | int | Filter tồn kho tối thiểu |
 | MaxStock | int | Filter tồn kho tối đa |
 | Status | string | Filter theo status (`active` / `inactive`) |
@@ -477,6 +544,7 @@ Upload image → Save DB
   "sku": "XM-HT-50",
   "imageUrl": "https://res.cloudinary.com/.../product.jpg",
   "unit": "Bao",
+  "sellingPrice": 95000,
   "costPrice": 80000,
   "stock": 150,
   "manufacturer": "Hà Tiên",
@@ -519,7 +587,7 @@ Upload image → Save DB
 
 ### Flow Diagram (Search)
 
-```
+```markdown
 User mở danh sách sản phẩm
         │
         ▼
@@ -574,7 +642,7 @@ Giống `CreateProductRequest` + thêm `RemoveImage` flag:
 
 ### Flow Diagram
 
-```
+```markdown
 Owner cập nhật sản phẩm
         │
         ▼
@@ -608,8 +676,8 @@ Owner cập nhật sản phẩm
             ▼
 ┌─────────────────────────────┐
 │ 5. Update Product fields    │
-│    Name, SKU, CostPrice,    │
-│    Stock, Unit, etc.        │
+│    Name, SKU, SellingPrice, │
+│    CostPrice, Stock, Unit   │
 └───────────┬─────────────────┘
             │
             ▼
@@ -618,12 +686,14 @@ Owner cập nhật sản phẩm
 │    ├── RemoveImage=true     │
 │    │   → Delete từ Cloud    │
 │    └── New Image            │
-│        → Delete cũ + Upload │
+│        → Upload mới trước  │
+│        → Xóa cũ sau khi     │
+│          DB save thành công │
 └───────────┬─────────────────┘
             │
             ▼
 ┌─────────────────────────────┐
-│ 7. Sync SaleItems           │◄─── RULE-PROD-04
+│ 7. Sync SaleItems           │◄─── RULE-PROD-06
 │    (xem chi tiết bên dưới)  │
 └───────────┬─────────────────┘
             │
@@ -631,13 +701,13 @@ Owner cập nhật sản phẩm
         ✅ Return ProductListItemDto
 ```
 
-### RULE-PROD-04: SaleItem Sync Strategy (Reconciliation)
+### RULE-PROD-06: SaleItem Sync Strategy (Reconciliation)
 
 Khi update product, hệ thống **reconcile** SaleItems thay vì delete-all + re-create:
 
-```
+```markdown
 Expected SaleItems (từ request):
-├── (Unit=Product.Unit, Qty=1, Price=CostPrice)    ← Default
+├── (Unit=Product.Unit, Qty=1, Price=SellingPrice)  ← Default
 ├── PriceTier 1
 └── PriceTier 2
 
@@ -654,11 +724,12 @@ Reconciliation:
 ```
 
 **Tại sao reconcile thay vì delete-all?**
+
 - SaleItem có thể đã được reference trong OrderDetail
 - Hard delete sẽ break FK constraints
 - Soft delete giữ lại lịch sử
 
-### RULE-PROD-05: Không cho đổi Location
+### RULE-PROD-07: Không cho đổi Location
 
 ```csharp
 if (product.BusinessLocationId != request.LocationId)
@@ -666,6 +737,20 @@ if (product.BusinessLocationId != request.LocationId)
 ```
 
 > Sản phẩm gắn chặt với location. Muốn chuyển location → tạo product mới ở location đích.
+
+### RULE-PROD-08: Image Update an toàn
+
+Khi update ảnh sản phẩm, phải đảm bảo không mất ảnh do partial failure:
+
+```
+Có ảnh mới:
+1. Upload ảnh mới lên Cloudinary
+2. Lưu DB (product.ImageUrl = new, product.ImagePublicId = new)
+3. Nếu DB save thành công → Xóa ảnh cũ khỏi Cloudinary
+4. Nếu DB save fail → Xóa ảnh mới, giữ nguyên ảnh cũ
+```
+
+> **Tại sao không xóa cũ trước?** Nếu upload mới fail sau khi đã xóa cũ → mất cả 2 ảnh.
 
 ---
 
@@ -679,7 +764,7 @@ if (product.BusinessLocationId != request.LocationId)
 
 ### Flow Diagram
 
-```
+```markdown
 Owner xóa sản phẩm
         │
         ▼
@@ -696,7 +781,7 @@ Owner xóa sản phẩm
             │
             ▼
 ┌─────────────────────────────┐
-│ 3. Check History            │◄─── RULE-PROD-06
+│ 3. Check History            │◄─── RULE-PROD-09
 │    HasHistory(productId)?   │
 │    (OrderDetail, Import)    │
 └───────────┬─────────────────┘
@@ -747,7 +832,7 @@ Owner xóa sản phẩm
 
 ### Flow
 
-```
+```markdown
 Owner đổi status sản phẩm
         │
         ▼
@@ -770,7 +855,7 @@ Owner đổi status sản phẩm
 
 SaleItem đại diện cho **cách bán** một sản phẩm. Ví dụ thực tế:
 
-```
+```markdown
 Sản phẩm: Nước ngọt Pepsi
 Base Unit: Lon
 Stock: 500 lon
@@ -781,7 +866,7 @@ SaleItems:
 └── Thùng (24 lon)        → Giá: 240,000đ  (tiết kiệm 48k)
 ```
 
-```
+```markdown
 Sản phẩm: Dịch vụ cắt tóc nam
 Base Unit: Lần
 TrackInventory: false
@@ -796,7 +881,7 @@ SaleItems:
 
 Khi tạo Order, stock trừ theo **base unit**:
 
-```
+```markdown
 Bán 2 thùng Pepsi (1 thùng = 24 lon):
 → Trừ stock: 2 × 24 = 48 lon
 
@@ -805,7 +890,8 @@ Bán 1 lốc + 3 lon Pepsi:
 ```
 
 **Công thức**:
-```
+
+```markdown
 StockDeduction = SaleItem.Quantity × OrderDetail.Quantity
 ```
 
@@ -821,7 +907,8 @@ Mỗi SaleItem có thể có **nhiều PricePolicy** (giá theo thời gian):
 | `EndAt` | Thời điểm kết thúc (`null` = vô thời hạn) |
 
 **Quy tắc lấy giá hiện tại:**
-```
+
+```markdown
 1. Tìm PricePolicy có StartAt <= NOW <= EndAt (giá theo thời gian)
 2. Nếu không có → Lấy PricePolicy có IsDefault = true
 3. Nếu không có → Giá = 0
@@ -834,14 +921,15 @@ Mỗi SaleItem có thể có **nhiều PricePolicy** (giá theo thời gian):
 ```
 Product: Xi măng Hà Tiên PCB40
     Unit: Bao (base unit)
-    CostPrice: 80,000đ
+    SellingPrice: 95,000đ (giá bán base unit)
+    CostPrice: 80,000đ (giá vốn cached - từ lần nhập gần nhất)
     Stock: 500 bao
     TrackInventory: true
 
     SaleItem 1 (default - auto created):
         Unit: Bao
         Quantity: 1
-        PricePolicy (default): 95,000đ
+        PricePolicy (default): 95,000đ  (← = Product.SellingPrice)
 
     SaleItem 2 (price tier):
         Unit: Thùng (10 bao)
@@ -852,6 +940,9 @@ Product: Xi măng Hà Tiên PCB40
         Unit: Pallet (50 bao)
         Quantity: 50
         PricePolicy (default): 4,250,000đ (= 85,000đ/bao, giảm 10k/bao)
+
+    Lợi nhuận ước lượng: 95k - 80k = 15k/bao (ước lượng từ cached CostPrice)
+    Lợi nhuận chính xác: Query từ ProductImport (FIFO)
 ```
 
 ---
@@ -896,7 +987,7 @@ if (product.TrackInventory == true)
 
 **RULE-STOCK-02: TrackInventory = false**
 
-```
+```markdown
 Khi TrackInventory = false:
 ├── Order → KHÔNG trừ stock
 ├── Import → KHÔNG cộng stock
@@ -906,20 +997,22 @@ Khi TrackInventory = false:
 
 ### 9.4 Integration Map
 
-```
+```markdown
                     ┌──────────────┐
                     │   Product    │
                     │   Stock: 500 │
                     └──────┬───────┘
                            │
-              ┌────────────┼────────────┐
-              │            │            │
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │  Order   │ │  Import  │ │  Report  │
-        │  -Stock  │ │  +Stock  │ │  Read    │
-        └──────────┘ └──────────┘ └──────────┘
+              ┌────────────┼────────────────┐
+              │            │                │
+              ▼            ▼                ▼
+        ┌──────────┐ ┌──────────┐ ┌────────────────┐
+        │  Order   │ │  Import  │ │ StockMovements │
+        │  -Stock  │ │  +Stock  │ │  (audit log)   │
+        └──────────┘ └──────────┘ └────────────────┘
 ```
+
+> **Cross-reference**: Xem chi tiết stock integration trong [import-flow.md](./import-flow.md) (Confirm/Cancel) và [order-flow.md](./order-flow.md) (Complete/Cancel).
 
 ### 9.5 Rủi ro Inconsistent Stock là gì?
 
@@ -942,25 +1035,206 @@ Hệ quả:
 - Cảnh báo low stock sai.
 - Quyết định nhập hàng sai.
 
-### 9.6 StockMovements log giúp gì?
+### 9.6 StockMovements Log
 
-`StockMovements` là nhật ký biến động kho theo từng nghiệp vụ (+/-), giúp:
+`StockMovements` là nhật ký biến động kho theo từng nghiệp vụ (+/-), là **immutable log** giúp:
 
-1. **Audit trail đầy đủ**
-    - Biết chính xác ai, khi nào, lý do gì làm stock tăng/giảm.
-2. **Reconciliation / tự kiểm tra sai lệch**
-    - So sánh `Product.Stock` với `SUM(StockMovements.QuantityDelta)` để phát hiện lệch.
-3. **Khả năng rebuild stock**
-    - Nếu stock hiện tại bị sai, có thể tính lại từ log.
-4. **Dễ điều tra incident**
-    - Truy vết nhanh bug do flow Order/Import/Cancel.
+1. **Audit trail đầy đủ** — Biết chính xác ai, khi nào, lý do gì làm stock tăng/giảm.
+2. **Reconciliation** — So sánh `Product.Stock` với `SUM(StockMovements.QuantityDelta)` để phát hiện lệch.
+3. **Rebuild stock** — Nếu stock hiện tại bị sai, có thể tính lại từ log.
+4. **Điều tra incident** — Truy vết nhanh bug do flow Order/Import/Cancel.
 
-**Khuyến nghị kiến trúc cho BizFlow (practical):**
+#### 9.6.1 Entity Design
 
-- Giữ `Product.Stock` để query nhanh (read path).
-- Thêm `StockMovements` làm immutable log (write path/audit).
-- Cập nhật cả 2 trong cùng transaction cho các action Complete/Cancel Import-Order.
-- Thêm job reconcile định kỳ để cảnh báo lệch.
+```sql
+-- =============================================
+-- STOCK_MOVEMENTS TABLE (Nhật ký biến động kho)
+-- =============================================
+CREATE TABLE StockMovements (
+    StockMovementId BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    ProductId BIGINT NOT NULL,
+    BusinessLocationId INT NOT NULL,
+    
+    -- Movement details
+    QuantityDelta INT NOT NULL COMMENT 'Biến động: +N (nhập) hoặc -N (xuất)',
+    StockBefore INT NOT NULL COMMENT 'Tồn trước biến động',
+    StockAfter INT NOT NULL COMMENT 'Tồn sau biến động',
+    
+    -- Source reference (polymorphic)
+    ReferenceType VARCHAR(30) NOT NULL COMMENT 'ORDER|IMPORT|CANCEL_ORDER|CANCEL_IMPORT|ADJUSTMENT',
+    ReferenceId BIGINT DEFAULT NULL COMMENT 'OrderId hoặc ImportId',
+    
+    -- Metadata
+    Note VARCHAR(500) DEFAULT NULL COMMENT 'Ghi chú (manual adjustment reason)',
+    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CreatedBy CHAR(36) NOT NULL COMMENT 'UserId thực hiện',
+    
+    CONSTRAINT fk_stockmov_product FOREIGN KEY (ProductId) 
+        REFERENCES Products(ProductId),
+    CONSTRAINT fk_stockmov_location FOREIGN KEY (BusinessLocationId) 
+        REFERENCES BusinessLocations(BusinessLocationId),
+    INDEX idx_stockmov_product (ProductId),
+    INDEX idx_stockmov_location (BusinessLocationId),
+    INDEX idx_stockmov_reference (ReferenceType, ReferenceId),
+    INDEX idx_stockmov_created (CreatedAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+```csharp
+public class StockMovement
+{
+    public long StockMovementId { get; set; }
+    public long ProductId { get; set; }
+    public int BusinessLocationId { get; set; }
+    
+    public int QuantityDelta { get; set; }      // +N or -N
+    public int StockBefore { get; set; }
+    public int StockAfter { get; set; }
+    
+    public string ReferenceType { get; set; } = null!;  // ORDER, IMPORT, etc.
+    public long? ReferenceId { get; set; }
+    
+    public string? Note { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public Guid CreatedBy { get; set; }
+    
+    // Navigation
+    public virtual Product Product { get; set; } = null!;
+    public virtual BusinessLocation BusinessLocation { get; set; } = null!;
+}
+
+public static class StockMovementType
+{
+    public const string Order = "ORDER";
+    public const string Import = "IMPORT";
+    public const string CancelOrder = "CANCEL_ORDER";
+    public const string CancelImport = "CANCEL_IMPORT";
+    public const string Adjustment = "ADJUSTMENT";    // Manual fix (phase 2)
+}
+```
+
+#### 9.6.2 Ví dụ nhật ký biến động
+
+```
+Product: Xi măng Hà Tiên | Stock hiện tại: 150 bao
+
+StockMovements (lịch sử):
+┌────┬────────────┬────────┬────────┬────────┬──────────────────────┐
+│ #  │ Date       │ Delta  │ Before │ After  │ Reference            │
+├────┼────────────┼────────┼────────┼────────┼──────────────────────┤
+│ 1  │ 2026-01-15 │ +200   │ 0      │ 200    │ IMPORT #PNK-001      │
+│ 2  │ 2026-01-20 │ -24    │ 200    │ 176    │ ORDER #ORD-005       │
+│ 3  │ 2026-01-22 │ -48    │ 176    │ 128    │ ORDER #ORD-008       │
+│ 4  │ 2026-01-25 │ +48    │ 128    │ 176    │ CANCEL_ORDER #ORD-008│
+│ 5  │ 2026-02-01 │ +100   │ 176    │ 276    │ IMPORT #PNK-012      │
+│ 6  │ 2026-02-10 │ -126   │ 276    │ 150    │ ORDER #ORD-015       │
+└────┴────────────┴────────┴────────┴────────┴──────────────────────┘
+
+Kiểm tra: SUM(Delta) = +200-24-48+48+100-126 = +150 ✅ = Product.Stock
+```
+
+#### 9.6.3 Khi nào ghi StockMovement?
+
+Mọi thay đổi stock **phải** ghi StockMovement trong **cùng transaction** với update `Product.Stock`:
+
+| Event | ReferenceType | Delta | Điều kiện |
+|-------|--------------|-------|-----------|
+| Order completed | `ORDER` | `-N` | `TrackInventory = true` |
+| Order cancelled (từ completed) | `CANCEL_ORDER` | `+N` (rollback) | `TrackInventory = true` |
+| Import confirmed | `IMPORT` | `+N` | `TrackInventory = true` |
+| Import cancelled (từ confirmed) | `CANCEL_IMPORT` | `-N` (rollback) | `TrackInventory = true` |
+| Manual adjustment (phase 2) | `ADJUSTMENT` | `+/-N` | Owner only |
+
+**Pattern code (trong cùng transaction):**
+
+```csharp
+// Ví dụ: Confirm Import
+public async Task ConfirmImportAsync(...)
+{
+    // ... validate ...
+    
+    foreach (var productImport in import.ProductImports)
+    {
+        var product = productImport.Product;
+        if (product.TrackInventory == true)
+        {
+            var stockBefore = product.Stock;
+            product.Stock += productImport.Quantity;
+            
+            // Ghi StockMovement trong CÙNG transaction
+            var movement = new StockMovement
+            {
+                ProductId = product.ProductId,
+                BusinessLocationId = product.BusinessLocationId,
+                QuantityDelta = +productImport.Quantity,
+                StockBefore = stockBefore,
+                StockAfter = product.Stock,
+                ReferenceType = StockMovementType.Import,
+                ReferenceId = import.ImportId,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = userId
+            };
+            
+            await _unitOfWork.StockMovements.AddAsync(movement);
+        }
+        
+        // Auto-update cached CostPrice (RULE-PROD-02)
+        product.CostPrice = productImport.CostPrice;
+    }
+    
+    await _unitOfWork.SaveChangesAsync(); // Atomic: stock + movement + costprice
+}
+```
+
+#### 9.6.4 Reconciliation (Phase 2)
+
+```csharp
+// Job chạy định kỳ (hàng đêm) kiểm tra sai lệch
+public async Task ReconcileStockAsync()
+{
+    var mismatches = await _dbContext.Products
+        .Where(p => p.TrackInventory == true && p.DeletedAt == null)
+        .Select(p => new {
+            p.ProductId,
+            p.ProductName,
+            CurrentStock = p.Stock,
+            CalculatedStock = p.StockMovements.Sum(m => m.QuantityDelta)
+        })
+        .Where(x => x.CurrentStock != x.CalculatedStock)
+        .ToListAsync();
+    
+    // Alert / log mismatches
+}
+```
+
+#### 9.6.5 Phase Plan
+
+| Phase | Scope |
+|-------|-------|
+| **Phase 1 (now)** | Entity + Migration + Ghi log khi Import confirm/cancel + Order complete/cancel |
+| **Phase 2** | Manual Adjustment API + Reconciliation job + Báo cáo XNT + UI lịch sử biến động |
+
+### 9.7 Kiến trúc tổng thể
+
+```markdown
+                    ┌────────────────────────┐
+                    │       Product           │
+                    │  Stock: 500 (read path)  │
+                    │  CostPrice: 80k (cached) │
+                    └────────────┬───────────┘
+                               │
+          ┌───────────────┼────────────────┐
+          │               │                │
+          ▼               ▼                ▼
+    ┌──────────┐ ┌──────────┐ ┌────────────────┐
+    │  Order   │ │  Import  │ │ StockMovements │
+    │  -Stock  │ │  +Stock  │ │ (immutable log)│
+    └──────────┘ └──────────┘ └────────────────┘
+          │               │                │
+          └───────Cùng transaction───────┘
+```
+
+> **Nguyên tắc**: Mọi thay đổi `Product.Stock` **bắt buộc** kèm 1 dòng `StockMovement` trong cùng transaction. Không bao giờ thay đổi stock mà không ghi log.
 
 ---
 
@@ -997,48 +1271,27 @@ Hệ quả:
 | `FORBIDDEN` | 403 | User không có quyền (không phải Owner hoặc không access được location) |
 | `NOT_FOUND` | 404 | Product không tồn tại |
 | `PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS` | 400 | PriceTier có unit trùng base unit |
+| `PRODUCT_DUPLICATE_SKU` | — | Warning: SKU trùng trong cùng location (không block, trả về trong `warnings[]`) |
 | `PRODUCT_CANNOT_CHANGE_LOCATION` | 400 | Không cho đổi location khi update |
 | `PRODUCT_INVALID_STATUS` | 400 | Status không hợp lệ |
 | `PRODUCT_IMAGE_UPLOAD_FAILED` | 400 | Upload ảnh lên Cloudinary thất bại |
+| `LOW_STOCK` | — | Warning: Tồn kho không đủ khi tạo order (không block, trả về trong `warnings[]`) |
 
 ---
 
-## 📌 Chốt quyết định hiện tại
+## 12. Business Rules Summary
 
-### D1. Có nên đổi Product.CostPrice thành SellingPrice?
-
-**Kết luận kiến trúc**: **Không nên đổi tên/đổi nghĩa `CostPrice` thành `SellingPrice`**.
-
-Lý do:
-
-- `CostPrice` và `SellingPrice` là 2 bản chất dữ liệu khác nhau.
-- `SellingPrice` đã thuộc domain của `SaleItem + ProductPricePolicy` (đa đơn vị, đa mức giá).
-- Nếu đổi `CostPrice` thành `SellingPrice`, phần báo cáo lãi/lỗ và đối soát chi phí sẽ khó đúng nghĩa.
-
-Hướng phù hợp:
-
-- Giữ `Product.CostPrice` = giá vốn tham chiếu hiện tại (manual).
-- Giữ giá bán tại `ProductPricePolicy.Price`.
-- Nếu cần tính chi phí chi tiết: query từ bảng chi phí chuyên biệt + lịch sử `ProductImport`.
-
-### D2. Status `discontinued`
-
-**Quyết định**: Bỏ trong scope hiện tại. Chỉ dùng `active` / `inactive`.
-
-### D3. Time-based Pricing (`StartAt/EndAt`)
-
-**Quyết định**: Để phase sau. Phase hiện tại chỉ dùng default price (`IsDefault = true`).
-
-### D4. Quản lý CostPrice
-
-**Quyết định**: `CostPrice` do user nhập tay.
-
-Hỗ trợ UX đề xuất:
-
-- Khi tạo/cập nhật product: gợi ý `CostPrice` từ import gần nhất hoặc trung bình gần nhất.
-- Khi nhập hàng: gợi ý nhanh NCC, giá vốn gần nhất, mô tả lần nhập trước để user xác nhận một chạm.
-- User vẫn là người quyết định cuối cùng (explicit confirm).
-
-### D5. Stock consistency
-
-**Kết luận**: Dùng mô hình **Hybrid** cho roadmap: `Product.Stock` + `StockMovements` log để cân bằng performance và audit/reconciliation.
+| Rule | Mô tả | Section |
+|------|-------|--------|
+| RULE-PROD-01 | Default SaleItem tự động tạo: Unit=base, Qty=1, Price=**SellingPrice** | [Create](#3-create-product-flow) |
+| RULE-PROD-02 | CostPrice là cached value, auto-update từ Import gần nhất | [Create](#3-create-product-flow) |
+| RULE-PROD-03 | SKU trùng trong location: cảnh báo (warning), không block | [Create](#3-create-product-flow) |
+| RULE-PROD-04 | PriceTier Unit không được trùng Base Unit | [Create](#3-create-product-flow) |
+| RULE-PROD-05 | Image Upload Rollback (xóa ảnh nếu DB save fail) | [Create](#3-create-product-flow) |
+| RULE-PROD-06 | SaleItem Sync Strategy (Reconciliation khi update) | [Update](#5-update-product-flow) |
+| RULE-PROD-07 | Không cho đổi Location | [Update](#5-update-product-flow) |
+| RULE-PROD-08 | Image Update an toàn (upload mới trước, xóa cũ sau) | [Update](#5-update-product-flow) |
+| RULE-PROD-09 | Smart Delete: Soft (có lịch sử) vs Hard (không lịch sử) | [Delete](#6-delete-product-flow) |
+| RULE-PROD-10 | Cascade Soft Delete: Product → tất cả SaleItems | [Delete](#6-delete-product-flow) |
+| RULE-STOCK-01 | Cảnh báo âm kho, không block order | [Stock](#9-stock-rules--integration) |
+| RULE-STOCK-02 | TrackInventory=false: bỏ qua stock changes | [Stock](#9-stock-rules--integration) |
