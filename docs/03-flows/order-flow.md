@@ -590,7 +590,7 @@ User nói/nhắn tin tự nhiên → AI parse → App hiển thị draft → Use
 
 ### Sequence Diagram
 
-```
+```markdown
 ┌─────────┐     ┌─────────┐     ┌─────────────┐     ┌─────────────┐
 │  User   │     │  App    │     │  AI Service │     │   Backend   │
 └────┬────┘     └────┬────┘     └──────┬──────┘     └──────┬──────┘
@@ -886,7 +886,7 @@ Request:
 
 Không có side effect nào cần rollback (chưa trừ kho, chưa ghi nợ).
 
-```
+```markdown
 ┌────────────────┐
 │ Order Pending  │
 └───────┬────────┘
@@ -923,7 +923,7 @@ Không có side effect nào cần rollback (chưa trừ kho, chưa ghi nợ).
 
 Phải rollback stock + debt, sau đó clone thành đơn mới.
 
-```
+```markdown
 ┌──────────────────┐
 │ Order Completed  │
 └────────┬─────────┘
@@ -978,7 +978,7 @@ Phải rollback stock + debt, sau đó clone thành đơn mới.
 
 ### Cancel Reason Presets
 
-```
+```markdown
 ┌──────────────────────────────────────────────┐
 │  Lý do hủy đơn:                              │
 │                                              │
@@ -1142,7 +1142,7 @@ Khi đơn đã `completed`, không thể edit trực tiếp vì đã có side ef
 
 3 fields trên Order, tổng luôn = TotalAmount:
 
-```
+```markdown
 TotalAmount = CashAmount + BankAmount + DebtAmount
 ```
 
