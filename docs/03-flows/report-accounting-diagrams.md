@@ -1,7 +1,9 @@
     # Report & Accounting — Diagrams
 
-> **Companion doc** cho [report-accounting-flow.md](report-accounting-flow.md).
+> **Companion doc** cho [report-accounting-flow.md](report-accounting-flow.md) (index).
 > State machines, activity diagrams, và sequence diagrams cho module Report & Accounting.
+>
+> **Sub-docs**: [cost-gl-flow](cost-gl-flow.md) · [accounting-period-flow](accounting-period-flow.md) · [rule-engine-flow](rule-engine-flow.md) · [accounting-book-flow](accounting-book-flow.md) · [dashboard-report-flow](dashboard-report-flow.md)
 
 ---
 
@@ -83,7 +85,7 @@ stateDiagram-v2
 
 ### 1.2 Accounting Book Lifecycle
 
-```uml
+```mermaid
 stateDiagram-v2
     [*] --> active : POST /books\n(Owner chọn nhóm)
 

@@ -1,7 +1,9 @@
 # Report & Accounting — Entity Reference & Sample Data
 
-> **Companion doc** cho [report-accounting-flow.md](report-accounting-flow.md).
+> **Companion doc** cho [report-accounting-flow.md](report-accounting-flow.md) (index).
 > Giải thích chi tiết từng entity, quan hệ giữa các table, và dữ liệu mẫu xuyên suốt một kịch bản kinh doanh thực tế.
+>
+> **Sub-docs**: [cost-gl-flow](cost-gl-flow.md) · [accounting-period-flow](accounting-period-flow.md) · [rule-engine-flow](rule-engine-flow.md) · [accounting-book-flow](accounting-book-flow.md) · [dashboard-report-flow](dashboard-report-flow.md)
 
 ---
 
