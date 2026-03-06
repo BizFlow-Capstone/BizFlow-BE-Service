@@ -10,6 +10,8 @@ mysql_data/
 docker-compose.override.yml
 .env
 .env.local
+.env.dev
+.env.prod
 uat.env
 
 # Backup files

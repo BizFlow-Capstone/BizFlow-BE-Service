@@ -635,7 +635,7 @@ User mở danh sách sản phẩm
 
 Giống `CreateProductRequest` + thêm `RemoveImage` flag:
 
-| Field | Mô tả |
+| Field | Mô tả  |
 |-------|--------|
 | RemoveImage | `true` = xóa ảnh hiện tại khỏi Cloudinary |
 | Image (file) | Upload ảnh mới (tự xóa ảnh cũ) |
@@ -649,7 +649,7 @@ Owner cập nhật sản phẩm
 ┌─────────────────────────────┐
 │ 1. Validate Product exists  │
 │    GetByIdWithSaleItems()   │
-│    → 404 nếu không tìm thấy│
+│    → 404 nếu không tìm thấy │
 └───────────┬─────────────────┘
             │
             ▼
@@ -686,7 +686,7 @@ Owner cập nhật sản phẩm
 │    ├── RemoveImage=true     │
 │    │   → Delete từ Cloud    │
 │    └── New Image            │
-│        → Upload mới trước  │
+│        → Upload mới trước   │
 │        → Xóa cũ sau khi     │
 │          DB save thành công │
 └───────────┬─────────────────┘
@@ -742,7 +742,7 @@ if (product.BusinessLocationId != request.LocationId)
 
 Khi update ảnh sản phẩm, phải đảm bảo không mất ảnh do partial failure:
 
-```
+```markdown
 Có ảnh mới:
 1. Upload ảnh mới lên Cloudinary
 2. Lưu DB (product.ImageUrl = new, product.ImagePublicId = new)
@@ -1115,7 +1115,7 @@ public static class StockMovementType
 
 #### 9.6.2 Ví dụ nhật ký biến động
 
-```
+```markdown
 Product: Xi măng Hà Tiên | Stock hiện tại: 150 bao
 
 StockMovements (lịch sử):

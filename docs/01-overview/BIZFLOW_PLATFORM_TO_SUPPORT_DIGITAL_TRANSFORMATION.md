@@ -167,7 +167,7 @@
 
     ● **AI:** Python
 
-    **○** RAG: **ChromaDB, text-embedding-3-small**
+    **○** RAG: **ChromaDB, multilingual e5 large**
 
     **○** LLM: **OpenAI/Gemini**
 
