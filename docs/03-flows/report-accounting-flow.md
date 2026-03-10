@@ -58,6 +58,14 @@ Hộ kinh doanh Việt Nam (HKD) từ 01/01/2026 phải tự ghi chép sổ sác
 │  │  Owner chọn nhóm ──► AccountingBooks (live view from GL)        │  │
 │  │                                   │                             │  │
 │  │                           AccountingExports (snapshot khi xuất) │  │
+│  └─────────────────────────┬───────────────────────────────────────┘  │
+│                            │                                          │
+│  ┌─────────────────────────▼───────────────────────────────────────┐  │
+│  │  FORMULA ENGINE (computed cells)                                │  │
+│  │                                                                 │  │
+│  │  FormulaDefinitions (ExpressionJson AST) ──► FormulaResults     │  │
+│  │  → Evaluate: AGGREGATE, CELL_REF, TAX_RATE, WEIGHTED_AVG       │  │
+│  │  → Cache: IsStale invalidation, lazy re-compute                 │  │
 │  └─────────────────────────────────────────────────────────────────┘  │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐  │
@@ -203,6 +211,8 @@ Query tổng doanh thu:
 | 16 | `AccountingBooks` | Sổ kế toán đã tạo (live view) | Owner | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
 | 17 | `AccountingExports` | Snapshot mỗi lần xuất sổ | System (auto) | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
 | 18 | `TaxPayments` | Ghi nhận thuế đã nộp (cho S3a khi triển khai) | Owner | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 19 | `FormulaDefinitions` | Định nghĩa công thức tính toán (JSON AST), reusable pool | Admin/Consultant | [tax-formular-engine.md](../04-engine/tax-formular-engine.md) |
+| 20 | `FormulaResults` | Cache kết quả tính toán per Book + Formula + Context | System (auto) | [tax-formular-engine.md](../04-engine/tax-formular-engine.md) |
 
 ---
 
@@ -217,6 +227,7 @@ Query tổng doanh thu:
 | 3 | [rule-engine-flow.md](rule-engine-flow.md) | TaxRulesets + TaxGroupRules + IndustryTaxRates — group evaluation, data-driven |
 | 4 | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) | Templates + Metadata Registry + Books + Exports + TaxPayments + TT152 Specs (S1a, S2a–S2e) |
 | 5 | [dashboard-report-flow.md](dashboard-report-flow.md) | AccountingSettings + Cash Flow + Dashboard Widgets + Reports |
+| 6 | [tax-formular-engine.md](../04-engine/tax-formular-engine.md) | FormulaDefinitions + FormulaResults — Formula Engine cho computed cells (AGGREGATE, CELL_REF, TAX_RATE, WEIGHTED_AVG, EXTERNAL_LOOKUP) |
 
 ### Companion Docs
 

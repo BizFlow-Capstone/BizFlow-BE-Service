@@ -30,19 +30,19 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        ENTITY MAP — ACCOUNTING MODULE                       │
 │                                                                             │
-│  ╔═══════ ADMIN SETUP (một lần, ít thay đổi) ═══════════════════════════╗  │
+│  ╔═══════ ADMIN SETUP (một lần, ít thay đổi) ════════════════════════════╗  │
 │  ║                                                                       ║  │
-│  ║  TaxRulesets ─────┬── TaxGroupRules        (Bộ quy tắc phân nhóm)    ║  │
+│  ║  TaxRulesets ─────┬── TaxGroupRules        (Bộ quy tắc phân nhóm)     ║  │
 │  ║                   └── IndustryTaxRates      (Thuế suất theo ngành)    ║  │
 │  ║                                                                       ║  │
 │  ║  MappableEntities ─── MappableFields        (Metadata Registry)       ║  │
 │  ║                                                                       ║  │
-│  ║  AccountingTemplates ── AccountingTemplateVersions                     ║  │
+│  ║  AccountingTemplates ── AccountingTemplateVersions                    ║  │
 │  ║                              └── TemplateFieldMappings                ║  │
 │  ║                                  (map DB field → cột sổ kế toán)      ║  │
 │  ╚═══════════════════════════════════════════════════════════════════════╝  │
 │                                                                             │
-│  ╔═══════ DATA LAYER (tự động từ bán/mua/thủ công) ═════════════════════╗  │
+│  ╔═══════ DATA LAYER (tự động từ bán/mua/thủ công) ══════════════════════╗  │
 │  ║                                                                       ║  │
 │  ║  Orders ──────► Revenues ────┐                                        ║  │
 │  ║  Imports ─────► Costs ───────┼──► GeneralLedgerEntries (sổ cái)       ║  │
@@ -52,10 +52,10 @@
 │  ║                                                                       ║  │
 │  ╚═══════════════════════════════════════════════════════════════════════╝  │
 │                                                                             │
-│  ╔═══════ OWNER ACCOUNTING (khi chốt sổ) ═══════════════════════════════╗  │
+│  ╔═══════ OWNER ACCOUNTING (khi chốt sổ) ════════════════════════════════╗  │
 │  ║                                                                       ║  │
-│  ║  AccountingPeriods ──────┬── AccountingBooks (live view)               ║  │
-│  ║  AccountingPeriodAuditLogs│       └── AccountingExports (snapshot)     ║  │
+│  ║  AccountingPeriods ──────┬── AccountingBooks (live view)              ║  │
+│  ║  AccountingPeriodAuditLogs│       └── AccountingExports (snapshot)    ║  │
 │  ║                          └── TaxPayments (thuế đã nộp)                ║  │
 │  ║                                                                       ║  │
 │  ║  AccountingSettings (cấu hình kế toán per location)                   ║  │
@@ -66,14 +66,14 @@
 
 ### Entity Relationship
 
-```
+```markdown
                          ┌─────────────────┐
-                         │  TaxRulesets     │
+                         │  TaxRulesets    │
                          │  (version 1.0)  │
                          └──┬───────────┬──┘
                             │           │
                   ┌─────────▼──┐   ┌────▼─────────────┐
-                  │TaxGroupRules│   │IndustryTaxRates  │
+                  │TaxGroupRules│  │IndustryTaxRates  │
                   │(Nhóm 1-4)  │   │(VAT/PIT per ngành│
                   └────────────┘   └──────────────────┘
 
@@ -120,7 +120,7 @@
     ┌─────▼──────────┐
     │Accounting      │
     │Exports         │
-    │(snapshot file)  │
+    │(snapshot file) │
     └────────────────┘
 ```
 
@@ -163,9 +163,9 @@ TaxGroupRules (bên trong RulesetId = 1):
 │ Nhóm   │ DT/năm   │ Thuế                         │ Sổ bắt buộc             │
 ├────────┼──────────┼──────────────────────────────┼─────────────────────────┤
 │ Nhóm 1 │ < 500tr  │ Miễn VAT + PIT               │ S1a                     │
-│ Nhóm 2 │ 500tr-3tỷ│ Cách 1: %DT. Cách 2: DT-CP  │ C1: S2a. C2: S2b-S2e   │
-│ Nhóm 3 │ 3tỷ-50tỷ │ Cách 2: DT-CP                │ S2b, S2c, S2d, S2e     │
-│ Nhóm 4 │ ≥ 50tỷ   │ Cách 2: DT-CP                │ S2b, S2c, S2d, S2e     │
+│ Nhóm 2 │ 500tr-3tỷ│ Cách 1: %DT. Cách 2: DT-CP   │ C1: S2a. C2: S2b-S2e    │
+│ Nhóm 3 │ 3tỷ-50tỷ │ Cách 2: DT-CP                │ S2b, S2c, S2d, S2e      │
+│ Nhóm 4 │ ≥ 50tỷ   │ Cách 2: DT-CP                │ S2b, S2c, S2d, S2e      │
 └────────┴──────────┴──────────────────────────────┴─────────────────────────┘
 ```
 
@@ -177,7 +177,7 @@ TaxGroupRules (bên trong RulesetId = 1):
 IndustryTaxRates (bên trong RulesetId = 1):
 
 ┌──────────────────┬─────────┬──────────┬────────────────────────┐
-│ Ngành             │ TaxType │ TaxRate  │ Mô tả                  │
+│ Ngành            │ TaxType │ TaxRate  │ Mô tả                  │
 ├──────────────────┼─────────┼──────────┼────────────────────────┤
 │ Bán lẻ hàng hóa  │ VAT     │ 1.00%    │ GTGT phân phối hàng    │
 │ Bán lẻ hàng hóa  │ PIT_M1  │ 0.50%    │ TNCN Cách 1            │
@@ -221,25 +221,25 @@ POST /api/admin/mappable-entities/{entityId}/fields
 ```
 MappableEntities:
 ┌────┬──────────────────┬───────────────┬───────────┐
-│ ID │ EntityCode        │ DisplayName   │ Category  │
+│ ID │ EntityCode       │ DisplayName   │ Category  │
 ├────┼──────────────────┼───────────────┼───────────┤
-│ 1  │ revenues          │ Doanh thu     │ revenue   │
-│ 2  │ costs             │ Chi phí       │ cost      │
-│ 3  │ gl_entries        │ Sổ cái (GL)   │ general   │
-│ 4  │ orders            │ Đơn hàng      │ revenue   │
-│ 5  │ order_details     │ Chi tiết đơn  │ revenue   │
-│ 6  │ products          │ Sản phẩm      │ revenue   │
-│ 7  │ stock_movements   │ Biến động kho │ inventory │
-│ 8  │ tax_payments      │ Thuế đã nộp   │ tax       │
+│ 1  │ revenues         │ Doanh thu     │ revenue   │
+│ 2  │ costs            │ Chi phí       │ cost      │
+│ 3  │ gl_entries       │ Sổ cái (GL)   │ general   │
+│ 4  │ orders           │ Đơn hàng      │ revenue   │
+│ 5  │ order_details    │ Chi tiết đơn  │ revenue   │
+│ 6  │ products         │ Sản phẩm      │ revenue   │
+│ 7  │ stock_movements  │ Biến động kho │ inventory │
+│ 8  │ tax_payments     │ Thuế đã nộp   │ tax       │
 └────┴──────────────────┴───────────────┴───────────┘
 
 MappableFields (ví dụ cho revenues, EntityId=1):
 ┌────┬────────────┬──────────────┬─────────┬───────────────────┐
-│ ID │ FieldCode   │ DisplayName  │ DataType│ AllowedAggregations│
+│ ID │ FieldCode  │ DisplayName  │ DataType│AllowedAggregations│
 ├────┼────────────┼──────────────┼─────────┼───────────────────┤
-│ 1  │ Amount      │ Số tiền DT   │ decimal │ ["sum","avg"]      │
-│ 2  │ RevenueDate │ Ngày DT      │ date    │ ["none"]           │
-│ 3  │ Description │ Diễn giải    │ text    │ ["none"]           │
+│ 1  │ Amount     │ Số tiền DT   │ decimal │ ["sum","avg"]     │
+│ 2  │ RevenueDate│ Ngày DT      │ date    │ ["none"]          │
+│ 3  │ Description│ Diễn giải    │ text    │ ["none"]          │
 └────┴────────────┴──────────────┴─────────┴───────────────────┘
 ```
 
@@ -258,30 +258,30 @@ MappableFields (ví dụ cho revenues, EntityId=1):
                     ════════════════════════
 
   ┌──────────────────────────────────────────────────────────────┐
-  │  Bước 1.1: Templates đã có sẵn (seeded lúc deploy)          │
+  │  Bước 1.1: Templates đã có sẵn (seeded lúc deploy)           │
   │                                                              │
   │    AccountingTemplates:                                      │
   │    ┌──────┬──────────────────────────────┬──────────┬──────┐ │
-  │    │ Code │ Name                          │ Groups   │Method│ │
+  │    │ Code │ Name                         │ Groups   │Method│ │
   │    ├──────┼──────────────────────────────┼──────────┼──────┤ │
-  │    │ S1a  │ Sổ chi tiết bán hàng          │ [1]      │ all  │ │
-  │    │ S2a  │ Sổ doanh thu BH, DV           │ [2]      │ C1   │ │
-  │    │ S2b  │ Sổ doanh thu BH, DV           │ [2,3,4]  │ C2   │ │
-  │    │ S2c  │ Sổ chi tiết doanh thu, CP     │ [2,3,4]  │ C2   │ │
-  │    │ S2d  │ Sổ chi tiết VL, DC, SP, HH    │ [2,3,4]  │ C2   │ │
-  │    │ S2e  │ Sổ chi tiết tiền              │ [2,3,4]  │ C2   │ │
+  │    │ S1a  │ Sổ chi tiết bán hàng         │ [1]      │ all  │ │
+  │    │ S2a  │ Sổ doanh thu BH, DV          │ [2]      │ C1   │ │
+  │    │ S2b  │ Sổ doanh thu BH, DV          │ [2,3,4]  │ C2   │ │
+  │    │ S2c  │ Sổ chi tiết doanh thu, CP    │ [2,3,4]  │ C2   │ │
+  │    │ S2d  │ Sổ chi tiết VL, DC, SP, HH   │ [2,3,4]  │ C2   │ │
+  │    │ S2e  │ Sổ chi tiết tiền             │ [2,3,4]  │ C2   │ │
   │    └──────┴──────────────────────────────┴──────────┴──────┘ │
   └────────────────────────────┬─────────────────────────────────┘
                                │
                                ▼
   ┌──────────────────────────────────────────────────────────────┐
-  │  Bước 1.2: Admin clone version → Draft                      │
+  │  Bước 1.2: Admin clone version → Draft                       │
   │                                                              │
   │    POST /api/admin/accounting-templates/1/versions/clone     │
   │    → Tạo AccountingTemplateVersions (v1.0, IsActive=false)   │
   │    → Copy FieldMappings từ version trước (nếu có)            │
   │                                                              │
-  │    AccountingTemplateVersions:                                │
+  │    AccountingTemplateVersions:                               │
   │    ┌────┬──────────┬──────┬────────┬──────────┐              │
   │    │ TV │ Template │ Ver  │ Active │ Status   │              │
   │    ├────┼──────────┼──────┼────────┼──────────┤              │
