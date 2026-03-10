@@ -35,10 +35,12 @@ Hộ kinh doanh Việt Nam (HKD) từ 01/01/2026 phải tự ghi chép sổ sác
 │  ┌─────────────────────────────────────────────────────────────────┐  │
 │  │  DATA LAYER (auto-generated, realtime)                          │  │
 │  │                                                                 │  │
-│  │  Orders ──┐                                                     │  │
-│  │  Imports ─┼──► GeneralLedgerEntries (sổ cái)                    │  │
-│  │  Costs ───┘    + Costs (chi phí)                                │  │
-│  │                + TaxPayments (thuế đã nộp)                      │  │
+│  │  Orders ──► Revenues (doanh thu) ──┐                            │  │
+│  │  Imports ──► Costs (chi phí)    ───┼──► GeneralLedgerEntries    │  │
+│  │  Manual GL (bút toán tự do)    ────┘    (sổ cái)               │  │
+│  │                                                                 │  │
+│  │  Orders/Imports ──► StockMovements (nhật ký kho + giá trị)     │  │
+│  │                   + TaxPayments (thuế đã nộp)                   │  │
 │  └─────────────────────────┬───────────────────────────────────────┘  │
 │                            │                                          │
 │  ┌─────────────────────────▼───────────────────────────────────────┐  │
@@ -183,20 +185,24 @@ Query tổng doanh thu:
 
 | # | Table | Mục đích | Managed by | Chi tiết tại |
 |---|-------|----------|------------|-------------|
-| 1 | `Costs` | Chi phí (auto từ Import + Owner tự khai) | System + Owner | [cost-gl-flow.md](cost-gl-flow.md) |
-| 2 | `GeneralLedgerEntries` | Sổ cái — mọi giao dịch tài chính | System (auto) | [cost-gl-flow.md](cost-gl-flow.md) |
-| 3 | `AccountingSettings` | Cấu hình kế toán per location | Owner | [dashboard-report-flow.md](dashboard-report-flow.md) |
-| 4 | `AccountingPeriods` | Kỳ kế toán (quý/năm) | System + Owner | [accounting-period-flow.md](accounting-period-flow.md) |
-| 5 | `AccountingPeriodAuditLogs` | Lịch sử thay đổi kỳ kế toán | System (auto) | [accounting-period-flow.md](accounting-period-flow.md) |
-| 6 | `TaxRulesets` | Version container cho Rule Engine | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
-| 7 | `TaxGroupRules` | Phân nhóm HKD theo doanh thu | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
-| 8 | `IndustryTaxRates` | Thuế suất VAT/TNCN theo ngành | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
-| 9 | `AccountingTemplates` | Định nghĩa mẫu sổ (S1a, S2a…) | Admin/Consultant | [accounting-book-flow.md](accounting-book-flow.md) |
-| 10 | `AccountingTemplateVersions` | Phiên bản nội dung mẫu sổ | Admin/Consultant | [accounting-book-flow.md](accounting-book-flow.md) |
-| 11 | `TemplateFieldMappings` | Mapping dữ liệu DB → field trong mẫu | Admin/Consultant | [accounting-book-flow.md](accounting-book-flow.md) |
-| 12 | `AccountingBooks` | Sổ kế toán đã tạo (live view) | Owner | [accounting-book-flow.md](accounting-book-flow.md) |
-| 13 | `AccountingExports` | Snapshot mỗi lần xuất sổ | System (auto) | [accounting-book-flow.md](accounting-book-flow.md) |
-| 14 | `TaxPayments` | Ghi nhận thuế đã nộp (cho S2d) | Owner | [accounting-book-flow.md](accounting-book-flow.md) |
+| 1 | `Costs` | Chi phí (auto từ Import + Owner tự khai) | System + Owner | [cost-gl-flow-v2.md](cost-gl-flow-v2.md) |
+| 2 | `Revenues` | Doanh thu (auto từ Order + Owner tự khai) | System + Owner | [cost-gl-flow-v2.md](cost-gl-flow-v2.md) |
+| 3 | `StockMovements` | Nhật ký biến động kho (nhập/xuất/giá trị) | System (auto) | [cost-gl-flow-v2.md](cost-gl-flow-v2.md) |
+| 4 | `GeneralLedgerEntries` | Sổ cái — mọi giao dịch tài chính | System (auto) | [cost-gl-flow-v2.md](cost-gl-flow-v2.md) |
+| 5 | `AccountingSettings` | Cấu hình kế toán per location | Owner | [dashboard-report-flow.md](dashboard-report-flow.md) |
+| 6 | `AccountingPeriods` | Kỳ kế toán (quý/năm) | System + Owner | [accounting-period-flow.md](accounting-period-flow.md) |
+| 7 | `AccountingPeriodAuditLogs` | Lịch sử thay đổi kỳ kế toán | System (auto) | [accounting-period-flow.md](accounting-period-flow.md) |
+| 8 | `TaxRulesets` | Version container cho Rule Engine | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
+| 9 | `TaxGroupRules` | Phân nhóm HKD theo doanh thu | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
+| 10 | `IndustryTaxRates` | Thuế suất VAT/TNCN theo ngành | Admin/Consultant | [rule-engine-flow.md](rule-engine-flow.md) |
+| 11 | `AccountingTemplates` | Định nghĩa mẫu sổ (S1a, S2a…) | Admin/Consultant | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 12 | `AccountingTemplateVersions` | Phiên bản nội dung mẫu sổ | Admin/Consultant | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 13 | `MappableEntities` | Whitelist entity cho field mapping (Metadata Registry) | Admin | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 14 | `MappableFields` | Whitelist field cho từng entity (Metadata Registry) | Admin | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 15 | `TemplateFieldMappings` | Mapping dữ liệu DB → field trong mẫu (FK → Metadata Registry) | Admin/Consultant | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 16 | `AccountingBooks` | Sổ kế toán đã tạo (live view) | Owner | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 17 | `AccountingExports` | Snapshot mỗi lần xuất sổ | System (auto) | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
+| 18 | `TaxPayments` | Ghi nhận thuế đã nộp (cho S3a khi triển khai) | Owner | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) |
 
 ---
 
@@ -206,10 +212,10 @@ Query tổng doanh thu:
 
 | # | File | Nội dung chính |
 |---|------|---------------|
-| 1 | [cost-gl-flow.md](cost-gl-flow.md) | Costs + GeneralLedgerEntries — GL auto-generation, Cost CRUD, reversal logic |
+| 1 | [cost-gl-flow-v2.md](cost-gl-flow-v2.md) | Costs + Revenues + StockMovements + GL — Revenue/Cost symmetry, StockMovement v2, Manual GL, reversal logic |
 | 2 | [accounting-period-flow.md](accounting-period-flow.md) | AccountingPeriods + AuditLogs — lifecycle (open → finalized → reopened) |
 | 3 | [rule-engine-flow.md](rule-engine-flow.md) | TaxRulesets + TaxGroupRules + IndustryTaxRates — group evaluation, data-driven |
-| 4 | [accounting-book-flow.md](accounting-book-flow.md) | Templates + Books + Exports + TaxPayments + TT152 Specs (S1a, S2a–S2e) |
+| 4 | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) | Templates + Metadata Registry + Books + Exports + TaxPayments + TT152 Specs (S1a, S2a–S2e) |
 | 5 | [dashboard-report-flow.md](dashboard-report-flow.md) | AccountingSettings + Cash Flow + Dashboard Widgets + Reports |
 
 ### Companion Docs

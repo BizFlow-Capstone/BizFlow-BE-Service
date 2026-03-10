@@ -41,15 +41,17 @@ The architecture follows **Clean Architecture** principles on the backend — th
 │          │                                          │                            │
 │   ┌──────▼──────────────────────────┐  ┌────────────▼───────────────────────┐    │
 │   │   BizFlow API                   │  │   AI Service                       │    │
-│   │   (.NET 8 / ASP.NET Core)       │  │   (Python)                         │    │
+│   │   (.NET 8 / ASP.NET Core)       │  │   (Python / FastAPI)               │    │
 │   │                                 │  │                                    │    │
-│   │  • REST API (Controllers)       │  │  • Speech-to-Text (Whisper /       │    │
-│   │  • JWT Authentication           │  │    Google STT)                     │    │
-│   │  • Google OAuth 2.0             │  │  • LLM (OpenAI / Gemini)           │    │
-│   │  • Business Logic (Services)    │  │  • RAG (ChromaDB +                 │    │
-│   │  • Background Jobs (Hangfire)   │  │    text-embedding-3-small)         │    │
-│   │  • i18n (vi / en)               │  │  • Draft Order generation          │    │
-│   └─────────────────────────────────┘  └────────────────────────────────────┘    │
+│   │  • REST API (Controllers)       │  │  • Voice-to-Draft-Order            │    │
+│   │  • JWT Authentication           │  │    (Whisper STT + RAG + LLM)       │    │
+│   │  • Google OAuth 2.0             │  │  • Revenue Forecasting             │    │
+│   │  • Business Logic (Services)    │  │    (Facebook Prophet)              │    │
+│   │  • Background Jobs (Hangfire)   │  │  • Anomaly Detection               │    │
+│   │  • i18n (vi / en)               │  │    (Isolation Forest)              │    │
+│   │  • Triggers AI jobs (scheduled) │  │  • Reorder Suggestions             │    │
+│   └─────────────────────────────────┘  │    (sales velocity + seasonality)  │    │
+│                                        └────────────────────────────────────┘    │
 │                        │                                                         │
 └────────────────────────┼─────────────────────────────────────────────────────────┘
                          │ SSL/TLS (required)
@@ -150,16 +152,18 @@ All server-side services run in Docker containers on a single VPS, orchestrated 
   - Schedule and execute background maintenance jobs via Hangfire.
   - Provide i18n responses in Vietnamese and English.
 
-#### AI Service (Python)
+#### AI Service (Python / FastAPI)
 
-- **Role:** An independent microservice that handles all AI/ML processing. Invoked synchronously by the BizFlow API for draft order generation.
+- **Role:** An independent microservice that handles all AI/ML processing. Deployed as a Docker container on the same VPS, accessible only from the BizFlow API via the Docker internal network.
 - **Key responsibilities:**
-  - Receive audio/text input from a client (via the API as a proxy).
-  - Transcribe speech using Google Speech-to-Text or OpenAI Whisper (STT).
-  - Use a Large Language Model (OpenAI GPT / Google Gemini) to interpret the transcribed command (e.g., *"5 bags of cement for Mr. Ba, put it on his tab"*) and extract structured order fields.
-  - Augment LLM output with context from the user's product catalog using RAG (ChromaDB vector store + text-embedding-3-small embeddings).
-  - Return a structured draft order JSON to the BizFlow API.
-- **Communication pattern:** Synchronous HTTP (container-to-container via Docker internal network). The API waits for the AI service response (timeout: 30 s) before returning the draft order to the client.
+  - **Voice-to-Draft-Order:** Transcribe audio (Whisper / Google STT), retrieve matching products from ChromaDB (RAG), and use a Large Language Model (GPT-4o / Gemini) to extract a structured draft order from a natural language command.
+  - **Revenue Forecasting:** Load historical daily sales from MySQL and run Facebook Prophet to generate 7–30 day forecasts with confidence intervals. Supports Vietnamese holiday effects and weekly seasonality.
+  - **Anomaly Detection:** Analyse daily revenue and accounting records using Isolation Forest (scikit-learn) to detect unusual values (zero-revenue days, erroneous pricing, unexpected spikes). Generates Vietnamese-language alert descriptions via LLM.
+  - **Reorder Suggestions:** Calculate sales velocity (14-day rolling average) and reorder points per product, factoring in current stock levels and seasonal demand patterns. Flag products at risk of stockout.
+- **Communication patterns:**
+  - *Synchronous* — Draft Order: BizFlow API proxies the client request and awaits the AI response (timeout: 30 s).
+  - *Asynchronous / Scheduled* — Forecast, Anomaly, Reorder: Hangfire jobs (nightly, 01:00–03:00 AM) trigger the AI Service to recompute results. Results are stored in MySQL. Clients read pre-computed results via the BizFlow API with no model inference delay.
+- **See also:** [AI Architecture](ai-architecture.md) for detailed design, data flows, and database schema for each feature.
 
 ---
 

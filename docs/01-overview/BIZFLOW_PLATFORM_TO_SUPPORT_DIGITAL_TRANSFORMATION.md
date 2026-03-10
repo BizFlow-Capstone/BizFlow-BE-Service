@@ -132,17 +132,17 @@
 
 **5\. Compliance & Reporting**
 
-    ● Support generates accounting reports following Circular 152/2025/TT-BTC.
+  ● Support generates accounting reports following Circular 152/2025/TT-BTC.
 
-    ● The platform guarantees that all accounting report templates will be continuously updated to align with any future changes in the official declaration forms issued by the tax authorities.
+● The platform guarantees that all accounting report templates will be continuously updated to align with any future changes in the official declaration forms issued by the tax authorities.
 
-    (\*) **3.2. Main Proposal Content (including result and product)** 
+(\*) **3.2. Main Proposal Content (including result and product)** 
 
-    **a. Theory and Practice (Document):** 
+**a. Theory and Practice (Document):** 
 
-    ● Students should apply the software development process and UML 2.0 to model the system.
+● Students should apply the software development process and UML 2.0 to model the system.
 
-    ● The documentation includes: 
+● The documentation includes: 
 
     ○ User Requirement
 
@@ -156,16 +156,17 @@
 
     ○ Testing Document
 
-    ○ Installation Guide  
+    ○ Installation Guide
+    
     ○ Source code and deployable software packages
 
-    ● **Server-side technologies:**
+● **Server-side technologies:**
 
     ○ Clean architecture implemented in **ASP.NET Core**
 
     ○ Data storage with **MySQL**
 
-    ● **AI:** Python
+● **AI:** Python
 
     **○** RAG: **ChromaDB, multilingual e5 large**
 
@@ -173,15 +174,15 @@
 
     **○** Speech-to-Text: **Google Speech-to-Text/Whisper**
 
-    ● **Client-side technologies:**
+● **Client-side technologies:**
 
     ○ Mobile application: **Flutter.**  
     ○ Web Client: **ReactJS.**
 
     **b. Products:** 
 
-    ● Mobile application 
+● Mobile application 
 
-    ● Web application 
+● Web application 
 
-    **c. Proposed Tasks:** 
+**c. Proposed Tasks:** 
