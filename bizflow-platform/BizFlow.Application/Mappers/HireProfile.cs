@@ -4,11 +4,11 @@ using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Mappers
 {
-    public class HireProfile : Profile
+    public class HireProfile : AutoMapper.Profile
     {
         public HireProfile()
         {
-            CreateMap<User, EmployeeSummaryDto>()
+            CreateMap<BizFlow.Domain.Entities.Profile, EmployeeSummaryDto>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.FullName));
 
             CreateMap<(Hire hire, string fullName, string email, string phone), HiredEmployeeDto>()

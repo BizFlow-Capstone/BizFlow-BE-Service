@@ -32,7 +32,7 @@ public partial class Hire
     /// </summary>
     public DateTime? EndAt { get; set; }
 
-    public virtual User Employee { get; set; } = null!;
+    public virtual Profile Employee { get; set; } = null!;
 
-    public virtual User Owner { get; set; } = null!;
+    public virtual Profile Owner { get; set; } = null!;
 }

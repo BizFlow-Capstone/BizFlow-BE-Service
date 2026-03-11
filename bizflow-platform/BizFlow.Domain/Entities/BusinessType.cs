@@ -18,19 +18,19 @@ public partial class BusinessType
     /// </summary>
     public string Status { get; set; } = null!;
 
-    public Guid? CreatedById { get; set; }
+    public Guid? CreatedBy { get; set; }
 
-    public Guid? ModifiedById { get; set; }
+    public Guid? ModifiedBy { get; set; }
 
-    public DateTime CreatedDate { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public DateTime LastModifiedDate { get; set; }
+    public DateTime LastModifiedAt { get; set; }
 
     public virtual ICollection<BusinessTypeTax> BusinessTypeTaxes { get; set; } = new List<BusinessTypeTax>();
 
-    public virtual User? CreatedBy { get; set; }
+    public virtual Profile? CreatedByNavigation { get; set; }
 
-    public virtual User? ModifiedBy { get; set; }
+    public virtual Profile? ModifiedByNavigation { get; set; }
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 }

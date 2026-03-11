@@ -73,4 +73,6 @@ public partial class Product
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
+
+    public virtual ICollection<StockMovement> StockMovements { get; set; } = new List<StockMovement>();
 }

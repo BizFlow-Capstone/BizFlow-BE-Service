@@ -64,9 +64,9 @@ namespace BizFlow.Infrastructure.Repositories
                 join ula in _context.UserLocationAssignments
                     on loc.BusinessLocationId equals ula.BusinessLocationId
                 where ula.IsOwner
-                join user in _context.Users
-                    on ula.UserId equals user.UserId
-                select new { Location = loc, OwnerName = user.FullName }
+                join profile in _context.Profiles
+                    on ula.UserId equals profile.ProfileId
+                select new { Location = loc, OwnerName = profile.FullName }
             ).FirstOrDefaultAsync();
 
             return result == null 
@@ -109,7 +109,7 @@ namespace BizFlow.Infrastructure.Repositories
                     ula => ula.BusinessLocationId,
                     loc => loc.BusinessLocationId,
                     (ula, loc) => loc)
-                .AnyAsync(loc => loc.Name == locationName);
+                .AnyAsync(loc => loc.LocationName == locationName);
         }
 
         /// <summary>
@@ -130,11 +130,15 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
-                .Join(_context.Users,
+                .Join(_context.Profiles,
                     ula => ula.UserId,
-                    user => user.UserId,
-                    (ula, user) => new { user.UserId, user.FullName, user.Email, user.Phone })
-                .Select(x => new ValueTuple<Guid, string, string, string>(x.UserId, x.FullName, x.Email, x.Phone))
+                    profile => profile.ProfileId,
+                    (ula, profile) => new { ula, profile })
+                .Join(_context.Accounts,
+                    x => x.profile.AccountId,
+                    account => account.AccountId,
+                    (x, account) => new { x.profile.ProfileId, x.profile.FullName, account.Email, account.Phone })
+                .Select(x => new ValueTuple<Guid, string, string, string>(x.ProfileId, x.FullName, x.Email, x.Phone))
                 .ToListAsync();
         }
 

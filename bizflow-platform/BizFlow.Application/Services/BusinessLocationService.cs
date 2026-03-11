@@ -148,7 +148,7 @@ namespace BizFlow.Application.Services
                 return false;
 
             // Check if name is being changed and if new name already exists for this owner
-            if (request.Name != location.Name)
+            if (request.Name != location.LocationName)
             {
                 var isExisted = await _unitOfWork.BusinessLocations.IsExistedByNameAsync(userId, request.Name);
                 if (isExisted)

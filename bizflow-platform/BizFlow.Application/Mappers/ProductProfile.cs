@@ -4,14 +4,14 @@ using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Mappers
 {
-    public class ProductProfile : Profile
+    public class ProductProfile : AutoMapper.Profile
     {
         public ProductProfile()
         {
             // Product entity to ProductDetailDto
             CreateMap<Product, ProductDetailDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
-                .ForMember(dest => dest.BusinessLocationName, opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.Name : ""))
+                .ForMember(dest => dest.BusinessLocationName, opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.LocationName : ""))
                 .ForMember(dest => dest.TrackInventory, opt => opt.MapFrom(src => src.TrackInventory ?? true))
                 .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.ImageUrl))
                 .ForMember(dest => dest.SaleItems, opt => opt.MapFrom(src => src.SaleItems));

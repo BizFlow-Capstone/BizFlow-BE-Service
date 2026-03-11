@@ -20,19 +20,19 @@ public partial class BusinessTypeTax
     public decimal TaxRate { get; set; }
 
     /// <summary>
-    /// TRUE = calculate on price, FALSE = calculate on revenue
+    /// Calculation base: price, revenue
     /// </summary>
-    public bool? CalculateOnPrice { get; set; }
+    public string CalculationBase { get; set; } = null!;
 
     public DateOnly EffectiveFrom { get; set; }
 
     public DateOnly? EffectiveTo { get; set; }
 
-    public Guid? CreatedById { get; set; }
+    public Guid? CreatedBy { get; set; }
 
-    public DateTime CreatedDate { get; set; }
+    public DateTime CreatedAt { get; set; }
 
     public virtual BusinessType BusinessType { get; set; } = null!;
 
-    public virtual User? CreatedBy { get; set; }
+    public virtual Profile? CreatedByNavigation { get; set; }
 }

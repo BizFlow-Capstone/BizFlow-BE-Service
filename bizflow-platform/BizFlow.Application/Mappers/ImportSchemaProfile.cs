@@ -4,7 +4,7 @@ using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Mappers
 {
-    public class ImportSchemaProfile : Profile
+    public class ImportSchemaProfile : AutoMapper.Profile
     {
         public ImportSchemaProfile()
         {
