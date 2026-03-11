@@ -34,16 +34,20 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var result = await _context.Hires
                 .Where(h => h.OwnerId == ownerId)
-                .Join(_context.Users,
+                .Join(_context.Profiles,
                     hire => hire.EmployeeId,
-                    user => user.UserId,
-                    (hire, user) => new { hire, user })
+                    profile => profile.ProfileId,
+                    (hire, profile) => new { hire, profile })
+                .Join(_context.Accounts,
+                    x => x.profile.AccountId,
+                    account => account.AccountId,
+                    (x, account) => new { x.hire, x.profile, account })
                 .Select(x => new
                 {
                     Hire = x.hire,
-                    x.user.FullName,
-                    x.user.Email,
-                    x.user.Phone
+                    x.profile.FullName,
+                    x.account.Email,
+                    x.account.Phone
                 })
                 .ToListAsync();
 

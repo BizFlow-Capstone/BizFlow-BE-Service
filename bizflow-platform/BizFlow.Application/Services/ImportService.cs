@@ -119,7 +119,7 @@ namespace BizFlow.Application.Services
             }
 
             var result = _mapper.Map<ImportSummaryDto>(import);
-            result.BusinessLocationName = location.Name;
+            result.BusinessLocationName = location.LocationName;
             return result;
         }
 

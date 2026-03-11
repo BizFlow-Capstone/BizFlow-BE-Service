@@ -5,13 +5,13 @@ using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Mappers
 {
-    public class LocationProfile : Profile
+    public class LocationProfile : AutoMapper.Profile
     {
         public LocationProfile()
         {
             CreateMap<CreateLocationRequest, BusinessLocation>();
             CreateMap<UpdateLocationRequest, BusinessLocation>()
-                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.LocationName, opt => opt.MapFrom(src => src.Name))
                 .ForMember(dest => dest.Address, opt => opt.MapFrom(src => src.Address))
                 .ForMember(dest => dest.District, opt => opt.MapFrom(src => src.District))
                 .ForMember(dest => dest.City, opt =>  opt.MapFrom(src => src.City))
@@ -25,7 +25,8 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.UserLocationAssignments, opt => opt.Ignore());
             
             CreateMap<BusinessLocation, BusinessLocationDto>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.BusinessLocationId));
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.BusinessLocationId))
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.LocationName));
 
             // Map tuple from Repository to DTO
             CreateMap<(Guid UserId, string FullName, string Email, string Phone), EmployeeSummaryDto>()

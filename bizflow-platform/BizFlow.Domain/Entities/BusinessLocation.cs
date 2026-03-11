@@ -10,7 +10,7 @@ public partial class BusinessLocation
     /// <summary>
     /// Location/store name
     /// </summary>
-    public string Name { get; set; } = null!;
+    public string LocationName { get; set; } = null!;
 
     public string Address { get; set; } = null!;
 
@@ -20,7 +20,21 @@ public partial class BusinessLocation
 
     public string? Phone { get; set; }
 
+    /// <summary>
+    /// Location email
+    /// </summary>
+    public string? Email { get; set; }
+
+    /// <summary>
+    /// active, inactive
+    /// </summary>
+    public string Status { get; set; } = null!;
+
     public bool? IsActive { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 
     /// <summary>
     /// Soft delete timestamp

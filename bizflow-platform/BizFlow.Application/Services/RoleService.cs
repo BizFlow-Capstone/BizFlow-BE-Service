@@ -1,4 +1,4 @@
-﻿using BizFlow.Application.DTOs;
+using BizFlow.Application.DTOs;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
@@ -34,11 +34,11 @@ namespace BizFlow.Application.Services
 
         private static RoleDto MapToDto(Role role) => new()
         {
-            Id = role.Id,
+            Id = role.RoleId,
             Name = role.Name,
             Description = role.Description,
-            CreatedAt = role.CreatedAt,
-            UpdatedAt = role.UpdatedAt
+            CreatedAt = role.CreateAt,
+            UpdatedAt = role.UpdateAt
         };
     }
 }

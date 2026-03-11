@@ -26,5 +26,5 @@ public partial class UserLocationAssignment
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
-    public virtual User User { get; set; } = null!;
+    public virtual Profile User { get; set; } = null!;
 }

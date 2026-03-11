@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using BizFlow.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +11,8 @@ public partial class BizFlowDbContext : DbContext
         : base(options)
     {
     }
+
+    public virtual DbSet<Account> Accounts { get; set; }
 
     public virtual DbSet<BusinessLocation> BusinessLocations { get; set; }
 
@@ -30,19 +34,72 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<ProductImport> ProductsImports { get; set; }
 
+    public virtual DbSet<Profile> Profiles { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<SaleItem> SaleItems { get; set; }
 
-    public virtual DbSet<UserLocationAssignment> UserLocationAssignments { get; set; }
+    public virtual DbSet<StockMovement> StockMovements { get; set; }
 
-    public virtual DbSet<User> Users { get; set; }
+    public virtual DbSet<SystemConfig> SystemConfig { get; set; }
+
+    public virtual DbSet<UserLocationAssignment> UserLocationAssignments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
             .UseCollation("utf8mb4_0900_ai_ci")
             .HasCharSet("utf8mb4");
+
+        modelBuilder.Entity<Account>(entity =>
+        {
+            entity.HasKey(e => e.AccountId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.Email, "Email").IsUnique();
+
+            entity.HasIndex(e => e.DeletedAt, "idx_account_deleted_at");
+
+            entity.HasIndex(e => e.IsActive, "idx_account_is_active");
+
+            entity.HasIndex(e => e.Phone, "idx_account_phone");
+
+            entity.HasIndex(e => e.RoleId, "idx_account_role");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.DeletedAt)
+                .HasComment("Soft delete timestamp")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Email).HasComment("User email (login)");
+            entity.Property(e => e.EmailVerified).HasComment("Email verification status");
+            entity.Property(e => e.IsActive)
+                .IsRequired()
+                .HasDefaultValueSql("'1'")
+                .HasComment("Account status");
+            entity.Property(e => e.LastLoginAt)
+                .HasComment("Last login timestamp")
+                .HasColumnType("datetime");
+            entity.Property(e => e.PasswordHash)
+                .HasMaxLength(255)
+                .HasComment("Hashed password");
+            entity.Property(e => e.Phone)
+                .HasMaxLength(20)
+                .HasComment("Phone number");
+            entity.Property(e => e.RoleId).HasComment("FK to Roles");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Role).WithMany(p => p.Accounts)
+                .HasForeignKey(d => d.RoleId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_account_role");
+        });
 
         modelBuilder.Entity<BusinessLocation>(entity =>
         {
@@ -52,24 +109,42 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.City, "idx_business_location_city");
 
+            entity.HasIndex(e => e.DeletedAt, "idx_business_location_deleted_at");
+
             entity.HasIndex(e => e.IsActive, "idx_business_location_is_active");
 
-            entity.HasIndex(e => e.Name, "idx_business_location_name");
+            entity.HasIndex(e => e.LocationName, "idx_business_location_name");
+
+            entity.HasIndex(e => e.Status, "idx_business_location_status");
 
             entity.Property(e => e.Address).HasColumnType("text");
             entity.Property(e => e.City).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.District).HasMaxLength(100);
+            entity.Property(e => e.Email)
+                .HasMaxLength(255)
+                .HasComment("Location email");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'");
-            entity.Property(e => e.Name).HasComment("Location/store name");
+            entity.Property(e => e.LocationName).HasComment("Location/store name");
             entity.Property(e => e.Phone).HasMaxLength(20);
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'active'")
+                .HasComment("active, inactive");
             entity.Property(e => e.TaxCode)
                 .HasMaxLength(50)
                 .HasComment("Business tax code");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
         });
 
         modelBuilder.Entity<BusinessTypeTax>(entity =>
@@ -78,7 +153,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
-            entity.HasIndex(e => e.CreatedById, "fk_business_type_tax_created_by");
+            entity.HasIndex(e => e.CreatedBy, "fk_business_type_tax_created_by");
 
             entity.HasIndex(e => e.BusinessTypeId, "idx_business_type_tax_business_type");
 
@@ -86,11 +161,11 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.TaxType, "idx_business_type_tax_type");
 
-            entity.Property(e => e.CalculateOnPrice)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasComment("TRUE = calculate on price, FALSE = calculate on revenue");
-            entity.Property(e => e.CreatedDate)
+            entity.Property(e => e.CalculationBase)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'price'")
+                .HasComment("Calculation base: price, revenue");
+            entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.TaxRate)
@@ -104,8 +179,8 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.BusinessTypeId)
                 .HasConstraintName("fk_business_type_tax_business_type");
 
-            entity.HasOne(d => d.CreatedBy).WithMany(p => p.BusinessTypeTaxes)
-                .HasForeignKey(d => d.CreatedById)
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.BusinessTypeTaxes)
+                .HasForeignKey(d => d.CreatedBy)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_business_type_tax_created_by");
         });
@@ -116,9 +191,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
-            entity.HasIndex(e => e.CreatedById, "fk_business_type_created_by");
+            entity.HasIndex(e => e.CreatedBy, "fk_business_type_created_by");
 
-            entity.HasIndex(e => e.ModifiedById, "fk_business_type_modified_by");
+            entity.HasIndex(e => e.ModifiedBy, "fk_business_type_modified_by");
 
             entity.HasIndex(e => e.Code, "idx_business_type_code").IsUnique();
 
@@ -127,11 +202,11 @@ public partial class BizFlowDbContext : DbContext
             entity.HasIndex(e => e.Status, "idx_business_type_status");
 
             entity.Property(e => e.Code).HasMaxLength(50);
-            entity.Property(e => e.CreatedDate)
+            entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.Description).HasColumnType("text");
-            entity.Property(e => e.LastModifiedDate)
+            entity.Property(e => e.LastModifiedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
@@ -140,13 +215,13 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("'active'")
                 .HasComment("active, inactive");
 
-            entity.HasOne(d => d.CreatedBy).WithMany(p => p.BusinessTypesCreatedBy)
-                .HasForeignKey(d => d.CreatedById)
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.BusinessTypesCreatedByNavigation)
+                .HasForeignKey(d => d.CreatedBy)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_business_type_created_by");
 
-            entity.HasOne(d => d.ModifiedBy).WithMany(p => p.BusinessTypesModifiedBy)
-                .HasForeignKey(d => d.ModifiedById)
+            entity.HasOne(d => d.ModifiedByNavigation).WithMany(p => p.BusinessTypesModifiedByNavigation)
+                .HasForeignKey(d => d.ModifiedBy)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_business_type_modified_by");
         });
@@ -194,6 +269,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
+            entity.HasIndex(e => e.CreatedBy, "fk_import_schema_version_created_by");
+
             entity.HasIndex(e => e.IsActive, "idx_import_schema_version_is_active");
 
             entity.HasIndex(e => e.ImportSchemaId, "idx_import_schema_version_schema_id");
@@ -202,9 +279,25 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasComment("When this version was created")
                 .HasColumnType("datetime");
+            entity.Property(e => e.CreatedBy).HasComment("FK to Profiles - who created this version");
+            entity.Property(e => e.EffectiveFrom)
+                .HasComment("When this version becomes effective")
+                .HasColumnType("datetime");
             entity.Property(e => e.ImportSchemaId).HasComment("Reference to parent ImportSchema");
             entity.Property(e => e.IsActive).HasComment("Only one active version per schema at a time");
+            entity.Property(e => e.MappingJson).HasComment("JSON mapping definition for data transformation");
             entity.Property(e => e.SchemaJson).HasComment("JSON schema definition for the import template");
+            entity.Property(e => e.TemplateFileUrl)
+                .HasMaxLength(500)
+                .HasComment("URL of the template file for this version");
+            entity.Property(e => e.VersionLabel)
+                .HasMaxLength(50)
+                .HasComment("Human-readable version label");
+
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.ImportSchemaVersions)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_import_schema_version_created_by");
 
             entity.HasOne(d => d.ImportSchema).WithMany(p => p.ImportSchemaVersions)
                 .HasForeignKey(d => d.ImportSchemaId)
@@ -253,6 +346,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ReceivedAt, "idx_import_date");
 
+            entity.HasIndex(e => e.SchemaVersionId, "idx_import_schema_version");
+
             entity.HasIndex(e => e.Status, "idx_import_status");
 
             entity.HasIndex(e => e.TotalAmount, "idx_import_total_amount");
@@ -262,10 +357,20 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.BusinessLocationId)
                 .HasDefaultValueSql("'1'")
                 .HasComment("FK to BusinessLocations");
+            entity.Property(e => e.CancelReason)
+                .HasComment("Reason for cancellation")
+                .HasColumnType("text");
+            entity.Property(e => e.CancelledAt)
+                .HasComment("When the import was cancelled")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ConfirmedAt)
+                .HasComment("When the import was confirmed")
+                .HasColumnType("datetime");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasComment("Record creation timestamp")
                 .HasColumnType("datetime");
+            entity.Property(e => e.HasInvoice).HasComment("Whether the import has an invoice attached");
             entity.Property(e => e.ImagePublicId)
                 .HasMaxLength(100)
                 .HasComment("Cloudinary public ID for image deletion");
@@ -281,9 +386,8 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("INVOICE, INVENTORY_ADJUSTMENT, RETURN");
             entity.Property(e => e.Note).HasColumnType("text");
             entity.Property(e => e.ReceivedAt).HasColumnType("datetime");
-            entity.Property(e => e.SchemaJson)
-                .HasComment("Import data schema")
-                .HasColumnType("json");
+            entity.Property(e => e.SchemaDataJson).HasComment("Stored data captured from schema form");
+            entity.Property(e => e.SchemaVersionId).HasComment("FK to ImportSchemaVersions");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValueSql("'DRAFT'")
@@ -303,6 +407,11 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.BusinessLocationId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("fk_import_business_location");
+
+            entity.HasOne(d => d.SchemaVersion).WithMany(p => p.Imports)
+                .HasForeignKey(d => d.SchemaVersionId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_import_schema_version");
         });
 
         modelBuilder.Entity<ProductPricePolicy>(entity =>
@@ -389,11 +498,11 @@ public partial class BizFlowDbContext : DbContext
 
         modelBuilder.Entity<ProductImport>(entity =>
         {
-            entity.HasKey(e => new { e.ImportId, e.ProductId })
-                .HasName("PRIMARY")
-                .HasAnnotation("MySql:IndexPrefixLength", new[] { 0, 0 });
+            entity.HasKey(e => e.ProductImportId).HasName("PRIMARY");
 
             entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.ImportId, "idx_product_import_import");
 
             entity.HasIndex(e => e.ProductId, "idx_product_import_product");
 
@@ -404,6 +513,11 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CostPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Cost price per import unit");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ImportId).HasComment("FK to Imports");
+            entity.Property(e => e.ProductId).HasComment("FK to Products");
             entity.Property(e => e.Quantity).HasComment("Import quantity");
             entity.Property(e => e.TotalPrice)
                 .HasPrecision(15, 2)
@@ -411,28 +525,56 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.Import).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ImportId)
-                .HasConstraintName("fk_product_import_import");
+                .HasConstraintName("fk_product_import_new_import");
 
             entity.HasOne(d => d.Product).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_product_import_product");
+                .HasConstraintName("fk_product_import_new_product");
+        });
+
+        modelBuilder.Entity<Profile>(entity =>
+        {
+            entity.HasKey(e => e.ProfileId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.AccountId, "idx_profile_account").IsUnique();
+
+            entity.HasIndex(e => e.FullName, "idx_profile_full_name");
+
+            entity.Property(e => e.AccountId).HasComment("FK to Accounts");
+            entity.Property(e => e.AvatarUrl)
+                .HasMaxLength(500)
+                .HasComment("Profile avatar URL");
+            entity.Property(e => e.FullName).HasComment("Full name");
+            entity.Property(e => e.TaxCode)
+                .HasMaxLength(50)
+                .HasComment("Personal tax identification number");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Account).WithOne(p => p.Profile)
+                .HasForeignKey<Profile>(d => d.AccountId)
+                .HasConstraintName("fk_profile_account");
         });
 
         modelBuilder.Entity<Role>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.RoleId).HasName("PRIMARY");
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.Name, "idx_name").IsUnique();
 
-            entity.Property(e => e.CreatedAt)
+            entity.Property(e => e.CreateAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.Description).HasColumnType("text");
             entity.Property(e => e.Name).HasMaxLength(100);
-            entity.Property(e => e.UpdatedAt)
+            entity.Property(e => e.UpdateAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
@@ -461,6 +603,69 @@ public partial class BizFlowDbContext : DbContext
                 .HasConstraintName("fk_sale_item_product");
         });
 
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.HasKey(e => e.StockMovementId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.CreatedAt, "idx_stock_movement_created_at");
+
+            entity.HasIndex(e => e.ProductId, "idx_stock_movement_product");
+
+            entity.HasIndex(e => new { e.ReferenceType, e.ReferenceId }, "idx_stock_movement_reference");
+
+            entity.HasIndex(e => e.MovementType, "idx_stock_movement_type");
+
+            entity.Property(e => e.BalanceAfter).HasComment("Stock balance after this movement");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.MovementType)
+                .HasMaxLength(50)
+                .HasComment("IN, OUT, ADJUSTMENT");
+            entity.Property(e => e.ProductId).HasComment("FK to Products");
+            entity.Property(e => e.Quantity).HasComment("Quantity moved (positive for IN, negative for OUT)");
+            entity.Property(e => e.ReferenceId).HasComment("ID of the reference entity (ImportId, OrderId, etc.)");
+            entity.Property(e => e.ReferenceType)
+                .HasMaxLength(50)
+                .HasComment("IMPORT, ORDER, ADJUSTMENT");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.StockMovements)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_stock_movement_product");
+        });
+
+        modelBuilder.Entity<SystemConfig>(entity =>
+        {
+            entity.HasKey(e => e.SystemConfigId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.UpdatedBy, "fk_system_config_updated_by");
+
+            entity.HasIndex(e => e.Name, "idx_system_config_name").IsUnique();
+
+            entity.Property(e => e.Description)
+                .HasComment("Description of this config entry")
+                .HasColumnType("text");
+            entity.Property(e => e.Name).HasComment("Configuration key name");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedBy).HasComment("FK to Profiles - who last updated");
+            entity.Property(e => e.Value)
+                .HasComment("Configuration value")
+                .HasColumnType("text");
+
+            entity.HasOne(d => d.UpdatedByNavigation).WithMany(p => p.SystemConfig)
+                .HasForeignKey(d => d.UpdatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_system_config_updated_by");
+        });
+
         modelBuilder.Entity<UserLocationAssignment>(entity =>
         {
             entity.HasKey(e => e.UserLocationAssignmentId).HasName("PRIMARY");
@@ -486,60 +691,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.User).WithMany(p => p.UserLocationAssignments)
                 .HasForeignKey(d => d.UserId)
-                .HasConstraintName("fk_user_location_assignment_user");
-        });
-
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.UserId).HasName("PRIMARY");
-
-            entity.UseCollation("utf8mb4_unicode_ci");
-
-            entity.HasIndex(e => e.Email, "Email").IsUnique();
-
-            entity.HasIndex(e => e.FullName, "idx_user_full_name");
-
-            entity.HasIndex(e => e.IsActive, "idx_user_is_active");
-
-            entity.HasIndex(e => e.Phone, "idx_user_phone");
-
-            entity.HasIndex(e => e.RoleId, "idx_user_role");
-
-            entity.Property(e => e.AvatarUrl)
-                .HasMaxLength(500)
-                .HasComment("Profile avatar URL");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime");
-            entity.Property(e => e.DeletedAt)
-                .HasComment("Soft delete timestamp")
-                .HasColumnType("datetime");
-            entity.Property(e => e.Email).HasComment("User email (login)");
-            entity.Property(e => e.EmailVerified).HasComment("Email verification status");
-            entity.Property(e => e.FullName).HasComment("Full name");
-            entity.Property(e => e.IsActive).HasComment("Account status");
-            entity.Property(e => e.LastLoginAt)
-                .HasComment("Last login timestamp")
-                .HasColumnType("datetime");
-            entity.Property(e => e.PasswordHash)
-                .HasMaxLength(255)
-                .HasComment("Hashed password");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(20)
-                .HasComment("Phone number");
-            entity.Property(e => e.RoleId).HasComment("User role");
-            entity.Property(e => e.TaxCode)
-                .HasMaxLength(50)
-                .HasComment("Personal tax identification number");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime");
-
-            entity.HasOne(d => d.Role).WithMany(p => p.Users)
-                .HasForeignKey(d => d.RoleId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_user_role");
+                .HasConstraintName("fk_user_location_assignment_profile");
         });
 
         OnModelCreatingPartial(modelBuilder);
