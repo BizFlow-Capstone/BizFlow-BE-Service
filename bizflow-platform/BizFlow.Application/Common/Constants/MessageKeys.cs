@@ -36,6 +36,12 @@ namespace BizFlow.Application.Common.Constants
         public const string TokenExpired = "AUTH_TOKEN_EXPIRED";
         public const string InvalidToken = "AUTH_INVALID_TOKEN";
         public const string InvalidCredentials = "AUTH_INVALID_CREDENTIALS";
+        public const string AccountCreated = "AUTH_ACCOUNT_CREATED";
+        public const string PasswordSet = "AUTH_PASSWORD_SET";
+        public const string PasswordAlreadySet = "AUTH_PASSWORD_ALREADY_SET";
+        public const string TokenRefreshed = "AUTH_TOKEN_REFRESHED";
+        public const string InvalidGoogleToken = "AUTH_INVALID_GOOGLE_TOKEN";
+        public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
 
         // ============ ROLE ============
         public const string RoleNotFound = "ROLE_NOT_FOUND";

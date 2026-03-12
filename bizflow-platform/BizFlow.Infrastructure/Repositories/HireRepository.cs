@@ -46,8 +46,12 @@ namespace BizFlow.Infrastructure.Repositories
                 {
                     Hire = x.hire,
                     x.profile.FullName,
-                    x.account.Email,
-                    x.account.Phone
+                    Email = _context.Credentials
+                        .Where(c => c.AccountId == x.account.AccountId && c.Type == "email")
+                        .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
+                    Phone = _context.Credentials
+                        .Where(c => c.AccountId == x.account.AccountId && c.Type == "phone")
+                        .Select(c => (string?)c.Identifier).FirstOrDefault()
                 })
                 .ToListAsync();
 

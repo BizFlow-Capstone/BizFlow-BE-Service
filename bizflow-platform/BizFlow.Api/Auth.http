@@ -1,0 +1,97 @@
+@host = https://localhost:7270
+@contentType = application/json
+
+# ================================================================
+# AUTH FLOW TEST
+# ================================================================
+# Test order:
+#   1. Google Login  → get accessToken + refreshToken
+#   2. Get Credentials → verify credential list
+#   3. Set Password  → set password for Google account
+#   4. Refresh Token → rotate refresh token
+#   5. Logout        → revoke refresh token
+# ================================================================
+
+# -------------------- VARIABLES --------------------
+# After Google Login, copy tokens here:
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDhhMGJkMy0yZmRiLTRjNmMtODRhMy1jZTQ1NjA3ZWE1ZDQiLCJwcm9maWxlSWQiOiJmZjQ1MzA5Yy03YjBiLTQwMTItOTMzYi0wNDI0MDVkNzU2ODUiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJ1c2VyIiwianRpIjoiZTU0MzA1M2ItMzIxZi00ODA4LTkxOGUtMGE1ZTE2ZTFiNDFlIiwiaWF0IjoxNzczMzI0MTkzLCJleHAiOjE3NzMzMjQ0OTMsImlzcyI6IkJpekZsb3ciLCJhdWQiOiJCaXpGbG93VXNlcnMifQ.3uQiSyVG8upYG0-4x5rVFJAwtmCKh1fh7IhQZaF93is
+@refreshToken = VBh273vFFLvKREIlgzz6ysQcgCUZjzOhXjFdJIqfVFQ=
+
+
+### ====================================================
+### 1. GOOGLE LOGIN
+### ====================================================
+### How to get idToken:
+###   - Open docs/test-google-login.html in browser
+###   - Sign in with Google
+###   - Copy the ID Token
+### ====================================================
+POST {{host}}/api/auth/google
+Content-Type: {{contentType}}
+
+{
+    "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjUzMDcyNGQ0OTE3M2EzZWQ2YjRhMDBhYTYzNDQyMDMwMGQ3MmFlNWIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI5NjM3MTI0NTczMTgtcGM5NHY0dWNsNDdoNmk3bGpuYTkwb2wxaGMybWE0dDQuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI5NjM3MTI0NTczMTgtcGM5NHY0dWNsNDdoNmk3bGpuYTkwb2wxaGMybWE0dDQuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTI5NTk5ODQxNDQ5MzY2NzUxOTAiLCJlbWFpbCI6ImxtdDMwMTgwNTA0QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYmYiOjE3NzMzMjI1NzMsIm5hbWUiOiJMw6ogTWluaCBUaGnhu4duIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0s3YTNTQnBtWTZjRm9xd1dPQ3RwWTNLbUZnOUx0MEdINW1zeS1YQ1YzckRfeGx4aE1pPXM5Ni1jIiwiZ2l2ZW5fbmFtZSI6IkzDqiBNaW5oIFRoaeG7h24iLCJpYXQiOjE3NzMzMjI4NzMsImV4cCI6MTc3MzMyNjQ3MywianRpIjoiOTFhMmFhYjQzNTQ3Y2I5Mjg5YjYzMjU1ZWE1NzJlNjI0NGFmNzllMiJ9.Ayegjm1pBVUIG3MzOEqS9yd4DoDjNFuiPbLzd2-ih84Esg33HinVpH4Dof2uOQIYDn66Tijjp-9R6YXujMqhM-AZmXVd3thXZlOCp9-06eahdwxI_29MgUDIkGdu50Nlwdy3fB2sb_awa5yf5Vvio79eZ2QL7NNX8apnaq03sAqRentW__HfakKOIaJKs1afZZ_fweCbIUUqMIHeTKz9t5DL41XkIF3CVIGpbdTW_uum1sIX2PAQyNLdsijgt09zqplOs3JiTqJPd8CDgdymaLptmIm4BCFgefua-CD9TFt7whd2w7zFWCMKcvKzh3MPDcbGuklRJQwhq-q_k8VEew",
+    "deviceInfo": "VS Code REST Client"
+}
+
+### ====================================================
+### 2. GET CREDENTIALS (requires auth)
+### ====================================================
+GET {{host}}/api/auth/credentials
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+### ====================================================
+### 3. SET PASSWORD (requires auth)
+### ====================================================
+### Sets password for Google-only account.
+### Also auto-creates email credential from Google email.
+### ====================================================
+POST {{host}}/api/auth/set-password
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "password": "MySecureP@ssw0rd123"
+}
+
+### ====================================================
+### 4. REFRESH TOKEN (public)
+### ====================================================
+### Use the refreshToken from Google Login response.
+### Returns new accessToken + new refreshToken (rotation).
+### ====================================================
+POST {{host}}/api/auth/refresh
+Content-Type: {{contentType}}
+
+{
+    "refreshToken": "{{refreshToken}}",
+    "deviceInfo": "VS Code REST Client"
+}
+
+### ====================================================
+### 5. LOGOUT (requires auth)
+### ====================================================
+### Revokes the refresh token (single session logout).
+### ====================================================
+POST {{host}}/api/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "refreshToken": "{{refreshToken}}"
+}
+
+### ====================================================
+### 6. VERIFY TOKEN EXPIRED (after logout)
+### ====================================================
+### After logout, the old refresh token should fail.
+### Expected: 401 Unauthorized
+### ====================================================
+POST {{host}}/api/auth/refresh
+Content-Type: {{contentType}}
+
+{
+    "refreshToken": "{{refreshToken}}",
+    "deviceInfo": "VS Code REST Client"
+}
