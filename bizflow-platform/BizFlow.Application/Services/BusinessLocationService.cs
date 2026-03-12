@@ -156,12 +156,20 @@ namespace BizFlow.Application.Services
             var location = await GetLocationOrThrowAsync(locationId);
             await EnsureOwnershipAsync(userId, locationId);
 
-            // TODO: RULE-LOC-06 — When Order module exists, check for existing orders:
-             //var hasOrders = await _unitOfWork.Orders.HasOrdersByLocationAsync(locationId);
-            // if (hasOrders) → return warning + require confirm (see business-location-flow.md Section 6)
+            var hasData = await _unitOfWork.BusinessLocations.HasRelatedDataAsync(locationId);
 
-            location.DeletedAt = DateTime.UtcNow;
-            _unitOfWork.BusinessLocations.Update(location);
+            if (hasData)
+            {
+                // Soft delete — location has products, imports, or employees
+                location.DeletedAt = DateTime.UtcNow;
+                _unitOfWork.BusinessLocations.Update(location);
+            }
+            else
+            {
+                // Hard delete — location is empty, no related data
+                _unitOfWork.BusinessLocations.Delete(location);
+            }
+
             await _unitOfWork.SaveChangesAsync();
         }
 

@@ -156,6 +156,25 @@ namespace BizFlow.Infrastructure.Repositories
 
         #region Command Methods
 
+        public async Task<bool> HasRelatedDataAsync(int locationId)
+        {
+            var hasProducts = await _context.Products
+                .AnyAsync(p => p.BusinessLocationId == locationId);
+            if (hasProducts) return true;
+
+            var hasImports = await _context.Imports
+                .AnyAsync(i => i.BusinessLocationId == locationId);
+            if (hasImports) return true;
+
+            var hasEmployees = await _context.UserLocationAssignments
+                .AnyAsync(ula => ula.BusinessLocationId == locationId && !ula.IsOwner);
+            return hasEmployees;
+        }
+
+        #endregion
+
+        #region Command Methods
+
         public async Task<BusinessLocation> AddAsync(BusinessLocation location)
         {
             var entry = await _context.BusinessLocations.AddAsync(location);
@@ -165,6 +184,11 @@ namespace BizFlow.Infrastructure.Repositories
         public void Update(BusinessLocation location)
         {
             _context.BusinessLocations.Update(location);
+        }
+
+        public void Delete(BusinessLocation location)
+        {
+            _context.BusinessLocations.Remove(location);
         }
 
         public async Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment)

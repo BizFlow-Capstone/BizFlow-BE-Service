@@ -49,10 +49,16 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId);
 
+        /// <summary>
+        /// Check if location has any related data (products, imports, employee assignments)
+        /// </summary>
+        Task<bool> HasRelatedDataAsync(int locationId);
+
         // ============ Command Methods ============
 
         Task<BusinessLocation> AddAsync(BusinessLocation location);
         void Update(BusinessLocation location);
+        void Delete(BusinessLocation location);
         Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
 
         /// <summary>
