@@ -60,8 +60,6 @@ namespace BizFlow.Application.Common.Constants
 
         // ============ BUSINESS LOCATION ============
         public const string LocationAlreadyExists = "LOCATION_ALREADY_EXISTS";
-        public const string LocationInactive = "LOCATION_INACTIVE";
-        public const string LocationHasOrders = "LOCATION_HAS_ORDERS";
 
         // ============ HIRE ============
         public const string EmployeesNotHired = "HIRE_EMPLOYEES_NOT_HIRED";
