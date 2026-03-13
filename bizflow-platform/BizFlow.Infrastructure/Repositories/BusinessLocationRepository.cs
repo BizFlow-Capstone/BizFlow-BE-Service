@@ -92,7 +92,7 @@ namespace BizFlow.Infrastructure.Repositories
                 {
                     UserId = ula.UserId.ToString(),
                     UserName = profile.FullName,
-                    Phone = account.Phone
+                    Phone = account.Credentials.Where(c => c.AccountId == account.AccountId && c.Type == "phone").Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
                 }
             ).ToListAsync();
 
@@ -148,7 +148,17 @@ namespace BizFlow.Infrastructure.Repositories
                 .Join(_context.Accounts,
                     x => x.profile.AccountId,
                     account => account.AccountId,
-                    (x, account) => new { x.profile.ProfileId, x.profile.FullName, account.Email, account.Phone })
+                    (x, account) => new
+                    {
+                        x.profile.ProfileId,
+                        x.profile.FullName,
+                        Email = _context.Credentials
+                            .Where(c => c.AccountId == account.AccountId && c.Type == "email")
+                            .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
+                        Phone = _context.Credentials
+                            .Where(c => c.AccountId == account.AccountId && c.Type == "phone")
+                            .Select(c => c.Identifier).FirstOrDefault()
+                    })
                 .Select(x => new ValueTuple<Guid, string, string, string?>(x.ProfileId, x.FullName, x.Email, x.Phone))
                 .ToListAsync();
         }

@@ -13,29 +13,14 @@ public partial class Account
     public Guid RoleId { get; set; }
 
     /// <summary>
-    /// User email (login)
+    /// BCrypt hash, NULL for Google-only accounts
     /// </summary>
-    public string Email { get; set; } = null!;
-
-    /// <summary>
-    /// Phone number
-    /// </summary>
-    public string? Phone { get; set; }
-
-    /// <summary>
-    /// Hashed password
-    /// </summary>
-    public string PasswordHash { get; set; } = null!;
+    public string? PasswordHash { get; set; }
 
     /// <summary>
     /// Account status
     /// </summary>
     public bool? IsActive { get; set; }
-
-    /// <summary>
-    /// Email verification status
-    /// </summary>
-    public bool EmailVerified { get; set; }
 
     /// <summary>
     /// Last login timestamp
@@ -51,7 +36,11 @@ public partial class Account
     /// </summary>
     public DateTime? DeletedAt { get; set; }
 
+    public virtual ICollection<Credential> Credentials { get; set; } = new List<Credential>();
+
     public virtual Profile? Profile { get; set; }
+
+    public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
     public virtual Role Role { get; set; } = null!;
 }

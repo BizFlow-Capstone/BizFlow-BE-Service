@@ -14,7 +14,7 @@ services:
   # ---------------------------------------------------------------------------
   mysql:
     image: mysql:8.0
-    container_name: bizflow-mysql-dev
+    container_name: bizflow-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}

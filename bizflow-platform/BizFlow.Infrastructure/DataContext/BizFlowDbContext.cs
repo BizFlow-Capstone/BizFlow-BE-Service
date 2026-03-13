@@ -20,6 +20,8 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<BusinessType> BusinessTypes { get; set; }
 
+    public virtual DbSet<Credential> Credentials { get; set; }
+
     public virtual DbSet<Hire> Hires { get; set; }
 
     public virtual DbSet<ImportSchemaVersion> ImportSchemaVersions { get; set; }
@@ -35,6 +37,8 @@ public partial class BizFlowDbContext : DbContext
     public virtual DbSet<ProductImport> ProductsImports { get; set; }
 
     public virtual DbSet<Profile> Profiles { get; set; }
+
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -58,13 +62,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.UseCollation("utf8mb4_unicode_ci");
 
-            entity.HasIndex(e => e.Email, "Email").IsUnique();
-
             entity.HasIndex(e => e.DeletedAt, "idx_account_deleted_at");
 
             entity.HasIndex(e => e.IsActive, "idx_account_is_active");
-
-            entity.HasIndex(e => e.Phone, "idx_account_phone");
 
             entity.HasIndex(e => e.RoleId, "idx_account_role");
 
@@ -74,8 +74,6 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
-            entity.Property(e => e.Email).HasComment("User email (login)");
-            entity.Property(e => e.EmailVerified).HasComment("Email verification status");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
@@ -85,10 +83,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
-                .HasComment("Hashed password");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(20)
-                .HasComment("Phone number");
+                .HasComment("BCrypt hash, NULL for Google-only accounts");
             entity.Property(e => e.RoleId).HasComment("FK to Roles");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
@@ -224,6 +219,38 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.ModifiedBy)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_business_type_modified_by");
+        });
+
+        modelBuilder.Entity<Credential>(entity =>
+        {
+            entity.HasKey(e => e.CredentialId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.AccountId, "idx_credential_account");
+
+            entity.HasIndex(e => e.Identifier, "idx_credential_identifier");
+
+            entity.HasIndex(e => new { e.AccountId, e.Type }, "uq_credential_account_type").IsUnique();
+
+            entity.HasIndex(e => new { e.Type, e.Identifier }, "uq_credential_type_identifier").IsUnique();
+
+            entity.Property(e => e.AccountId).HasComment("FK to Accounts");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.EmailVerified).HasComment("Only used for type=email");
+            entity.Property(e => e.GoogleEmail)
+                .HasMaxLength(255)
+                .HasComment("Only used for type=google (informational)");
+            entity.Property(e => e.Identifier).HasComment("Phone: +84xxx, Email: user@mail, Google: sub-id");
+            entity.Property(e => e.Type)
+                .HasComment("Credential type")
+                .HasColumnType("enum('phone','email','google')");
+
+            entity.HasOne(d => d.Account).WithMany(p => p.Credentials)
+                .HasForeignKey(d => d.AccountId)
+                .HasConstraintName("fk_credential_account");
         });
 
         modelBuilder.Entity<Hire>(entity =>
@@ -562,6 +589,43 @@ public partial class BizFlowDbContext : DbContext
             entity.HasOne(d => d.Account).WithOne(p => p.Profile)
                 .HasForeignKey<Profile>(d => d.AccountId)
                 .HasConstraintName("fk_profile_account");
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.RefreshTokenId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.AccountId, "idx_rt_account_id");
+
+            entity.HasIndex(e => e.ExpiresAt, "idx_rt_expires_at");
+
+            entity.HasIndex(e => e.TokenHash, "idx_rt_token_hash");
+
+            entity.Property(e => e.AccountId).HasComment("FK to Accounts");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.DeviceInfo)
+                .HasMaxLength(500)
+                .HasComment("User-Agent or device identifier");
+            entity.Property(e => e.ExpiresAt)
+                .HasComment("Token expiry timestamp")
+                .HasColumnType("datetime");
+            entity.Property(e => e.RevokedAt)
+                .HasComment("NULL = active, NOT NULL = revoked")
+                .HasColumnType("datetime");
+            entity.Property(e => e.TokenHash)
+                .HasMaxLength(512)
+                .HasComment("SHA-256 hash of refresh token");
+            entity.Property(e => e.TokenSalt)
+                .HasMaxLength(128)
+                .HasComment("Random salt (Base64)");
+
+            entity.HasOne(d => d.Account).WithMany(p => p.RefreshTokens)
+                .HasForeignKey(d => d.AccountId)
+                .HasConstraintName("fk_refresh_token_account");
         });
 
         modelBuilder.Entity<Role>(entity =>
