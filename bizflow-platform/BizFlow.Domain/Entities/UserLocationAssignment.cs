@@ -24,6 +24,16 @@ public partial class UserLocationAssignment
 
     public bool? IsActive { get; set; }
 
+    /// <summary>
+    /// When employee/user was assigned to location
+    /// </summary>
+    public DateTime AssignedAt { get; set; }
+
+    /// <summary>
+    /// When employee/user was removed from location
+    /// </summary>
+    public DateTime? UnassignedAt { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
     public virtual Profile User { get; set; } = null!;
