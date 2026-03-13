@@ -8,7 +8,7 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Search and filter products with pagination
         /// </summary>
-        Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query);
+        Task<PaginatedResponse<ProductSummaryDto>> SearchProductsAsync(Guid userId, ProductQueryParams query);
 
         /// <summary>
         /// Get detailed product information by ID
@@ -23,12 +23,12 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Create a new product
         /// </summary>
-        Task<(ProductListItemDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request);
+        Task<(ProductSummaryDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request);
 
         /// <summary>
         /// Update an existing product
         /// </summary>
-        Task<(ProductListItemDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request);
+        Task<(ProductSummaryDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request);
 
         /// <summary>
         /// Update product status
