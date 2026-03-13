@@ -4,7 +4,6 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
-using BizFlow.Application.Mappers;
 using AutoMapper;
 using BizFlow.Domain.Entities;
 
@@ -25,184 +24,35 @@ namespace BizFlow.Application.Services
 
         #region Query Methods
 
-        /// <summary>
-        /// Gets all locations owned by a user
-        /// </summary>
         public async Task<IEnumerable<BusinessLocationDto>> GetOwnedLocationsAsync(Guid userId)
         {
-            var locations = await _unitOfWork.BusinessLocations.GetOwnedByUserIdAsync(userId);
-            
-            var result = new List<BusinessLocationDto>();
-            foreach (var loc in locations)
-            {
-                // Retrieve OwnerName for each location to pass into Mapper context
-                var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                
-                var dto = _mapper.Map<BusinessLocationDto>(loc);
-                dto.OwnerName = ownerName;
-                result.Add(dto);
-            }
-            
-            return result;
+            return await _unitOfWork.BusinessLocations.GetLocationsByUserAsync(userId, isOwner: true);
         }
 
-        /// <summary>
-        /// Gets all locations where user works (not owned)
-        /// </summary>
         public async Task<IEnumerable<BusinessLocationDto>> GetWorkLocationsAsync(Guid userId)
         {
-            var locations = await _unitOfWork.BusinessLocations.GetWorkLocationsByUserIdAsync(userId);
-            
-            var result = new List<BusinessLocationDto>();
-            foreach (var loc in locations)
-            {
-                var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(loc.BusinessLocationId);
-                var dto = _mapper.Map<BusinessLocationDto>(loc);
-                dto.OwnerName = ownerName;
-                result.Add(dto);
-            }
-            
-            return result;
+            return await _unitOfWork.BusinessLocations.GetLocationsByUserAsync(userId, isOwner: false);
         }
 
-        #endregion
-
-        #region Command Methods
-
-        /// <summary>
-        /// Creates a new location and assigns owner + optional employees
-        /// </summary>
-        public async Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request)
+        public async Task<BusinessLocationDetailDto> GetLocationDetailAsync(Guid userId, int locationId)
         {
-            return await _unitOfWork.ExecuteResilientAsync(async _ =>
-            {
-                // Verify location name doesn't already exist for this owner
-                var isExisted = await _unitOfWork.BusinessLocations.IsExistedByNameAsync(userId, request.Name);
-                if (isExisted)
-                {
-                    throw new ConflictException(MessageKeys.LocationAlreadyExists);
-                }
+            // RULE-LOC-05: Owner or assigned Employee can view
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
+            if (!hasAccess)
+                throw new ForbiddenException(MessageKeys.Forbidden);
 
-                // Create the location using mapper
-                var location = _mapper.Map<BusinessLocation>(request);
-
-                var createdLocation = await _unitOfWork.BusinessLocations.AddAsync(location);
-                await _unitOfWork.SaveChangesAsync();
-
-                // Assign current user as owner
-                var ownerAssignment = new UserLocationAssignment
-                {
-                    UserId = userId,
-                    BusinessLocationId = createdLocation.BusinessLocationId,
-                    IsOwner = true,
-                    IsActive = true
-                };
-                await _unitOfWork.BusinessLocations.AddUserLocationAssignmentAsync(ownerAssignment);
-
-                // Optional: Assign hired employees if provided
-                if (request.EmployeeIds != null && request.EmployeeIds.Any())
-                {
-                    await AssignEmployeesToLocationAsync(userId, createdLocation.BusinessLocationId, request.EmployeeIds);
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-                
-                var (_, ownerName) = await _unitOfWork.BusinessLocations.GetByIdWithOwnerAsync(createdLocation.BusinessLocationId);
-                   
-                var dto = _mapper.Map<BusinessLocationDto>(createdLocation);
-                dto.OwnerName = ownerName;
-                
-                return dto;
-            });
-        }
-
-        /// <summary>
-        /// Updates location status (active/inactive) - owner only
-        /// </summary>
-        public async Task<bool> UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive)
-        {
-            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
-            if (location == null)
-                return false;
-
-            location.IsActive = isActive;
-            _unitOfWork.BusinessLocations.Update(location);
-            await _unitOfWork.SaveChangesAsync();
-
-            return true;
-        }
-
-        /// <summary>
-        /// Updates location details - owner only
-        /// </summary>
-        public async Task<bool> UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request)
-        {
-            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
-            if (location == null)
-            {
+            var detail = await _unitOfWork.BusinessLocations.GetLocationDetailByIdAsync(locationId);
+            if (detail == null)
                 throw new NotFoundException(MessageKeys.NotFound);
-            }
 
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner)
-                return false;
-
-            // Check if name is being changed and if new name already exists for this owner
-            if (request.Name != location.LocationName)
-            {
-                var isExisted = await _unitOfWork.BusinessLocations.IsExistedByNameAsync(userId, request.Name);
-                if (isExisted)
-                {
-                    throw new ConflictException(MessageKeys.LocationAlreadyExists);
-                }
-            }
-
-            // Update entity using Mapper
-            _mapper.Map(request, location); 
-            
-            _unitOfWork.BusinessLocations.Update(location);
-            await _unitOfWork.SaveChangesAsync();
-
-            return true;
+            return detail;
         }
 
-        /// <summary>
-        /// Adds employees to a location (owner only)
-        /// </summary>
-        public async Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds)
-        {
-            // Verify ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(ownerId, locationId);
-            if (!isOwner)
-                return false;
-
-            // Validate location exists
-            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
-            if (location == null)
-            {
-                throw new NotFoundException(MessageKeys.NotFound);
-            }
-
-            await AssignEmployeesToLocationAsync(ownerId, locationId, employeeIds);
-            await _unitOfWork.SaveChangesAsync();
-
-            return true;
-        }
-
-        /// <summary>
-        /// Get employees assigned to a location (owner only)
-        /// </summary>
         public async Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId)
         {
-            // Verify ownership
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner)
-            {
-                throw new ForbiddenException(MessageKeys.Forbidden);
-            }
+            await EnsureOwnershipAsync(userId, locationId);
 
             var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);
-
             return new EmployeeSummaryListDto
             {
                 Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
@@ -210,82 +60,184 @@ namespace BizFlow.Application.Services
         }
 
         /// <summary>
-        /// Deletes a location (soft delete) - owner only
+        /// RULE-LOC-07: Validates user access to location.
+        /// Owner → full access. Employee → blocked when IsActive=false.
+        /// Reusable for Product/Import services.
         /// </summary>
-        public async Task<bool> DeleteLocationAsync(Guid userId, int locationId)
+        public async Task ValidateLocationAccessAsync(Guid userId, int locationId)
         {
-            var location = await ValidateOwnershipAndGetLocationAsync(userId, locationId);
-            if (location == null)
-                return false;
+            var location = await GetLocationOrThrowAsync(locationId);
 
-            location.DeletedAt = DateTime.UtcNow;
-            _unitOfWork.BusinessLocations.Update(location);
-            await _unitOfWork.SaveChangesAsync();
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
+            if (!hasAccess)
+                throw new ForbiddenException(MessageKeys.Forbidden);
 
-            return true;
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner && location.IsActive == false)
+                throw new ForbiddenException(MessageKeys.LocationInactive);
         }
 
         #endregion
 
-        #region Private Helper Methods
+        #region Command Methods
+
+        public async Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request)
+        {
+            return await _unitOfWork.ExecuteResilientAsync(async _ =>
+            {
+                await EnsureLocationNameUniqueAsync(userId, request.Name);
+
+                var location = _mapper.Map<BusinessLocation>(request);
+                var created = await _unitOfWork.BusinessLocations.AddAsync(location);
+                await _unitOfWork.SaveChangesAsync();
+
+                var ownerAssignment = new UserLocationAssignment
+                {
+                    UserId = userId,
+                    BusinessLocationId = created.BusinessLocationId,
+                    IsOwner = true,
+                    IsActive = true
+                };
+                await _unitOfWork.BusinessLocations.AddUserLocationAssignmentAsync(ownerAssignment);
+
+                if (request.EmployeeIds is { Count: > 0 })
+                    await AssignEmployeesInternalAsync(userId, created.BusinessLocationId, request.EmployeeIds);
+
+                await _unitOfWork.SaveChangesAsync();
+
+                var locations = await _unitOfWork.BusinessLocations.GetLocationsByUserAsync(userId, isOwner: true);
+                return locations.First(l => l.Id == created.BusinessLocationId);
+            });
+        }
+
+        public async Task UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request)
+        {
+            var location = await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(userId, locationId);
+
+            if (request.Name != location.LocationName)
+                await EnsureLocationNameUniqueAsync(userId, request.Name);
+
+            _mapper.Map(request, location);
+            _unitOfWork.BusinessLocations.Update(location);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive)
+        {
+            var location = await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(userId, locationId);
+
+            location.IsActive = isActive;
+            _unitOfWork.BusinessLocations.Update(location);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds)
+        {
+            await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(ownerId, locationId);
+
+            await AssignEmployeesInternalAsync(ownerId, locationId, employeeIds);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task RemoveEmployeeFromLocationAsync(Guid ownerId, int locationId, Guid employeeId)
+        {
+            await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(ownerId, locationId);
+
+            await _unitOfWork.BusinessLocations.RemoveEmployeeFromLocationAsync(locationId, employeeId);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task DeleteLocationAsync(Guid userId, int locationId)
+        {
+            var location = await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(userId, locationId);
+
+            var hasData = await _unitOfWork.BusinessLocations.HasRelatedDataAsync(locationId);
+
+            if (hasData)
+            {
+                // Soft delete — location has products, imports, or employees
+                location.DeletedAt = DateTime.UtcNow;
+                _unitOfWork.BusinessLocations.Update(location);
+            }
+            else
+            {
+                // Hard delete — location is empty, no related data
+                _unitOfWork.BusinessLocations.Delete(location);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        #endregion
+
+        #region Private Helpers
 
         /// <summary>
-        /// Validates ownership and retrieves location
+        /// Throws NotFoundException if location doesn't exist (or is soft-deleted).
+        /// Reusable guard — call before any mutation.
         /// </summary>
-        /// <returns>Location if user is owner, null otherwise</returns>
-        private async Task<BusinessLocation?> ValidateOwnershipAndGetLocationAsync(Guid userId, int locationId)
+        private async Task<BusinessLocation> GetLocationOrThrowAsync(int locationId)
         {
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner)
-                return null;
-
-            return await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(locationId);
+            if (location == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+            return location;
         }
 
         /// <summary>
-        /// Validates and assigns employees to a location
+        /// Throws ForbiddenException if user is not owner.
+        /// Reusable guard — call before any owner-only operation.
         /// </summary>
-        private async Task AssignEmployeesToLocationAsync(Guid ownerId, int locationId, IEnumerable<Guid> employeeIds)
+        private async Task EnsureOwnershipAsync(Guid userId, int locationId)
         {
-            // Validate employees using HireService
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+        }
+
+        /// <summary>
+        /// Throws ConflictException if location name already exists for this owner.
+        /// </summary>
+        private async Task EnsureLocationNameUniqueAsync(Guid userId, string name)
+        {
+            var exists = await _unitOfWork.BusinessLocations.IsExistedByNameAsync(userId, name);
+            if (exists)
+                throw new ConflictException(MessageKeys.LocationAlreadyExists);
+        }
+
+        /// <summary>
+        /// Validates and assigns employees to a location.
+        /// Throws BadRequestException if employees are not hired or already assigned.
+        /// </summary>
+        private async Task AssignEmployeesInternalAsync(Guid ownerId, int locationId, IEnumerable<Guid> employeeIds)
+        {
             var validationResult = await _hireService.ValidateEmployeesForAssignmentAsync(ownerId, employeeIds);
-
-            // If any employees are not hired, throw BadRequestException
             if (!validationResult.AllValid)
-            {
                 throw new BadRequestException(
-                    MessageKeys.EmployeesNotHired, 
-                    new { invalidEmployeeIds = validationResult.InvalidEmployeeIds }
-                );
-            }
+                    MessageKeys.EmployeesNotHired,
+                    new { invalidEmployeeIds = validationResult.InvalidEmployeeIds });
 
-            // Check if any employees are already assigned to this location
-            var assignedEmployeeIds = await _unitOfWork.BusinessLocations.GetAssignedEmployeeIdsAsync(locationId);
-            var assignedEmployeeIdsSet = assignedEmployeeIds.ToHashSet();
-
-            var alreadyAssignedIds = validationResult.ValidEmployeeIds
-                .Where(empId => assignedEmployeeIdsSet.Contains(empId))
-                .ToList();
-
-            if (alreadyAssignedIds.Any())
-            {
+            var assignedIds = (await _unitOfWork.BusinessLocations.GetAssignedEmployeeIdsAsync(locationId)).ToHashSet();
+            var alreadyAssigned = validationResult.ValidEmployeeIds.Where(id => assignedIds.Contains(id)).ToList();
+            if (alreadyAssigned.Any())
                 throw new BadRequestException(
                     MessageKeys.EmployeesAlreadyAssigned,
-                    new { alreadyAssignedEmployeeIds = alreadyAssignedIds }
-                );
-            }
+                    new { alreadyAssignedEmployeeIds = alreadyAssigned });
 
-            // All employees are valid and not assigned - batch create assignments
             foreach (var employeeId in validationResult.ValidEmployeeIds)
             {
-                var employeeAssignment = new UserLocationAssignment
+                await _unitOfWork.BusinessLocations.AddUserLocationAssignmentAsync(new UserLocationAssignment
                 {
                     UserId = employeeId,
                     BusinessLocationId = locationId,
                     IsOwner = false,
                     IsActive = true
-                };
-                await _unitOfWork.BusinessLocations.AddUserLocationAssignmentAsync(employeeAssignment);
+                });
             }
         }
 

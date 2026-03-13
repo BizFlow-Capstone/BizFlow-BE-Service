@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Location;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Interfaces.Repositories
@@ -7,24 +8,21 @@ namespace BizFlow.Application.Interfaces.Repositories
         // ============ Query Methods ============
 
         /// <summary>
-        /// Get all locations owned by a user (is_owner = true)
+        /// Get locations by user with owner name — eliminates N+1.
+        /// isOwner = true  → owned locations
+        /// isOwner = false → work (employee) locations
         /// </summary>
-        Task<IEnumerable<BusinessLocation>> GetOwnedByUserIdAsync(Guid userId);
+        Task<IEnumerable<BusinessLocationDto>> GetLocationsByUserAsync(Guid userId, bool isOwner);
 
         /// <summary>
-        /// Get all locations where user works at (is_owner = false)
-        /// </summary>
-        Task<IEnumerable<BusinessLocation>> GetWorkLocationsByUserIdAsync(Guid userId);
-
-        /// <summary>
-        /// Get location by ID
+        /// Get location by ID (non-deleted only)
         /// </summary>
         Task<BusinessLocation?> GetByIdAsync(int id);
 
         /// <summary>
-        /// Get location by ID with owner info
+        /// Get location detail with owner name and employee count (non-deleted only)
         /// </summary>
-        Task<(BusinessLocation? Location, string? OwnerName)> GetByIdWithOwnerAsync(int id);
+        Task<BusinessLocationDetailDto?> GetLocationDetailByIdAsync(int locationId);
 
         /// <summary>
         /// Check if user is owner of specific location
@@ -51,21 +49,21 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId);
 
+        /// <summary>
+        /// Check if location has any related data (products, imports, employee assignments)
+        /// </summary>
+        Task<bool> HasRelatedDataAsync(int locationId);
+
         // ============ Command Methods ============
 
-        /// <summary>
-        /// Add a new location
-        /// </summary>
         Task<BusinessLocation> AddAsync(BusinessLocation location);
-
-        /// <summary>
-        /// Update a location
-        /// </summary>
         void Update(BusinessLocation location);
+        void Delete(BusinessLocation location);
+        Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
 
         /// <summary>
-        /// Add user location assignment
+        /// Deactivate employee assignment from location
         /// </summary>
-        Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
+        Task RemoveEmployeeFromLocationAsync(int locationId, Guid employeeId);
     }
 }
