@@ -92,7 +92,7 @@ namespace BizFlow.Infrastructure.Repositories
                 {
                     UserId = ula.UserId.ToString(),
                     UserName = profile.FullName,
-                    Phone = account.Phone
+                    Phone = account.Credentials.Where(c => c.AccountId == account.AccountId && c.Type == "phone").Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
                 }
             ).ToListAsync();
 
