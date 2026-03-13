@@ -1,3 +1,4 @@
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Models;
 
 namespace BizFlow.Application.Interfaces.Services
@@ -12,9 +13,9 @@ namespace BizFlow.Application.Interfaces.Services
         /// Validate and upload an image. Throws BadRequestException on validation failure or upload error.
         /// </summary>
         /// <param name="fileStream">Image file stream</param>
-        /// <param name="fileName">Original file name (used for extension validation)</param>
-        /// <param name="folder">Cloudinary folder (e.g. "Products", "Imports")</param>
+        /// <param name="fileName">Original file name (used for extension validation). If null/empty, default name is used.</param>
+        /// <param name="target">Upload target used to resolve Cloudinary preset key.</param>
         /// <returns>Upload info with URL and PublicId</returns>
-        Task<ImageUploadInfo> UploadImageAsync(Stream fileStream, string fileName, string folder);
+        Task<ImageUploadInfo> UploadImageAsync(Stream fileStream, string? fileName, ImageUploadTarget target);
     }
 }

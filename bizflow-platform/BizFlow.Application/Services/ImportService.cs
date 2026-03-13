@@ -14,12 +14,14 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IImageService _imageService;
+        private readonly IStockMovementService _stockMovementService;
         private readonly IMapper _mapper;
 
-        public ImportService(IUnitOfWork unitOfWork, IImageService imageService, IMapper mapper)
+        public ImportService(IUnitOfWork unitOfWork, IImageService imageService, IStockMovementService stockMovementService, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
+            _stockMovementService = stockMovementService;
             _mapper = mapper;
         }
 
@@ -64,59 +66,18 @@ namespace BizFlow.Application.Services
 
             var status = request.SaveAsDraft ? ImportStatus.Draft : ImportStatus.Confirmed;
 
-            var import = new Import
-            {
-                ImportCode = importCode,
-                ImportType = request.ImportType,
-                Status = status,
-                BusinessLocationId = request.BusinessLocationId,
-                Supplier = request.Supplier,
-                Note = request.Note,
-                ReceivedAt = request.SaveAsDraft ? null : request.ReceivedAt,
-                TotalAmount = totalAmount,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = request.SaveAsDraft ? null : DateTime.UtcNow
-            };
-
-            // Upload image if provided
-            if (request.ImageStream != null)
-            {
-                var imageInfo = await _imageService.UploadImageAsync(request.ImageStream, request.ImageFileName ?? "image", "Imports");
-                import.ImageUrl = imageInfo.Url;
-                import.ImagePublicId = imageInfo.PublicId;
-            }
-
-            try
-            {
-                await _unitOfWork.Imports.AddAsync(import);
-                await _unitOfWork.SaveChangesAsync();
-
-                // Add items after import is saved (FK ImportId)
-                foreach (var item in items)
-                    item.ImportId = import.ImportId;
-
-                import.ProductsImports = items;
-
-                // If CONFIRMED → update stock immediately
-                if (!request.SaveAsDraft)
-                {
-                    foreach (var item in items)
-                    {
-                        var product = await _unitOfWork.Products.GetByIdAsync(item.ProductId);
-                        if (product == null)
-                            throw new NotFoundException(MessageKeys.ImportProductNotFound);
-
-                        product.Stock = product.Stock + item.Quantity;
-                        _unitOfWork.Products.Update(product);
-                    }
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            var import = await CreateImportRecordAsync(
+                importType: request.ImportType,
+                status: status,
+                businessLocationId: request.BusinessLocationId,
+                items: items,
+                totalAmount: totalAmount,
+                supplier: request.Supplier,
+                note: request.Note,
+                receivedAt: request.SaveAsDraft ? null : request.ReceivedAt,
+                imageStream: request.ImageStream,
+                imageFileName: request.ImageFileName,
+                applyToStock: !request.SaveAsDraft);
 
             var result = _mapper.Map<ImportSummaryDto>(import);
             result.BusinessLocationName = location.LocationName;
@@ -155,7 +116,7 @@ namespace BizFlow.Application.Services
             if (request.ImageStream != null)
             {
                 var imageInfo = await _imageService.UploadImageAsync(
-                    request.ImageStream, request.ImageFileName ?? "image", "Imports");
+                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Imports);
                 import.ImageUrl = imageInfo.Url;
                 import.ImagePublicId = imageInfo.PublicId;
             }
@@ -202,16 +163,8 @@ namespace BizFlow.Application.Services
             if (!request.ReceivedAt.HasValue)
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
 
-            // Add quantity to product stock
-            foreach (var item in import.ProductsImports)
-            {
-                var product = item.Product;
-                if (product == null)
-                    throw new NotFoundException(MessageKeys.ImportProductNotFound);
-
-                product.Stock = product.Stock + item.Quantity;
-                _unitOfWork.Products.Update(product);
-            }
+            // Add quantity to product stock and update CostPrice
+            await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId);
 
             import.ReceivedAt = request.ReceivedAt;
             import.Status = ImportStatus.Confirmed;
@@ -258,6 +211,56 @@ namespace BizFlow.Application.Services
             return _mapper.Map<ImportDetailDto>(import);
         }
 
+        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice)
+        {
+            if (quantity <= 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var import = new Import
+            {
+                ImportCode = GenerateImportCode(),
+                ImportType = ImportType.InventoryAdjustment,
+                Status = ImportStatus.Confirmed,
+                BusinessLocationId = businessLocationId,
+                TotalAmount = quantity * costPrice,
+                CreatedAt = DateTime.UtcNow,
+                ConfirmedAt = DateTime.UtcNow,
+                ReceivedAt = DateTime.UtcNow
+            };
+
+            var product = await _unitOfWork.Products.GetByIdAsync(productId);
+            if (product == null)
+                throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+            var items = new List<ProductImport>
+            {
+                new ProductImport
+                {
+                    ProductId = productId,
+                    Quantity = quantity,
+                    CostPrice = costPrice,
+                    TotalPrice = quantity * costPrice,
+                    BaseUnit = product.Unit,
+                    CreatedAt = DateTime.UtcNow
+                }
+            };
+
+            import = await CreateImportRecordAsync(
+                importType: ImportType.InventoryAdjustment,
+                status: ImportStatus.Confirmed,
+                businessLocationId: businessLocationId,
+                items: items,
+                totalAmount: quantity * costPrice,
+                supplier: null,
+                note: null,
+                receivedAt: DateTime.UtcNow,
+                imageStream: null,
+                imageFileName: null,
+                applyToStock: false);
+
+            return import.ImportId;
+        }
+
         // =========================================================
         // 7. Delete Import
         // =========================================================
@@ -273,16 +276,8 @@ namespace BizFlow.Application.Services
 
             if (import.Status == ImportStatus.Confirmed)
             {
-                // Soft cancel: reverse stock, mark as CANCELLED (keep the record)
-                foreach (var item in import.ProductsImports)
-                {
-                    var product = item.Product;
-                    if (product != null)
-                    {
-                        product.Stock = Math.Max(0, product.Stock - item.Quantity);
-                        _unitOfWork.Products.Update(product);
-                    }
-                }
+                // Soft cancel: reverse stock + CostPrice, mark as CANCELLED
+                await RevertImportFromProductsAsync(import.ProductsImports, import.ImportId);
 
                 import.Status = ImportStatus.Cancelled;
                 import.UpdatedAt = DateTime.UtcNow;
@@ -301,9 +296,117 @@ namespace BizFlow.Application.Services
         // Helpers
         // =========================================================
 
+        /// <summary>
+        /// Apply confirmed import: add stock + update CostPrice to latest import price
+        /// </summary>
+        private async Task ApplyImportToProductsAsync(ICollection<ProductImport> items, long importId)
+        {
+            foreach (var item in items)
+            {
+                var product = item.Product ?? await _unitOfWork.Products.GetByIdAsync(item.ProductId);
+                if (product == null)
+                    throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+                product.Stock += item.Quantity;
+                product.CostPrice = item.CostPrice;
+
+                var movement = _stockMovementService.CreateStockMovement(
+                    product,
+                    StockMovementType.In,
+                    item.Quantity,
+                    StockMovementReferenceType.Import,
+                    importId);
+                product.StockMovements.Add(movement);
+
+                _unitOfWork.Products.Update(product);
+            }
+        }
+
+        /// <summary>
+        /// Revert cancelled import: subtract stock + restore CostPrice from previous confirmed import
+        /// </summary>
+        private async Task RevertImportFromProductsAsync(ICollection<ProductImport> items, long importId)
+        {
+            foreach (var item in items)
+            {
+                var product = item.Product ?? await _unitOfWork.Products.GetByIdAsync(item.ProductId);
+                if (product == null) continue;
+
+                var previousStock = product.Stock;
+                product.Stock = Math.Max(0, product.Stock - item.Quantity);
+                var actualOut = previousStock - product.Stock;
+
+                var movement = _stockMovementService.CreateStockMovement(
+                    product,
+                    StockMovementType.Out,
+                    -actualOut,
+                    StockMovementReferenceType.Import,
+                    importId);
+                product.StockMovements.Add(movement);
+
+                // Restore CostPrice to the latest remaining confirmed import's price
+                var previousCostPrice = await _unitOfWork.Products
+                    .GetLatestCostPriceFromImportsAsync(item.ProductId, importId);
+                product.CostPrice = previousCostPrice ?? 0;
+
+                _unitOfWork.Products.Update(product);
+            }
+        }
+
         private static string GenerateImportCode()
         {
             return Guid.NewGuid().ToString("N")[..12].ToUpper();
+        }
+
+        private async Task<Import> CreateImportRecordAsync(
+            string importType,
+            string status,
+            int businessLocationId,
+            List<ProductImport> items,
+            decimal totalAmount,
+            string? supplier,
+            string? note,
+            DateTime? receivedAt,
+            Stream? imageStream,
+            string? imageFileName,
+            bool applyToStock)
+        {
+            var import = new Import
+            {
+                ImportCode = GenerateImportCode(),
+                ImportType = importType,
+                Status = status,
+                BusinessLocationId = businessLocationId,
+                Supplier = supplier,
+                Note = note,
+                ReceivedAt = receivedAt,
+                TotalAmount = totalAmount,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = status == ImportStatus.Draft ? null : DateTime.UtcNow,
+                ConfirmedAt = status == ImportStatus.Confirmed ? DateTime.UtcNow : null
+            };
+
+            if (imageStream != null)
+            {
+                var imageInfo = await _imageService.UploadImageAsync(imageStream, imageFileName, ImageUploadTarget.Imports);
+                import.ImageUrl = imageInfo.Url;
+                import.ImagePublicId = imageInfo.PublicId;
+            }
+
+            await _unitOfWork.Imports.AddAsync(import);
+            await _unitOfWork.SaveChangesAsync();
+
+            foreach (var item in items)
+                item.ImportId = import.ImportId;
+
+            import.ProductsImports = items;
+
+            if (applyToStock)
+                await ApplyImportToProductsAsync(items, import.ImportId);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return import;
         }
 
         private async Task<(List<ProductImport> items, decimal totalAmount)> BuildImportItemsAsync(

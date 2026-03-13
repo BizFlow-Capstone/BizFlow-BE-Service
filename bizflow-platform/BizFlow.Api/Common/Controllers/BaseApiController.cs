@@ -35,6 +35,20 @@ namespace BizFlow.Api.Common.Controllers
         }
 
         /// <summary>
+        /// 200 OK with data and warnings
+        /// </summary>
+        protected IActionResult Ok<T>(T data, string messageKey, List<string>? warnings)
+        {
+            var response = ApiResponse<T>.SuccessResponse(
+                data,
+                messageKey,
+                MessageService.GetMessage(messageKey)
+            );
+            response.Warnings = warnings?.Select(w => MessageService.GetMessage(w)).ToList();
+            return base.Ok(response);
+        }
+
+        /// <summary>
         /// 200 OK with data, params and message
         /// </summary>
         protected IActionResult Ok<T>(T data, string messageKey, params object[] args)
@@ -69,6 +83,20 @@ namespace BizFlow.Api.Common.Controllers
                 messageKey,
                 MessageService.GetMessage(messageKey)
             );
+            return CreatedAtAction(actionName, routeValues, response);
+        }
+
+        /// <summary>
+        /// 201 Created with warnings
+        /// </summary>
+        protected IActionResult Created<T>(T data, string messageKey, string actionName, object routeValues, List<string>? warnings)
+        {
+            var response = ApiResponse<T>.SuccessResponse(
+                data,
+                messageKey,
+                MessageService.GetMessage(messageKey)
+            );
+            response.Warnings = warnings?.Select(w => MessageService.GetMessage(w)).ToList();
             return CreatedAtAction(actionName, routeValues, response);
         }
 

@@ -30,6 +30,11 @@ public partial class Product
     public decimal CostPrice { get; set; }
 
     /// <summary>
+    /// Giá bán theo base unit
+    /// </summary>
+    public decimal SellingPrice { get; set; }
+
+    /// <summary>
     /// Quantity in stock
     /// </summary>
     public int Stock { get; set; }

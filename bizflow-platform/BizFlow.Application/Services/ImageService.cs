@@ -46,11 +46,17 @@ namespace BizFlow.Application.Services
             }
         }
 
-        public async Task<ImageUploadInfo> UploadImageAsync(Stream fileStream, string fileName, string folder)
+        public async Task<ImageUploadInfo> UploadImageAsync(Stream fileStream, string? fileName, ImageUploadTarget target)
         {
-            ValidateImage(fileStream, fileName);
+            var safeFileName = string.IsNullOrWhiteSpace(fileName)
+                ? ImageUploadConstants.DefaultFileName
+                : fileName;
 
-            var uploadResult = await _cloudinaryService.UploadImageAsync(fileStream, fileName, folder);
+            var presetKey = ImageUploadConstants.GetPresetKey(target);
+
+            ValidateImage(fileStream, safeFileName);
+
+            var uploadResult = await _cloudinaryService.UploadImageAsync(fileStream, safeFileName, presetKey);
 
             if (!uploadResult.Success)
             {
