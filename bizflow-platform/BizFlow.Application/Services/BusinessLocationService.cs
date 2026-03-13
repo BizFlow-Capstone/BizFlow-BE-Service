@@ -94,7 +94,9 @@ namespace BizFlow.Application.Services
                     UserId = userId,
                     BusinessLocationId = created.BusinessLocationId,
                     IsOwner = true,
-                    IsActive = true
+                    IsActive = true,
+                    AssignedAt = DateTime.UtcNow,
+                    UnassignedAt = null
                 };
                 await _unitOfWork.BusinessLocations.AddUserLocationAssignmentAsync(ownerAssignment);
 
@@ -234,7 +236,9 @@ namespace BizFlow.Application.Services
                     UserId = employeeId,
                     BusinessLocationId = locationId,
                     IsOwner = false,
-                    IsActive = true
+                    IsActive = true,
+                    AssignedAt = DateTime.UtcNow,
+                    UnassignedAt = null
                 });
             }
         }

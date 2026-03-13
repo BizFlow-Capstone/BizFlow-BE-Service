@@ -210,14 +210,20 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task RemoveEmployeeFromLocationAsync(int locationId, Guid employeeId)
         {
             var assignment = await _context.UserLocationAssignments
-                .FirstOrDefaultAsync(ula =>
+                .Where(ula =>
                     ula.BusinessLocationId == locationId &&
                     ula.UserId == employeeId &&
                     !ula.IsOwner &&
-                    ula.IsActive == true);
+                    ula.IsActive == true)
+                .OrderByDescending(ula => ula.AssignedAt)
+                .ThenByDescending(ula => ula.UserLocationAssignmentId)
+                .FirstOrDefaultAsync();
 
             if (assignment != null)
+            {
                 assignment.IsActive = false;
+                assignment.UnassignedAt = DateTime.UtcNow;
+            }
         }
 
         #endregion

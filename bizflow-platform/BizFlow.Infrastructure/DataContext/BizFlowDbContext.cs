@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using BizFlow.Domain.Entities;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
 namespace BizFlow.Infrastructure.DataContext;
@@ -498,7 +498,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.SellingPrice)
                 .HasPrecision(15, 2)
-                .HasComment("Giá bán theo base unit");
+                .HasComment("GiÃ¡ bÃ¡n theo base unit");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
                 .HasComment("Stock Keeping Unit code");
@@ -743,13 +743,20 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.UserId, "idx_user_location_assignment_user");
 
-            entity.HasIndex(e => new { e.UserId, e.BusinessLocationId }, "idx_user_location_unique").IsUnique();
+            entity.HasIndex(e => new { e.UserId, e.BusinessLocationId }, "idx_user_location_lookup");
 
+            entity.Property(e => e.AssignedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("When employee/user was assigned to location")
+                .HasColumnType("datetime");
             entity.Property(e => e.BusinessLocationId).HasComment("Assigned location");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'");
             entity.Property(e => e.IsOwner).HasComment("Is the owner of this location");
+            entity.Property(e => e.UnassignedAt)
+                .HasComment("When employee/user was removed from location")
+                .HasColumnType("datetime");
             entity.Property(e => e.UserId).HasComment("Assigned user");
 
             entity.HasOne(d => d.BusinessLocation).WithMany(p => p.UserLocationAssignments)

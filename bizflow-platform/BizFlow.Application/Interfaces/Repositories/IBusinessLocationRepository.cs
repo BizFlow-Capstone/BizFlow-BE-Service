@@ -62,7 +62,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment);
 
         /// <summary>
-        /// Deactivate employee assignment from location
+        /// Deactivate employee assignment from location and stamp unassignment time
         /// </summary>
         Task RemoveEmployeeFromLocationAsync(int locationId, Guid employeeId);
     }
