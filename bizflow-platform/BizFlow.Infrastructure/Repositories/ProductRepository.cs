@@ -59,6 +59,7 @@ namespace BizFlow.Infrastructure.Repositories
             var items = await _dbContext.Products
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
+                .Include(p => p.BusinessType)
                 .Where(p => ids.Contains(p.ProductId))
                 .OrderByDescending(p => p.ProductId) 
                 .ToListAsync();
@@ -78,6 +79,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(p => p.ProductId == productId)
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
+                .Include(p => p.BusinessType)
                 .FirstOrDefaultAsync();
         }
 
@@ -88,6 +90,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .Include(p => p.SaleItems)
                     .ThenInclude(s => s.ProductPricePolicies)
                 .Include(p => p.BusinessLocation)
+                .Include(p => p.BusinessType)
                 .FirstOrDefaultAsync();
         }
 

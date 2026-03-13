@@ -12,17 +12,20 @@ namespace BizFlow.Application.Mappers
 
             // Product → ProductDetailDto
             CreateMap<Product, ProductDetailDto>()
+                .IncludeBase<Product, ProductSummaryDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
                 .ForMember(dest => dest.BusinessLocationName, opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.LocationName : ""))
                 .ForMember(dest => dest.TrackInventory, opt => opt.MapFrom(src => src.TrackInventory ?? true))
                 .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.ImageUrl))
                 .ForMember(dest => dest.SaleItems, opt => opt.MapFrom(src => src.SaleItems));
 
-            // Product → ProductListItemDto
-            CreateMap<Product, ProductListItemDto>()
+            // Product → ProductSummaryDto
+            CreateMap<Product, ProductSummaryDto>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
                 .ForMember(dest => dest.TrackInventory, opt => opt.MapFrom(src => src.TrackInventory ?? true))
                 .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.ImageUrl))
+                .ForMember(dest => dest.BusinessTypeId, opt => opt.MapFrom(src => src.BusinessTypeId))
+                .ForMember(dest => dest.BusinessTypeName, opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : ""))
                 .ForMember(dest => dest.Stock, opt => opt.MapFrom(src =>
                     (src.TrackInventory ?? true) ? src.Stock : (int?)null))
                 .ForMember(dest => dest.Price, opt => opt.MapFrom(src =>

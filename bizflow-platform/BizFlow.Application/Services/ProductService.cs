@@ -35,20 +35,20 @@ namespace BizFlow.Application.Services
             _mapper = mapper;
         }
 
-        public async Task<PaginatedResponse<ProductListItemDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
+        public async Task<PaginatedResponse<ProductSummaryDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
         {
             // Validate access (owner or employee, blocks employee when inactive — RULE-LOC-07)
             await ValidateProductAccessAsync(userId, query.LocationId);
 
             var (products, totalCount) = await _unitOfWork.Products.SearchAsync(query);
 
-            var items = products.Select(p => _mapper.Map<ProductListItemDto>(p)).ToList();
+            var items = products.Select(p => _mapper.Map<ProductSummaryDto>(p)).ToList();
 
             // Use values with fallback (should be set by controller)
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 10;
 
-            return new PaginatedResponse<ProductListItemDto>(items, totalCount, pageNumber, pageSize);
+            return new PaginatedResponse<ProductSummaryDto>(items, totalCount, pageNumber, pageSize);
         }
 
         public async Task<ProductDetailDto?> GetProductDetailAsync(Guid userId, long productId)
@@ -77,7 +77,7 @@ namespace BizFlow.Application.Services
             return _mapper.Map<ProductSaleItemsResponseDto>(product);
         }
 
-        public async Task<(ProductListItemDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request)
+        public async Task<(ProductSummaryDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request)
         {
             // 1. Validate
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, request.LocationId);
@@ -111,10 +111,12 @@ namespace BizFlow.Application.Services
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            return (_mapper.Map<ProductListItemDto>(product), warnings);
+            var created = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
+
+            return (_mapper.Map<ProductSummaryDto>(created), warnings);
         }
 
-        public async Task<(ProductListItemDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request)
+        public async Task<(ProductSummaryDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request)
         {
             var product = await _unitOfWork.Products.GetByIdWithSaleItemsAsync(productId);
             if (product == null)
@@ -162,7 +164,10 @@ namespace BizFlow.Application.Services
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
 
-            return (_mapper.Map<ProductListItemDto>(product), warnings);
+
+            var updated = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
+
+            return (_mapper.Map<ProductSummaryDto>(updated), warnings);
         }
 
         public async Task UpdateProductStatusAsync(Guid userId, long productId, string status)
