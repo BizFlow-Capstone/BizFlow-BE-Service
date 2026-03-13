@@ -10,6 +10,7 @@ namespace BizFlow.Application.DTOs.Product
         public string? Sku { get; set; }
         public string? ImageUrl { get; set; }
         public string Unit { get; set; } = null!;
+        public decimal SellingPrice { get; set; }
         public decimal CostPrice { get; set; }
         public int Stock { get; set; }
         public string? Manufacturer { get; set; }

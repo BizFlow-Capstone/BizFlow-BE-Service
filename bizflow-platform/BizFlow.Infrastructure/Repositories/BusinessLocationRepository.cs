@@ -137,7 +137,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId)
+        public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string? Phone)>> GetEmployeesByLocationIdAsync(int locationId)
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
@@ -157,9 +157,9 @@ namespace BizFlow.Infrastructure.Repositories
                             .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
                         Phone = _context.Credentials
                             .Where(c => c.AccountId == account.AccountId && c.Type == "phone")
-                            .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty
+                            .Select(c => c.Identifier).FirstOrDefault()
                     })
-                .Select(x => new ValueTuple<Guid, string, string, string>(x.ProfileId, x.FullName, x.Email, x.Phone))
+                .Select(x => new ValueTuple<Guid, string, string, string?>(x.ProfileId, x.FullName, x.Email, x.Phone))
                 .ToListAsync();
         }
 

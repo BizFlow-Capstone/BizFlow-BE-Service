@@ -496,6 +496,9 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.ImagePublicId).HasComment("Cloudinary public ID for image deletion");
             entity.Property(e => e.ImageUrl).HasMaxLength(500);
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
+            entity.Property(e => e.SellingPrice)
+                .HasPrecision(15, 2)
+                .HasComment("Giá bán theo base unit");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
                 .HasComment("Stock Keeping Unit code");

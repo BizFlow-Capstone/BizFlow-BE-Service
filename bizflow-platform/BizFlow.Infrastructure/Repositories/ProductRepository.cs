@@ -5,6 +5,7 @@ using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 using BizFlow.Application.Specifications.Products;
 using BizFlow.Infrastructure.Specifications;
+using BizFlow.Domain.Enums;
 
 namespace BizFlow.Infrastructure.Repositories
 {
@@ -90,6 +91,17 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync();
         }
 
+        public async Task<Product?> FindBySkuInLocationAsync(int locationId, string sku, long? excludeProductId)
+        {
+            var query = _dbContext.Products
+                .Where(p => p.BusinessLocationId == locationId && p.Sku == sku);
+
+            if (excludeProductId.HasValue)
+                query = query.Where(p => p.ProductId != excludeProductId.Value);
+
+            return await query.FirstOrDefaultAsync();
+        }
+
 
 
         // ============ Command Methods ============
@@ -152,6 +164,37 @@ namespace BizFlow.Infrastructure.Repositories
             //     .AnyAsync(s => s.OrderDetails.Any());
             
             return false; 
+        }
+
+        public async Task<List<CostPriceHistoryItemDto>> GetCostPriceHistoryAsync(long productId)
+        {
+            return await _dbContext.ProductsImports
+                .Where(pi => pi.ProductId == productId
+                    && pi.Import.Status == ImportStatus.Confirmed)
+                .OrderByDescending(pi => pi.Import.ReceivedAt ?? pi.Import.CreatedAt)
+                .Select(pi => new CostPriceHistoryItemDto
+                {
+                    ImportId = pi.ImportId,
+                    ImportCode = pi.Import.ImportCode,
+                    CostPrice = pi.CostPrice,
+                    Quantity = pi.Quantity,
+                    TotalPrice = pi.TotalPrice,
+                    Supplier = pi.Import.Supplier,
+                    ReceivedAt = pi.Import.ReceivedAt,
+                    CreatedAt = pi.CreatedAt
+                })
+                .ToListAsync();
+        }
+
+        public async Task<decimal?> GetLatestCostPriceFromImportsAsync(long productId, long excludeImportId)
+        {
+            return await _dbContext.ProductsImports
+                .Where(pi => pi.ProductId == productId
+                    && pi.ImportId != excludeImportId
+                    && pi.Import.Status == ImportStatus.Confirmed)
+                .OrderByDescending(pi => pi.Import.ReceivedAt ?? pi.Import.CreatedAt)
+                .Select(pi => (decimal?)pi.CostPrice)
+                .FirstOrDefaultAsync();
         }
     }
 }

@@ -75,6 +75,7 @@ namespace BizFlow.Application.Common.Constants
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
+        public const string ProductDuplicateSku = "PRODUCT_DUPLICATE_SKU";
         public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
         public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
 

@@ -37,6 +37,13 @@ namespace BizFlow.Application.Interfaces.Services
         Task<ImportDetailDto> GetImportDetailAsync(Guid userId, long importId);
 
         /// <summary>
+        /// Create a confirmed inventory-adjustment import with one item.
+        /// Used by Product flow when stock is initialized/increased directly.
+        /// Returns created ImportId.
+        /// </summary>
+        Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice);
+
+        /// <summary>
         /// Delete import.
         /// DRAFT → hard-delete directly.
         /// CONFIRMED → subtract stock per item, then hard-delete.

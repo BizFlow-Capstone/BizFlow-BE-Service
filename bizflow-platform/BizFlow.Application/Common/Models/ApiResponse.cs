@@ -15,6 +15,7 @@ namespace BizFlow.Application.Common.Models
         public string MessageCode { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
         public object? Errors { get; set; }
+        public List<string>? Warnings { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
         public static ApiResponse SuccessResponse(string messageCode, string message)

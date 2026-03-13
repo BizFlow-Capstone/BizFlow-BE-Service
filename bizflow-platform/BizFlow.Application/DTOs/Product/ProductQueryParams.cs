@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using BizFlow.Application.Common.Models;
 
 namespace BizFlow.Application.DTOs.Product
@@ -9,26 +10,33 @@ namespace BizFlow.Application.DTOs.Product
     /// </summary>
     public class ProductQueryParams : PaginationParams
     {
-        // Required
+        [Required]
+        [Range(1, int.MaxValue)]
         public int LocationId { get; set; }
 
         // ============ SEARCH ============
         /// <summary>
-        /// Search by product name (contains, case-insensitive)
+        /// Unified search keyword — matches product name OR SKU (contains, case-insensitive).
+        /// Use this for a single search box on FE.
+        /// </summary>
+        public string? Search { get; set; }
+
+        /// <summary>
+        /// Filter by product name only (contains, case-insensitive)
         /// </summary>
         public string? Name { get; set; }
 
         /// <summary>
-        /// Search by SKU (exact or contains)
+        /// Filter by SKU only (contains)
         /// </summary>
         public string? Sku { get; set; }
 
         // ============ FILTER ============
         /// <summary>
-        /// Filter by cost price range
+        /// Filter by selling price range
         /// </summary>
-        public decimal? MinCostPrice { get; set; }
-        public decimal? MaxCostPrice { get; set; }
+        public decimal? MinSellingPrice { get; set; }
+        public decimal? MaxSellingPrice { get; set; }
 
         /// <summary>
         /// Filter by stock quantity range
@@ -48,7 +56,7 @@ namespace BizFlow.Application.DTOs.Product
 
         // ============ ADD MORE FILTERS HERE ============
         // Example: public string? Manufacturer { get; set; }
-        // Example: public Guid? BusinessTypeId { get; set; }
+         public Guid? BusinessTypeId { get; set; }
     }
 }
 

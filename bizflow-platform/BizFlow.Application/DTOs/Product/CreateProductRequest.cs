@@ -12,6 +12,7 @@ namespace BizFlow.Application.DTOs.Product
     public class CreateProductRequest
     {
         [Required]
+        [Range(1, int.MaxValue)]
         public int LocationId { get; set; }
 
         [Required]
@@ -29,6 +30,9 @@ namespace BizFlow.Application.DTOs.Product
         [Required]
         [MaxLength(50)]
         public string Unit { get; set; } = null!;
+
+        [Range(0, double.MaxValue)]
+        public decimal SellingPrice { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal CostPrice { get; set; }

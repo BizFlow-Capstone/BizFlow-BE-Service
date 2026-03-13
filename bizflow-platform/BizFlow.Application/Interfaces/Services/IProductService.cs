@@ -23,21 +23,26 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Create a new product
         /// </summary>
-        Task<ProductListItemDto> CreateProductAsync(Guid userId, CreateProductRequest request);
+        Task<(ProductListItemDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request);
 
         /// <summary>
         /// Update an existing product
         /// </summary>
-        Task<ProductListItemDto> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request);
+        Task<(ProductListItemDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request);
 
         /// <summary>
         /// Update product status
         /// </summary>
-        Task<bool> UpdateProductStatusAsync(Guid userId, long productId, string status);
+        Task UpdateProductStatusAsync(Guid userId, long productId, string status);
 
         /// <summary>
-        /// Delete product (soft delete, only if not in business)
+        /// Delete product (soft/hard delete based on history)
         /// </summary>
-        Task<bool> DeleteProductAsync(Guid userId, long productId);
+        Task DeleteProductAsync(Guid userId, long productId);
+
+        /// <summary>
+        /// Get cost price history for a product (owner only)
+        /// </summary>
+        Task<CostPriceHistoryDto> GetCostPriceHistoryAsync(Guid userId, long productId);
     }
 }
