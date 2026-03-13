@@ -29,6 +29,7 @@ namespace BizFlow.Infrastructure.Repositories
                 join loc in _context.BusinessLocations
                     on ula.BusinessLocationId equals loc.BusinessLocationId
                 where loc.DeletedAt == null
+                      && (isOwner || loc.IsActive == true) // RULE-LOC-07: Employee only sees active locations
                 join ownerUla in _context.UserLocationAssignments
                     on new { loc.BusinessLocationId, IsOwner = true }
                     equals new { ownerUla.BusinessLocationId, ownerUla.IsOwner }

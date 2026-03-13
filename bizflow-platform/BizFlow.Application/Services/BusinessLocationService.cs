@@ -36,10 +36,8 @@ namespace BizFlow.Application.Services
 
         public async Task<BusinessLocationDetailDto> GetLocationDetailAsync(Guid userId, int locationId)
         {
-            // RULE-LOC-05: Owner or assigned Employee can view
-            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
-            if (!hasAccess)
-                throw new ForbiddenException(MessageKeys.Forbidden);
+            // RULE-LOC-05 + RULE-LOC-07: access check + block Employee when inactive
+            await ValidateLocationAccessAsync(userId, locationId);
 
             var detail = await _unitOfWork.BusinessLocations.GetLocationDetailByIdAsync(locationId);
             if (detail == null)
