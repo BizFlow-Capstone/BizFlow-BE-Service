@@ -7,9 +7,9 @@ namespace BizFlow.Application.Interfaces.Services
     {
         StockMovement CreateStockMovement(
             Product product,
-            StockMovementType movementType,
-            int quantity,
+            int quantityDelta,
             StockMovementReferenceType? referenceType,
-            long? referenceId);
+            long? referenceId,
+            string? memo = null);
     }
 }

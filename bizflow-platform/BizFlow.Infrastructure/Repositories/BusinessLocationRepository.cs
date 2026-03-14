@@ -55,6 +55,33 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id && loc.DeletedAt == null);
         }
 
+        public async Task<BusinessLocationDto?> GetLocationDtoByUserAndIdAsync(Guid userId, int locationId)
+        {
+            return await (
+                from ula in _context.UserLocationAssignments
+                where ula.UserId == userId && ula.IsOwner && ula.IsActive == true
+                join loc in _context.BusinessLocations
+                    on ula.BusinessLocationId equals loc.BusinessLocationId
+                where loc.BusinessLocationId == locationId && loc.DeletedAt == null
+                join ownerUla in _context.UserLocationAssignments
+                    on new { loc.BusinessLocationId, IsOwner = true }
+                    equals new { ownerUla.BusinessLocationId, ownerUla.IsOwner }
+                join ownerProfile in _context.Profiles
+                    on ownerUla.UserId equals ownerProfile.ProfileId
+                select new BusinessLocationDto
+                {
+                    Id = loc.BusinessLocationId,
+                    Name = loc.LocationName,
+                    Address = loc.Address,
+                    District = loc.District,
+                    City = loc.City,
+                    Phone = loc.Phone,
+                    IsActive = loc.IsActive ?? false,
+                    OwnerName = ownerProfile.FullName
+                }
+            ).FirstOrDefaultAsync();
+        }
+
         public async Task<BusinessLocationDetailDto?> GetLocationDetailByIdAsync(int locationId)
         {
             var detail = await (

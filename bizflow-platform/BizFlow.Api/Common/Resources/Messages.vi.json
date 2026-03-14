@@ -77,6 +77,8 @@
   "PRODUCT_UPDATED": "Cập nhật sản phẩm thành công",
   "PRODUCT_CANNOT_CHANGE_LOCATION": "Không thể thay đổi địa điểm của sản phẩm sau khi tạo",
   "PRODUCT_INVALID_STATUS": "Giá trị trạng thái không hợp lệ. Chỉ chấp nhận: 'active', 'inactive'",
+  "PRODUCT_INITIAL_STOCK_MEMO": "Tồn kho khởi tạo khi tạo sản phẩm",
+  "PRODUCT_STOCK_UPDATED_ON_UPDATE_MEMO": "Cập nhật tồn kho trong lúc cập nhật sản phẩm",
   "PRODUCT_DUPLICATE_SKU": "SKU này đã tồn tại trong địa điểm kinh doanh",
   "IMPORT_NOT_FOUND": "Không tìm thấy phiếu nhập kho",
   "IMPORT_RETRIEVED": "Lấy danh sách phiếu nhập kho thành công",

@@ -54,6 +54,7 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.BusinessLocationId, opt => opt.MapFrom(src => src.LocationId))
                 .ForMember(dest => dest.ProductId, opt => opt.Ignore())
                 .ForMember(dest => dest.Status, opt => opt.Ignore())
+                .ForMember(dest => dest.Stock, opt => opt.Ignore())
                 .ForMember(dest => dest.DeletedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.ImageUrl, opt => opt.Ignore())
                 .ForMember(dest => dest.ImagePublicId, opt => opt.Ignore())

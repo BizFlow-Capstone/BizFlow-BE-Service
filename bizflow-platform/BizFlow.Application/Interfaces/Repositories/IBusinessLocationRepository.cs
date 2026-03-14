@@ -20,6 +20,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<BusinessLocation?> GetByIdAsync(int id);
 
         /// <summary>
+        /// Get a single location DTO by user + id 
+        /// </summary>
+        Task<BusinessLocationDto?> GetLocationDtoByUserAndIdAsync(Guid userId, int locationId);
+
+        /// <summary>
         /// Get location detail with owner name and employee count (non-deleted only)
         /// </summary>
         Task<BusinessLocationDetailDto?> GetLocationDetailByIdAsync(int locationId);

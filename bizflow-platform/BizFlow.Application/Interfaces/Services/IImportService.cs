@@ -38,10 +38,11 @@ namespace BizFlow.Application.Interfaces.Services
 
         /// <summary>
         /// Create a confirmed inventory-adjustment import with one item.
-        /// Used by Product flow when stock is initialized/increased directly.
+        /// Used by Product flow for stock and/or cost-price adjustments.
+        /// Quantity can be 0 for cost-price-only updates.
         /// Returns created ImportId.
         /// </summary>
-        Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice);
+        Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice, string? memo = null);
 
         /// <summary>
         /// Delete import.

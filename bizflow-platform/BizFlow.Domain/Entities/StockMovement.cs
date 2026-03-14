@@ -33,6 +33,11 @@ public partial class StockMovement
     public long? ReferenceId { get; set; }
 
     /// <summary>
+    /// Manual note/reason for this stock movement
+    /// </summary>
+    public string? Memo { get; set; }
+
+    /// <summary>
     /// Stock balance after this movement
     /// </summary>
     public int BalanceAfter { get; set; }

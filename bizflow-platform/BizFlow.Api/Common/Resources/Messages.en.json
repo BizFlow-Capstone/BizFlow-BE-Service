@@ -77,6 +77,8 @@
   "PRODUCT_UPDATED": "Product updated successfully",
   "PRODUCT_CANNOT_CHANGE_LOCATION": "Cannot change product location after creation",
   "PRODUCT_INVALID_STATUS": "Invalid status value. Allowed values: 'active', 'inactive'",
+  "PRODUCT_INITIAL_STOCK_MEMO": "Initial stock when creating product",
+  "PRODUCT_STOCK_UPDATED_ON_UPDATE_MEMO": "Stock updated during product update",
   "PRODUCT_DUPLICATE_SKU": "A product with this SKU already exists in this location",
   "IMPORT_NOT_FOUND": "Import not found",
   "IMPORT_RETRIEVED": "Imports retrieved successfully",
