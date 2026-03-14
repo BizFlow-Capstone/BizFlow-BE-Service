@@ -36,6 +36,12 @@ namespace BizFlow.Application.Interfaces.Services
         Task UpdateProductStatusAsync(Guid userId, long productId, string status);
 
         /// <summary>
+        /// Manually adjust product stock to a target quantity.
+        /// Increase creates an import + stock movement, decrease creates stock movement only.
+        /// </summary>
+        Task<ProductSummaryDto> AdjustProductStockAsync(Guid userId, long productId, AdjustProductStockRequest request);
+
+        /// <summary>
         /// Delete product (soft/hard delete based on history)
         /// </summary>
         Task DeleteProductAsync(Guid userId, long productId);

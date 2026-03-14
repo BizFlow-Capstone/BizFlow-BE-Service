@@ -1,5 +1,6 @@
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Repositories;
@@ -17,6 +18,7 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationService _locationService;
         private readonly IImportService _importService;
         private readonly IStockMovementService _stockMovementService;
+        private readonly IMessageService _messageService;
         private readonly IMapper _mapper;
 
         public ProductService(
@@ -25,6 +27,7 @@ namespace BizFlow.Application.Services
             IBusinessLocationService locationService,
             IImportService importService,
             IStockMovementService stockMovementService,
+            IMessageService messageService,
             IMapper mapper)
         {
             _unitOfWork = unitOfWork;
@@ -32,8 +35,11 @@ namespace BizFlow.Application.Services
             _locationService = locationService;
             _importService = importService;
             _stockMovementService = stockMovementService;
+            _messageService = messageService;
             _mapper = mapper;
         }
+
+        #region Query Methods
 
         public async Task<PaginatedResponse<ProductSummaryDto>> SearchProductsAsync(Guid userId, ProductQueryParams query)
         {
@@ -77,6 +83,36 @@ namespace BizFlow.Application.Services
             return _mapper.Map<ProductSaleItemsResponseDto>(product);
         }
 
+        public async Task<CostPriceHistoryDto> GetCostPriceHistoryAsync(Guid userId, long productId)
+        {
+            var product = await _unitOfWork.Products.GetByIdAsync(productId);
+            if (product == null)
+            {
+                throw new NotFoundException(MessageKeys.NotFound);
+            }
+
+            // Owner only
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
+            if (!isOwner)
+            {
+                throw new ForbiddenException(MessageKeys.Forbidden);
+            }
+
+            var history = await _unitOfWork.Products.GetCostPriceHistoryAsync(productId);
+
+            return new CostPriceHistoryDto
+            {
+                ProductId = product.ProductId,
+                ProductName = product.ProductName,
+                CurrentCostPrice = product.CostPrice,
+                History = history
+            };
+        }
+
+        #endregion
+
+        #region Command Methods
+
         public async Task<(ProductSummaryDto Product, List<string>? Warnings)> CreateProductAsync(Guid userId, CreateProductRequest request)
         {
             // 1. Validate
@@ -90,6 +126,7 @@ namespace BizFlow.Application.Services
             // 2. Build Product entity graph
             var product = _mapper.Map<Product>(request);
             product.Status = ProductStatus.Active;
+            var initialStock = request.Stock;
 
             BuildSaleItems(product, request);
 
@@ -104,11 +141,21 @@ namespace BizFlow.Application.Services
             await _unitOfWork.Products.AddAsync(product);
             await _unitOfWork.SaveChangesAsync();
 
-            // 4. Record initial stock (creates Import + StockMovement if stock > 0)
-            if (request.Stock > 0)
+            // 4. Record initial stock atomically; if import creation fails, compensate by deleting the product.
+            if (initialStock > 0)
             {
-                await RecordStockChangeAsync(product, request.Stock, request.CostPrice);
-                await _unitOfWork.SaveChangesAsync();
+                try
+                {
+                    var initialStockMemo = _messageService.GetMessage(MessageKeys.ProductInitialStockMemo);
+                    await ApplyStockToTargetAsync(product, initialStock, request.CostPrice, initialStockMemo);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                catch
+                {
+                    _unitOfWork.Products.Delete(product);
+                    await _unitOfWork.SaveChangesAsync();
+                    throw;
+                }
             }
 
             var created = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
@@ -135,6 +182,7 @@ namespace BizFlow.Application.Services
 
             // 2. Capture old stock before updating
             var oldStock = product.Stock;
+            var oldCostPrice = product.CostPrice;
 
             // 3. Update properties from request
             _mapper.Map(request, product);
@@ -156,14 +204,25 @@ namespace BizFlow.Application.Services
             // 5. Reconcile SaleItems
             ReconcileSaleItems(product, request);
 
-            // 6. Handle stock change + Save
+            // 6. Handle stock change — Stock is excluded from the mapper, so product.Stock is still oldStock here.
             var stockDiff = request.Stock - oldStock;
-            if (stockDiff != 0)
-                await RecordStockChangeAsync(product, stockDiff, request.CostPrice);
+            var costPriceChanged = request.CostPrice != oldCostPrice;
+            if (stockDiff != 0 || costPriceChanged)
+            {
+                var updateStockMemo = stockDiff != 0
+                    ? _messageService.GetMessage(MessageKeys.ProductStockUpdatedOnUpdateMemo)
+                    : null;
+
+                await _importService.CreateInventoryAdjustmentImportAsync(
+                    product.BusinessLocationId,
+                    product.ProductId,
+                    stockDiff,
+                    request.CostPrice,
+                    updateStockMemo);
+            }
 
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
-
 
             var updated = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
 
@@ -195,6 +254,31 @@ namespace BizFlow.Application.Services
             product.Status = normalizedStatus;
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task<ProductSummaryDto> AdjustProductStockAsync(Guid userId, long productId, AdjustProductStockRequest request)
+        {
+            var product = await _unitOfWork.Products.GetByIdWithDetailsAsync(productId);
+            if (product == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
+            if (!isOwner)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            if (request.Stock == product.Stock)
+                return _mapper.Map<ProductSummaryDto>(product);
+
+            var costPriceForIncrease = request.CostPrice ?? product.CostPrice;
+            var memo = string.IsNullOrWhiteSpace(request.Memo) ? null : request.Memo.Trim();
+
+            await ApplyStockToTargetAsync(product, request.Stock, costPriceForIncrease, memo);
+
+            _unitOfWork.Products.Update(product);
+            await _unitOfWork.SaveChangesAsync();
+
+            var updated = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
+            return _mapper.Map<ProductSummaryDto>(updated);
         }
 
         public async Task DeleteProductAsync(Guid userId, long productId)
@@ -234,31 +318,7 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
         }
 
-        public async Task<CostPriceHistoryDto> GetCostPriceHistoryAsync(Guid userId, long productId)
-        {
-            var product = await _unitOfWork.Products.GetByIdAsync(productId);
-            if (product == null)
-            {
-                throw new NotFoundException(MessageKeys.NotFound);
-            }
-
-            // Owner only
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
-            if (!isOwner)
-            {
-                throw new ForbiddenException(MessageKeys.Forbidden);
-            }
-
-            var history = await _unitOfWork.Products.GetCostPriceHistoryAsync(productId);
-
-            return new CostPriceHistoryDto
-            {
-                ProductId = product.ProductId,
-                ProductName = product.ProductName,
-                CurrentCostPrice = product.CostPrice,
-                History = history
-            };
-        }
+        #endregion
 
         #region Private Helpers
 
@@ -311,7 +371,7 @@ namespace BizFlow.Application.Services
             }
         }
 
-        private static void ReconcileSaleItems(Product product, CreateProductRequest request)
+        private static void ReconcileSaleItems(Product product, UpdateProductRequest request)
         {
             var expectedSaleItems = new List<(string Unit, int Quantity, decimal Price)>
             {
@@ -368,36 +428,47 @@ namespace BizFlow.Application.Services
         }
 
         /// <summary>
-        /// Records stock change: creates Import (for increase) + StockMovement.
-        /// For increase: 1 internal SaveChanges needed to obtain ImportId.
-        /// Caller must call SaveChangesAsync() after to persist remaining entities.
+        /// Applies stock changes from current stock to target stock.
+        /// Shared by Create/Update/Manual Adjust to keep stock behavior consistent.
         /// </summary>
-        private async Task RecordStockChangeAsync(Product product, int stockDiff, decimal costPrice)
+        private async Task ApplyStockToTargetAsync(Product product, int targetStock, decimal costPriceForIncrease, string? note = null)
+        {
+            var stockDiff = targetStock - product.Stock;
+            if (stockDiff == 0)
+                return;
+
+            // For decrease, ProductService updates stock directly.
+            // For increase, ImportService applies increase + stock movement.
+            if (stockDiff < 0)
+                product.Stock = targetStock;
+
+            await ApplyStockAdjustmentAsync(product, stockDiff, costPriceForIncrease, note);
+        }
+
+        /// <summary>
+        /// Records stock change using one orchestrator:
+        /// - Increase: ImportService owns stock apply + stock movement creation.
+        /// - Decrease: ProductService creates stock movement directly.
+        /// </summary>
+        private async Task ApplyStockAdjustmentAsync(Product product, int stockDiff, decimal costPrice, string? note = null)
         {
             if (stockDiff > 0)
             {
-                var importId = await _importService.CreateInventoryAdjustmentImportAsync(
+                await _importService.CreateInventoryAdjustmentImportAsync(
                     product.BusinessLocationId,
                     product.ProductId,
                     stockDiff,
-                    costPrice);
-
-                var movement = _stockMovementService.CreateStockMovement(
-                    product,
-                    StockMovementType.In,
-                    stockDiff,
-                    StockMovementReferenceType.Import,
-                    importId);
-                product.StockMovements.Add(movement);
+                    costPrice,
+                    note);
             }
             else if (stockDiff < 0)
             {
                 var movement = _stockMovementService.CreateStockMovement(
                     product,
-                    StockMovementType.Out,
                     stockDiff,
                     StockMovementReferenceType.Adjustment,
-                    null);
+                    null,
+                    note);
                 product.StockMovements.Add(movement);
             }
         }

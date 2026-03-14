@@ -78,6 +78,8 @@ namespace BizFlow.Application.Common.Constants
         public const string ProductDuplicateSku = "PRODUCT_DUPLICATE_SKU";
         public const string ProductCannotChangeLocation = "PRODUCT_CANNOT_CHANGE_LOCATION";
         public const string ProductInvalidStatus = "PRODUCT_INVALID_STATUS";
+        public const string ProductInitialStockMemo = "PRODUCT_INITIAL_STOCK_MEMO";
+        public const string ProductStockUpdatedOnUpdateMemo = "PRODUCT_STOCK_UPDATED_ON_UPDATE_MEMO";
 
         // ============ IMPORT ============
         public const string ImportConfirmedSuccessfully = "IMPORT_CONFIRMED";

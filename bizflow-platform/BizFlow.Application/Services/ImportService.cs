@@ -25,6 +25,8 @@ namespace BizFlow.Application.Services
             _mapper = mapper;
         }
 
+        #region Query Methods
+
         // =========================================================
         // 1. Get Template
         // =========================================================
@@ -54,15 +56,14 @@ namespace BizFlow.Application.Services
             if (location == null)
                 throw new NotFoundException(MessageKeys.ImportLocationNotFound);
 
+            await EnsureOwnerOfLocationAsync(userId, request.BusinessLocationId);
+
             // If not a draft, ReceivedAt is required
             if (!request.SaveAsDraft && !request.ReceivedAt.HasValue)
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
 
             // Validate and build items
             var (items, totalAmount) = await BuildImportItemsAsync(request.Items);
-
-            // Generate unique import code (no DB query needed)
-            var importCode = GenerateImportCode();
 
             var status = request.SaveAsDraft ? ImportStatus.Draft : ImportStatus.Confirmed;
 
@@ -73,7 +74,7 @@ namespace BizFlow.Application.Services
                 items: items,
                 totalAmount: totalAmount,
                 supplier: request.Supplier,
-                note: request.Note,
+                memo: request.Note,
                 receivedAt: request.SaveAsDraft ? null : request.ReceivedAt,
                 imageStream: request.ImageStream,
                 imageFileName: request.ImageFileName,
@@ -93,6 +94,8 @@ namespace BizFlow.Application.Services
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
                 throw new NotFoundException(MessageKeys.NotFound);
+
+            await EnsureOwnerOfLocationAsync(userId, import.BusinessLocationId);
 
             if (import.Status != ImportStatus.Draft)
                 throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
@@ -156,6 +159,8 @@ namespace BizFlow.Application.Services
             if (import == null)
                 throw new NotFoundException(MessageKeys.NotFound);
 
+            await EnsureOwnerOfLocationAsync(userId, import.BusinessLocationId);
+
             // Must be DRAFT to confirm
             if (import.Status != ImportStatus.Draft)
                 throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
@@ -164,7 +169,7 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
 
             // Add quantity to product stock and update CostPrice
-            await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId);
+            await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId, import.Note);
 
             import.ReceivedAt = request.ReceivedAt;
             import.Status = ImportStatus.Confirmed;
@@ -188,6 +193,11 @@ namespace BizFlow.Application.Services
 
         public async Task<PaginatedResponse<ImportSummaryDto>> ListImportsAsync(Guid userId, ImportQueryParams query)
         {
+            if (!query.BusinessLocationId.HasValue)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            await EnsureAccessToLocationAsync(userId, query.BusinessLocationId.Value);
+
             var (imports, totalCount) = await _unitOfWork.Imports.SearchAsync(query);
 
             var items = _mapper.Map<List<ImportSummaryDto>>(imports);
@@ -208,26 +218,17 @@ namespace BizFlow.Application.Services
             if (import == null)
                 throw new NotFoundException(MessageKeys.NotFound);
 
+            await EnsureAccessToLocationAsync(userId, import.BusinessLocationId);
+
             return _mapper.Map<ImportDetailDto>(import);
         }
 
-        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice)
+        #endregion
+
+        #region Command Methods
+
+        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice, string? memo = null)
         {
-            if (quantity <= 0)
-                throw new BadRequestException(MessageKeys.BadRequest);
-
-            var import = new Import
-            {
-                ImportCode = GenerateImportCode(),
-                ImportType = ImportType.InventoryAdjustment,
-                Status = ImportStatus.Confirmed,
-                BusinessLocationId = businessLocationId,
-                TotalAmount = quantity * costPrice,
-                CreatedAt = DateTime.UtcNow,
-                ConfirmedAt = DateTime.UtcNow,
-                ReceivedAt = DateTime.UtcNow
-            };
-
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
                 throw new NotFoundException(MessageKeys.ImportProductNotFound);
@@ -245,18 +246,18 @@ namespace BizFlow.Application.Services
                 }
             };
 
-            import = await CreateImportRecordAsync(
+            var import = await CreateImportRecordAsync(
                 importType: ImportType.InventoryAdjustment,
                 status: ImportStatus.Confirmed,
                 businessLocationId: businessLocationId,
                 items: items,
                 totalAmount: quantity * costPrice,
                 supplier: null,
-                note: null,
+                memo: memo,
                 receivedAt: DateTime.UtcNow,
                 imageStream: null,
                 imageFileName: null,
-                applyToStock: false);
+                applyToStock: true);
 
             return import.ImportId;
         }
@@ -271,13 +272,17 @@ namespace BizFlow.Application.Services
             if (import == null)
                 throw new NotFoundException(MessageKeys.NotFound);
 
+            await EnsureOwnerOfLocationAsync(userId, import.BusinessLocationId);
+
             if (import.Status == ImportStatus.Cancelled)
                 throw new BadRequestException(MessageKeys.ImportAlreadyCancelled);
 
             if (import.Status == ImportStatus.Confirmed)
             {
-                // Soft cancel: reverse stock + CostPrice, mark as CANCELLED
-                await RevertImportFromProductsAsync(import.ProductsImports, import.ImportId);
+                // Soft cancel: reverse stock + CostPrice, mark as CANCELLED.
+                // For cancel flows, StockMovement memo follows CancelledAt.
+                import.CancelledAt = DateTime.UtcNow;
+                await RevertImportFromProductsAsync(import.ProductsImports, import.ImportId, import.CancelledAt.Value.ToString("O"));
 
                 import.Status = ImportStatus.Cancelled;
                 import.UpdatedAt = DateTime.UtcNow;
@@ -292,14 +297,14 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
         }
 
-        // =========================================================
-        // Helpers
-        // =========================================================
+        #endregion
+
+        #region Private Helpers
 
         /// <summary>
         /// Apply confirmed import: add stock + update CostPrice to latest import price
         /// </summary>
-        private async Task ApplyImportToProductsAsync(ICollection<ProductImport> items, long importId)
+        private async Task ApplyImportToProductsAsync(ICollection<ProductImport> items, long importId, string? memo = null)
         {
             foreach (var item in items)
             {
@@ -310,13 +315,16 @@ namespace BizFlow.Application.Services
                 product.Stock += item.Quantity;
                 product.CostPrice = item.CostPrice;
 
-                var movement = _stockMovementService.CreateStockMovement(
-                    product,
-                    StockMovementType.In,
-                    item.Quantity,
-                    StockMovementReferenceType.Import,
-                    importId);
-                product.StockMovements.Add(movement);
+                if (item.Quantity != 0)
+                {
+                    var movement = _stockMovementService.CreateStockMovement(
+                        product,
+                        item.Quantity,
+                        StockMovementReferenceType.Import,
+                        importId,
+                        memo);
+                    product.StockMovements.Add(movement);
+                }
 
                 _unitOfWork.Products.Update(product);
             }
@@ -325,7 +333,7 @@ namespace BizFlow.Application.Services
         /// <summary>
         /// Revert cancelled import: subtract stock + restore CostPrice from previous confirmed import
         /// </summary>
-        private async Task RevertImportFromProductsAsync(ICollection<ProductImport> items, long importId)
+        private async Task RevertImportFromProductsAsync(ICollection<ProductImport> items, long importId, string? memo = null)
         {
             foreach (var item in items)
             {
@@ -336,13 +344,16 @@ namespace BizFlow.Application.Services
                 product.Stock = Math.Max(0, product.Stock - item.Quantity);
                 var actualOut = previousStock - product.Stock;
 
-                var movement = _stockMovementService.CreateStockMovement(
-                    product,
-                    StockMovementType.Out,
-                    -actualOut,
-                    StockMovementReferenceType.Import,
-                    importId);
-                product.StockMovements.Add(movement);
+                if (actualOut != 0)
+                {
+                    var movement = _stockMovementService.CreateStockMovement(
+                        product,
+                        -actualOut,
+                        StockMovementReferenceType.Import,
+                        importId,
+                        memo);
+                    product.StockMovements.Add(movement);
+                }
 
                 // Restore CostPrice to the latest remaining confirmed import's price
                 var previousCostPrice = await _unitOfWork.Products
@@ -365,48 +376,50 @@ namespace BizFlow.Application.Services
             List<ProductImport> items,
             decimal totalAmount,
             string? supplier,
-            string? note,
+            string? memo,
             DateTime? receivedAt,
             Stream? imageStream,
             string? imageFileName,
             bool applyToStock)
         {
-            var import = new Import
+            return await _unitOfWork.ExecuteResilientAsync(async _ =>
             {
-                ImportCode = GenerateImportCode(),
-                ImportType = importType,
-                Status = status,
-                BusinessLocationId = businessLocationId,
-                Supplier = supplier,
-                Note = note,
-                ReceivedAt = receivedAt,
-                TotalAmount = totalAmount,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = status == ImportStatus.Draft ? null : DateTime.UtcNow,
-                ConfirmedAt = status == ImportStatus.Confirmed ? DateTime.UtcNow : null
-            };
+                var import = new Import
+                {
+                    ImportCode = GenerateImportCode(),
+                    ImportType = importType,
+                    Status = status,
+                    BusinessLocationId = businessLocationId,
+                    Supplier = supplier,
+                    Note = memo,
+                    ReceivedAt = receivedAt,
+                    TotalAmount = totalAmount,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = status == ImportStatus.Draft ? null : DateTime.UtcNow,
+                    ConfirmedAt = status == ImportStatus.Confirmed ? DateTime.UtcNow : null
+                };
 
-            if (imageStream != null)
-            {
-                var imageInfo = await _imageService.UploadImageAsync(imageStream, imageFileName, ImageUploadTarget.Imports);
-                import.ImageUrl = imageInfo.Url;
-                import.ImagePublicId = imageInfo.PublicId;
-            }
+                if (imageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(imageStream, imageFileName, ImageUploadTarget.Imports);
+                    import.ImageUrl = imageInfo.Url;
+                    import.ImagePublicId = imageInfo.PublicId;
+                }
 
-            await _unitOfWork.Imports.AddAsync(import);
-            await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.Imports.AddAsync(import);
+                await _unitOfWork.SaveChangesAsync();
 
-            foreach (var item in items)
-                item.ImportId = import.ImportId;
+                foreach (var item in items)
+                    item.ImportId = import.ImportId;
 
-            import.ProductsImports = items;
+                import.ProductsImports = items;
 
-            if (applyToStock)
-                await ApplyImportToProductsAsync(items, import.ImportId);
+                if (applyToStock)
+                    await ApplyImportToProductsAsync(items, import.ImportId, import.Note);
 
-            await _unitOfWork.SaveChangesAsync();
-
-            return import;
+                await _unitOfWork.SaveChangesAsync();
+                return import;
+            });
         }
 
         private async Task<(List<ProductImport> items, decimal totalAmount)> BuildImportItemsAsync(
@@ -437,5 +450,21 @@ namespace BizFlow.Application.Services
 
             return (items, totalAmount);
         }
+
+        private async Task EnsureOwnerOfLocationAsync(Guid userId, int locationId)
+        {
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+        }
+
+        private async Task EnsureAccessToLocationAsync(Guid userId, int locationId)
+        {
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
+            if (!hasAccess)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+        }
+
+        #endregion
     }
 }

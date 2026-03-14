@@ -1,3 +1,5 @@
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
@@ -6,44 +8,35 @@ namespace BizFlow.Application.Services
 {
     public class StockMovementService : IStockMovementService
     {
+        #region Command Methods
+
         public StockMovement CreateStockMovement(
             Product product,
-            StockMovementType movementType,
-            int quantity,
+            int quantityDelta,
             StockMovementReferenceType? referenceType,
-            long? referenceId)
+            long? referenceId,
+            string? memo = null)
         {
+            if (quantityDelta == 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var movementType = quantityDelta > 0
+                ? StockMovementType.In
+                : StockMovementType.Out;
+
             return new StockMovement
             {
                 ProductId = product.ProductId,
-                MovementType = ToMovementTypeValue(movementType),
-                Quantity = quantity,
-                ReferenceType = referenceType.HasValue ? ToReferenceTypeValue(referenceType.Value) : null,
+                MovementType = movementType.ToDbValue(),
+                Quantity = quantityDelta,
+                ReferenceType = referenceType.HasValue ? referenceType.Value.ToDbValue() : null,
                 ReferenceId = referenceId,
+                Memo = memo,
                 BalanceAfter = product.Stock,
                 CreatedAt = DateTime.UtcNow
             };
         }
 
-        private static string ToMovementTypeValue(StockMovementType movementType)
-        {
-            return movementType switch
-            {
-                StockMovementType.In => "IN",
-                StockMovementType.Out => "OUT",
-                StockMovementType.Adjustment => "ADJUSTMENT",
-                _ => throw new ArgumentOutOfRangeException(nameof(movementType), movementType, null)
-            };
-        }
-
-        private static string ToReferenceTypeValue(StockMovementReferenceType referenceType)
-        {
-            return referenceType switch
-            {
-                StockMovementReferenceType.Import => "IMPORT",
-                StockMovementReferenceType.Adjustment => "ADJUSTMENT",
-                _ => throw new ArgumentOutOfRangeException(nameof(referenceType), referenceType, null)
-            };
-        }
+        #endregion
     }
 }

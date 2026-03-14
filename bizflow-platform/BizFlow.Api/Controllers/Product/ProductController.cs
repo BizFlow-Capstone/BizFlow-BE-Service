@@ -154,6 +154,22 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Manually adjust product stock to target quantity
+        /// </summary>
+        [HttpPatch("product/{productId:long}/stock")]
+        [SwaggerOperation(Summary = "Adjust product stock", Description = "Manual stock adjustment with optional memo. Increase creates import + stock movement. Decrease creates stock movement only. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AdjustProductStock(long productId, [FromBody] AdjustProductStockRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var product = await _productService.AdjustProductStockAsync(userId, productId, request);
+            return Ok(product, MessageKeys.DataUpdatedSuccessfully);
+        }
+
+        /// <summary>
         /// Delete product (soft delete)
         /// </summary>
         [HttpDelete("product/{productId:long}")]
