@@ -498,7 +498,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.SellingPrice)
                 .HasPrecision(15, 2)
-                .HasComment("GiÃ¡ bÃ¡n theo base unit");
+                .HasComment("Giá bán theo base unit");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
                 .HasComment("Stock Keeping Unit code");
@@ -688,6 +688,9 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
+            entity.Property(e => e.Memo)
+                .HasMaxLength(1000)
+                .HasComment("Manual note/reason for this stock movement");
             entity.Property(e => e.MovementType)
                 .HasMaxLength(50)
                 .HasComment("IN, OUT, ADJUSTMENT");
