@@ -558,9 +558,24 @@ namespace BizFlow.Infrastructure.Services
 
         private async Task<GoogleJsonWebSignature.Payload> VerifyGoogleTokenAsync(string idToken)
         {
+            var audiences = new List<string>();
+            if (!string.IsNullOrWhiteSpace(_googleConfig.ClientId))
+            {
+                audiences.Add(_googleConfig.ClientId);
+            }
+            if (!string.IsNullOrWhiteSpace(_googleConfig.AndroidClientId))
+            {
+                audiences.Add(_googleConfig.AndroidClientId);
+            }
+
+            if (audiences.Count == 0)
+            {
+                throw new InvalidOperationException("GoogleAuth client IDs are not configured");
+            }
+
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {
-                Audience = new[] { _googleConfig.ClientId }
+                Audience = audiences.Distinct().ToArray()
             };
 
             try
