@@ -39,9 +39,17 @@ namespace BizFlow.Application.Common.Constants
         public const string AccountCreated = "AUTH_ACCOUNT_CREATED";
         public const string PasswordSet = "AUTH_PASSWORD_SET";
         public const string PasswordAlreadySet = "AUTH_PASSWORD_ALREADY_SET";
+        public const string PasswordInvalidFormat = "AUTH_PASSWORD_INVALID_FORMAT";
         public const string TokenRefreshed = "AUTH_TOKEN_REFRESHED";
         public const string InvalidGoogleToken = "AUTH_INVALID_GOOGLE_TOKEN";
+        public const string InvalidFirebaseToken = "AUTH_INVALID_FIREBASE_TOKEN";
+        public const string PhoneAlreadyExists = "AUTH_PHONE_ALREADY_EXISTS";
+        public const string PhoneAlreadyLinked = "AUTH_PHONE_ALREADY_LINKED";
+        public const string PhoneVerificationMismatch = "AUTH_PHONE_VERIFICATION_MISMATCH";
+        public const string PhoneRegisterSuccess = "AUTH_PHONE_REGISTER_SUCCESS";
+        public const string PhoneLinkSuccess = "AUTH_PHONE_LINK_SUCCESS";
         public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
+        public const string LogoutAllSuccess = "AUTH_LOGOUT_ALL_SUCCESS";
 
         // ============ ROLE ============
         public const string RoleNotFound = "ROLE_NOT_FOUND";

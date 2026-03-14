@@ -4,7 +4,10 @@ using BizFlow.Application.DTOs.Auth;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
+using FirebaseAdmin;
+using FirebaseAdmin.Auth;
 using Google.Apis.Auth;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,6 +19,7 @@ namespace BizFlow.Infrastructure.Services
         private readonly BizFlowDbContext _db;
         private readonly IJwtService _jwtService;
         private readonly GoogleAuthConfig _googleConfig;
+        private readonly FirebaseAuthConfig _firebaseConfig;
         private readonly ILogger<AuthService> _logger;
 
         private const string DefaultRoleName = "user";
@@ -24,16 +28,23 @@ namespace BizFlow.Infrastructure.Services
             BizFlowDbContext db,
             IJwtService jwtService,
             IOptions<GoogleAuthConfig> googleConfig,
+            IOptions<FirebaseAuthConfig> firebaseConfig,
             ILogger<AuthService> logger)
         {
             _db = db;
             _jwtService = jwtService;
             _googleConfig = googleConfig.Value;
+            _firebaseConfig = firebaseConfig.Value;
             _logger = logger;
         }
 
         public async Task<AuthResponse> GoogleLoginAsync(string idToken, string? deviceInfo)
         {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                throw new ArgumentException("Id token is required", nameof(idToken));
+            }
+
             // 1. Verify Google ID token
             var payload = await VerifyGoogleTokenAsync(idToken);
 
@@ -55,6 +66,12 @@ namespace BizFlow.Infrastructure.Services
                 // Existing account — login
                 account = credential.Account;
                 isNewAccount = false;
+
+                if (account.IsActive == false || account.DeletedAt != null)
+                {
+                    _logger.LogWarning("Google login rejected for inactive/deleted account. AccountId={AccountId}", account.AccountId);
+                    throw new UnauthorizedAccessException("Account is inactive or deleted");
+                }
 
                 // Update last login
                 account.LastLoginAt = DateTime.UtcNow;
@@ -127,6 +144,8 @@ namespace BizFlow.Infrastructure.Services
                 await _db.SaveChangesAsync();
             }
 
+            _logger.LogInformation("Google auth completed. AccountId={AccountId}, IsNewAccount={IsNewAccount}, Device={DeviceInfo}", account.AccountId, isNewAccount, deviceInfo ?? "unknown");
+
             return new AuthResponse
             {
                 AccessToken = accessToken,
@@ -136,8 +155,238 @@ namespace BizFlow.Infrastructure.Services
             };
         }
 
+        public async Task<AuthResponse> LoginWithEmailAsync(string email, string password, string? deviceInfo)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentException("Email is required", nameof(email));
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException("Password is required", nameof(password));
+            }
+
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            var credential = await _db.Credentials
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Profile)
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Role)
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Credentials)
+                .FirstOrDefaultAsync(c => c.Type == "email" && c.Identifier.ToLower() == normalizedEmail);
+
+            if (credential == null)
+            {
+                _logger.LogWarning("Email login failed. Email credential not found: {Email}", normalizedEmail);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            return await LoginWithCredentialAsync(credential, password, deviceInfo, "email", normalizedEmail);
+        }
+
+        public async Task<AuthResponse> LoginWithPhoneAsync(string phone, string password, string? deviceInfo)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                throw new ArgumentException("Phone is required", nameof(phone));
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException("Password is required", nameof(password));
+            }
+
+            var normalizedPhone = NormalizeVietnamPhone(phone);
+            var credential = await _db.Credentials
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Profile)
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Role)
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Credentials)
+                .FirstOrDefaultAsync(c => c.Type == "phone" && c.Identifier == normalizedPhone);
+
+            if (credential == null)
+            {
+                _logger.LogWarning("Phone login failed. Phone credential not found: {Phone}", normalizedPhone);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            return await LoginWithCredentialAsync(credential, password, deviceInfo, "phone", normalizedPhone);
+        }
+
+        public async Task<AuthResponse> RegisterWithPhoneAsync(string phone, string password, string firebaseIdToken, string? fullName, string? deviceInfo)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                throw new ArgumentException("Phone is required", nameof(phone));
+            }
+
+            if (string.IsNullOrWhiteSpace(firebaseIdToken))
+            {
+                throw new ArgumentException("Firebase token is required", nameof(firebaseIdToken));
+            }
+
+            ValidatePasswordOrThrow(password);
+
+            var normalizedPhone = NormalizeVietnamPhone(phone);
+            var verifiedPhone = await VerifyFirebasePhoneTokenAsync(firebaseIdToken);
+
+            if (!string.Equals(normalizedPhone, verifiedPhone, StringComparison.Ordinal))
+            {
+                _logger.LogWarning("Phone registration mismatch. RequestPhone={RequestPhone}, FirebasePhone={FirebasePhone}", normalizedPhone, verifiedPhone);
+                throw new InvalidOperationException("PHONE_VERIFICATION_MISMATCH");
+            }
+
+            var phoneExists = await _db.Credentials.AnyAsync(c => c.Type == "phone" && c.Identifier == normalizedPhone);
+            if (phoneExists)
+            {
+                _logger.LogWarning("Phone registration failed. Phone already exists: {Phone}", normalizedPhone);
+                throw new InvalidOperationException("PHONE_ALREADY_EXISTS");
+            }
+
+            var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == DefaultRoleName)
+                ?? throw new InvalidOperationException($"Default role '{DefaultRoleName}' not found");
+
+            var account = new Account
+            {
+                AccountId = Guid.NewGuid(),
+                RoleId = role.RoleId,
+                PasswordHash = _jwtService.HashPassword(password),
+                IsActive = true,
+                LastLoginAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var profile = new Profile
+            {
+                ProfileId = Guid.NewGuid(),
+                AccountId = account.AccountId,
+                FullName = string.IsNullOrWhiteSpace(fullName) ? normalizedPhone : fullName.Trim(),
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var phoneCredential = new Credential
+            {
+                CredentialId = Guid.NewGuid(),
+                AccountId = account.AccountId,
+                Type = "phone",
+                Identifier = normalizedPhone,
+                EmailVerified = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Accounts.Add(account);
+            _db.Profiles.Add(profile);
+            _db.Credentials.Add(phoneCredential);
+            await _db.SaveChangesAsync();
+
+            account = await _db.Accounts
+                .Include(a => a.Profile)
+                .Include(a => a.Role)
+                .Include(a => a.Credentials)
+                .FirstAsync(a => a.AccountId == account.AccountId);
+
+            var accessToken = _jwtService.GenerateAccessToken(account.AccountId, profile.ProfileId, account.Role.Name);
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            StoreRefreshToken(account.AccountId, refreshToken, deviceInfo);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Phone registration success. AccountId={AccountId}, Phone={Phone}, Device={DeviceInfo}", account.AccountId, normalizedPhone, deviceInfo ?? "unknown");
+
+            return new AuthResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                IsNewAccount = true,
+                Account = MapAccountInfo(account)
+            };
+        }
+
+        public async Task<List<CredentialInfo>> LinkPhoneAsync(Guid accountId, string phone, string firebaseIdToken, string? password)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                throw new ArgumentException("Phone is required", nameof(phone));
+            }
+
+            if (string.IsNullOrWhiteSpace(firebaseIdToken))
+            {
+                throw new ArgumentException("Firebase token is required", nameof(firebaseIdToken));
+            }
+
+            var account = await _db.Accounts
+                .Include(a => a.Credentials)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId)
+                ?? throw new KeyNotFoundException("Account not found");
+
+            var alreadyLinked = account.Credentials.Any(c => c.Type == "phone");
+            if (alreadyLinked)
+            {
+                throw new InvalidOperationException("PHONE_ALREADY_LINKED");
+            }
+
+            var normalizedPhone = NormalizeVietnamPhone(phone);
+            var verifiedPhone = await VerifyFirebasePhoneTokenAsync(firebaseIdToken);
+
+            if (!string.Equals(normalizedPhone, verifiedPhone, StringComparison.Ordinal))
+            {
+                _logger.LogWarning("Phone linking mismatch. RequestPhone={RequestPhone}, FirebasePhone={FirebasePhone}", normalizedPhone, verifiedPhone);
+                throw new InvalidOperationException("PHONE_VERIFICATION_MISMATCH");
+            }
+
+            var usedByOtherAccount = await _db.Credentials.AnyAsync(c => c.Type == "phone" && c.Identifier == normalizedPhone && c.AccountId != accountId);
+            if (usedByOtherAccount)
+            {
+                throw new InvalidOperationException("PHONE_ALREADY_EXISTS");
+            }
+
+            if (string.IsNullOrWhiteSpace(account.PasswordHash))
+            {
+                if (string.IsNullOrWhiteSpace(password))
+                {
+                    throw new ArgumentException("Password is required when account has no password", nameof(password));
+                }
+
+                ValidatePasswordOrThrow(password);
+                account.PasswordHash = _jwtService.HashPassword(password);
+            }
+
+            var credential = new Credential
+            {
+                CredentialId = Guid.NewGuid(),
+                AccountId = accountId,
+                Type = "phone",
+                Identifier = normalizedPhone,
+                EmailVerified = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            account.UpdatedAt = DateTime.UtcNow;
+            _db.Credentials.Add(credential);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Phone linked successfully. AccountId={AccountId}, Phone={Phone}", accountId, normalizedPhone);
+
+            var credentials = await _db.Credentials
+                .Where(c => c.AccountId == accountId)
+                .ToListAsync();
+
+            return credentials.Select(c => new CredentialInfo
+            {
+                Type = c.Type,
+                Identifier = MaskIdentifier(c.Type, c.Identifier),
+                EmailVerified = c.Type == "email" ? c.EmailVerified : null
+            }).ToList();
+        }
+
         public async Task SetPasswordAsync(Guid accountId, string password)
         {
+            ValidatePasswordOrThrow(password);
+
             var account = await _db.Accounts
                 .Include(a => a.Credentials)
                 .FirstOrDefaultAsync(a => a.AccountId == accountId)
@@ -177,10 +426,16 @@ namespace BizFlow.Infrastructure.Services
             }
 
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Password set for account. AccountId={AccountId}", accountId);
         }
 
         public async Task<AuthResponse> RefreshTokenAsync(string refreshToken, string? deviceInfo)
         {
+            if (string.IsNullOrWhiteSpace(refreshToken))
+            {
+                throw new ArgumentException("Refresh token is required", nameof(refreshToken));
+            }
+
             // Find matching token in DB
             var storedTokens = await _db.RefreshTokens
                 .Include(rt => rt.Account)
@@ -209,6 +464,7 @@ namespace BizFlow.Infrastructure.Services
             // Reuse detection: if token is already revoked, revoke ALL tokens for this account
             if (matchedToken.RevokedAt != null)
             {
+                _logger.LogWarning("Refresh token reuse detected. AccountId={AccountId}", matchedToken.AccountId);
                 await RevokeAllRefreshTokensAsync(matchedToken.AccountId);
                 throw new UnauthorizedAccessException("Refresh token reuse detected. All sessions revoked.");
             }
@@ -232,6 +488,8 @@ namespace BizFlow.Infrastructure.Services
             account.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
+            _logger.LogInformation("Refresh token rotated. AccountId={AccountId}, Device={DeviceInfo}", account.AccountId, deviceInfo ?? "unknown");
+
             return new AuthResponse
             {
                 AccessToken = newAccessToken,
@@ -243,6 +501,11 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task RevokeRefreshTokenAsync(string refreshToken)
         {
+            if (string.IsNullOrWhiteSpace(refreshToken))
+            {
+                throw new ArgumentException("Refresh token is required", nameof(refreshToken));
+            }
+
             var storedTokens = await _db.RefreshTokens
                 .Where(rt => rt.RevokedAt == null && rt.ExpiresAt > DateTime.UtcNow)
                 .ToListAsync();
@@ -254,9 +517,12 @@ namespace BizFlow.Infrastructure.Services
                 {
                     storedToken.RevokedAt = DateTime.UtcNow;
                     await _db.SaveChangesAsync();
+                    _logger.LogInformation("Refresh token revoked for one session. AccountId={AccountId}", storedToken.AccountId);
                     return;
                 }
             }
+
+            throw new UnauthorizedAccessException("Invalid refresh token");
         }
 
         public async Task RevokeAllRefreshTokensAsync(Guid accountId)
@@ -271,6 +537,7 @@ namespace BizFlow.Infrastructure.Services
             }
 
             await _db.SaveChangesAsync();
+            _logger.LogInformation("All refresh tokens revoked. AccountId={AccountId}, Count={Count}", accountId, activeTokens.Count);
         }
 
         public async Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId)
@@ -371,6 +638,159 @@ namespace BizFlow.Infrastructure.Services
         {
             if (phone.Length <= 4) return "***";
             return phone[..4] + new string('*', phone.Length - 7) + phone[^3..];
+        }
+
+        private static void ValidatePasswordOrThrow(string password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException("Password is required", nameof(password));
+            }
+
+            if (password.Length < 6 || password.Length > 128)
+            {
+                throw new ArgumentException("Password must be between 6 and 128 characters", nameof(password));
+            }
+        }
+
+        private async Task<AuthResponse> LoginWithCredentialAsync(
+            Credential credential,
+            string password,
+            string? deviceInfo,
+            string method,
+            string identifier)
+        {
+            var account = credential.Account;
+
+            if (account.IsActive == false || account.DeletedAt != null)
+            {
+                _logger.LogWarning("{Method} login rejected for inactive/deleted account. AccountId={AccountId}", method, account.AccountId);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            if (string.IsNullOrWhiteSpace(account.PasswordHash))
+            {
+                _logger.LogWarning("{Method} login rejected because account has no password. AccountId={AccountId}", method, account.AccountId);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            var passwordOk = _jwtService.VerifyPassword(password, account.PasswordHash);
+            if (!passwordOk)
+            {
+                _logger.LogWarning("{Method} login failed due to wrong password. Identifier={Identifier}", method, identifier);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            var profile = account.Profile
+                ?? throw new InvalidOperationException("Account has no profile");
+
+            var accessToken = _jwtService.GenerateAccessToken(account.AccountId, profile.ProfileId, account.Role.Name);
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            StoreRefreshToken(account.AccountId, refreshToken, deviceInfo);
+
+            account.LastLoginAt = DateTime.UtcNow;
+            account.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("{Method} login success. AccountId={AccountId}, Device={DeviceInfo}", method, account.AccountId, deviceInfo ?? "unknown");
+
+            return new AuthResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                IsNewAccount = false,
+                Account = MapAccountInfo(account)
+            };
+        }
+
+        private static string NormalizeVietnamPhone(string phone)
+        {
+            var cleaned = phone.Trim().Replace(" ", string.Empty);
+            if (cleaned.StartsWith("+84") && cleaned.Length == 12)
+            {
+                var localPart = cleaned[3..];
+                if (localPart.All(char.IsDigit))
+                {
+                    return cleaned;
+                }
+            }
+
+            if (cleaned.Length == 10 && cleaned.StartsWith("0") && cleaned.All(char.IsDigit))
+            {
+                return "+84" + cleaned[1..];
+            }
+
+            throw new ArgumentException("Phone number must be in format 0xxxxxxxxx or +84xxxxxxxxx", nameof(phone));
+        }
+
+        private async Task<string> VerifyFirebasePhoneTokenAsync(string firebaseIdToken)
+        {
+            var firebaseAuth = GetFirebaseAuth();
+
+            try
+            {
+                var decoded = await firebaseAuth.VerifyIdTokenAsync(firebaseIdToken);
+                if (decoded == null || decoded.Claims == null)
+                {
+                    throw new UnauthorizedAccessException("Invalid Firebase token payload");
+                }
+
+                if (!decoded.Claims.TryGetValue("phone_number", out var phoneObj) || phoneObj == null)
+                {
+                    throw new UnauthorizedAccessException("Firebase token has no verified phone number");
+                }
+
+                var firebasePhone = phoneObj.ToString();
+                if (string.IsNullOrWhiteSpace(firebasePhone))
+                {
+                    throw new UnauthorizedAccessException("Firebase phone number is empty");
+                }
+
+                return firebasePhone.Trim();
+            }
+            catch (FirebaseAuthException ex)
+            {
+                _logger.LogWarning(ex, "Invalid Firebase ID token");
+                throw new UnauthorizedAccessException("Invalid Firebase token");
+            }
+            catch (NullReferenceException ex)
+            {
+                _logger.LogWarning(ex, "Firebase ID token payload is malformed or incomplete");
+                throw new UnauthorizedAccessException("Invalid Firebase token");
+            }
+        }
+
+        private FirebaseAuth GetFirebaseAuth()
+        {
+            var app = FirebaseApp.DefaultInstance;
+            if (app == null)
+            {
+                if (string.IsNullOrWhiteSpace(_firebaseConfig.ProjectId))
+                {
+                    throw new InvalidOperationException("FirebaseAuth:ProjectId is not configured");
+                }
+
+                try
+                {
+                    app = FirebaseApp.Create(new AppOptions
+                    {
+                        Credential = GoogleCredential.GetApplicationDefault(),
+                        ProjectId = _firebaseConfig.ProjectId
+                    });
+                }
+                catch (ArgumentException)
+                {
+                    // Another request may have initialized Firebase concurrently.
+                    app = FirebaseApp.DefaultInstance;
+                }
+            }
+
+            if (app == null)
+            {
+                throw new InvalidOperationException("Firebase app is not initialized");
+            }
+
+            return FirebaseAuth.GetAuth(app);
         }
     }
 }

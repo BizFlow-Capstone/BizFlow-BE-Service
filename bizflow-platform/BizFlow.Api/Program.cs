@@ -70,6 +70,7 @@ var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<GoogleAuthConfig>(builder.Configuration.GetSection("GoogleAuth"));
+builder.Services.Configure<FirebaseAuthConfig>(builder.Configuration.GetSection("FirebaseAuth"));
 builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(PaginationSettings.SectionName));
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
