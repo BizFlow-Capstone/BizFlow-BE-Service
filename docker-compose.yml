@@ -36,6 +36,7 @@ services:
       - JwtSettings__RefreshTokenExpirationDays=${JWT_REFRESH_EXPIRY_DAYS:-365}
       # Google OAuth
       - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID}
+      - GoogleAuth__AndroidClientId=${GOOGLE_ANDROID_CLIENT_ID:-}
       - GoogleAuth__ClientSecret=${GOOGLE_CLIENT_SECRET}
       # Cloudinary
       - CloudinarySettings__CloudName=${CLOUDINARY_CLOUD_NAME}

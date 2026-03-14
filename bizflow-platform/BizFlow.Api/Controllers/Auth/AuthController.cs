@@ -29,13 +29,166 @@ namespace BizFlow.Api.Controllers.Auth
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(request.IdToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "idToken", message = "Id token is required" });
+                }
+
                 var result = await _authService.GoogleLoginAsync(request.IdToken, request.DeviceInfo);
                 var messageKey = result.IsNewAccount ? MessageKeys.AccountCreated : MessageKeys.LoginSuccess;
+                Logger.LogInformation("Google login success. AccountId={AccountId}, IsNewAccount={IsNewAccount}", result.Account.AccountId, result.IsNewAccount);
                 return Ok(result, messageKey);
             }
             catch (UnauthorizedAccessException)
             {
+                Logger.LogWarning("Google login failed due to invalid Google token");
                 return Unauthorized(MessageKeys.InvalidGoogleToken);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("register/phone")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RegisterWithPhone([FromBody] RegisterWithPhoneRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Password) || string.IsNullOrWhiteSpace(request.FirebaseIdToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { message = "Phone, password and firebaseIdToken are required" });
+                }
+
+                var result = await _authService.RegisterWithPhoneAsync(request.Phone, request.Password, request.FirebaseIdToken, request.FullName, request.DeviceInfo);
+                Logger.LogInformation("Phone register success. AccountId={AccountId}", result.Account.AccountId);
+                return Ok(result, MessageKeys.PhoneRegisterSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.InvalidFirebaseToken);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_EXISTS")
+            {
+                return Conflict(MessageKeys.PhoneAlreadyExists);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "PHONE_VERIFICATION_MISMATCH")
+            {
+                return BadRequest(MessageKeys.PhoneVerificationMismatch);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("link/phone")]
+        [Authorize]
+        public async Task<IActionResult> LinkPhone([FromBody] LinkPhoneRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.FirebaseIdToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { message = "Phone and firebaseIdToken are required" });
+                }
+
+                var accountId = GetCurrentAccountId();
+                var result = await _authService.LinkPhoneAsync(accountId, request.Phone, request.FirebaseIdToken, request.Password);
+                return Ok(result, MessageKeys.PhoneLinkSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.InvalidFirebaseToken);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.AccountNotFound);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_LINKED")
+            {
+                return Conflict(MessageKeys.PhoneAlreadyLinked);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_EXISTS")
+            {
+                return Conflict(MessageKeys.PhoneAlreadyExists);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "PHONE_VERIFICATION_MISMATCH")
+            {
+                return BadRequest(MessageKeys.PhoneVerificationMismatch);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("login/email")]
+        [AllowAnonymous]
+        public async Task<IActionResult> LoginWithEmail([FromBody] LoginWithEmailRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { message = "Email and password are required" });
+                }
+
+                var result = await _authService.LoginWithEmailAsync(request.Email, request.Password, request.DeviceInfo);
+                Logger.LogInformation("Email login success. AccountId={AccountId}", result.Account.AccountId);
+                return Ok(result, MessageKeys.LoginSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Logger.LogWarning("Email login failed due to invalid credentials");
+                return Unauthorized(MessageKeys.InvalidCredentials);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("login/phone")]
+        [AllowAnonymous]
+        public async Task<IActionResult> LoginWithPhone([FromBody] LoginWithPhoneRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { message = "Phone and password are required" });
+                }
+
+                var result = await _authService.LoginWithPhoneAsync(request.Phone, request.Password, request.DeviceInfo);
+                Logger.LogInformation("Phone login success. AccountId={AccountId}", result.Account.AccountId);
+                return Ok(result, MessageKeys.LoginSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Logger.LogWarning("Phone login failed due to invalid credentials");
+                return Unauthorized(MessageKeys.InvalidCredentials);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -49,8 +202,14 @@ namespace BizFlow.Api.Controllers.Auth
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "password", message = "Password is required" });
+                }
+
                 var accountId = GetCurrentAccountId();
                 await _authService.SetPasswordAsync(accountId, request.Password);
+                Logger.LogInformation("Set password success. AccountId={AccountId}", accountId);
                 return Ok(MessageKeys.PasswordSet);
             }
             catch (KeyNotFoundException)
@@ -60,6 +219,10 @@ namespace BizFlow.Api.Controllers.Auth
             catch (InvalidOperationException)
             {
                 return BadRequest(MessageKeys.PasswordAlreadySet);
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest(MessageKeys.PasswordInvalidFormat);
             }
             catch (Exception ex)
             {
@@ -73,12 +236,23 @@ namespace BizFlow.Api.Controllers.Auth
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "refreshToken", message = "Refresh token is required" });
+                }
+
                 var result = await _authService.RefreshTokenAsync(request.RefreshToken, request.DeviceInfo);
+                Logger.LogInformation("Refresh token success. AccountId={AccountId}", result.Account.AccountId);
                 return Ok(result, MessageKeys.TokenRefreshed);
             }
             catch (UnauthorizedAccessException)
             {
+                Logger.LogWarning("Refresh token failed due to invalid token");
                 return Unauthorized(MessageKeys.InvalidToken);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -92,8 +266,39 @@ namespace BizFlow.Api.Controllers.Auth
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "refreshToken", message = "Refresh token is required" });
+                }
+
                 await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
+                Logger.LogInformation("Logout success for one session");
                 return Ok(MessageKeys.LogoutSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.InvalidToken);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("logout-all")]
+        [Authorize]
+        public async Task<IActionResult> LogoutAll()
+        {
+            try
+            {
+                var accountId = GetCurrentAccountId();
+                await _authService.RevokeAllRefreshTokensAsync(accountId);
+                Logger.LogInformation("Logout all success. AccountId={AccountId}", accountId);
+                return Ok(MessageKeys.LogoutAllSuccess);
             }
             catch (Exception ex)
             {
@@ -109,6 +314,7 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 var accountId = GetCurrentAccountId();
                 var result = await _authService.GetCredentialsAsync(accountId);
+                Logger.LogInformation("Get credentials success. AccountId={AccountId}, Count={Count}", accountId, result.Count);
                 return Ok(result, MessageKeys.DataRetrievedSuccessfully);
             }
             catch (Exception ex)

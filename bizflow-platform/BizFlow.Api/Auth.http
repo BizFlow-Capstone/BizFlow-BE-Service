@@ -14,8 +14,8 @@
 
 # -------------------- VARIABLES --------------------
 # After Google Login, copy tokens here:
-@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDhhMGJkMy0yZmRiLTRjNmMtODRhMy1jZTQ1NjA3ZWE1ZDQiLCJwcm9maWxlSWQiOiJmZjQ1MzA5Yy03YjBiLTQwMTItOTMzYi0wNDI0MDVkNzU2ODUiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJ1c2VyIiwianRpIjoiZTU0MzA1M2ItMzIxZi00ODA4LTkxOGUtMGE1ZTE2ZTFiNDFlIiwiaWF0IjoxNzczMzI0MTkzLCJleHAiOjE3NzMzMjQ0OTMsImlzcyI6IkJpekZsb3ciLCJhdWQiOiJCaXpGbG93VXNlcnMifQ.3uQiSyVG8upYG0-4x5rVFJAwtmCKh1fh7IhQZaF93is
-@refreshToken = VBh273vFFLvKREIlgzz6ysQcgCUZjzOhXjFdJIqfVFQ=
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDhhMGJkMy0yZmRiLTRjNmMtODRhMy1jZTQ1NjA3ZWE1ZDQiLCJwcm9maWxlSWQiOiJmZjQ1MzA5Yy03YjBiLTQwMTItOTMzYi0wNDI0MDVkNzU2ODUiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJ1c2VyIiwianRpIjoiMTcxN2YwZmMtMTI2MS00NzJmLTg2MjktN2RkYzNlMjQzM2Y2IiwiaWF0IjoxNzczNDgyODE2LCJleHAiOjE3NzM0ODMxMTYsImlzcyI6IkJpekZsb3ciLCJhdWQiOiJCaXpGbG93VXNlcnMifQ.yKp37U43_ysj-WuDpOcLR38pqvKUFAu6eR10GSA74yg
+@refreshToken = qVQKYbAeClP47EKEy9jMtEmRY2KOALU25dX+G2NLxOU=
 
 
 ### ====================================================
@@ -31,6 +31,45 @@ Content-Type: {{contentType}}
 
 {
     "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjUzMDcyNGQ0OTE3M2EzZWQ2YjRhMDBhYTYzNDQyMDMwMGQ3MmFlNWIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI5NjM3MTI0NTczMTgtcGM5NHY0dWNsNDdoNmk3bGpuYTkwb2wxaGMybWE0dDQuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI5NjM3MTI0NTczMTgtcGM5NHY0dWNsNDdoNmk3bGpuYTkwb2wxaGMybWE0dDQuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTI5NTk5ODQxNDQ5MzY2NzUxOTAiLCJlbWFpbCI6ImxtdDMwMTgwNTA0QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYmYiOjE3NzMzMjI1NzMsIm5hbWUiOiJMw6ogTWluaCBUaGnhu4duIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0s3YTNTQnBtWTZjRm9xd1dPQ3RwWTNLbUZnOUx0MEdINW1zeS1YQ1YzckRfeGx4aE1pPXM5Ni1jIiwiZ2l2ZW5fbmFtZSI6IkzDqiBNaW5oIFRoaeG7h24iLCJpYXQiOjE3NzMzMjI4NzMsImV4cCI6MTc3MzMyNjQ3MywianRpIjoiOTFhMmFhYjQzNTQ3Y2I5Mjg5YjYzMjU1ZWE1NzJlNjI0NGFmNzllMiJ9.Ayegjm1pBVUIG3MzOEqS9yd4DoDjNFuiPbLzd2-ih84Esg33HinVpH4Dof2uOQIYDn66Tijjp-9R6YXujMqhM-AZmXVd3thXZlOCp9-06eahdwxI_29MgUDIkGdu50Nlwdy3fB2sb_awa5yf5Vvio79eZ2QL7NNX8apnaq03sAqRentW__HfakKOIaJKs1afZZ_fweCbIUUqMIHeTKz9t5DL41XkIF3CVIGpbdTW_uum1sIX2PAQyNLdsijgt09zqplOs3JiTqJPd8CDgdymaLptmIm4BCFgefua-CD9TFt7whd2w7zFWCMKcvKzh3MPDcbGuklRJQwhq-q_k8VEew",
+    "deviceInfo": "VS Code REST Client"
+}
+
+### ====================================================
+### 1.0.1 LINK PHONE TO EXISTING ACCOUNT (Firebase OTP)
+### ====================================================
+### Requires accessToken from an existing logged-in account.
+### If account has no password yet (Google-only), pass password to set it.
+### ====================================================
+POST {{host}}/api/auth/link/phone
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "phone": "0363053659",
+    "firebaseIdToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImEyZGZiOGEzOGI1MmQ5ZjA5ZWRjYWE1MDcwYTBlOGYwYTllMDk4YmEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vYml6Zmxvdy1iODIwNyIsImF1ZCI6ImJpemZsb3ctYjgyMDciLCJhdXRoX3RpbWUiOjE3NzM0ODI2ODksInVzZXJfaWQiOiJKcE9WZmFseXRvYU1qV093MUpKZXl5R3BvczUyIiwic3ViIjoiSnBPVmZhbHl0b2FNaldPdzFKSmV5eUdwb3M1MiIsImlhdCI6MTc3MzQ4MjY5MCwiZXhwIjoxNzczNDg2MjkwLCJwaG9uZV9udW1iZXIiOiIrODQzNjMwNTM2NTkiLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7InBob25lIjpbIis4NDM2MzA1MzY1OSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBob25lIn19.KmzxzHkbNu0XN5upVrgLfu2dmIDikmvON5CG9_yxeSCChy4zUf0Sm3dBd-942YMd1JdDDPljAuBGnDbeI0k5gd3TSjVfAgqfGIJNyGBcJA5Sz-vhi1mhWRnLxc6aymlN1xA0YWGGkVPRk1hJpJp2sXzxrP8NFUAQCAJCCu4YFDaGtZYFuqbOvgq64DCgWA7B7JCOrPFuk9mm-4hvTxHclAN8iULCxSnQCft6YNyHGgNpPf4mQBY4hV_JnQpL1B6-Lmw8tm7c2luoX-PnbWIE8q7PCY-5YW2QFbDng73hhmSQ1oQM92cVyTn-v_clNgGDYhAx9jXfGNmiSUauYOoRmQ",
+    "password": "MySecureP@ssw0rd123"
+}
+
+### ====================================================
+### 1.1 LOGIN WITH EMAIL + PASSWORD
+### ====================================================
+POST {{host}}/api/auth/login/email
+Content-Type: {{contentType}}
+
+{
+    "email": "lmt30180504@gmail.com",
+    "password": "MySecureP@ssw0rd123",
+    "deviceInfo": "VS Code REST Client"
+}
+
+### ====================================================
+### 1.2 LOGIN WITH PHONE + PASSWORD
+### ====================================================
+POST {{host}}/api/auth/login/phone
+Content-Type: {{contentType}}
+{
+    "phone": "0901234567",
+    "password": "123456",
     "deviceInfo": "VS Code REST Client"
 }
 
@@ -81,6 +120,13 @@ Content-Type: {{contentType}}
 {
     "refreshToken": "{{refreshToken}}"
 }
+
+### ====================================================
+### 5.1 LOGOUT ALL DEVICES (requires auth)
+### ====================================================
+POST {{host}}/api/auth/logout-all
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
 
 ### ====================================================
 ### 6. VERIFY TOKEN EXPIRED (after logout)

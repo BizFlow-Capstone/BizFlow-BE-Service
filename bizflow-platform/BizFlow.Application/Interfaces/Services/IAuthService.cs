@@ -10,6 +10,26 @@ namespace BizFlow.Application.Interfaces.Services
         Task<AuthResponse> GoogleLoginAsync(string idToken, string? deviceInfo);
 
         /// <summary>
+        /// Login using email credential and account password.
+        /// </summary>
+        Task<AuthResponse> LoginWithEmailAsync(string email, string password, string? deviceInfo);
+
+        /// <summary>
+        /// Login using phone credential and account password.
+        /// </summary>
+        Task<AuthResponse> LoginWithPhoneAsync(string phone, string password, string? deviceInfo);
+
+        /// <summary>
+        /// Register using phone + password after Firebase Phone Auth OTP verification.
+        /// </summary>
+        Task<AuthResponse> RegisterWithPhoneAsync(string phone, string password, string firebaseIdToken, string? fullName, string? deviceInfo);
+
+        /// <summary>
+        /// Link phone credential to an existing account after Firebase Phone Auth OTP verification.
+        /// </summary>
+        Task<List<CredentialInfo>> LinkPhoneAsync(Guid accountId, string phone, string firebaseIdToken, string? password);
+
+        /// <summary>
         /// Set password for an account (Google-only accounts that need a fallback credential).
         /// Also links an email credential using the Google email.
         /// </summary>
