@@ -185,7 +185,16 @@ builder.Services.AddSwaggerGen(c =>
     // Enable Swagger annotations
     c.EnableAnnotations();
 });
-
+// CORS Configuration - Allow All
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
 
 //===================================================================================
 var app = builder.Build();
@@ -206,7 +215,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+// Use CORS
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
