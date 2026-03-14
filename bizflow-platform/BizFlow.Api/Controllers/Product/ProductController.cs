@@ -170,6 +170,22 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Bulk adjust selling price on selected sale items by fixed delta.
+        /// </summary>
+        [HttpPatch("products/sale-items/selling-price")]
+        [SwaggerOperation(Summary = "Bulk adjust selling price", Description = "Adjust selected sale-item selling prices by fixed delta. Positive delta increases price, negative delta decreases price. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> BulkAdjustSellingPrice([FromBody] BulkAdjustSellingPriceRequest request)
+        {
+            var userId = GetCurrentUserId();
+            await _productService.BulkAdjustSellingPriceAsync(userId, request);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
+        }
+
+        /// <summary>
         /// Delete product (soft delete)
         /// </summary>
         [HttpDelete("product/{productId:long}")]

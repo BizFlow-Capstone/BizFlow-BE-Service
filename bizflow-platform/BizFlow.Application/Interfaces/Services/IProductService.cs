@@ -42,6 +42,12 @@ namespace BizFlow.Application.Interfaces.Services
         Task<ProductSummaryDto> AdjustProductStockAsync(Guid userId, long productId, AdjustProductStockRequest request);
 
         /// <summary>
+        /// Bulk adjust selling price by fixed delta on selected sale items.
+        /// Positive delta increases price; negative delta decreases price.
+        /// </summary>
+        Task BulkAdjustSellingPriceAsync(Guid userId, BulkAdjustSellingPriceRequest request);
+
+        /// <summary>
         /// Delete product (soft/hard delete based on history)
         /// </summary>
         Task DeleteProductAsync(Guid userId, long productId);
