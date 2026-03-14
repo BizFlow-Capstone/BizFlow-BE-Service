@@ -44,6 +44,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<decimal?> GetLatestCostPriceFromImportsAsync(long productId, long excludeImportId);
 
         /// <summary>
+        /// Get sale items by IDs with Product and ProductPricePolicies for bulk selling-price adjustment.
+        /// </summary>
+        Task<List<SaleItem>> GetSaleItemsForPriceAdjustAsync(IEnumerable<long> saleItemIds);
+
+        /// <summary>
         /// Get all non-null ImagePublicIds from Products table (for cleanup job)
         /// </summary>
         /// <summary>

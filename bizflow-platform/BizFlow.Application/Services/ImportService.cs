@@ -63,7 +63,7 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
 
             // Validate and build items
-            var (items, totalAmount) = await BuildImportItemsAsync(request.Items);
+            var (items, totalAmount) = await BuildImportItemsAsync(request.BusinessLocationId, request.Items);
 
             var status = request.SaveAsDraft ? ImportStatus.Draft : ImportStatus.Confirmed;
 
@@ -100,8 +100,8 @@ namespace BizFlow.Application.Services
             if (import.Status != ImportStatus.Draft)
                 throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
 
-            // Always overwrite all fields (null = clear the value)
-            import.ImportType = request.ImportType;
+            // ImportType cannot be null on entity; keep current when request omits it.
+            import.ImportType = request.ImportType ?? import.ImportType;
             import.Supplier = request.Supplier;
             import.Note = request.Note;
             import.ReceivedAt = request.ReceivedAt;
@@ -130,7 +130,7 @@ namespace BizFlow.Application.Services
 
             if (request.Items != null && request.Items.Count > 0)
             {
-                var (newItems, totalAmount) = await BuildImportItemsAsync(request.Items);
+                var (newItems, totalAmount) = await BuildImportItemsAsync(import.BusinessLocationId, request.Items);
                 foreach (var item in newItems)
                     item.ImportId = import.ImportId;
 
@@ -232,6 +232,8 @@ namespace BizFlow.Application.Services
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
                 throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+            ValidateProductLocationAndCostPrice(product, businessLocationId, costPrice);
 
             var items = new List<ProductImport>
             {
@@ -423,8 +425,12 @@ namespace BizFlow.Application.Services
         }
 
         private async Task<(List<ProductImport> items, decimal totalAmount)> BuildImportItemsAsync(
+            int businessLocationId,
             List<ImportItemRequest> requestItems)
         {
+            if (requestItems == null || requestItems.Count == 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
             var items = new List<ProductImport>();
             decimal totalAmount = 0;
 
@@ -433,6 +439,8 @@ namespace BizFlow.Application.Services
                 var product = await _unitOfWork.Products.GetByIdAsync(req.ProductId);
                 if (product == null)
                     throw new NotFoundException(MessageKeys.ImportProductNotFound);
+
+                ValidateProductLocationAndCostPrice(product, businessLocationId, req.CostPrice);
 
                 var totalPrice = req.Quantity * req.CostPrice;
 
@@ -449,6 +457,15 @@ namespace BizFlow.Application.Services
             }
 
             return (items, totalAmount);
+        }
+
+        private static void ValidateProductLocationAndCostPrice(Product product, int businessLocationId, decimal costPrice)
+        {
+            if (product.BusinessLocationId != businessLocationId)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (costPrice < 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
         }
 
         private async Task EnsureOwnerOfLocationAsync(Guid userId, int locationId)

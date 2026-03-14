@@ -281,6 +281,62 @@ namespace BizFlow.Application.Services
             return _mapper.Map<ProductSummaryDto>(updated);
         }
 
+        public async Task BulkAdjustSellingPriceAsync(Guid userId, BulkAdjustSellingPriceRequest request)
+        {
+            if (request.SaleItemIds == null || request.SaleItemIds.Count == 0 || request.DeltaAmount == 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var requestedSaleItemIds = request.SaleItemIds.Distinct().ToList();
+            var saleItems = await _unitOfWork.Products.GetSaleItemsForPriceAdjustAsync(requestedSaleItemIds);
+
+            // Missing/deleted SaleItems are treated as invalid targets.
+            if (saleItems.Count != requestedSaleItemIds.Count)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            var ownedLocationIds = (await _unitOfWork.BusinessLocations.GetLocationsByUserAsync(userId, isOwner: true))
+                .Select(l => l.Id)
+                .ToHashSet();
+
+            if (ownedLocationIds.Count == 0)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            // Owner must manage every selected SaleItem's product location.
+            if (saleItems.Any(si => !ownedLocationIds.Contains(si.Product.BusinessLocationId)))
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            await _unitOfWork.ExecuteResilientAsync(async _ =>
+            {
+                foreach (var saleItem in saleItems)
+                {
+                    var defaultPolicy = saleItem.ProductPricePolicies.FirstOrDefault(pp => pp.IsDefault);
+                    if (defaultPolicy == null)
+                        throw new BadRequestException(MessageKeys.BadRequest);
+
+                    var newPrice = defaultPolicy.Price + request.DeltaAmount;
+                    if (newPrice < 0)
+                        throw new BadRequestException(MessageKeys.BadRequest);
+
+                    defaultPolicy.IsDefault = false;
+                    defaultPolicy.EndAt = DateTime.UtcNow;
+
+                    await _unitOfWork.Products.AddPricePolicyAsync(new ProductPricePolicy
+                    {
+                        SaleItemId = saleItem.SaleItemId,
+                        Price = newPrice,
+                        IsDefault = true,
+                        StartAt = DateTime.UtcNow
+                    });
+
+                    // Keep Product.SellingPrice in sync with the base-unit sale item price.
+                    if (string.Equals(saleItem.Unit?.Trim(), saleItem.Product.Unit?.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        saleItem.Product.SellingPrice = newPrice;
+                        _unitOfWork.Products.Update(saleItem.Product);
+                    }
+                }
+            });
+        }
+
         public async Task DeleteProductAsync(Guid userId, long productId)
         {
             var product = await _unitOfWork.Products.GetByIdWithSaleItemsAsync(productId);

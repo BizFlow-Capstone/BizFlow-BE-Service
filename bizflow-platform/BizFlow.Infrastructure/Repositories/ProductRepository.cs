@@ -199,5 +199,18 @@ namespace BizFlow.Infrastructure.Repositories
                 .Select(pi => (decimal?)pi.CostPrice)
                 .FirstOrDefaultAsync();
         }
+
+        public async Task<List<SaleItem>> GetSaleItemsForPriceAdjustAsync(IEnumerable<long> saleItemIds)
+        {
+            var ids = saleItemIds.Distinct().ToList();
+            if (ids.Count == 0)
+                return new List<SaleItem>();
+
+            return await _dbContext.SaleItems
+                .Where(si => ids.Contains(si.SaleItemId))
+                .Include(si => si.Product)
+                .Include(si => si.ProductPricePolicies)
+                .ToListAsync();
+        }
     }
 }
