@@ -36,7 +36,7 @@ namespace BizFlow.Application.Services
 
         public async Task<BusinessLocationDetailDto> GetLocationDetailAsync(Guid userId, int locationId)
         {
-            // RULE-LOC-05 + RULE-LOC-07: access check + block Employee when inactive
+            // RULE-LOC-05 + RULE-LOC-07: check access first, then fetch detail.
             await ValidateLocationAccessAsync(userId, locationId);
 
             var detail = await _unitOfWork.BusinessLocations.GetLocationDetailByIdAsync(locationId);
@@ -48,7 +48,7 @@ namespace BizFlow.Application.Services
 
         public async Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId)
         {
-            await EnsureOwnershipAsync(userId, locationId);
+            await GetLocationAsOwnerOrThrowAsync(userId, locationId);
 
             var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);
             return new EmployeeSummaryListDto
@@ -57,37 +57,19 @@ namespace BizFlow.Application.Services
             };
         }
 
-        /// <summary>
-        /// RULE-LOC-07: Validates user access to location.
-        /// Owner → full access. Employee → blocked when IsActive=false.
-        /// Reusable for Product/Import services.
-        /// </summary>
-        public async Task ValidateLocationAccessAsync(Guid userId, int locationId)
-        {
-            var location = await GetLocationOrThrowAsync(locationId);
-
-            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
-            if (!hasAccess)
-                throw new ForbiddenException(MessageKeys.Forbidden);
-
-            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner && location.IsActive == false)
-                throw new ForbiddenException(MessageKeys.LocationInactive);
-        }
-
         #endregion
 
         #region Command Methods
 
         public async Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request)
         {
-            return await _unitOfWork.ExecuteResilientAsync(async _ =>
+            var createdId = await _unitOfWork.ExecuteResilientAsync(async _ =>
             {
                 await EnsureLocationNameUniqueAsync(userId, request.Name);
 
                 var location = _mapper.Map<BusinessLocation>(request);
                 var created = await _unitOfWork.BusinessLocations.AddAsync(location);
-                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.SaveChangesAsync(); // flush to get BusinessLocationId
 
                 var ownerAssignment = new UserLocationAssignment
                 {
@@ -103,17 +85,17 @@ namespace BizFlow.Application.Services
                 if (request.EmployeeIds is { Count: > 0 })
                     await AssignEmployeesInternalAsync(userId, created.BusinessLocationId, request.EmployeeIds);
 
-                await _unitOfWork.SaveChangesAsync();
-
-                var locations = await _unitOfWork.BusinessLocations.GetLocationsByUserAsync(userId, isOwner: true);
-                return locations.First(l => l.Id == created.BusinessLocationId);
+                return created.BusinessLocationId;
+                // ExecuteResilientAsync saves assignments + commits here
             });
+
+            return await _unitOfWork.BusinessLocations.GetLocationDtoByUserAndIdAsync(userId, createdId)
+                ?? throw new NotFoundException(MessageKeys.NotFound);
         }
 
         public async Task UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request)
         {
-            var location = await GetLocationOrThrowAsync(locationId);
-            await EnsureOwnershipAsync(userId, locationId);
+            var location = await GetLocationAsOwnerOrThrowAsync(userId, locationId);
 
             if (request.Name != location.LocationName)
                 await EnsureLocationNameUniqueAsync(userId, request.Name);
@@ -125,8 +107,7 @@ namespace BizFlow.Application.Services
 
         public async Task UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive)
         {
-            var location = await GetLocationOrThrowAsync(locationId);
-            await EnsureOwnershipAsync(userId, locationId);
+            var location = await GetLocationAsOwnerOrThrowAsync(userId, locationId);
 
             location.IsActive = isActive;
             _unitOfWork.BusinessLocations.Update(location);
@@ -135,17 +116,17 @@ namespace BizFlow.Application.Services
 
         public async Task AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds)
         {
-            await GetLocationOrThrowAsync(locationId);
-            await EnsureOwnershipAsync(ownerId, locationId);
+            await GetLocationAsOwnerOrThrowAsync(ownerId, locationId);
 
-            await AssignEmployeesInternalAsync(ownerId, locationId, employeeIds);
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.ExecuteResilientAsync(async _ =>
+            {
+                await AssignEmployeesInternalAsync(ownerId, locationId, employeeIds);
+            });
         }
 
         public async Task RemoveEmployeeFromLocationAsync(Guid ownerId, int locationId, Guid employeeId)
         {
-            await GetLocationOrThrowAsync(locationId);
-            await EnsureOwnershipAsync(ownerId, locationId);
+            await GetLocationAsOwnerOrThrowAsync(ownerId, locationId);
 
             await _unitOfWork.BusinessLocations.RemoveEmployeeFromLocationAsync(locationId, employeeId);
             await _unitOfWork.SaveChangesAsync();
@@ -153,8 +134,7 @@ namespace BizFlow.Application.Services
 
         public async Task DeleteLocationAsync(Guid userId, int locationId)
         {
-            var location = await GetLocationOrThrowAsync(locationId);
-            await EnsureOwnershipAsync(userId, locationId);
+            var location = await GetLocationAsOwnerOrThrowAsync(userId, locationId);
 
             var hasData = await _unitOfWork.BusinessLocations.HasRelatedDataAsync(locationId);
 
@@ -178,6 +158,24 @@ namespace BizFlow.Application.Services
         #region Private Helpers
 
         /// <summary>
+        /// RULE-LOC-07: Validates user access to location.
+        /// Owner → full access. Employee → blocked when IsActive=false.
+        /// Reusable for Product/Import services.
+        /// </summary>
+        public async Task ValidateLocationAccessAsync(Guid userId, int locationId)
+        {
+            var location = await GetLocationOrThrowAsync(locationId);
+
+            var hasAccess = await _unitOfWork.BusinessLocations.HasAccessToLocationAsync(userId, locationId);
+            if (!hasAccess)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner && location.IsActive == false)
+                throw new ForbiddenException(MessageKeys.LocationInactive);
+        }
+
+        /// <summary>
         /// Throws NotFoundException if location doesn't exist (or is soft-deleted).
         /// Reusable guard — call before any mutation.
         /// </summary>
@@ -198,6 +196,17 @@ namespace BizFlow.Application.Services
             var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
             if (!isOwner)
                 throw new ForbiddenException(MessageKeys.Forbidden);
+        }
+
+        /// <summary>
+        /// Fetches location and verifies ownership in one call site.
+        /// Consolidates the GetLocationOrThrowAsync + EnsureOwnershipAsync pattern.
+        /// </summary>
+        private async Task<BusinessLocation> GetLocationAsOwnerOrThrowAsync(Guid userId, int locationId)
+        {
+            var location = await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(userId, locationId);
+            return location;
         }
 
         /// <summary>
