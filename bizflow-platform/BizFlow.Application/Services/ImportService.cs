@@ -428,11 +428,12 @@ namespace BizFlow.Application.Services
             int businessLocationId,
             List<ImportItemRequest> requestItems)
         {
-            if (requestItems == null || requestItems.Count == 0)
-                throw new BadRequestException(MessageKeys.BadRequest);
-
             var items = new List<ProductImport>();
             decimal totalAmount = 0;
+
+            // Allow import creation/update without products (note/image-only import metadata updates).
+            if (requestItems == null || requestItems.Count == 0)
+                return (items, totalAmount);
 
             foreach (var req in requestItems)
             {
