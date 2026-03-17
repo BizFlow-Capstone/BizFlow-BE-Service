@@ -46,9 +46,17 @@ public partial class BusinessLocation
     /// </summary>
     public string? TaxCode { get; set; }
 
+    public virtual ICollection<Cost> Costs { get; set; } = new List<Cost>();
+
+    public virtual ICollection<Debtor> Debtors { get; set; } = new List<Debtor>();
+
+    public virtual ICollection<GeneralLedgerEntry> GeneralLedgerEntries { get; set; } = new List<GeneralLedgerEntry>();
+
     public virtual ICollection<Import> Imports { get; set; } = new List<Import>();
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+
+    public virtual ICollection<Revenue> Revenues { get; set; } = new List<Revenue>();
 
     public virtual ICollection<UserLocationAssignment> UserLocationAssignments { get; set; } = new List<UserLocationAssignment>();
 }

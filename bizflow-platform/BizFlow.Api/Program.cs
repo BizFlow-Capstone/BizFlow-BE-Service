@@ -231,8 +231,10 @@ app.UseHangfireDashboard();
 RecurringJob.AddOrUpdate<ImageCleanupJob>(
     "image-cleanup",
     job => job.ExecuteAsync(),
-    // "5 17 * * *" // 17:05 Vietnam time (UTC+7)
-    "* * * * *" // Every minute
+     "5 17 * * *" // 17:05 Vietnam time (UTC+7)
+                  //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
+                  //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
+                  // "* * * * *" // Every minute
 );
 
 app.Run();

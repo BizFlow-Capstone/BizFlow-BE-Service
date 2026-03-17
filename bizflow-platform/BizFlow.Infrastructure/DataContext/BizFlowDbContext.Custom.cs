@@ -18,5 +18,14 @@ public partial class BizFlowDbContext
 
         // Global Query Filter: Soft Delete for ImportSchema
         modelBuilder.Entity<ImportSchema>().HasQueryFilter(e => e.DeletedAt == null);
+
+        // Global Query Filter: Soft Delete for Debtor
+        modelBuilder.Entity<Debtor>().HasQueryFilter(e => e.DeletedAt == null);
+
+        // Global Query Filter: Soft Delete for Revenue (manual only deletable)
+        modelBuilder.Entity<Revenue>().HasQueryFilter(e => e.DeletedAt == null);
+
+        // Global Query Filter: Soft Delete for Cost
+        modelBuilder.Entity<Cost>().HasQueryFilter(e => e.DeletedAt == null);
     }
 }
