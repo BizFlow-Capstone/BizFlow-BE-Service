@@ -102,5 +102,11 @@
   "IMPORT_SCHEMA_ACTIVATED": "Kích hoạt schema nhập kho thành công",
   "IMPORT_SCHEMA_DELETED": "Xóa schema nhập kho thành công",
   "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Không thể xóa schema đang hoạt động. Vui lòng hủy kích hoạt trước",
-  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này"
+  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này",
+
+  "DEBTOR_NOT_FOUND": "Không tìm thấy khách nợ",
+  "DEBTOR_NOT_ACTIVE": "Khách nợ đã ngừng hoạt động, không thể ghi nhận thanh toán",
+  "DEBTOR_PHONE_DUPLICATE": "Số điện thoại này đã được đăng ký cho khách nợ khác tại địa điểm này",
+  "DEBTOR_HAS_OUTSTANDING_BALANCE": "Không thể xóa khách nợ có dư nợ chưa thanh toán",
+  "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank"
 }

@@ -100,5 +100,12 @@ namespace BizFlow.Application.Common.Constants
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
         public const string ImportSchemaTemplateCodeConflict = "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT";
+
+        // ============ DEBTOR ============
+        public const string DebtorNotFound = "DEBTOR_NOT_FOUND";
+        public const string DebtorNotActive = "DEBTOR_NOT_ACTIVE";
+        public const string DebtorPhoneDuplicate = "DEBTOR_PHONE_DUPLICATE";
+        public const string DebtorHasOutstandingBalance = "DEBTOR_HAS_OUTSTANDING_BALANCE";
+        public const string DebtorPaymentMethodInvalid = "DEBTOR_PAYMENT_METHOD_INVALID";
     }
 }

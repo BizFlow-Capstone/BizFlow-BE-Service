@@ -102,5 +102,11 @@
   "IMPORT_SCHEMA_ACTIVATED": "Import schema activated successfully",
   "IMPORT_SCHEMA_DELETED": "Import schema deleted successfully",
   "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Cannot delete an active import schema. Deactivate it first",
-  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "An import schema with this TemplateCode already exists"
+  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "An import schema with this TemplateCode already exists",
+
+  "DEBTOR_NOT_FOUND": "Debtor not found",
+  "DEBTOR_NOT_ACTIVE": "Debtor is inactive and cannot accept payments",
+  "DEBTOR_PHONE_DUPLICATE": "A debtor with this phone number already exists in this location",
+  "DEBTOR_HAS_OUTSTANDING_BALANCE": "Cannot delete a debtor with an outstanding balance",
+  "DEBTOR_PAYMENT_METHOD_INVALID": "Invalid payment method. Allowed values: cash, bank"
 }
