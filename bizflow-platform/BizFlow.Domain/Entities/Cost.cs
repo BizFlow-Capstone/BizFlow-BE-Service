@@ -64,9 +64,6 @@ public partial class Cost
 
     public DateTime? UpdatedAt { get; set; }
 
-    /// <summary>
-    /// Soft delete
-    /// </summary>
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
