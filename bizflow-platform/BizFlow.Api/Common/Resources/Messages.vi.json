@@ -102,5 +102,16 @@
   "IMPORT_SCHEMA_ACTIVATED": "Kích hoạt schema nhập kho thành công",
   "IMPORT_SCHEMA_DELETED": "Xóa schema nhập kho thành công",
   "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Không thể xóa schema đang hoạt động. Vui lòng hủy kích hoạt trước",
-  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này"
+  "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này",
+  "PERIOD_CREATED": "Tạo kỳ kế toán thành công",
+  "PERIOD_FINALIZED": "Chốt kỳ kế toán thành công",
+  "PERIOD_REOPENED": "Mở lại kỳ kế toán thành công",
+  "PERIOD_NOT_FOUND": "Không tìm thấy kỳ kế toán",
+  "PERIOD_ALREADY_EXISTS": "Kỳ kế toán đã tồn tại",
+  "PERIOD_NOT_OPEN": "Kỳ kế toán không ở trạng thái open hoặc reopened",
+  "PERIOD_ALREADY_FINALIZED": "Kỳ kế toán đã được chốt",
+  "PERIOD_NOT_FINALIZED": "Chỉ có thể mở lại kỳ đã finalized",
+  "PERIOD_REOPEN_REASON_REQUIRED": "Phải nhập lý do khi mở lại kỳ kế toán",
+  "PERIOD_NO_BOOKS": "Cần có ít nhất 1 sổ kế toán active trước khi chốt kỳ",
+  "PERIOD_OPENING_BALANCE_REQUIRED": "Kỳ đầu tiên bắt buộc nhập số dư đầu kỳ tiền mặt và ngân hàng"
 }

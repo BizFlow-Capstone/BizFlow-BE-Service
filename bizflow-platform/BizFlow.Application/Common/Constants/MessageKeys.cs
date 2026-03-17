@@ -100,5 +100,18 @@ namespace BizFlow.Application.Common.Constants
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
         public const string ImportSchemaTemplateCodeConflict = "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT";
+
+        // ============ ACCOUNTING PERIOD ============
+        public const string PeriodCreatedSuccessfully = "PERIOD_CREATED";
+        public const string PeriodFinalizedSuccessfully = "PERIOD_FINALIZED";
+        public const string PeriodReopenedSuccessfully = "PERIOD_REOPENED";
+        public const string PeriodNotFound = "PERIOD_NOT_FOUND";
+        public const string PeriodAlreadyExists = "PERIOD_ALREADY_EXISTS";
+        public const string PeriodNotOpen = "PERIOD_NOT_OPEN";
+        public const string PeriodAlreadyFinalized = "PERIOD_ALREADY_FINALIZED";
+        public const string PeriodNotFinalized = "PERIOD_NOT_FINALIZED";
+        public const string PeriodReopenReasonRequired = "PERIOD_REOPEN_REASON_REQUIRED";
+        public const string PeriodNoBooks = "PERIOD_NO_BOOKS";
+        public const string PeriodOpeningBalanceRequired = "PERIOD_OPENING_BALANCE_REQUIRED";
     }
 }

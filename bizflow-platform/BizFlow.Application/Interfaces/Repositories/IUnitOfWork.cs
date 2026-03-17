@@ -11,6 +11,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IRoleRepository Roles { get; }
         IBusinessTypeRepository BusinessTypes { get; }
         IBusinessLocationRepository BusinessLocations { get; }
+        IAccountingPeriodRepository AccountingPeriods { get; }
         IHireRepository Hires { get; }
         IProductRepository Products { get; }
         IImportRepository Imports { get; }
