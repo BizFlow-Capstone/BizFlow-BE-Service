@@ -34,5 +34,5 @@ WHERE p.SellingPrice = 0;
 -- Track migration
 -- =============================================
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('030_add_selling_price_to_products', '1.0.0')
+VALUES ('031_add_selling_price_to_products', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';

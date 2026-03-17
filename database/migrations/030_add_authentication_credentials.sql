@@ -59,45 +59,8 @@ CREATE TABLE IF NOT EXISTS RefreshTokens (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
--- 4. MIGRATE EXISTING DATA: Accounts.Email → Credentials (type=email)
+-- Track migration
 -- =============================================
-INSERT INTO Credentials (CredentialId, AccountId, Type, Identifier, EmailVerified, CreatedAt)
-SELECT
-    UUID(),
-    AccountId,
-    'email',
-    Email,
-    EmailVerified,
-    CreatedAt
-FROM Accounts
-WHERE Email IS NOT NULL AND Email != '';
-
--- =============================================
--- 5. MIGRATE EXISTING DATA: Accounts.Phone → Credentials (type=phone)
---    Normalize: 0xxxxxxxxx → +84xxxxxxxxx
--- =============================================
-INSERT INTO Credentials (CredentialId, AccountId, Type, Identifier, CreatedAt)
-SELECT
-    UUID(),
-    AccountId,
-    'phone',
-    CASE
-        WHEN Phone LIKE '0%' THEN CONCAT('+84', SUBSTRING(Phone, 2))
-        WHEN Phone LIKE '+84%' THEN Phone
-        ELSE CONCAT('+84', Phone)
-    END,
-    CreatedAt
-FROM Accounts
-WHERE Phone IS NOT NULL AND Phone != '';
-
--- =============================================
--- 6. DROP MIGRATED COLUMNS FROM Accounts
---    Giữ lại PasswordHash (đã nullable ở step 1)
--- =============================================
-DROP INDEX idx_account_email ON Accounts;
-DROP INDEX idx_account_phone ON Accounts;
-
-ALTER TABLE Accounts
-    DROP COLUMN Email,
-    DROP COLUMN Phone,
-    DROP COLUMN EmailVerified;
+INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('030_add_authentication_credentials', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';
