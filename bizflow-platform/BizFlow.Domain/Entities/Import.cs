@@ -93,6 +93,8 @@ public partial class Import
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
+    public virtual ICollection<Cost> Costs { get; set; } = new List<Cost>();
+
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 
     public virtual ImportSchemaVersion? SchemaVersion { get; set; }
