@@ -240,7 +240,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.CostId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Chi phí cửa hàng - source-of-truth cho mọi khoản chi"))
+                .ToTable(tb => tb.HasComment("Store cost - source-of-truth for all expenses"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.ImportId, "idx_cost_import");
@@ -253,29 +253,29 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Giá trị chi phí");
+                .HasComment("Cost amount");
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
-            entity.Property(e => e.CostDate).HasComment("Ngày phát sinh chi phí");
+            entity.Property(e => e.CostDate).HasComment("Cost incurred date");
             entity.Property(e => e.CostType)
                 .HasMaxLength(30)
                 .HasComment("import | salary | rent | utilities | transport | marketing | maintenance | other | manual");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedBy).HasComment("UserId người tạo bản ghi");
+            entity.Property(e => e.CreatedBy).HasComment("UserId of the creator");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete")
                 .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Mô tả nội dung chi phí");
+                .HasComment("Description of the cost");
             entity.Property(e => e.DocumentPublicId)
                 .HasMaxLength(255)
-                .HasComment("Public ID Cloudinary của chứng từ");
+                .HasComment("Cloudinary public ID of the document");
             entity.Property(e => e.DocumentUrl)
                 .HasMaxLength(500)
-                .HasComment("URL chứng từ/hóa đơn (Cloudinary)");
-            entity.Property(e => e.ImportId).HasComment("FK to Imports (chỉ có khi CostType = import)");
+                .HasComment("URL of the document/invoice (Cloudinary)");
+            entity.Property(e => e.ImportId).HasComment("FK to Imports (only when CostType = import)");
             entity.Property(e => e.PaymentMethod)
                 .HasMaxLength(20)
                 .HasComment("cash | bank");
@@ -330,7 +330,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.DebtorPaymentTransactionId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Lịch sử giao dịch thanh toán nợ của khách"))
+                .ToTable(tb => tb.HasComment("Customer debt payment transaction history"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.DebtorId, "idx_debtor_payment_debtor");
@@ -339,20 +339,20 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền thanh toán trong giao dịch này");
+                .HasComment("Payment amount in this transaction");
             entity.Property(e => e.BalanceAfter)
                 .HasPrecision(15, 2)
-                .HasComment("Số dư nợ sau giao dịch");
+                .HasComment("Debt balance after transaction");
             entity.Property(e => e.BalanceBefore)
                 .HasPrecision(15, 2)
-                .HasComment("Số dư nợ trước giao dịch");
-            entity.Property(e => e.CreatedByUserId).HasComment("UserId người ghi nhận thanh toán");
+                .HasComment("Debt balance before transaction");
+            entity.Property(e => e.CreatedByUserId).HasComment("UserId of the user recording the payment");
             entity.Property(e => e.DebtorId).HasComment("FK to Debtors");
             entity.Property(e => e.Notes)
-                .HasComment("Ghi chú của giao dịch")
+                .HasComment("Transaction notes")
                 .HasColumnType("text");
             entity.Property(e => e.PaidAt)
-                .HasComment("Thời điểm thanh toán thực tế")
+                .HasComment("Actual payment time")
                 .HasColumnType("datetime");
             entity.Property(e => e.PaymentMethod)
                 .HasMaxLength(20)
@@ -369,7 +369,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.DebtorId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Danh sách khách nợ theo từng cửa hàng"))
+                .ToTable(tb => tb.HasComment("List of debtors by store location"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => new { e.BusinessLocationId, e.IsActive }, "idx_debtor_active");
@@ -379,35 +379,35 @@ public partial class BizFlowDbContext : DbContext
             entity.HasIndex(e => new { e.BusinessLocationId, e.Phone }, "idx_debtor_phone_location").IsUnique();
 
             entity.Property(e => e.Address)
-                .HasComment("Địa chỉ")
+                .HasComment("Address")
                 .HasColumnType("text");
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedByUserId).HasComment("UserId người tạo (FK to Profiles)");
+            entity.Property(e => e.CreatedByUserId).HasComment("UserId of the creator (FK to Profiles)");
             entity.Property(e => e.CreditLimit)
                 .HasPrecision(15, 2)
-                .HasComment("Hạn mức tín dụng cho phép (NULL = không giới hạn)");
+                .HasComment("Allowed credit limit (NULL = unlimited)");
             entity.Property(e => e.CurrentBalance)
                 .HasPrecision(15, 2)
-                .HasComment("Số dư nợ hiện tại (>0 = đang nợ)");
+                .HasComment("Current debt balance (>0 = in debt)");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
-                .HasComment("Trạng thái hoạt động");
+                .HasComment("Activity status");
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
-                .HasComment("Tên khách nợ");
+                .HasComment("Debtor name");
             entity.Property(e => e.Notes)
-                .HasComment("Ghi chú nội bộ")
+                .HasComment("Internal notes")
                 .HasColumnType("text");
             entity.Property(e => e.Phone)
                 .HasMaxLength(20)
-                .HasComment("Số điện thoại (unique per location)");
+                .HasComment("Phone number (unique per location)");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
@@ -424,7 +424,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.EntryId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Sổ cái kế toán bất biến - chỉ thêm, không sửa/xoá"))
+                .ToTable(tb => tb.HasComment("Immutable general ledger - append only, no update/delete"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.BusinessLocationId, "idx_gl_location");
@@ -440,27 +440,27 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasComment("IMMUTABLE - không được thay đổi sau khi tạo")
+                .HasComment("IMMUTABLE - cannot be changed after creation")
                 .HasColumnType("datetime");
             entity.Property(e => e.CreditAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền Có (credit)");
+                .HasComment("Credit amount");
             entity.Property(e => e.DebitAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền Nợ (debit)");
+                .HasComment("Debit amount");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Mô tả nội dung bút toán");
-            entity.Property(e => e.EntryDate).HasComment("Ngày phát sinh nghiệp vụ");
-            entity.Property(e => e.IsReversal).HasComment("TRUE nếu đây là bản ghi đảo (reversal entry)");
+                .HasComment("Description of the entry");
+            entity.Property(e => e.EntryDate).HasComment("Transaction incurred date");
+            entity.Property(e => e.IsReversal).HasComment("TRUE if this is a reversal entry");
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");
-            entity.Property(e => e.ReferenceId).HasComment("ID của thực thể nguồn (polymorphic, không có FK cứng)");
+            entity.Property(e => e.ReferenceId).HasComment("Source entity ID (polymorphic, no strict FK)");
             entity.Property(e => e.ReferenceType)
                 .HasMaxLength(30)
                 .HasComment("order | cost | import | debtor_payment | revenue");
-            entity.Property(e => e.ReversedEntryId).HasComment("EntryId bị đảo ngược (tự tham chiếu)");
+            entity.Property(e => e.ReversedEntryId).HasComment("Reversed EntryId (self-referenced)");
             entity.Property(e => e.TransactionType)
                 .HasMaxLength(30)
                 .HasComment("sale | import_cost | manual_cost | debt_payment | manual_revenue | manual_expense");
@@ -669,7 +669,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.OrderDetailId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Chi tiết dòng sản phẩm trong đơn hàng (snapshot giá tại thời điểm bán)"))
+                .ToTable(tb => tb.HasComment("Product line details in order (price snapshot at time of sale)"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.OrderId, "idx_order_detail_order");
@@ -678,21 +678,21 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Thành tiền = Quantity * UnitPrice - Discount");
+                .HasComment("Total amount = Quantity * UnitPrice - Discount");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.Discount)
                 .HasPrecision(15, 2)
-                .HasComment("Chiết khấu theo dòng sản phẩm");
+                .HasComment("Product line discount");
             entity.Property(e => e.OrderId).HasComment("FK to Orders");
             entity.Property(e => e.Quantity)
                 .HasDefaultValueSql("'1'")
-                .HasComment("Số lượng bán");
+                .HasComment("Quantity sold");
             entity.Property(e => e.SaleItemId).HasComment("FK to SaleItems (live reference)");
             entity.Property(e => e.UnitPrice)
                 .HasPrecision(15, 2)
-                .HasComment("Snapshot đơn giá tại thời điểm tạo đơn");
+                .HasComment("Unit price snapshot at order creation time");
 
             entity.HasOne(d => d.Order).WithMany(p => p.OrderDetails)
                 .HasForeignKey(d => d.OrderId)
@@ -700,7 +700,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.SaleItem).WithMany(p => p.OrderDetails)
                 .HasForeignKey(d => d.SaleItemId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_order_detail_sale_item");
         });
 
@@ -709,7 +709,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.OrderId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Đơn hàng bán lẻ tại cửa hàng"))
+                .ToTable(tb => tb.HasComment("Retail order at the store"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.OrderCode, "idx_order_code").IsUnique();
@@ -724,63 +724,63 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.BankAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền thanh toán qua ngân hàng/chuyển khoản");
+                .HasComment("Amount paid via bank/transfer");
             entity.Property(e => e.BillMetadata)
-                .HasComment("Thông tin hóa đơn bổ sung (JSON tự do)")
+                .HasComment("Additional invoice info (free JSON)")
                 .HasColumnType("json");
             entity.Property(e => e.CancelReason)
-                .HasComment("Lý do huỷ chi tiết (free text)")
+                .HasComment("Detailed cancel reason (free text)")
                 .HasColumnType("text");
             entity.Property(e => e.CancelledAt)
-                .HasComment("Thời điểm đơn hàng bị huỷ")
+                .HasComment("Time when order was cancelled")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CancelledBy).HasComment("UserId người huỷ đơn");
+            entity.Property(e => e.CancelledBy).HasComment("UserId of the user who cancelled the order");
             entity.Property(e => e.CashAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền thanh toán bằng tiền mặt");
+                .HasComment("Amount paid in cash");
             entity.Property(e => e.CompletedAt)
-                .HasComment("Thời điểm đơn hàng hoàn thành")
+                .HasComment("Time when order was completed")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CompletedBy).HasComment("UserId người hoàn thành đơn");
+            entity.Property(e => e.CompletedBy).HasComment("UserId of the user who completed the order");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedBy).HasComment("UserId người tạo đơn");
+            entity.Property(e => e.CreatedBy).HasComment("UserId of the creator of the order");
             entity.Property(e => e.CustomerName)
                 .HasMaxLength(255)
-                .HasComment("Tên khách hàng vãng lai (không cần trong hệ thống)");
+                .HasComment("Guest customer name (not required in system)");
             entity.Property(e => e.CustomerPhone)
                 .HasMaxLength(20)
-                .HasComment("SĐT khách hàng vãng lai");
+                .HasComment("Guest customer phone number");
             entity.Property(e => e.DebtAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Số tiền ghi nợ = TotalAmount - CashAmount - BankAmount");
-            entity.Property(e => e.DebtorId).HasComment("FK to Debtors: khách nợ (nếu có)");
+                .HasComment("Debt amount = TotalAmount - CashAmount - BankAmount");
+            entity.Property(e => e.DebtorId).HasComment("FK to Debtors (if any)");
             entity.Property(e => e.Discount)
                 .HasPrecision(15, 2)
-                .HasComment("Chiết khấu tổng đơn hàng");
+                .HasComment("Total order discount");
             entity.Property(e => e.Note)
-                .HasComment("Ghi chú của đơn hàng")
+                .HasComment("Order notes")
                 .HasColumnType("text");
             entity.Property(e => e.OrderCode)
                 .HasMaxLength(50)
-                .HasComment("Mã đơn hàng duy nhất, format: ORD-YYYYMMDD-NNN");
-            entity.Property(e => e.RefOrderId).HasComment("FK tự tham chiếu: đơn gốc bị thay thế khi sửa đơn đã hoàn thành");
+                .HasComment("Unique order code, format: ORD-YYYYMMDD-NNN");
+            entity.Property(e => e.RefOrderId).HasComment("Self-referenced FK: original order replaced when editing a completed order");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValueSql("'pending'")
                 .HasComment("pending | completed | cancelled");
             entity.Property(e => e.SubTotal)
                 .HasPrecision(15, 2)
-                .HasComment("Tổng tiền hàng trước chiết khấu");
+                .HasComment("Subtotal amount before discount");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Tổng tiền phải thanh toán = SubTotal - Discount");
+                .HasComment("Total amount to pay = SubTotal - Discount");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.UpdatedBy).HasComment("UserId người cập nhật gần nhất");
+            entity.Property(e => e.UpdatedBy).HasComment("UserId of the last updater");
 
             entity.HasOne(d => d.Debtor).WithMany(p => p.Orders)
                 .HasForeignKey(d => d.DebtorId)
@@ -849,7 +849,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.SellingPrice)
                 .HasPrecision(15, 2)
-                .HasComment("Giá bán theo base unit");
+                .HasComment("Selling price per base unit");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
                 .HasComment("Stock Keeping Unit code");
@@ -910,7 +910,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.Product).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ProductId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_product_import_new_product");
         });
 
@@ -984,7 +984,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.RevenueId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Doanh thu cửa hàng - source-of-truth cho mọi khoản thu"))
+                .ToTable(tb => tb.HasComment("Store revenue - source-of-truth for all income"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.BusinessLocationId, "idx_revenue_location");
@@ -995,22 +995,22 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Giá trị doanh thu");
+                .HasComment("Revenue amount");
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedBy).HasComment("UserId người tạo bản ghi");
+            entity.Property(e => e.CreatedBy).HasComment("UserId of the creator");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete")
                 .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Mô tả nội dung doanh thu");
+                .HasComment("Description of the revenue");
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");
-            entity.Property(e => e.RevenueDate).HasComment("Ngày ghi nhận doanh thu");
+            entity.Property(e => e.RevenueDate).HasComment("Revenue recorded date");
             entity.Property(e => e.RevenueType)
                 .HasMaxLength(20)
                 .HasComment("sale | manual");
@@ -1095,7 +1095,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.Product).WithMany(p => p.StockMovements)
                 .HasForeignKey(d => d.ProductId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_stock_movement_product");
         });
 

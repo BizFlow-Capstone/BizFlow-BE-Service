@@ -15,6 +15,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IProductRepository Products { get; }
         IImportRepository Imports { get; }
         IImportSchemaRepository ImportSchemas { get; }
+        IDebtorRepository Debtors { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

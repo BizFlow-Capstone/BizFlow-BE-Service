@@ -1,28 +1,28 @@
 -- =============================================
 -- Migration  : 036_create_revenues
--- Description: Tạo bảng Revenues (doanh thu) - nguồn dữ liệu chính
---              (source-of-truth) cho mọi khoản thu của cửa hàng.
---              Doanh thu phát sinh từ đơn hàng (sale) hoặc
---              được nhập thủ công (manual).
---              Mỗi bản ghi Revenue sẽ tạo ra 1 bản ghi GeneralLedgerEntry
---              tương ứng.
+-- Description: Create Revenues table - the source-of-truth
+--              for all income records of a business location.
+--              Revenue can be generated from sales or
+--              entered manually.
+--              Each Revenue record can be reflected by one or more
+--              GeneralLedgerEntry records.
 -- Date       : 2025-06-09
 -- =============================================
 
 -- =============================================
--- 1. REVENUES: Bảng doanh thu nguồn
---    RevenueType = 'sale'   → doanh thu bán hàng
---    RevenueType = 'manual' → doanh thu nhập tay
+-- 1. REVENUES: Source revenue table
+--    RevenueType = 'sale'   -> sales revenue
+--    RevenueType = 'manual' -> manually entered revenue
 -- =============================================
 CREATE TABLE IF NOT EXISTS Revenues (
     RevenueId          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    BusinessLocationId INT NOT NULL COMMENT 'FK to BusinessLocations',
+  BusinessLocationId INT NOT NULL COMMENT 'FK to BusinessLocations',
     RevenueType        VARCHAR(20) NOT NULL COMMENT 'sale | manual',
-    Amount             DECIMAL(15,2) NOT NULL COMMENT 'Giá trị doanh thu',
-    RevenueDate        DATE NOT NULL COMMENT 'Ngày ghi nhận doanh thu',
-    Description        VARCHAR(500) NOT NULL COMMENT 'Mô tả nội dung doanh thu',
+  Amount             DECIMAL(15,2) NOT NULL COMMENT 'Revenue amount',
+  RevenueDate        DATE NOT NULL COMMENT 'Revenue recognition date',
+  Description        VARCHAR(500) NOT NULL COMMENT 'Revenue description',
     MoneyChannel       VARCHAR(10) DEFAULT NULL COMMENT 'cash | bank | debt',
-    CreatedBy          CHAR(36) NOT NULL COMMENT 'UserId người tạo bản ghi',
+  CreatedBy          CHAR(36) NOT NULL COMMENT 'UserId who created the record',
     CreatedAt          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     DeletedAt          DATETIME DEFAULT NULL COMMENT 'Soft delete',
 
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS Revenues (
     INDEX idx_revenue_location_date (BusinessLocationId, RevenueDate),
     INDEX idx_revenue_type (RevenueType)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Doanh thu cửa hàng - source-of-truth cho mọi khoản thu';
+  COMMENT='Business revenue source-of-truth table';
 
 -- =============================================
 -- Insert migration history

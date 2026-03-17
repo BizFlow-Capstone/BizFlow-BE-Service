@@ -175,6 +175,12 @@ namespace BizFlow.Application.Services
                 throw new ForbiddenException(MessageKeys.LocationInactive);
         }
 
+        public async Task ValidateOwnerAsync(Guid userId, int locationId)
+        {
+            await GetLocationOrThrowAsync(locationId);
+            await EnsureOwnershipAsync(userId, locationId);
+        }
+
         /// <summary>
         /// Throws NotFoundException if location doesn't exist (or is soft-deleted).
         /// Reusable guard — call before any mutation.

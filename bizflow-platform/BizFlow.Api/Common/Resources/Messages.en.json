@@ -108,5 +108,6 @@
   "DEBTOR_NOT_ACTIVE": "Debtor is inactive and cannot accept payments",
   "DEBTOR_PHONE_DUPLICATE": "A debtor with this phone number already exists in this location",
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Cannot delete a debtor with an outstanding balance",
+  "DEBTOR_PAYMENT_AMOUNT_ZERO": "Amount cannot be zero",
   "DEBTOR_PAYMENT_METHOD_INVALID": "Invalid payment method. Allowed values: cash, bank"
 }
