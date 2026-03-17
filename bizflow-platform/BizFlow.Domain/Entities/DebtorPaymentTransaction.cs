@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Lịch sử giao dịch thanh toán nợ của khách
+/// Debtor payment and adjustment transaction history.
 /// </summary>
 public partial class DebtorPaymentTransaction
 {
@@ -16,7 +16,8 @@ public partial class DebtorPaymentTransaction
     public long DebtorId { get; set; }
 
     /// <summary>
-    /// Số tiền thanh toán trong giao dịch này
+    /// Signed amount for this transaction.
+    /// Negative value reduces debt, positive value increases debt.
     /// </summary>
     public decimal Amount { get; set; }
 
@@ -26,27 +27,27 @@ public partial class DebtorPaymentTransaction
     public string PaymentMethod { get; set; } = null!;
 
     /// <summary>
-    /// Ghi chú của giao dịch
+    /// Transaction notes.
     /// </summary>
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Số dư nợ trước giao dịch
+    /// Debt balance before the transaction.
     /// </summary>
     public decimal BalanceBefore { get; set; }
 
     /// <summary>
-    /// Số dư nợ sau giao dịch
+    /// Debt balance after the transaction.
     /// </summary>
     public decimal BalanceAfter { get; set; }
 
     /// <summary>
-    /// UserId người ghi nhận thanh toán
+    /// Recorder UserId.
     /// </summary>
     public Guid CreatedByUserId { get; set; }
 
     /// <summary>
-    /// Thời điểm thanh toán thực tế
+    /// Transaction timestamp.
     /// </summary>
     public DateTime PaidAt { get; set; }
 

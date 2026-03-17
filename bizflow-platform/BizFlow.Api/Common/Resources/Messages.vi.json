@@ -108,5 +108,6 @@
   "DEBTOR_NOT_ACTIVE": "Khách nợ đã ngừng hoạt động, không thể ghi nhận thanh toán",
   "DEBTOR_PHONE_DUPLICATE": "Số điện thoại này đã được đăng ký cho khách nợ khác tại địa điểm này",
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Không thể xóa khách nợ có dư nợ chưa thanh toán",
+  "DEBTOR_PAYMENT_AMOUNT_ZERO": "Số tiền không được bằng 0",
   "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank"
 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Danh sách khách nợ theo từng cửa hàng
+/// Debtor list per business location.
 /// </summary>
 public partial class Debtor
 {
@@ -16,37 +16,37 @@ public partial class Debtor
     public int BusinessLocationId { get; set; }
 
     /// <summary>
-    /// Tên khách nợ
+    /// Debtor name.
     /// </summary>
     public string Name { get; set; } = null!;
 
     /// <summary>
-    /// Số điện thoại (unique per location)
+    /// Phone number (unique per location).
     /// </summary>
     public string? Phone { get; set; }
 
     /// <summary>
-    /// Địa chỉ
+    /// Address.
     /// </summary>
     public string? Address { get; set; }
 
     /// <summary>
-    /// Ghi chú nội bộ
+    /// Internal notes.
     /// </summary>
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Hạn mức tín dụng cho phép (NULL = không giới hạn)
+    /// Allowed credit limit (NULL = unlimited).
     /// </summary>
     public decimal? CreditLimit { get; set; }
 
     /// <summary>
-    /// Số dư nợ hiện tại (&gt;0 = đang nợ)
+    /// Current debt balance (&gt;0 means debtor owes money).
     /// </summary>
     public decimal CurrentBalance { get; set; }
 
     /// <summary>
-    /// Trạng thái hoạt động
+    /// Active status.
     /// </summary>
     public bool? IsActive { get; set; }
 
@@ -56,7 +56,7 @@ public partial class Debtor
     public DateTime? DeletedAt { get; set; }
 
     /// <summary>
-    /// UserId người tạo (FK to Profiles)
+    /// Creator UserId (FK to Profiles).
     /// </summary>
     public Guid CreatedByUserId { get; set; }
 

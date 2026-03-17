@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Chi tiết dòng sản phẩm trong đơn hàng (snapshot giá tại thời điểm bán)
+/// Order line item details (snapshot pricing at sale time).
 /// </summary>
 public partial class OrderDetail
 {
@@ -21,22 +21,22 @@ public partial class OrderDetail
     public long SaleItemId { get; set; }
 
     /// <summary>
-    /// Số lượng bán
+    /// Sold quantity.
     /// </summary>
     public int Quantity { get; set; }
 
     /// <summary>
-    /// Snapshot đơn giá tại thời điểm tạo đơn
+    /// Snapshot unit price at order creation time.
     /// </summary>
     public decimal UnitPrice { get; set; }
 
     /// <summary>
-    /// Chiết khấu theo dòng sản phẩm
+    /// Line-item discount.
     /// </summary>
     public decimal Discount { get; set; }
 
     /// <summary>
-    /// Thành tiền = Quantity * UnitPrice - Discount
+    /// Line amount = Quantity * UnitPrice - Discount.
     /// </summary>
     public decimal Amount { get; set; }
 
