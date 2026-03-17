@@ -113,5 +113,10 @@
   "PERIOD_NOT_FINALIZED": "Chỉ có thể mở lại kỳ đã finalized",
   "PERIOD_REOPEN_REASON_REQUIRED": "Phải nhập lý do khi mở lại kỳ kế toán",
   "PERIOD_NO_BOOKS": "Cần có ít nhất 1 sổ kế toán active trước khi chốt kỳ",
-  "PERIOD_OPENING_BALANCE_REQUIRED": "Kỳ đầu tiên bắt buộc nhập số dư đầu kỳ tiền mặt và ngân hàng"
+  "PERIOD_OPENING_BALANCE_REQUIRED": "Kỳ đầu tiên bắt buộc nhập số dư đầu kỳ tiền mặt và ngân hàng",
+  "DEBTOR_NOT_FOUND": "Không tìm thấy khách nợ",
+  "DEBTOR_NOT_ACTIVE": "Khách nợ đã ngừng hoạt động, không thể ghi nhận thanh toán",
+  "DEBTOR_PHONE_DUPLICATE": "Số điện thoại này đã được đăng ký cho khách nợ khác tại địa điểm này",
+  "DEBTOR_HAS_OUTSTANDING_BALANCE": "Không thể xóa khách nợ có dư nợ chưa thanh toán",
+  "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank"
 }

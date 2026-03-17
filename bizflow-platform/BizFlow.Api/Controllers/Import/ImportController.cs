@@ -1,11 +1,9 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Application.Common.Constants;
-using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Import;
 using BizFlow.Application.Interfaces.Services;
-using BizFlow.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
@@ -42,15 +40,8 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetTemplate()
         {
-            try
-            {
-                var result = await _importService.GetTemplateAsync();
-                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
+            var result = await _importService.GetTemplateAsync();
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -63,26 +54,15 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateImport([FromForm] CreateImportRequest request, IFormFile? image)
         {
-            try
+            if (image != null)
             {
-                if (image != null)
-                {
-                    request.ImageStream = image.OpenReadStream();
-                    request.ImageFileName = image.FileName;
-                }
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
 
-                var userId = GetCurrentUserId();
-                var result = await _importService.CreateImportAsync(userId, request);
-                return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetImportDetail), new { importId = result.ImportId });
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
-            catch (BadRequestException ex)
-            {
-                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
-            }
+            var userId = GetCurrentUserId();
+            var result = await _importService.CreateImportAsync(userId, request);
+            return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetImportDetail), new { importId = result.ImportId });
         }
 
         /// <summary>
@@ -95,26 +75,15 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateImport(long importId, [FromForm] UpdateImportRequest request, IFormFile? image)
         {
-            try
+            if (image != null)
             {
-                if (image != null)
-                {
-                    request.ImageStream = image.OpenReadStream();
-                    request.ImageFileName = image.FileName;
-                }
+                request.ImageStream = image.OpenReadStream();
+                request.ImageFileName = image.FileName;
+            }
 
-                var userId = GetCurrentUserId();
-                var result = await _importService.UpdateImportAsync(userId, importId, request);
-                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
-            catch (BadRequestException ex)
-            {
-                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
-            }
+            var userId = GetCurrentUserId();
+            var result = await _importService.UpdateImportAsync(userId, importId, request);
+            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>
@@ -128,21 +97,10 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> PatchImport(long importId, [FromBody] PatchImportRequest request)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var result = await _importService.PatchImportAsync(userId, importId, request);
+            var userId = GetCurrentUserId();
+            var result = await _importService.PatchImportAsync(userId, importId, request);
 
-                return Ok(result, MessageKeys.ImportConfirmedSuccessfully);
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
-            catch (BadRequestException ex)
-            {
-                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
-            }
+            return Ok(result, MessageKeys.ImportConfirmedSuccessfully);
         }
 
         /// <summary>
@@ -169,16 +127,9 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetImportDetail(long importId)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var result = await _importService.GetImportDetailAsync(userId, importId);
-                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
+            var userId = GetCurrentUserId();
+            var result = await _importService.GetImportDetailAsync(userId, importId);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
@@ -191,16 +142,9 @@ namespace BizFlow.Api.Controllers.Import
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteImport(long importId)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                await _importService.DeleteImportAsync(userId, importId);
-                return Ok(MessageKeys.DataDeletedSuccessfully);
-            }
-            catch (NotFoundException ex)
-            {
-                return NotFound(ex.MessageKey, ex.Args);
-            }
+            var userId = GetCurrentUserId();
+            await _importService.DeleteImportAsync(userId, importId);
+            return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
         #region Private Helper Methods
