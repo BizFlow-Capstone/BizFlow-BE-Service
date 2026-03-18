@@ -6,6 +6,7 @@ public static class AccountingPeriodConstants
     {
         public const string Quarter = "quarter";
         public const string Year = "year";
+        public const string Custom = "custom";
     }
 
     public static class PeriodStatuses

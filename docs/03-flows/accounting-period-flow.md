@@ -243,7 +243,7 @@ public class AccountingPeriodAuditLog
 Periods có thể được tạo **tự động** (system job đầu quý/năm) hoặc **thủ công** bởi Owner:
 
 ```yaml
-POST /api/v1/locations/{locationId}/accounting/periods
+POST /api/locations/{locationId}/accounting/periods
 Authorization: Bearer {token}
 
 Request:
@@ -251,8 +251,9 @@ Request:
   "periodType": "quarter",
   "year": 2026,
   "quarter": 1,
-  "openingCashBalance": 50000000,    # Kỳ đầu tiên: bắt buộc. Kỳ sau: optional (auto carry)
-  "openingBankBalance": 120000000    # Kỳ đầu tiên: bắt buộc. Kỳ sau: optional (auto carry)
+  "openingCashBalance": 50000000,
+  "openingBankBalance": 120000000,
+  "useSuggestedOpeningBalances": false
 }
 
 Response (201 Created):
@@ -269,68 +270,85 @@ Response (201 Created):
 }
 ```
 
-**Auto-carry logic (Kỳ thứ 2 trở đi):**
+### 2.1.1 Create Custom Period (Theo khoảng thời gian bất kỳ)
 
-Nếu Owner không truyền `openingCashBalance` / `openingBankBalance`, hệ thống tự tính từ closing balance kỳ trước:
+Cho phép Owner tạo kỳ theo bất kỳ khoảng thời gian nào (1 tháng, 2 tháng, 6 tháng, hoặc tùy biến):
 
-```csharp
-public async Task<AccountingPeriod> CreatePeriodAsync(
-    int locationId, Guid userId, CreatePeriodRequest request)
+```yaml
+POST /api/locations/{locationId}/accounting/periods/custom
+Authorization: Bearer {token}
+
+Request:
 {
-    // ... validate unique, date range...
-    
-    // Auto-carry opening balance từ kỳ trước
-    decimal? openingCash = request.OpeningCashBalance;
-    decimal? openingBank = request.OpeningBankBalance;
-    
-    var previousPeriod = await GetPreviousPeriodAsync(locationId, request);
-    
-    if (previousPeriod == null)
-    {
-        // Kỳ đầu tiên — bắt buộc nhập
-        if (!openingCash.HasValue || !openingBank.HasValue)
-            throw new BadRequestException("PERIOD_OPENING_BALANCE_REQUIRED");
-    }
-    else if (!openingCash.HasValue || !openingBank.HasValue)
-    {
-        // Kỳ sau — auto carry từ closing balance kỳ trước
-        var closing = await _glRepo.CalculateClosingBalanceAsync(
-            locationId, previousPeriod.StartDate, previousPeriod.EndDate);
-        
-        openingCash ??= (previousPeriod.OpeningCashBalance ?? 0) + closing.NetCash;
-        openingBank ??= (previousPeriod.OpeningBankBalance ?? 0) + closing.NetBank;
-        // NetCash = SUM(Debit WHERE cash) - SUM(Credit WHERE cash) trong kỳ trước
-        // NetBank = SUM(Debit WHERE bank) - SUM(Credit WHERE bank) trong kỳ trước
-    }
-    
-    var period = new AccountingPeriod
-    {
-        BusinessLocationId = locationId,
-        PeriodType = request.PeriodType,
-        Year = request.Year,
-        Quarter = request.Quarter,
-        StartDate = CalculateStartDate(request),
-        EndDate = CalculateEndDate(request),
-        OpeningCashBalance = openingCash,
-        OpeningBankBalance = openingBank,
-        Status = PeriodStatuses.Open
-    };
-    
-    await _unitOfWork.AccountingPeriods.AddAsync(period);
-    await _auditService.LogAsync(period.PeriodId, "period_created", userId, new
-    {
-        periodType = request.PeriodType, year = request.Year, quarter = request.Quarter,
-        openingCashBalance = openingCash, openingBankBalance = openingBank
-    });
-    
-    await _unitOfWork.SaveChangesAsync();
-    return period;
+  "startDate": "2026-01-01",
+  "endDate": "2026-02-28",
+  "openingCashBalance": 10000000,
+  "openingBankBalance": 25000000,
+  "useSuggestedOpeningBalances": false
+}
+
+Response (201 Created):
+{
+  "periodId": 2,
+  "periodType": "custom",
+  "year": 2026,
+  "quarter": null,
+  "startDate": "2026-01-01",
+  "endDate": "2026-02-28",
+  "openingCashBalance": 10000000,
+  "openingBankBalance": 25000000,
+  "status": "open"
 }
 ```
-  "quarter": 1,
-  "startDate": "2026-01-01",
-  "endDate": "2026-03-31",
-  "status": "open"
+
+Rules cho custom period:
+
+- Only Owner.
+- `endDate` phải lớn hơn hoặc bằng `startDate`.
+- Không check overlap kỳ. Owner có thể tạo kỳ custom bất kỳ.
+- `openingCashBalance` + `openingBankBalance` cần user nhập tay, hoặc dùng chế độ gợi ý carry bằng API riêng.
+
+### 2.1.2 API gợi ý Carry Opening Balance
+
+Khi user chưa nhập balance, gọi API này để lấy số dư gợi ý từ kỳ trước. Nếu user đồng ý, gửi `useSuggestedOpeningBalances=true` ở API tạo kỳ.
+
+```yaml
+POST /api/locations/{locationId}/accounting/periods/opening-balance-suggestion
+Authorization: Bearer {token}
+
+Request (quarter/year):
+{
+  "periodType": "quarter",
+  "year": 2026,
+  "quarter": 2
+}
+
+Request (custom):
+{
+  "periodType": "custom",
+  "startDate": "2026-07-01"
+}
+
+Response:
+{
+  "hasSuggestion": true,
+  "suggestionReasonCode": "PERIOD_SUGGESTION_FROM_PREVIOUS",
+  "suggestionReason": "Số dư gợi ý được tính từ opening kỳ trước cộng net GL trong kỳ nguồn.",
+  "calculationExplanationCode": "PERIOD_SUGGESTION_FORMULA",
+  "calculationExplanation": "Công thức: suggestedOpening = previousOpening + netGL (theo từng kênh cash/bank)",
+  "openingCashBalance": 61000000,
+  "openingBankBalance": 132000000,
+  "sourcePeriodId": 12,
+  "sourceStartDate": "2026-04-01",
+  "sourceEndDate": "2026-06-30",
+  "calculationBreakdown": {
+    "previousOpeningCashBalance": 50000000,
+    "previousOpeningBankBalance": 120000000,
+    "netCashInSourcePeriod": 11000000,
+    "netBankInSourcePeriod": 12000000,
+    "suggestedOpeningCashBalance": 61000000,
+    "suggestedOpeningBankBalance": 132000000
+  }
 }
 ```
 
@@ -350,6 +368,7 @@ Response:
 ```
 
 Rules:
+
 - Only Owner
 - Phải có ít nhất 1 AccountingBook active trong period
 - Ghi audit log
@@ -389,9 +408,9 @@ Rules:
 | **RULE-PERIOD-02** | Finalize bắt buộc có ít nhất 1 book active |
 | **RULE-PERIOD-03** | Reopen bắt buộc có reason |
 | **RULE-PERIOD-04** | Mọi thay đổi status → audit log |
-| **RULE-PERIOD-05** | Kỳ đầu tiên bắt buộc nhập `openingCashBalance` + `openingBankBalance` |
-| **RULE-PERIOD-06** | Kỳ thứ 2 trở đi: nếu Owner không truyền → hệ thống auto carry từ closing balance kỳ trước (opening + net GL cash/bank trong kỳ) |
-| **RULE-PERIOD-07** | Owner có thể override opening balance bất kỳ kỳ nào (VD: điều chỉnh sau kiểm kê thực tế) |
+| **RULE-PERIOD-05** | Khi tạo kỳ, user phải cung cấp cả `openingCashBalance` và `openingBankBalance`, hoặc bật `useSuggestedOpeningBalances=true` |
+| **RULE-PERIOD-06** | Hệ thống chỉ carry balance khi user chủ động chọn dùng gợi ý (không auto-carry ngầm) |
+| **RULE-PERIOD-07** | Kỳ custom không check overlap, owner có thể tạo theo bất kỳ khoảng thời gian nào |
 
 ---
 
@@ -399,12 +418,14 @@ Rules:
 
 | Method | Endpoint | Description | Who |
 |--------|----------|-------------|-----|
-| `POST` | `/api/v1/locations/{id}/accounting/periods` | Tạo kỳ kế toán | Owner |
-| `GET` | `/api/v1/locations/{id}/accounting/periods` | List kỳ kế toán | Owner |
-| `GET` | `/api/v1/locations/{id}/accounting/periods/{periodId}` | Chi tiết kỳ | Owner |
-| `POST` | `/api/v1/locations/{id}/accounting/periods/{periodId}/finalize` | Chốt kỳ | Owner |
-| `POST` | `/api/v1/locations/{id}/accounting/periods/{periodId}/reopen` | Mở lại kỳ | Owner |
-| `GET` | `/api/v1/locations/{id}/accounting/periods/{periodId}/audit-logs` | Lịch sử thay đổi | Owner |
+| `POST` | `/api/locations/{id}/accounting/periods` | Tạo kỳ kế toán quarter/year | Owner |
+| `POST` | `/api/locations/{id}/accounting/periods/custom` | Tạo kỳ kế toán tùy chỉnh theo startDate/endDate | Owner |
+| `POST` | `/api/locations/{id}/accounting/periods/opening-balance-suggestion` | Gợi ý carry opening cash/bank | Owner |
+| `GET` | `/api/locations/{id}/accounting/periods` | List kỳ kế toán | Owner |
+| `GET` | `/api/locations/{id}/accounting/periods/{periodId}` | Chi tiết kỳ | Owner |
+| `POST` | `/api/locations/{id}/accounting/periods/{periodId}/finalize` | Chốt kỳ | Owner |
+| `POST` | `/api/locations/{id}/accounting/periods/{periodId}/reopen` | Mở lại kỳ | Owner |
+| `GET` | `/api/locations/{id}/accounting/periods/{periodId}/audit-logs` | Lịch sử thay đổi | Owner |
 
 ---
 

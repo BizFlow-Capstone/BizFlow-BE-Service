@@ -8,6 +8,7 @@ public interface IAccountingPeriodRepository
     Task<AccountingPeriod?> GetByLocationAndIdAsync(int locationId, long periodId);
     Task<List<AccountingPeriod>> GetByLocationAsync(int locationId);
     Task<AccountingPeriod?> GetPreviousPeriodAsync(int locationId, string periodType, DateOnly currentStartDate);
+    Task<bool> ExistsOverlappingPeriodAsync(int locationId, DateOnly startDate, DateOnly endDate);
     Task<(decimal NetCash, decimal NetBank)> CalculateNetCashAndBankAsync(int locationId, DateOnly startDate, DateOnly endDate);
     Task<long> CountActiveBooksAsync(long periodId);
 

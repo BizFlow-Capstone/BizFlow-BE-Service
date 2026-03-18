@@ -50,6 +50,14 @@ public class AccountingPeriodRepository : IAccountingPeriodRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<bool> ExistsOverlappingPeriodAsync(int locationId, DateOnly startDate, DateOnly endDate)
+    {
+        return await _context.Set<AccountingPeriod>().AnyAsync(x =>
+            x.BusinessLocationId == locationId &&
+            x.StartDate <= endDate &&
+            x.EndDate >= startDate);
+    }
+
     public async Task<(decimal NetCash, decimal NetBank)> CalculateNetCashAndBankAsync(int locationId, DateOnly startDate, DateOnly endDate)
     {
         var entries = await _context.Set<GeneralLedgerEntry>()

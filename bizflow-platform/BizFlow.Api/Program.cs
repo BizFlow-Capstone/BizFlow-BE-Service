@@ -2,6 +2,8 @@
 using Autofac.Extensions.DependencyInjection;
 using BizFlow.Api.Common.Middleware;
 using BizFlow.Application;
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -107,9 +109,30 @@ builder.Services.AddAuthentication(options =>
         },
         OnChallenge = context =>
         {
-            // Suppress default response
             context.HandleResponse();
-            return Task.CompletedTask;
+
+            var isTokenExpired = context.Response.Headers.ContainsKey("IS-TOKEN-EXPIRED");
+            var messageKey = isTokenExpired ? MessageKeys.TokenExpired : MessageKeys.Unauthorized;
+            var messageService = context.HttpContext.RequestServices.GetRequiredService<IMessageService>();
+
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+
+            var response = new ApiResponse
+            {
+                Success = false,
+                MessageCode = messageKey,
+                Message = messageService.GetMessage(messageKey),
+                Timestamp = DateTime.UtcNow
+            };
+
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            };
+
+            return context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
         }
     };
 

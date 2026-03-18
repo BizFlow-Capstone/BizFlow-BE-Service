@@ -32,26 +32,12 @@ public class AccountingPeriodService : IAccountingPeriodService
         }
 
         var previousPeriod = await _unitOfWork.AccountingPeriods.GetPreviousPeriodAsync(locationId, normalizedPeriodType, startDate);
-        var openingCash = request.OpeningCashBalance;
-        var openingBank = request.OpeningBankBalance;
-
-        if (previousPeriod == null)
-        {
-            if (!openingCash.HasValue || !openingBank.HasValue)
-            {
-                throw new BadRequestException(MessageKeys.PeriodOpeningBalanceRequired);
-            }
-        }
-        else if (!openingCash.HasValue || !openingBank.HasValue)
-        {
-            var (netCash, netBank) = await _unitOfWork.AccountingPeriods.CalculateNetCashAndBankAsync(
-                locationId,
-                previousPeriod.StartDate,
-                previousPeriod.EndDate);
-
-            openingCash ??= (previousPeriod.OpeningCashBalance ?? 0) + netCash;
-            openingBank ??= (previousPeriod.OpeningBankBalance ?? 0) + netBank;
-        }
+        var (openingCash, openingBank) = await ResolveOpeningBalancesAsync(
+            locationId,
+            previousPeriod,
+            request.OpeningCashBalance,
+            request.OpeningBankBalance,
+            request.UseSuggestedOpeningBalances);
 
         var period = new AccountingPeriod
         {
@@ -86,6 +72,109 @@ public class AccountingPeriodService : IAccountingPeriodService
 
         await _unitOfWork.SaveChangesAsync();
         return MapPeriod(period);
+    }
+
+    public async Task<AccountingPeriodDto> CreateCustomPeriodAsync(int locationId, Guid userId, CreateCustomAccountingPeriodRequest request)
+    {
+        await EnsureOwnerAccessAsync(userId, locationId);
+
+        if (request.EndDate < request.StartDate)
+        {
+            throw new BadRequestException(MessageKeys.BadRequest, new { dateRange = "EndDate must be greater than or equal to StartDate" });
+        }
+
+        var previousPeriod = await _unitOfWork.AccountingPeriods.GetPreviousPeriodAsync(
+            locationId,
+            AccountingPeriodConstants.PeriodTypes.Custom,
+            request.StartDate);
+
+        var (openingCash, openingBank) = await ResolveOpeningBalancesAsync(
+            locationId,
+            previousPeriod,
+            request.OpeningCashBalance,
+            request.OpeningBankBalance,
+            request.UseSuggestedOpeningBalances);
+
+        var period = new AccountingPeriod
+        {
+            BusinessLocationId = locationId,
+            PeriodType = AccountingPeriodConstants.PeriodTypes.Custom,
+            Year = (short)request.StartDate.Year,
+            Quarter = null,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            OpeningCashBalance = openingCash,
+            OpeningBankBalance = openingBank,
+            Status = AccountingPeriodConstants.PeriodStatuses.Open
+        };
+
+        await _unitOfWork.AccountingPeriods.AddAsync(period);
+        await _unitOfWork.SaveChangesAsync();
+
+        await _unitOfWork.AccountingPeriods.AddAuditLogAsync(new AccountingPeriodAuditLog
+        {
+            PeriodId = period.PeriodId,
+            Action = AccountingPeriodConstants.AuditActions.PeriodCreated,
+            NewValue = SerializeJson(new
+            {
+                period.PeriodType,
+                period.StartDate,
+                period.EndDate,
+                period.OpeningCashBalance,
+                period.OpeningBankBalance
+            }),
+            CreatedByUserId = userId
+        });
+
+        await _unitOfWork.SaveChangesAsync();
+        return MapPeriod(period);
+    }
+
+    public async Task<OpeningBalanceSuggestionDto> GetOpeningBalanceSuggestionAsync(int locationId, Guid userId, OpeningBalanceSuggestionRequest request)
+    {
+        await EnsureOwnerAccessAsync(userId, locationId);
+
+        var normalizedPeriodType = NormalizeSuggestionPeriodType(request.PeriodType);
+        var startDate = normalizedPeriodType == AccountingPeriodConstants.PeriodTypes.Custom
+            ? ValidateAndResolveCustomStartDate(request.StartDate)
+            : CalculatePeriodRange(
+                normalizedPeriodType,
+                ValidateSuggestionYear(request.Year),
+                ValidateAndNormalizeQuarter(normalizedPeriodType, request.Quarter)).StartDate;
+
+        var previousPeriod = await _unitOfWork.AccountingPeriods.GetPreviousPeriodAsync(locationId, normalizedPeriodType, startDate);
+        if (previousPeriod == null)
+        {
+            return new OpeningBalanceSuggestionDto
+            {
+                HasSuggestion = false,
+                SuggestionReasonCode = MessageKeys.PeriodSuggestionNoSource
+            };
+        }
+
+        var (openingCash, openingBank, previousOpeningCash, previousOpeningBank, netCash, netBank) =
+            await CalculateCarryFromPreviousPeriodAsync(locationId, previousPeriod);
+
+        return new OpeningBalanceSuggestionDto
+        {
+            HasSuggestion = true,
+            SuggestionReasonCode = MessageKeys.PeriodSuggestionFromPrevious,
+            CalculationExplanationCode = MessageKeys.PeriodSuggestionFormula,
+            OpeningCashBalance = openingCash,
+            OpeningBankBalance = openingBank,
+            SourcePeriodId = previousPeriod.PeriodId,
+            SourceStartDate = previousPeriod.StartDate,
+            SourceEndDate = previousPeriod.EndDate,
+            CalculationBreakdown = new OpeningBalanceCalculationBreakdownDto
+            {
+                PreviousOpeningCashBalance = previousOpeningCash,
+                PreviousOpeningBankBalance = previousOpeningBank,
+                NetCashInSourcePeriod = netCash,
+                NetBankInSourcePeriod = netBank,
+                SuggestedOpeningCashBalance = openingCash,
+                SuggestedOpeningBankBalance = openingBank
+            }
+        };
     }
 
     public async Task<List<AccountingPeriodDto>> GetPeriodsAsync(int locationId, Guid userId)
@@ -248,6 +337,39 @@ public class AccountingPeriodService : IAccountingPeriodService
         return normalized;
     }
 
+    private static string NormalizeSuggestionPeriodType(string periodType)
+    {
+        var normalized = (periodType ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized != AccountingPeriodConstants.PeriodTypes.Quarter &&
+            normalized != AccountingPeriodConstants.PeriodTypes.Year &&
+            normalized != AccountingPeriodConstants.PeriodTypes.Custom)
+        {
+            throw new BadRequestException(MessageKeys.BadRequest, new { periodType = "quarter|year|custom" });
+        }
+
+        return normalized;
+    }
+
+    private static short ValidateSuggestionYear(short? year)
+    {
+        if (!year.HasValue)
+        {
+            throw new BadRequestException(MessageKeys.BadRequest, new { year = "Year is required for periodType=quarter|year" });
+        }
+
+        return year.Value;
+    }
+
+    private static DateOnly ValidateAndResolveCustomStartDate(DateOnly? startDate)
+    {
+        if (!startDate.HasValue)
+        {
+            throw new BadRequestException(MessageKeys.BadRequest, new { startDate = "StartDate is required for periodType=custom" });
+        }
+
+        return startDate.Value;
+    }
+
     private static int? ValidateAndNormalizeQuarter(string periodType, int? quarter)
     {
         if (periodType == AccountingPeriodConstants.PeriodTypes.Year)
@@ -282,6 +404,64 @@ public class AccountingPeriodService : IAccountingPeriodService
         var start = new DateOnly(year, startMonth, 1);
         var end = new DateOnly(year, endMonth, DateTime.DaysInMonth(year, endMonth));
         return (start, end);
+    }
+
+    private async Task<(decimal? OpeningCash, decimal? OpeningBank)> ResolveOpeningBalancesAsync(
+        int locationId,
+        AccountingPeriod? previousPeriod,
+        decimal? requestedOpeningCash,
+        decimal? requestedOpeningBank,
+        bool useSuggestedOpeningBalances)
+    {
+        var openingCash = requestedOpeningCash;
+        var openingBank = requestedOpeningBank;
+
+        if (openingCash.HasValue && openingBank.HasValue)
+        {
+            return (openingCash, openingBank);
+        }
+
+        if (!useSuggestedOpeningBalances)
+        {
+            throw new BadRequestException(MessageKeys.PeriodOpeningBalanceRequired);
+        }
+
+        if (previousPeriod == null)
+        {
+            throw new BadRequestException(MessageKeys.PeriodOpeningBalanceRequired);
+        }
+
+        var (suggestedOpeningCash, suggestedOpeningBank, _, _, _, _) = await CalculateCarryFromPreviousPeriodAsync(locationId, previousPeriod);
+        return (suggestedOpeningCash, suggestedOpeningBank);
+    }
+
+    private async Task<(
+        decimal OpeningCash,
+        decimal OpeningBank,
+        decimal PreviousOpeningCash,
+        decimal PreviousOpeningBank,
+        decimal NetCash,
+        decimal NetBank)> CalculateCarryFromPreviousPeriodAsync(
+        int locationId,
+        AccountingPeriod previousPeriod)
+    {
+        var (netCash, netBank) = await _unitOfWork.AccountingPeriods.CalculateNetCashAndBankAsync(
+            locationId,
+            previousPeriod.StartDate,
+            previousPeriod.EndDate);
+
+        var previousOpeningCash = previousPeriod.OpeningCashBalance ?? 0;
+        var previousOpeningBank = previousPeriod.OpeningBankBalance ?? 0;
+        var openingCash = previousOpeningCash + netCash;
+        var openingBank = previousOpeningBank + netBank;
+
+        return (
+            openingCash,
+            openingBank,
+            previousOpeningCash,
+            previousOpeningBank,
+            netCash,
+            netBank);
     }
 
     private static AccountingPeriodDto MapPeriod(AccountingPeriod period)

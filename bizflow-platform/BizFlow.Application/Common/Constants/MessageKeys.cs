@@ -113,6 +113,9 @@ namespace BizFlow.Application.Common.Constants
         public const string PeriodReopenReasonRequired = "PERIOD_REOPEN_REASON_REQUIRED";
         public const string PeriodNoBooks = "PERIOD_NO_BOOKS";
         public const string PeriodOpeningBalanceRequired = "PERIOD_OPENING_BALANCE_REQUIRED";
+        public const string PeriodSuggestionNoSource = "PERIOD_SUGGESTION_NO_SOURCE";
+        public const string PeriodSuggestionFromPrevious = "PERIOD_SUGGESTION_FROM_PREVIOUS";
+        public const string PeriodSuggestionFormula = "PERIOD_SUGGESTION_FORMULA";
         // ============ DEBTOR ============
         public const string DebtorNotFound = "DEBTOR_NOT_FOUND";
         public const string DebtorNotActive = "DEBTOR_NOT_ACTIVE";

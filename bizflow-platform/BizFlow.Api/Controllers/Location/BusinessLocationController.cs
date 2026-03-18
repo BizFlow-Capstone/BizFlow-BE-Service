@@ -1,8 +1,10 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Location;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -11,13 +13,11 @@ namespace BizFlow.Api.Controllers.Location
     /// <summary>
     /// Business Location Management APIs
     /// </summary>
+    [Authorize]
     [Route("api/location")]
     public class BusinessLocationController : BaseApiController
     {
         private readonly IBusinessLocationService _locationService;
-
-        // TODO: Replace with JWT when authentication is implemented
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
         public BusinessLocationController(
             IBusinessLocationService locationService,
@@ -157,8 +157,7 @@ namespace BizFlow.Api.Controllers.Location
 
         #region Private Helpers
 
-        // TODO: Replace with JWT claims when auth is implemented
-        private Guid GetCurrentUserId() => _mockCurrentUserId;
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         #endregion
     }

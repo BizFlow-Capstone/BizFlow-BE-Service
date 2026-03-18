@@ -1,20 +1,20 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace BizFlow.Api.Controllers.Accounting;
 
+[Authorize]
 [Route("api/locations/{locationId:int}/accounting/periods")]
 public class AccountingPeriodController : BaseApiController
 {
     private readonly IAccountingPeriodService _accountingPeriodService;
-
-    // TODO: Replace with JWT claims extraction for production.
-    private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
     public AccountingPeriodController(
         IAccountingPeriodService accountingPeriodService,
@@ -36,6 +36,38 @@ public class AccountingPeriodController : BaseApiController
     {
         var period = await _accountingPeriodService.CreatePeriodAsync(locationId, GetCurrentUserId(), request);
         return Created(period, MessageKeys.PeriodCreatedSuccessfully, nameof(GetPeriodDetail), new { locationId, periodId = period.PeriodId });
+    }
+
+    [HttpPost("custom")]
+    [SwaggerOperation(Summary = "Create custom accounting period", Description = "Create accounting period by custom start and end date")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateCustomPeriod(int locationId, [FromBody] CreateCustomAccountingPeriodRequest request)
+    {
+        var period = await _accountingPeriodService.CreateCustomPeriodAsync(locationId, GetCurrentUserId(), request);
+        return Created(period, MessageKeys.PeriodCreatedSuccessfully, nameof(GetPeriodDetail), new { locationId, periodId = period.PeriodId });
+    }
+
+    [HttpPost("opening-balance-suggestion")]
+    [SwaggerOperation(Summary = "Get opening balance suggestion", Description = "Suggest carry opening cash and bank balances for period creation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOpeningBalanceSuggestion(int locationId, [FromBody] OpeningBalanceSuggestionRequest request)
+    {
+        var suggestion = await _accountingPeriodService.GetOpeningBalanceSuggestionAsync(locationId, GetCurrentUserId(), request);
+
+        suggestion.SuggestionReason = MessageService.GetMessage(suggestion.SuggestionReasonCode);
+        if (!string.IsNullOrWhiteSpace(suggestion.CalculationExplanationCode))
+        {
+            suggestion.CalculationExplanation = MessageService.GetMessage(suggestion.CalculationExplanationCode);
+        }
+
+        return Ok(suggestion, MessageKeys.DataRetrievedSuccessfully);
     }
 
     [HttpGet]
@@ -95,5 +127,5 @@ public class AccountingPeriodController : BaseApiController
         return Ok(logs, MessageKeys.DataRetrievedSuccessfully);
     }
 
-    private static Guid GetCurrentUserId() => _mockCurrentUserId;
+    private Guid GetCurrentUserId() => User.GetRequiredUserId();
 }
