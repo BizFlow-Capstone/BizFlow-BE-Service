@@ -119,7 +119,7 @@ namespace BizFlow.Application.Services
             if (request.ImageStream != null)
             {
                 var imageInfo = await _imageService.UploadImageAsync(
-                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Imports);
+                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
                 import.ImageUrl = imageInfo.Url;
                 import.ImagePublicId = imageInfo.PublicId;
             }
@@ -403,7 +403,7 @@ namespace BizFlow.Application.Services
 
                 if (imageStream != null)
                 {
-                    var imageInfo = await _imageService.UploadImageAsync(imageStream, imageFileName, ImageUploadTarget.Imports);
+                    var imageInfo = await _imageService.UploadImageAsync(imageStream, imageFileName, ImageUploadTarget.Costs);
                     import.ImageUrl = imageInfo.Url;
                     import.ImagePublicId = imageInfo.PublicId;
                 }
