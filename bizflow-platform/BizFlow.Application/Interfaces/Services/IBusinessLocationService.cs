@@ -14,6 +14,9 @@ namespace BizFlow.Application.Interfaces.Services
         // Reusable guard — validates access + blocks Employee when IsActive=false (RULE-LOC-07)
         Task ValidateLocationAccessAsync(Guid userId, int locationId);
 
+        // Reusable guard — owner-only operations; throws ForbiddenException if not owner
+        Task ValidateOwnerAsync(Guid userId, int locationId);
+
         // Command — all throw exceptions on failure (no bool return)
         Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request);
         Task UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request);

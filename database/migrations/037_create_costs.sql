@@ -1,31 +1,32 @@
 -- =============================================
 -- Migration  : 037_create_costs
--- Description: Tạo bảng Costs (chi phí) - nguồn dữ liệu chính
---              (source-of-truth) cho mọi khoản chi của cửa hàng.
---              Chi phí có thể phát sinh tự động từ phiếu nhập hàng
---              (CostType = 'import', liên kết ImportId) hoặc
---              được nhập thủ công (các CostType còn lại).
---              Mỗi bản ghi Cost sẽ tạo ra 1 bản ghi GeneralLedgerEntry.
+-- Description: Create Costs table - the source-of-truth
+--              for all expense records of a business location.
+--              Costs can be generated automatically from imports
+--              (CostType = 'import', linked by ImportId) or
+--              entered manually (other CostType values).
+--              Each Cost record can be reflected by one or more
+--              GeneralLedgerEntry records.
 -- Date       : 2025-06-09
 -- =============================================
 
 -- =============================================
--- 1. COSTS: Bảng chi phí nguồn
---    CostType 'import'      → liên kết ImportId, tạo tự động khi import được xác nhận
---    CostType khác          → nhân viên tạo thủ công
+-- 1. COSTS: Source cost table
+--    CostType 'import' -> linked to ImportId, auto-created when import is confirmed
+--    Other CostType    -> manually created by users
 -- =============================================
 CREATE TABLE IF NOT EXISTS Costs (
     CostId             BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     BusinessLocationId INT NOT NULL COMMENT 'FK to BusinessLocations',
     CostType           VARCHAR(30) NOT NULL COMMENT 'import | salary | rent | utilities | transport | marketing | maintenance | other | manual',
-    ImportId           BIGINT DEFAULT NULL COMMENT 'FK to Imports (chỉ có khi CostType = import)',
-    Description        VARCHAR(500) NOT NULL COMMENT 'Mô tả nội dung chi phí',
-    Amount             DECIMAL(15,2) NOT NULL COMMENT 'Giá trị chi phí',
-    CostDate           DATE NOT NULL COMMENT 'Ngày phát sinh chi phí',
+    ImportId           BIGINT DEFAULT NULL COMMENT 'FK to Imports (only when CostType = import)',
+    Description        VARCHAR(500) NOT NULL COMMENT 'Cost description',
+    Amount             DECIMAL(15,2) NOT NULL COMMENT 'Cost amount',
+    CostDate           DATE NOT NULL COMMENT 'Cost occurrence date',
     PaymentMethod      VARCHAR(20) DEFAULT NULL COMMENT 'cash | bank',
-    DocumentUrl        VARCHAR(500) DEFAULT NULL COMMENT 'URL chứng từ/hóa đơn (Cloudinary)',
-    DocumentPublicId   VARCHAR(255) DEFAULT NULL COMMENT 'Public ID Cloudinary của chứng từ',
-    CreatedBy          CHAR(36) NOT NULL COMMENT 'UserId người tạo bản ghi',
+    DocumentUrl        VARCHAR(500) DEFAULT NULL COMMENT 'Document/receipt URL (Cloudinary)',
+    DocumentPublicId   VARCHAR(255) DEFAULT NULL COMMENT 'Cloudinary public ID of the document',
+    CreatedBy          CHAR(36) NOT NULL COMMENT 'UserId who created the record',
     CreatedAt          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UpdatedAt          DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
     DeletedAt          DATETIME DEFAULT NULL COMMENT 'Soft delete',
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS Costs (
     INDEX idx_cost_import (ImportId),
     INDEX idx_cost_type (BusinessLocationId, CostType)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Chi phí cửa hàng - source-of-truth cho mọi khoản chi';
+    COMMENT='Business cost source-of-truth table';
 
 -- =============================================
 -- Insert migration history

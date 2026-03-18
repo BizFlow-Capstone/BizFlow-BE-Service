@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Chi phí cửa hàng - source-of-truth cho mọi khoản chi
+/// Business costs source-of-truth table.
 /// </summary>
 public partial class Cost
 {
@@ -21,22 +21,22 @@ public partial class Cost
     public string CostType { get; set; } = null!;
 
     /// <summary>
-    /// FK to Imports (chỉ có khi CostType = import)
+    /// FK to Imports (only when CostType = import)
     /// </summary>
     public long? ImportId { get; set; }
 
     /// <summary>
-    /// Mô tả nội dung chi phí
+    /// Cost description.
     /// </summary>
     public string Description { get; set; } = null!;
 
     /// <summary>
-    /// Giá trị chi phí
+    /// Cost amount.
     /// </summary>
     public decimal Amount { get; set; }
 
     /// <summary>
-    /// Ngày phát sinh chi phí
+    /// Cost date.
     /// </summary>
     public DateOnly CostDate { get; set; }
 
@@ -46,17 +46,17 @@ public partial class Cost
     public string? PaymentMethod { get; set; }
 
     /// <summary>
-    /// URL chứng từ/hóa đơn (Cloudinary)
+    /// Document or invoice URL (Cloudinary).
     /// </summary>
     public string? DocumentUrl { get; set; }
 
     /// <summary>
-    /// Public ID Cloudinary của chứng từ
+    /// Cloudinary public ID of the document.
     /// </summary>
     public string? DocumentPublicId { get; set; }
 
     /// <summary>
-    /// UserId người tạo bản ghi
+    /// Creator UserId.
     /// </summary>
     public Guid CreatedBy { get; set; }
 
@@ -64,9 +64,6 @@ public partial class Cost
 
     public DateTime? UpdatedAt { get; set; }
 
-    /// <summary>
-    /// Soft delete
-    /// </summary>
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;

@@ -1,0 +1,85 @@
+using BizFlow.Application.DTOs.Debtor;
+using BizFlow.Application.Interfaces.Repositories;
+using BizFlow.Domain.Entities;
+using BizFlow.Infrastructure.DataContext;
+using Microsoft.EntityFrameworkCore;
+using BizFlow.Application.Specifications.Debtors;
+using BizFlow.Infrastructure.Specifications;
+
+namespace BizFlow.Infrastructure.Repositories
+{
+    public class DebtorRepository : IDebtorRepository
+    {
+        private readonly BizFlowDbContext _db;
+
+        public DebtorRepository(BizFlowDbContext db)
+        {
+            _db = db;
+        }
+
+        public async Task<(IEnumerable<Debtor> Items, int TotalCount)> SearchAsync(DebtorQueryParams query, IEnumerable<int>? allowedLocationIds = null)
+        {
+            var countSpec = new DebtorSearchSpec(query, allowedLocationIds, isCount: true);
+            var countQuery = SpecificationEvaluator<Debtor>.GetQuery(_db.Debtors.AsQueryable(), countSpec);
+            var totalCount = await countQuery.CountAsync();
+
+            if (totalCount == 0) return (Array.Empty<Debtor>(), 0);
+
+            // We do a regular spec query since Debtor search doesn't involve heavy joins
+            var spec = new DebtorSearchSpec(query, allowedLocationIds, isCount: false);
+            var queryResult = SpecificationEvaluator<Debtor>.GetQuery(_db.Debtors.AsQueryable(), spec);
+            var items = await queryResult.ToListAsync();
+
+            return (items, totalCount);
+        }
+
+        public Task<Debtor?> GetByIdAsync(long debtorId)
+            => _db.Debtors.FirstOrDefaultAsync(d => d.DebtorId == debtorId);
+
+        public Task<Debtor?> GetByIdWithTransactionsAsync(long debtorId)
+            => _db.Debtors
+                .Include(d => d.DebtorPaymentTransactions)
+                .FirstOrDefaultAsync(d => d.DebtorId == debtorId);
+
+        public Task<bool> PhoneExistsInLocationAsync(int locationId, string phone, long? excludeDebtorId = null)
+            => _db.Debtors.AnyAsync(d =>
+                d.BusinessLocationId == locationId &&
+                d.Phone == phone &&
+                (excludeDebtorId == null || d.DebtorId != excludeDebtorId));
+
+        public async Task<IEnumerable<Debtor>> GetActiveByLocationAsync(int locationId)
+            => await _db.Debtors
+                .Where(d => d.BusinessLocationId == locationId && d.IsActive == true)
+                .OrderBy(d => d.Name)
+                .ToListAsync();
+
+        public async Task<Debtor> AddAsync(Debtor debtor)
+        {
+            _db.Debtors.Add(debtor);
+            return debtor;
+        }
+
+        public void Update(Debtor debtor)
+            => _db.Debtors.Update(debtor);
+
+        public void Remove(Debtor debtor)
+            => _db.Debtors.Remove(debtor);
+
+        public async Task<bool> HasAnyActivityAsync(long debtorId)
+            => await _db.Debtors.AnyAsync(d => 
+                d.DebtorId == debtorId && 
+                (d.Orders.Any() || d.DebtorPaymentTransactions.Any()));
+
+        public async Task<DebtorPaymentTransaction> AddPaymentAsync(DebtorPaymentTransaction transaction)
+        {
+            _db.DebtorPaymentTransactions.Add(transaction);
+            return transaction;
+        }
+
+        public async Task<IEnumerable<DebtorPaymentTransaction>> GetPaymentsAsync(long debtorId)
+            => await _db.DebtorPaymentTransactions
+                .Where(t => t.DebtorId == debtorId)
+                .OrderByDescending(t => t.PaidAt)
+                .ToListAsync();
+    }
+}

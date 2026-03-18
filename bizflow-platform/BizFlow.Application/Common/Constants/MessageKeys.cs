@@ -121,6 +121,7 @@ namespace BizFlow.Application.Common.Constants
         public const string DebtorNotActive = "DEBTOR_NOT_ACTIVE";
         public const string DebtorPhoneDuplicate = "DEBTOR_PHONE_DUPLICATE";
         public const string DebtorHasOutstandingBalance = "DEBTOR_HAS_OUTSTANDING_BALANCE";
+        public const string DebtorPaymentAmountZero = "DEBTOR_PAYMENT_AMOUNT_ZERO";
         public const string DebtorPaymentMethodInvalid = "DEBTOR_PAYMENT_METHOD_INVALID";
     }
 }
