@@ -1,5 +1,5 @@
 -- =============================================
--- Migration  : 040_create_accounting_period_tables
+-- Migration  : 041_create_accounting_period_tables
 -- Description: Create AccountingPeriods and AccountingPeriodAuditLogs tables
 -- Date       : 2026-03-17
 -- =============================================
@@ -55,5 +55,5 @@ CREATE TABLE IF NOT EXISTS AccountingPeriodAuditLogs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('040_create_accounting_period_tables', '1.0.0')
+VALUES ('041_create_accounting_period_tables', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';
