@@ -28,6 +28,13 @@ namespace BizFlow.Application.Common.Constants
         public const string ImageFileTooLarge = "IMAGE_FILE_TOO_LARGE";
         public const string ImageInvalidFileType = "IMAGE_INVALID_FILE_TYPE";
         public const string ImageUploadFailed = "IMAGE_UPLOAD_FAILED";
+        public const string ReversalDescriptionFormat = "LEDGER_REVERSAL_DESCRIPTION_FORMAT";
+        public const string LedgerDebtPaymentDescription = "LEDGER_DEBT_PAYMENT_DESCRIPTION";
+        public const string ManualCostUpdatedReversalReason = "LEDGER_MANUAL_COST_UPDATED_REASON";
+        public const string ManualCostDeletedReversalReason = "LEDGER_MANUAL_COST_DELETED_REASON";
+        public const string ImportCancelledReversalReason = "LEDGER_IMPORT_CANCELLED_REASON";
+        public const string ManualRevenueDeletedReversalReason = "LEDGER_MANUAL_REVENUE_DELETED_REASON";
+        public const string OrderCancelledReversalReason = "LEDGER_ORDER_CANCELLED_REASON";
 
         // ============ AUTHENTICATION ============
         public const string LoginSuccess = "AUTH_LOGIN_SUCCESS";
@@ -96,6 +103,7 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
+        public const string LowStockConfirmRequired = "LOW_STOCK_CONFIRM_REQUIRED";
 
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";

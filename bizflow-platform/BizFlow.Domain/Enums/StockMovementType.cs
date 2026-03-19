@@ -1,9 +1,14 @@
 namespace BizFlow.Domain.Enums
 {
-    public enum StockMovementType
+    public static class StockMovementType
     {
-        In,
-        Out,
-        Adjustment
+        public const string In = "IN";
+        public const string Out = "OUT";
+        public const string Adjustment = "ADJUSTMENT";
+
+        public static readonly IReadOnlyList<string> All = [In, Out, Adjustment];
+
+        public static bool IsValid(string type) =>
+            All.Contains(type, StringComparer.OrdinalIgnoreCase);
     }
 }

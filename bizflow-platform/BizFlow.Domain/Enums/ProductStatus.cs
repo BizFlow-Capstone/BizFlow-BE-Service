@@ -7,5 +7,10 @@ namespace BizFlow.Domain.Enums
     {
         public const string Active = "active";
         public const string Inactive = "inactive";
+
+        public static readonly IReadOnlyList<string> All = [Active, Inactive];
+
+        public static bool IsValid(string status) =>
+            All.Contains(status, StringComparer.OrdinalIgnoreCase);
     }
 }

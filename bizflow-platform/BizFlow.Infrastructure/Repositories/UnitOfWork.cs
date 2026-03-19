@@ -19,7 +19,11 @@ namespace BizFlow.Infrastructure.Repositories
             IImportRepository importRepository,
             IImportSchemaRepository importSchemaRepository,
             IDebtorRepository debtorRepository,
-            ICostRepository costRepository)
+            ICostRepository costRepository,
+            IGeneralLedgerRepository generalLedgerRepository,
+            IRevenueRepository revenueRepository,
+            IOrderRepository orderRepository,
+            IOrderDetailRepository orderDetailRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -31,6 +35,10 @@ namespace BizFlow.Infrastructure.Repositories
             ImportSchemas = importSchemaRepository;
             Debtors = debtorRepository;
             Costs = costRepository;
+            GeneralLedgerEntries = generalLedgerRepository;
+            Revenues = revenueRepository;
+            Orders = orderRepository;
+            OrderDetails = orderDetailRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -42,6 +50,10 @@ namespace BizFlow.Infrastructure.Repositories
         public IImportSchemaRepository ImportSchemas { get; set; }
         public IDebtorRepository Debtors { get; set; }
         public ICostRepository Costs { get; set; }
+        public IGeneralLedgerRepository GeneralLedgerEntries { get; set; }
+        public IRevenueRepository Revenues { get; set; }
+        public IOrderRepository Orders { get; set; }
+        public IOrderDetailRepository OrderDetails { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
