@@ -80,6 +80,12 @@ namespace BizFlow.Application.Common.Constants
         // ============ HIRE ============
         public const string EmployeesNotHired = "HIRE_EMPLOYEES_NOT_HIRED";
         public const string EmployeesAlreadyAssigned = "LOCATION_EMPLOYEES_ALREADY_ASSIGNED";
+        public const string EmployeeInviteSuccess = "EMPLOYEE_INVITE_SUCCESS";
+        public const string EmployeeAlreadyHired = "EMPLOYEE_ALREADY_HIRED";
+        public const string EmployeeHasActiveAssignments = "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS";
+        public const string EmployeeSearchEmpty = "EMPLOYEE_SEARCH_EMPTY";
+        public const string DeviceTokenRegistered = "DEVICE_TOKEN_REGISTERED";
+        public const string FirebaseConfigMissing = "FIREBASE_CONFIG_MISSING";
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";

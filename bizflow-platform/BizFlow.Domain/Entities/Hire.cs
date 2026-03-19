@@ -23,6 +23,11 @@ public partial class Hire
     public bool? IsActive { get; set; }
 
     /// <summary>
+    /// Invitation/employment status: pending, accepted, rejected
+    /// </summary>
+    public string Status { get; set; } = "accepted";
+
+    /// <summary>
     /// Start date of employment
     /// </summary>
     public DateTime StartAt { get; set; }

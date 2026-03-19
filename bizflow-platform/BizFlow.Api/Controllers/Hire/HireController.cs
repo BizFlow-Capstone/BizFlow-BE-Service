@@ -2,21 +2,21 @@ using BizFlow.Api.Common.Controllers;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using BizFlow.Api.Common.Extensions;
 
 namespace BizFlow.Api.Controllers
 {
     /// <summary>
     /// Manages employee hiring operations
     /// </summary>
+    [Authorize]
     [Route("api/my-employee")]
     public class HireController : BaseApiController
     {
         private readonly IHireService _hireService;
-
-        // TODO: Replace with actual JWT-based user identification
-        private readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001"); // Shinkiri
 
         public HireController(
             IHireService hireService,
@@ -58,13 +58,11 @@ namespace BizFlow.Api.Controllers
         #region Private Helper Methods
 
         /// <summary>
-        /// Gets current user ID (mock implementation)
-        /// TODO: Replace with JWT claims when auth is implemented
+        /// Gets current user ID securely from JWT token claims
         /// </summary>
         private Guid GetCurrentUserId()
         {
-            // return Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "");
-            return _mockCurrentUserId;
+            return User.GetRequiredUserId();
         }
 
         #endregion

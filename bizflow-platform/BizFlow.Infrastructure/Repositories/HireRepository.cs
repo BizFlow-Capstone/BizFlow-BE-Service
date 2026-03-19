@@ -33,7 +33,7 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
         {
             var result = await _context.Hires
-                .Where(h => h.OwnerId == ownerId)
+                .Where(h => h.OwnerId == ownerId && h.Status != "rejected")
                 .Join(_context.Profiles,
                     hire => hire.EmployeeId,
                     profile => profile.ProfileId,

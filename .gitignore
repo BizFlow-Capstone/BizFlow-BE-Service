@@ -14,6 +14,9 @@ docker-compose.override.yml
 .env.prod
 uat.env
 
+# Firebase credentials (local only)
+docker/credentials/*.json
+
 # Backup files
 *.sql.gz
 *.sql.backup
