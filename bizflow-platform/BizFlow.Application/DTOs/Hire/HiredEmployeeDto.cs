@@ -7,9 +7,11 @@ namespace BizFlow.Application.DTOs.Hire
     {
         public Guid EmployeeId { get; set; }
         public string FullName { get; set; } = null!;
+        public string? AvatarUrl { get; set; }
         public string Email { get; set; } = null!;
         public string? Phone { get; set; }
-        public DateTime StartAt { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime? StartAt { get; set; }
         public DateTime? EndAt { get; set; }
         public string Status { get; set; } = "pending";
     }

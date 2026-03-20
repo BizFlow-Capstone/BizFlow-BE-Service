@@ -30,10 +30,10 @@ namespace BizFlow.Infrastructure.Repositories
         /// <summary>
         /// Gets hired employees with user details (name, email, phone)
         /// </summary>
-        public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
+        public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone, string? avatarUrl)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
         {
             var result = await _context.Hires
-                .Where(h => h.OwnerId == ownerId && h.Status != "rejected")
+                .Where(h => h.OwnerId == ownerId)
                 .Join(_context.Profiles,
                     hire => hire.EmployeeId,
                     profile => profile.ProfileId,
@@ -46,6 +46,7 @@ namespace BizFlow.Infrastructure.Repositories
                 {
                     Hire = x.hire,
                     x.profile.FullName,
+                    x.profile.AvatarUrl,
                     Email = _context.Credentials
                         .Where(c => c.AccountId == x.account.AccountId && c.Type == "email")
                         .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
@@ -55,7 +56,7 @@ namespace BizFlow.Infrastructure.Repositories
                 })
                 .ToListAsync();
 
-            return result.Select(x => (x.Hire, x.FullName, x.Email, x.Phone));
+            return result.Select(x => (x.Hire, x.FullName, x.Email, x.Phone, x.AvatarUrl));
         }
 
         #endregion

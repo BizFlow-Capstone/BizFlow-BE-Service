@@ -520,11 +520,13 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.IsActive, "idx_hire_is_active");
 
+            entity.HasIndex(e => e.InvitedAt, "idx_hire_invited_at");
+
             entity.HasIndex(e => e.Status, "idx_hire_status");
 
             entity.HasIndex(e => e.OwnerId, "idx_hire_owner");
 
-            entity.HasIndex(e => new { e.OwnerId, e.EmployeeId }, "idx_hire_owner_employee").IsUnique();
+            entity.HasIndex(e => new { e.OwnerId, e.EmployeeId }, "idx_hire_owner_employee");
 
             entity.Property(e => e.EmployeeId).HasComment("Employee being hired");
             entity.Property(e => e.EndAt)
@@ -534,14 +536,17 @@ public partial class BizFlowDbContext : DbContext
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
                 .HasComment("Hiring status");
+            entity.Property(e => e.InvitedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("Invitation timestamp")
+                .HasColumnType("datetime");
             entity.Property(e => e.OwnerId).HasComment("Owner who hired the employee");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValueSql("'accepted'")
-                .HasComment("pending, accepted, rejected");
+                .HasComment("pending, accepted, rejected, inactive");
             entity.Property(e => e.StartAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasComment("Start date of employment")
+                .HasComment("Start date of employment (NULL when pending/rejected)")
                 .HasColumnType("datetime");
 
             entity.HasOne(d => d.Employee).WithMany(p => p.HiresEmployee)

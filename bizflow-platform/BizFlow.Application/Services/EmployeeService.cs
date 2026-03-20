@@ -43,30 +43,13 @@ namespace BizFlow.Application.Services
                 throw new NotFoundException(MessageKeys.UserNotFound);
             }
 
-            var existingHire = await _employeeRepository.GetHireByOwnerEmployeeAsync(ownerId, employeeId);
+            var existingHire = await _employeeRepository.GetOpenHireAsync(ownerId, employeeId);
             if (existingHire != null)
             {
                 if (existingHire.Status == "pending" || existingHire.Status == "accepted")
                 {
                     throw new ConflictException(MessageKeys.EmployeeAlreadyHired);
                 }
-
-                existingHire.IsActive = false;
-                existingHire.Status = "pending";
-                existingHire.StartAt = DateTime.UtcNow;
-                existingHire.EndAt = null;
-
-                await _employeeRepository.SaveChangesAsync();
-                await _notificationService.SendEmployeeInviteAsync(employeeId, string.Empty);
-
-                return new HireDto
-                {
-                    HireId = existingHire.HireId,
-                    OwnerId = existingHire.OwnerId,
-                    EmployeeId = existingHire.EmployeeId,
-                    CreatedAt = existingHire.StartAt,
-                    IsActive = existingHire.IsActive == true
-                };
             }
 
             var hire = new Hire
@@ -75,7 +58,9 @@ namespace BizFlow.Application.Services
                 EmployeeId = employeeId,
                 IsActive = false,
                 Status = "pending",
-                StartAt = DateTime.UtcNow
+                InvitedAt = DateTime.UtcNow,
+                StartAt = null,
+                EndAt = null
             };
 
             var created = await _employeeRepository.CreateHireAsync(hire);
@@ -87,7 +72,7 @@ namespace BizFlow.Application.Services
                 HireId = created.HireId,
                 OwnerId = created.OwnerId,
                 EmployeeId = created.EmployeeId,
-                CreatedAt = created.StartAt,
+                CreatedAt = created.InvitedAt,
                 IsActive = created.IsActive == true
             };
         }
@@ -106,7 +91,11 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.EmployeeHasActiveAssignments);
             }
 
-            await _employeeRepository.DeleteHireAsync(hire);
+            hire.IsActive = false;
+            hire.Status = "inactive";
+            hire.EndAt = DateTime.UtcNow;
+
+            await _employeeRepository.SaveChangesAsync();
             await _notificationService.NotifyEmployeeRemovedAsync(employeeId, string.Empty);
         }
 
@@ -126,6 +115,7 @@ namespace BizFlow.Application.Services
             invitation.IsActive = true;
             invitation.Status = "accepted";
             invitation.StartAt = DateTime.UtcNow;
+            invitation.EndAt = null;
             await _employeeRepository.SaveChangesAsync();
         }
 
@@ -137,7 +127,9 @@ namespace BizFlow.Application.Services
                 throw new NotFoundException(MessageKeys.NotFound);
             }
 
-            await _employeeRepository.DeleteHireAsync(invitation);
+            invitation.Status = "rejected";
+            invitation.IsActive = false;
+            await _employeeRepository.SaveChangesAsync();
         }
     }
 }

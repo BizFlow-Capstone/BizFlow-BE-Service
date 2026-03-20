@@ -58,7 +58,7 @@ namespace BizFlow.Infrastructure.Repositories
             return _context.Hires.FirstOrDefaultAsync(hire =>
                 hire.OwnerId == ownerId &&
                 hire.EmployeeId == employeeId &&
-                (hire.Status == "pending" || hire.Status == "accepted"));
+                (hire.Status == "pending" || (hire.Status == "accepted" && hire.IsActive == true)));
         }
 
         public Task<Hire?> GetActiveHireAsync(Guid ownerId, Guid employeeId)
@@ -104,7 +104,7 @@ namespace BizFlow.Infrastructure.Repositories
                         HireId = hire.HireId,
                         OwnerId = hire.OwnerId,
                         OwnerName = profile.FullName,
-                        InvitedAt = hire.StartAt
+                        InvitedAt = hire.InvitedAt
                     })
                 .OrderByDescending(invitation => invitation.InvitedAt)
                 .ToListAsync();
