@@ -1,7 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Runtime.CompilerServices;
-
-[assembly: InternalsVisibleTo("BizFlow.Api")]
 
 namespace BizFlow.Application.DTOs.Cost
 {

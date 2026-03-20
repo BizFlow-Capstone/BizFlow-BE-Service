@@ -15,13 +15,20 @@ namespace BizFlow.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IImageService _imageService;
         private readonly IStockMovementService _stockMovementService;
+        private readonly ICostService _costService;
         private readonly IMapper _mapper;
 
-        public ImportService(IUnitOfWork unitOfWork, IImageService imageService, IStockMovementService stockMovementService, IMapper mapper)
+        public ImportService(
+            IUnitOfWork unitOfWork,
+            IImageService imageService,
+            IStockMovementService stockMovementService,
+            ICostService costService,
+            IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
             _stockMovementService = stockMovementService;
+            _costService = costService;
             _mapper = mapper;
         }
 
@@ -51,6 +58,11 @@ namespace BizFlow.Application.Services
 
         public async Task<ImportSummaryDto> CreateImportAsync(Guid userId, CreateImportRequest request)
         {
+            if (!ImportType.IsValid(request.ImportType.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var normalizedImportType = request.ImportType.Trim().ToUpperInvariant();
+
             // Validate location exists
             var location = await _unitOfWork.BusinessLocations.GetByIdAsync(request.BusinessLocationId);
             if (location == null)
@@ -68,7 +80,7 @@ namespace BizFlow.Application.Services
             var status = request.SaveAsDraft ? ImportStatus.Draft : ImportStatus.Confirmed;
 
             var import = await CreateImportRecordAsync(
-                importType: request.ImportType,
+                importType: normalizedImportType,
                 status: status,
                 businessLocationId: request.BusinessLocationId,
                 items: items,
@@ -79,6 +91,12 @@ namespace BizFlow.Application.Services
                 imageStream: request.ImageStream,
                 imageFileName: request.ImageFileName,
                 applyToStock: !request.SaveAsDraft);
+
+            // Auto create import cost + GL when created directly as CONFIRMED.
+            if (status == ImportStatus.Confirmed)
+            {
+                await _costService.CreateImportCostAsync(userId, import);
+            }
 
             var result = _mapper.Map<ImportSummaryDto>(import);
             result.BusinessLocationName = location.LocationName;
@@ -101,7 +119,13 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
 
             // ImportType cannot be null on entity; keep current when request omits it.
-            import.ImportType = request.ImportType ?? import.ImportType;
+            if (!string.IsNullOrWhiteSpace(request.ImportType)
+                && !ImportType.IsValid(request.ImportType.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            import.ImportType = string.IsNullOrWhiteSpace(request.ImportType)
+                ? import.ImportType
+                : request.ImportType.Trim().ToUpperInvariant();
             import.Supplier = request.Supplier;
             import.Note = request.Note;
             import.ReceivedAt = request.ReceivedAt;
@@ -177,6 +201,8 @@ namespace BizFlow.Application.Services
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
 
+            await _costService.CreateImportCostAsync(userId, import);
+
             return new ImportPatchResultDto
             {
                 ImportId = import.ImportId,
@@ -195,6 +221,20 @@ namespace BizFlow.Application.Services
         {
             if (!query.BusinessLocationId.HasValue)
                 throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!string.IsNullOrWhiteSpace(query.Status)
+                && !ImportStatus.IsValid(query.Status.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!string.IsNullOrWhiteSpace(query.ImportType)
+                && !ImportType.IsValid(query.ImportType.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!string.IsNullOrWhiteSpace(query.Status))
+                query.Status = query.Status.Trim().ToUpperInvariant();
+
+            if (!string.IsNullOrWhiteSpace(query.ImportType))
+                query.ImportType = query.ImportType.Trim().ToUpperInvariant();
 
             await EnsureAccessToLocationAsync(userId, query.BusinessLocationId.Value);
 
@@ -289,6 +329,8 @@ namespace BizFlow.Application.Services
                 import.Status = ImportStatus.Cancelled;
                 import.UpdatedAt = DateTime.UtcNow;
                 _unitOfWork.Imports.Update(import);
+
+                await _costService.ReverseImportCostAsync(userId, import, MessageKeys.ImportCancelledReversalReason);
             }
             else
             {

@@ -15,12 +15,18 @@ namespace BizFlow.Application.Services
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
         private readonly IBusinessLocationService _locationService;
+        private readonly IGeneralLedgerService _generalLedgerService;
 
-        public DebtorService(IUnitOfWork uow, IMapper mapper, IBusinessLocationService locationService)
+        public DebtorService(
+            IUnitOfWork uow,
+            IMapper mapper,
+            IBusinessLocationService locationService,
+            IGeneralLedgerService generalLedgerService)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
+            _generalLedgerService = generalLedgerService;
         }
 
         public async Task<PaginatedResponse<DebtorSummaryDto>> ListAsync(Guid userId, DebtorQueryParams query)
@@ -159,6 +165,10 @@ namespace BizFlow.Application.Services
 
             await _uow.Debtors.AddPaymentAsync(transaction);
             _uow.Debtors.Update(debtor);
+            await _uow.SaveChangesAsync();
+
+            // Log debt payment transaction to GL.
+            await _generalLedgerService.RecordDebtPaymentAsync(transaction, debtor.BusinessLocationId);
             await _uow.SaveChangesAsync();
 
             return _mapper.Map<DebtorPaymentDto>(transaction);

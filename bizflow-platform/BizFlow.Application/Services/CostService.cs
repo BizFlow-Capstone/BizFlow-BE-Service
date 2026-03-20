@@ -16,17 +16,20 @@ namespace BizFlow.Application.Services
         private readonly IMapper _mapper;
         private readonly IBusinessLocationService _locationService;
         private readonly IImageService _imageService;
+        private readonly IGeneralLedgerService _generalLedgerService;
 
         public CostService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
-            IImageService imageService)
+            IImageService imageService,
+            IGeneralLedgerService generalLedgerService)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _imageService = imageService;
+            _generalLedgerService = generalLedgerService;
         }
 
         public async Task<CostDto> CreateManualAsync(Guid userId, CreateManualCostRequest request)
@@ -78,6 +81,9 @@ namespace BizFlow.Application.Services
             await _uow.Costs.AddAsync(entity);
             await _uow.SaveChangesAsync();
 
+            await _generalLedgerService.RecordManualCostAsync(entity);
+            await _uow.SaveChangesAsync();
+
             return _mapper.Map<CostDto>(entity);
         }
 
@@ -126,12 +132,30 @@ namespace BizFlow.Application.Services
             _uow.Costs.Update(cost);
             await _uow.SaveChangesAsync();
 
+            await _generalLedgerService.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostUpdatedReversalReason);
+            await _generalLedgerService.RecordManualCostAsync(cost);
+            await _uow.SaveChangesAsync();
+
             return _mapper.Map<CostDto>(cost);
         }
 
         public async Task<PaginatedResponse<CostDto>> ListAsync(Guid userId, CostQueryParams query)
         {
             await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);
+
+            if (!string.IsNullOrWhiteSpace(query.CostType)
+                && !CostType.IsValid(query.CostType.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!string.IsNullOrWhiteSpace(query.PaymentMethod)
+                && !PaymentMethods.IsValid(query.PaymentMethod.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!string.IsNullOrWhiteSpace(query.CostType))
+                query.CostType = query.CostType.Trim().ToLowerInvariant();
+
+            if (!string.IsNullOrWhiteSpace(query.PaymentMethod))
+                query.PaymentMethod = query.PaymentMethod.Trim().ToLowerInvariant();
 
             var (items, total) = await _uow.Costs.SearchAsync(query);
             var dtos = _mapper.Map<List<CostDto>>(items);
@@ -155,6 +179,69 @@ namespace BizFlow.Application.Services
             cost.UpdatedAt = DateTime.UtcNow;
             _uow.Costs.Update(cost);
 
+            await _uow.SaveChangesAsync();
+
+            await _generalLedgerService.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostDeletedReversalReason);
+            await _uow.SaveChangesAsync();
+        }
+
+        public async Task<Cost> CreateImportCostAsync(Guid userId, Import import)
+        {
+            return await _uow.ExecuteResilientAsync(async _ =>
+            {
+                var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
+                if (existing != null)
+                {
+                    // If previously soft-deleted and import is re-confirmed in future flows,
+                    // revive the same row to keep one source-of-truth cost per import.
+                    if (existing.DeletedAt != null)
+                    {
+                        existing.DeletedAt = null;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        _uow.Costs.Update(existing);
+
+                        await _generalLedgerService.RecordImportCostAsync(existing);
+                    }
+
+                    return existing;
+                }
+
+                var cost = new Cost
+                {
+                    BusinessLocationId = import.BusinessLocationId,
+                    CostType = CostType.Import,
+                    ImportId = import.ImportId,
+                    Description = $"Import {import.ImportCode ?? import.ImportId.ToString()}",
+                    Amount = import.TotalAmount,
+                    CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
+                    PaymentMethod = null,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Costs.AddAsync(cost);
+                await _uow.SaveChangesAsync(); // Need CostId before creating GL reference entry.
+
+                await _generalLedgerService.RecordImportCostAsync(cost);
+
+                return cost;
+            });
+        }
+
+        public async Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null)
+        {
+            var cost = await _uow.Costs.GetByImportIdAsync(import.ImportId);
+            if (cost == null)
+                return;
+
+            if (cost.DeletedAt == null)
+            {
+                cost.DeletedAt = DateTime.UtcNow;
+                cost.UpdatedAt = DateTime.UtcNow;
+                _uow.Costs.Update(cost);
+            }
+
+            await _generalLedgerService.ReverseCostEntriesAsync(cost, reason ?? MessageKeys.ImportCancelledReversalReason);
             await _uow.SaveChangesAsync();
         }
     }
