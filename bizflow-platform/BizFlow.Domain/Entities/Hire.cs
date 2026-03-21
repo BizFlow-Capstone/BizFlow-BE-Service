@@ -23,9 +23,9 @@ public partial class Hire
     public bool? IsActive { get; set; }
 
     /// <summary>
-    /// Invitation/employment status: pending, accepted, rejected
+    /// pending, accepted, rejected
     /// </summary>
-    public string Status { get; set; } = "accepted";
+    public string Status { get; set; } = null!;
 
     /// <summary>
     /// Invitation timestamp
@@ -33,7 +33,7 @@ public partial class Hire
     public DateTime InvitedAt { get; set; }
 
     /// <summary>
-    /// Start date of employment (NULL when not accepted yet)
+    /// Start date of employment (NULL when pending/rejected)
     /// </summary>
     public DateTime? StartAt { get; set; }
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Immutable accounting ledger (append-only).
+/// Immutable accounting ledger - append only, no updates/deletes
 /// </summary>
 public partial class GeneralLedgerEntry
 {
@@ -26,27 +26,27 @@ public partial class GeneralLedgerEntry
     public string ReferenceType { get; set; } = null!;
 
     /// <summary>
-    /// Source entity ID (polymorphic, without a hard FK).
+    /// Source entity ID (polymorphic, no hard FK)
     /// </summary>
     public long? ReferenceId { get; set; }
 
     /// <summary>
-    /// Transaction date.
+    /// Transaction date
     /// </summary>
     public DateOnly EntryDate { get; set; }
 
     /// <summary>
-    /// Entry description.
+    /// Ledger entry description
     /// </summary>
     public string Description { get; set; } = null!;
 
     /// <summary>
-    /// Debit amount.
+    /// Debit amount
     /// </summary>
     public decimal DebitAmount { get; set; }
 
     /// <summary>
-    /// Credit amount.
+    /// Credit amount
     /// </summary>
     public decimal CreditAmount { get; set; }
 
@@ -56,17 +56,17 @@ public partial class GeneralLedgerEntry
     public string? MoneyChannel { get; set; }
 
     /// <summary>
-    /// TRUE when this is a reversal entry.
+    /// TRUE if this is a reversal entry
     /// </summary>
     public bool IsReversal { get; set; }
 
     /// <summary>
-    /// Reversed entry ID (self-reference).
+    /// Reversed entry ID (self-reference)
     /// </summary>
     public long? ReversedEntryId { get; set; }
 
     /// <summary>
-    /// IMMUTABLE - must not change after creation.
+    /// IMMUTABLE - must not be changed after creation
     /// </summary>
     public DateTime CreatedAt { get; set; }
 

@@ -24,11 +24,11 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<Credential> Credentials { get; set; }
 
-    public virtual DbSet<DeviceToken> DeviceTokens { get; set; }
-
     public virtual DbSet<DebtorPaymentTransaction> DebtorPaymentTransactions { get; set; }
 
     public virtual DbSet<Debtor> Debtors { get; set; }
+
+    public virtual DbSet<DeviceToken> DeviceTokens { get; set; }
 
     public virtual DbSet<GeneralLedgerEntry> GeneralLedgerEntries { get; set; }
 
@@ -242,7 +242,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.CostId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Store cost - source-of-truth for all expenses"))
+                .ToTable(tb => tb.HasComment("Store expenses - source of truth for all expense records"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.ImportId, "idx_cost_import");
@@ -255,9 +255,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Cost amount");
+                .HasComment("Expense amount");
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
-            entity.Property(e => e.CostDate).HasComment("Cost incurred date");
+            entity.Property(e => e.CostDate).HasComment("Expense date");
             entity.Property(e => e.CostType)
                 .HasMaxLength(30)
                 .HasComment("import | salary | rent | utilities | transport | marketing | maintenance | other | manual");
@@ -270,13 +270,13 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Description of the cost");
+                .HasComment("Expense description");
             entity.Property(e => e.DocumentPublicId)
                 .HasMaxLength(255)
-                .HasComment("Cloudinary public ID of the document");
+                .HasComment("Cloudinary public ID of the receipt/invoice");
             entity.Property(e => e.DocumentUrl)
                 .HasMaxLength(500)
-                .HasComment("URL of the document/invoice (Cloudinary)");
+                .HasComment("Receipt/invoice URL (Cloudinary)");
             entity.Property(e => e.ImportId).HasComment("FK to Imports (only when CostType = import)");
             entity.Property(e => e.PaymentMethod)
                 .HasMaxLength(20)
@@ -327,44 +327,12 @@ public partial class BizFlowDbContext : DbContext
                 .HasConstraintName("fk_credential_account");
         });
 
-        modelBuilder.Entity<DeviceToken>(entity =>
-        {
-            entity.HasKey(e => e.DeviceTokenId).HasName("PRIMARY");
-
-            entity.UseCollation("utf8mb4_unicode_ci");
-
-            entity.HasIndex(e => new { e.ProfileId, e.Token }, "idx_device_token_unique").IsUnique();
-            entity.HasIndex(e => new { e.ProfileId, e.IsActive }, "idx_profile_active");
-            entity.HasIndex(e => e.Platform, "idx_platform");
-
-            entity.Property(e => e.ProfileId).HasComment("FK to Profiles");
-            entity.Property(e => e.Token).HasComment("FCM token");
-            entity.Property(e => e.DeviceName)
-                .HasMaxLength(255)
-                .HasComment("Device identifier");
-            entity.Property(e => e.Platform)
-                .HasMaxLength(50)
-                .HasComment("iOS, Android, Web");
-            entity.Property(e => e.RegisteredAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime");
-            entity.Property(e => e.LastUsedAt).HasColumnType("datetime");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValueSql("'1'")
-                .IsRequired();
-
-            entity.HasOne(d => d.Profile).WithMany(p => p.DeviceTokens)
-                .HasForeignKey(d => d.ProfileId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("fk_device_token_profile");
-        });
-
         modelBuilder.Entity<DebtorPaymentTransaction>(entity =>
         {
             entity.HasKey(e => e.DebtorPaymentTransactionId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Customer debt payment transaction history"))
+                .ToTable(tb => tb.HasComment("Debtor payment transaction history"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.DebtorId, "idx_debtor_payment_debtor");
@@ -373,20 +341,20 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Payment amount in this transaction");
+                .HasComment("Payment amount for this transaction");
             entity.Property(e => e.BalanceAfter)
                 .HasPrecision(15, 2)
-                .HasComment("Debt balance after transaction");
+                .HasComment("Balance after transaction");
             entity.Property(e => e.BalanceBefore)
                 .HasPrecision(15, 2)
-                .HasComment("Debt balance before transaction");
-            entity.Property(e => e.CreatedByUserId).HasComment("UserId of the user recording the payment");
+                .HasComment("Balance before transaction");
+            entity.Property(e => e.CreatedByUserId).HasComment("UserId who recorded the payment");
             entity.Property(e => e.DebtorId).HasComment("FK to Debtors");
             entity.Property(e => e.Notes)
                 .HasComment("Transaction notes")
                 .HasColumnType("text");
             entity.Property(e => e.PaidAt)
-                .HasComment("Actual payment time")
+                .HasComment("Actual payment timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.PaymentMethod)
                 .HasMaxLength(20)
@@ -403,7 +371,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.DebtorId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("List of debtors by store location"))
+                .ToTable(tb => tb.HasComment("Debtor list per business location"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => new { e.BusinessLocationId, e.IsActive }, "idx_debtor_active");
@@ -419,20 +387,20 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedByUserId).HasComment("UserId of the creator (FK to Profiles)");
+            entity.Property(e => e.CreatedByUserId).HasComment("UserId of creator (FK to Profiles)");
             entity.Property(e => e.CreditLimit)
                 .HasPrecision(15, 2)
-                .HasComment("Allowed credit limit (NULL = unlimited)");
+                .HasComment("Credit limit (NULL = unlimited)");
             entity.Property(e => e.CurrentBalance)
                 .HasPrecision(15, 2)
-                .HasComment("Current debt balance (>0 = in debt)");
+                .HasComment("Current debt balance (>0 means debtor owes money)");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
-                .HasComment("Activity status");
+                .HasComment("Active status");
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
                 .HasComment("Debtor name");
@@ -453,12 +421,50 @@ public partial class BizFlowDbContext : DbContext
                 .HasConstraintName("fk_debtor_location");
         });
 
+        modelBuilder.Entity<DeviceToken>(entity =>
+        {
+            entity.HasKey(e => e.DeviceTokenId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => new { e.ProfileId, e.Token }, "idx_device_token_unique")
+                .IsUnique()
+                .HasAnnotation("MySql:IndexPrefixLength", new[] { 0, 255 });
+
+            entity.HasIndex(e => e.Platform, "idx_platform");
+
+            entity.HasIndex(e => new { e.ProfileId, e.IsActive }, "idx_profile_active");
+
+            entity.Property(e => e.DeviceTokenId).HasComment("UUID");
+            entity.Property(e => e.DeviceName)
+                .HasMaxLength(255)
+                .HasComment("Device identifier");
+            entity.Property(e => e.IsActive)
+                .IsRequired()
+                .HasDefaultValueSql("'1'");
+            entity.Property(e => e.LastUsedAt).HasColumnType("datetime");
+            entity.Property(e => e.Platform)
+                .HasMaxLength(50)
+                .HasComment("iOS, Android, Web");
+            entity.Property(e => e.ProfileId).HasComment("FK to Profiles");
+            entity.Property(e => e.RegisteredAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Token)
+                .HasComment("FCM Token")
+                .HasColumnType("text");
+
+            entity.HasOne(d => d.Profile).WithMany(p => p.DeviceTokens)
+                .HasForeignKey(d => d.ProfileId)
+                .HasConstraintName("fk_device_token_profile");
+        });
+
         modelBuilder.Entity<GeneralLedgerEntry>(entity =>
         {
             entity.HasKey(e => e.EntryId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Immutable general ledger - append only, no update/delete"))
+                .ToTable(tb => tb.HasComment("Immutable accounting ledger - append only, no updates/deletes"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.BusinessLocationId, "idx_gl_location");
@@ -474,7 +480,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasComment("IMMUTABLE - cannot be changed after creation")
+                .HasComment("IMMUTABLE - must not be changed after creation")
                 .HasColumnType("datetime");
             entity.Property(e => e.CreditAmount)
                 .HasPrecision(15, 2)
@@ -484,17 +490,17 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Debit amount");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Description of the entry");
-            entity.Property(e => e.EntryDate).HasComment("Transaction incurred date");
+                .HasComment("Ledger entry description");
+            entity.Property(e => e.EntryDate).HasComment("Transaction date");
             entity.Property(e => e.IsReversal).HasComment("TRUE if this is a reversal entry");
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");
-            entity.Property(e => e.ReferenceId).HasComment("Source entity ID (polymorphic, no strict FK)");
+            entity.Property(e => e.ReferenceId).HasComment("Source entity ID (polymorphic, no hard FK)");
             entity.Property(e => e.ReferenceType)
                 .HasMaxLength(30)
                 .HasComment("order | cost | import | debtor_payment | revenue");
-            entity.Property(e => e.ReversedEntryId).HasComment("Reversed EntryId (self-referenced)");
+            entity.Property(e => e.ReversedEntryId).HasComment("Reversed entry ID (self-reference)");
             entity.Property(e => e.TransactionType)
                 .HasMaxLength(30)
                 .HasComment("sale | import_cost | manual_cost | debt_payment | manual_revenue | manual_expense");
@@ -518,36 +524,36 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.EmployeeId, "idx_hire_employee");
 
-            entity.HasIndex(e => e.IsActive, "idx_hire_is_active");
-
             entity.HasIndex(e => e.InvitedAt, "idx_hire_invited_at");
 
-            entity.HasIndex(e => e.Status, "idx_hire_status");
+            entity.HasIndex(e => e.IsActive, "idx_hire_is_active");
 
             entity.HasIndex(e => e.OwnerId, "idx_hire_owner");
 
             entity.HasIndex(e => new { e.OwnerId, e.EmployeeId }, "idx_hire_owner_employee");
 
+            entity.HasIndex(e => e.Status, "idx_hire_status");
+
             entity.Property(e => e.EmployeeId).HasComment("Employee being hired");
             entity.Property(e => e.EndAt)
                 .HasComment("End date of employment (NULL if still active)")
+                .HasColumnType("datetime");
+            entity.Property(e => e.InvitedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasComment("Invitation timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
                 .HasComment("Hiring status");
-            entity.Property(e => e.InvitedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasComment("Invitation timestamp")
-                .HasColumnType("datetime");
             entity.Property(e => e.OwnerId).HasComment("Owner who hired the employee");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValueSql("'accepted'")
-                .HasComment("pending, accepted, rejected, inactive");
             entity.Property(e => e.StartAt)
                 .HasComment("Start date of employment (NULL when pending/rejected)")
                 .HasColumnType("datetime");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'accepted'")
+                .HasComment("pending, accepted, rejected");
 
             entity.HasOne(d => d.Employee).WithMany(p => p.HiresEmployee)
                 .HasForeignKey(d => d.EmployeeId)
@@ -714,7 +720,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.OrderDetailId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Product line details in order (price snapshot at time of sale)"))
+                .ToTable(tb => tb.HasComment("Product line item in an order (price snapshot at sale time)"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.OrderId, "idx_order_detail_order");
@@ -723,17 +729,17 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
-                .HasComment("Total amount = Quantity * UnitPrice - Discount");
+                .HasComment("Line amount = Quantity * UnitPrice - Discount");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.Discount)
                 .HasPrecision(15, 2)
-                .HasComment("Product line discount");
+                .HasComment("Line-item discount");
             entity.Property(e => e.OrderId).HasComment("FK to Orders");
             entity.Property(e => e.Quantity)
                 .HasDefaultValueSql("'1'")
-                .HasComment("Quantity sold");
+                .HasComment("Sold quantity");
             entity.Property(e => e.SaleItemId).HasComment("FK to SaleItems (live reference)");
             entity.Property(e => e.UnitPrice)
                 .HasPrecision(15, 2)
@@ -745,7 +751,6 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.SaleItem).WithMany(p => p.OrderDetails)
                 .HasForeignKey(d => d.SaleItemId)
-                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_order_detail_sale_item");
         });
 
@@ -754,7 +759,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.OrderId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Retail order at the store"))
+                .ToTable(tb => tb.HasComment("In-store retail order"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.OrderCode, "idx_order_code").IsUnique();
@@ -769,38 +774,38 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.BankAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Amount paid via bank/transfer");
+                .HasComment("Amount paid by bank transfer");
             entity.Property(e => e.BillMetadata)
-                .HasComment("Additional invoice info (free JSON)")
+                .HasComment("Additional invoice metadata (free-form JSON)")
                 .HasColumnType("json");
             entity.Property(e => e.CancelReason)
-                .HasComment("Detailed cancel reason (free text)")
+                .HasComment("Detailed cancellation reason (free text)")
                 .HasColumnType("text");
             entity.Property(e => e.CancelledAt)
-                .HasComment("Time when order was cancelled")
+                .HasComment("Order cancellation timestamp")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CancelledBy).HasComment("UserId of the user who cancelled the order");
+            entity.Property(e => e.CancelledBy).HasComment("UserId who cancelled the order");
             entity.Property(e => e.CashAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Amount paid in cash");
+                .HasComment("Amount paid by cash");
             entity.Property(e => e.CompletedAt)
-                .HasComment("Time when order was completed")
+                .HasComment("Order completion timestamp")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CompletedBy).HasComment("UserId of the user who completed the order");
+            entity.Property(e => e.CompletedBy).HasComment("UserId who completed the order");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.CreatedBy).HasComment("UserId of the creator of the order");
+            entity.Property(e => e.CreatedBy).HasComment("UserId of order creator");
             entity.Property(e => e.CustomerName)
                 .HasMaxLength(255)
-                .HasComment("Guest customer name (not required in system)");
+                .HasComment("Walk-in customer name (not required in the system)");
             entity.Property(e => e.CustomerPhone)
                 .HasMaxLength(20)
-                .HasComment("Guest customer phone number");
+                .HasComment("Walk-in customer phone");
             entity.Property(e => e.DebtAmount)
                 .HasPrecision(15, 2)
                 .HasComment("Debt amount = TotalAmount - CashAmount - BankAmount");
-            entity.Property(e => e.DebtorId).HasComment("FK to Debtors (if any)");
+            entity.Property(e => e.DebtorId).HasComment("FK to Debtors: debtor customer (if any)");
             entity.Property(e => e.Discount)
                 .HasPrecision(15, 2)
                 .HasComment("Total order discount");
@@ -810,22 +815,22 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.OrderCode)
                 .HasMaxLength(50)
                 .HasComment("Unique order code, format: ORD-YYYYMMDD-NNN");
-            entity.Property(e => e.RefOrderId).HasComment("Self-referenced FK: original order replaced when editing a completed order");
+            entity.Property(e => e.RefOrderId).HasComment("Self-reference FK: original order replaced when editing a completed order");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValueSql("'pending'")
                 .HasComment("pending | completed | cancelled");
             entity.Property(e => e.SubTotal)
                 .HasPrecision(15, 2)
-                .HasComment("Subtotal amount before discount");
+                .HasComment("Subtotal before discount");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(15, 2)
-                .HasComment("Total amount to pay = SubTotal - Discount");
+                .HasComment("Total payable amount = SubTotal - Discount");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.UpdatedBy).HasComment("UserId of the last updater");
+            entity.Property(e => e.UpdatedBy).HasComment("UserId of last updater");
 
             entity.HasOne(d => d.Debtor).WithMany(p => p.Orders)
                 .HasForeignKey(d => d.DebtorId)
@@ -894,7 +899,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Manufacturer).HasComment("Manufacturer name");
             entity.Property(e => e.SellingPrice)
                 .HasPrecision(15, 2)
-                .HasComment("Selling price per base unit");
+                .HasComment("Giá bán theo base unit");
             entity.Property(e => e.Sku)
                 .HasMaxLength(100)
                 .HasComment("Stock Keeping Unit code");
@@ -955,7 +960,6 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.Product).WithMany(p => p.ProductsImports)
                 .HasForeignKey(d => d.ProductId)
-                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_product_import_new_product");
         });
 
@@ -1029,7 +1033,7 @@ public partial class BizFlowDbContext : DbContext
             entity.HasKey(e => e.RevenueId).HasName("PRIMARY");
 
             entity
-                .ToTable(tb => tb.HasComment("Store revenue - source-of-truth for all income"))
+                .ToTable(tb => tb.HasComment("Store revenue - source of truth for all income records"))
                 .UseCollation("utf8mb4_unicode_ci");
 
             entity.HasIndex(e => e.BusinessLocationId, "idx_revenue_location");
@@ -1051,12 +1055,12 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
-                .HasComment("Description of the revenue");
+                .HasComment("Revenue description");
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");
             entity.Property(e => e.OrderId).HasComment("Soft reference to Order, nullable because some revenues are manual");
-            entity.Property(e => e.RevenueDate).HasComment("Revenue recorded date");
+            entity.Property(e => e.RevenueDate).HasComment("Revenue recognition date");
             entity.Property(e => e.RevenueType)
                 .HasMaxLength(20)
                 .HasComment("sale | manual");
@@ -1141,7 +1145,6 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasOne(d => d.Product).WithMany(p => p.StockMovements)
                 .HasForeignKey(d => d.ProductId)
-                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_stock_movement_product");
         });
 

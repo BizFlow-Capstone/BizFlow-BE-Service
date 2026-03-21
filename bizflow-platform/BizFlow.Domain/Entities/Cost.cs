@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Business costs source-of-truth table.
+/// Store expenses - source of truth for all expense records
 /// </summary>
 public partial class Cost
 {
@@ -26,17 +26,17 @@ public partial class Cost
     public long? ImportId { get; set; }
 
     /// <summary>
-    /// Cost description.
+    /// Expense description
     /// </summary>
     public string Description { get; set; } = null!;
 
     /// <summary>
-    /// Cost amount.
+    /// Expense amount
     /// </summary>
     public decimal Amount { get; set; }
 
     /// <summary>
-    /// Cost date.
+    /// Expense date
     /// </summary>
     public DateOnly CostDate { get; set; }
 
@@ -46,17 +46,17 @@ public partial class Cost
     public string? PaymentMethod { get; set; }
 
     /// <summary>
-    /// Document or invoice URL (Cloudinary).
+    /// Receipt/invoice URL (Cloudinary)
     /// </summary>
     public string? DocumentUrl { get; set; }
 
     /// <summary>
-    /// Cloudinary public ID of the document.
+    /// Cloudinary public ID of the receipt/invoice
     /// </summary>
     public string? DocumentPublicId { get; set; }
 
     /// <summary>
-    /// Creator UserId.
+    /// UserId of the creator
     /// </summary>
     public Guid CreatedBy { get; set; }
 
@@ -64,6 +64,9 @@ public partial class Cost
 
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// Soft delete
+    /// </summary>
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;

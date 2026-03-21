@@ -20,7 +20,9 @@ set "FINAL_ENTITIES_DIR=%DOMAIN_DIR%\Entities"
 set "FINAL_DATACONTEXT_DIR=%INFRASTRUCTURE_DIR%\DataContext"
 
 :: Tables to scaffold (plural names in database)
-set "TABLES=--table Roles --table Accounts --table Profiles --table Credentials --table RefreshTokens --table BusinessTypes --table BusinessTypeTaxes --table BusinessLocations --table UserLocationAssignments --table Products --table ProductPricePolicies --table Imports --table ProductsImports --table SaleItems --table Hires --table ImportSchemas --table ImportSchemaVersions --table StockMovements --table SystemConfig --table Debtors --table DebtorPaymentTransactions --table Orders --table OrderDetails --table Revenues --table Costs --table GeneralLedgerEntries"
+:: NOTE: AccountingPeriods/AccountingPeriodAuditLogs are configured in BizFlowDbContext.Custom.cs
+:: and intentionally excluded here to avoid duplicate DbSet/ModelBuilder definitions.
+set "TABLES=--table Roles --table Accounts --table Profiles --table Credentials --table RefreshTokens --table DeviceTokens --table BusinessTypes --table BusinessTypeTaxes --table BusinessLocations --table UserLocationAssignments --table Products --table ProductPricePolicies --table Imports --table ProductsImports --table SaleItems --table Hires --table ImportSchemas --table ImportSchemaVersions --table StockMovements --table SystemConfig --table Debtors --table DebtorPaymentTransactions --table Orders --table OrderDetails --table Revenues --table Costs --table GeneralLedgerEntries"
 
 :: ============================================
 :: STEP 1: CHECK PREREQUISITES
@@ -148,6 +150,10 @@ if exist "%TEMP_ENTITIES_DIR%\RefreshTokens.cs" (
     ren "%TEMP_ENTITIES_DIR%\RefreshTokens.cs" "RefreshToken.cs"
     echo   [RENAME] RefreshTokens.cs -^> RefreshToken.cs
 )
+if exist "%TEMP_ENTITIES_DIR%\DeviceTokens.cs" (
+    ren "%TEMP_ENTITIES_DIR%\DeviceTokens.cs" "DeviceToken.cs"
+    echo   [RENAME] DeviceTokens.cs -^> DeviceToken.cs
+)
 if exist "%TEMP_ENTITIES_DIR%\ImportSchemas.cs" (
     ren "%TEMP_ENTITIES_DIR%\ImportSchemas.cs" "ImportSchema.cs"
     echo   [RENAME] ImportSchemas.cs -^> ImportSchema.cs
@@ -211,12 +217,41 @@ for %%F in ("%TEMP_ENTITIES_DIR%\*.cs") do (
     
     :: Replace namespace and class names using PowerShell
     powershell -Command "$content = Get-Content '!INPUT_FILE!' -Raw; $content = $content -creplace 'namespace BizFlow\.Infrastructure\.TempEntities', 'namespace BizFlow.Domain.Entities' -creplace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', '' -creplace 'public partial class Roles', 'public partial class Role' -creplace 'public partial class Accounts', 'public partial class Account' -creplace 'public partial class Profiles', 'public partial class Profile' -creplace 'public partial class BusinessTypes', 'public partial class BusinessType' -creplace 'public partial class BusinessTypeTaxes', 'public partial class BusinessTypeTax' -creplace 'public partial class BusinessLocations', 'public partial class BusinessLocation' -creplace 'public partial class UserLocationAssignments', 'public partial class UserLocationAssignment' -creplace 'public partial class ProductsImports', 'public partial class ProductImport' -creplace 'public partial class ProductImports', 'public partial class ProductImport' -creplace 'public partial class ProductPricePolicies', 'public partial class ProductPricePolicy' -creplace 'public partial class Products', 'public partial class Product' -creplace 'public partial class SaleItems', 'public partial class SaleItem' -creplace 'public partial class ImportSchemaVersions', 'public partial class ImportSchemaVersion' -creplace 'public partial class ImportSchemas', 'public partial class ImportSchema' -creplace 'public partial class Imports', 'public partial class Import' -creplace 'public partial class Hires', 'public partial class Hire' -creplace 'public partial class StockMovements', 'public partial class StockMovement' -creplace 'ICollection<ImportSchemaVersions>', 'ICollection<ImportSchemaVersion>' -creplace 'ICollection<ImportSchemas>', 'ICollection<ImportSchema>' -creplace 'ICollection<Imports>', 'ICollection<Import>' -creplace 'ICollection<Roles>', 'ICollection<Role>' -creplace 'ICollection<Accounts>', 'ICollection<Account>' -creplace 'ICollection<Profiles>', 'ICollection<Profile>' -creplace 'ICollection<BusinessTypes>', 'ICollection<BusinessType>' -creplace 'ICollection<BusinessTypeTaxes>', 'ICollection<BusinessTypeTax>' -creplace 'ICollection<BusinessLocations>', 'ICollection<BusinessLocation>' -creplace 'ICollection<UserLocationAssignments>', 'ICollection<UserLocationAssignment>' -creplace 'ICollection<ProductsImports>', 'ICollection<ProductImport>' -creplace 'ICollection<ProductImports>', 'ICollection<ProductImport>' -creplace 'ICollection<ProductPricePolicies>', 'ICollection<ProductPricePolicy>' -creplace 'ICollection<Products>', 'ICollection<Product>' -creplace 'ICollection<SaleItems>', 'ICollection<SaleItem>' -creplace 'ICollection<Hires>', 'ICollection<Hire>' -creplace 'ICollection<StockMovements>', 'ICollection<StockMovement>' -creplace 'List<ImportSchemaVersions>', 'List<ImportSchemaVersion>' -creplace 'List<ImportSchemas>', 'List<ImportSchema>' -creplace 'List<Imports>', 'List<Import>' -creplace 'List<Roles>', 'List<Role>' -creplace 'List<Accounts>', 'List<Account>' -creplace 'List<Profiles>', 'List<Profile>' -creplace 'List<BusinessTypes>', 'List<BusinessType>' -creplace 'List<BusinessTypeTaxes>', 'List<BusinessTypeTax>' -creplace 'List<BusinessLocations>', 'List<BusinessLocation>' -creplace 'List<UserLocationAssignments>', 'List<UserLocationAssignment>' -creplace 'List<ProductsImports>', 'List<ProductImport>' -creplace 'List<ProductImports>', 'List<ProductImport>' -creplace 'List<ProductPricePolicies>', 'List<ProductPricePolicy>' -creplace 'List<Products>', 'List<Product>' -creplace 'List<SaleItems>', 'List<SaleItem>' -creplace 'List<Hires>', 'List<Hire>' -creplace 'List<StockMovements>', 'List<StockMovement>' -creplace 'virtual ImportSchemaVersions', 'virtual ImportSchemaVersion' -creplace 'virtual ImportSchemas', 'virtual ImportSchema' -creplace 'virtual Imports', 'virtual Import' -creplace 'virtual Roles', 'virtual Role' -creplace 'virtual Accounts', 'virtual Account' -creplace 'virtual Profiles', 'virtual Profile' -creplace 'virtual BusinessTypes', 'virtual BusinessType' -creplace 'virtual BusinessTypeTaxes', 'virtual BusinessTypeTax' -creplace 'virtual BusinessLocations', 'virtual BusinessLocation' -creplace 'virtual UserLocationAssignments', 'virtual UserLocationAssignment' -creplace 'virtual ProductsImports', 'virtual ProductImport' -creplace 'virtual ProductImports', 'virtual ProductImport' -creplace 'virtual ProductPricePolicies', 'virtual ProductPricePolicy' -creplace 'virtual Products', 'virtual Product' -creplace 'virtual SaleItems', 'virtual SaleItem' -creplace 'virtual Hires', 'virtual Hire' -creplace 'public partial class Credentials', 'public partial class Credential' -creplace 'public partial class RefreshTokens', 'public partial class RefreshToken' -creplace 'ICollection<Credentials>', 'ICollection<Credential>' -creplace 'ICollection<RefreshTokens>', 'ICollection<RefreshToken>' -creplace 'List<Credentials>', 'List<Credential>' -creplace 'List<RefreshTokens>', 'List<RefreshToken>' -creplace 'virtual Credentials', 'virtual Credential' -creplace 'virtual RefreshTokens', 'virtual RefreshToken' -creplace 'Profile\? Profiles', 'Profile? Profile' -creplace 'Profile Profiles', 'Profile Profile' -creplace 'public partial class Debtors', 'public partial class Debtor' -creplace 'public partial class DebtorPaymentTransactions', 'public partial class DebtorPaymentTransaction' -creplace 'public partial class Orders', 'public partial class Order' -creplace 'public partial class OrderDetails', 'public partial class OrderDetail' -creplace 'public partial class Revenues', 'public partial class Revenue' -creplace 'public partial class Costs', 'public partial class Cost' -creplace 'public partial class GeneralLedgerEntries', 'public partial class GeneralLedgerEntry' -creplace 'ICollection<Debtors>', 'ICollection<Debtor>' -creplace 'ICollection<DebtorPaymentTransactions>', 'ICollection<DebtorPaymentTransaction>' -creplace 'ICollection<Orders>', 'ICollection<Order>' -creplace 'ICollection<OrderDetails>', 'ICollection<OrderDetail>' -creplace 'ICollection<Revenues>', 'ICollection<Revenue>' -creplace 'ICollection<Costs>', 'ICollection<Cost>' -creplace 'ICollection<GeneralLedgerEntries>', 'ICollection<GeneralLedgerEntry>' -creplace 'List<Debtors>', 'List<Debtor>' -creplace 'List<DebtorPaymentTransactions>', 'List<DebtorPaymentTransaction>' -creplace 'List<Orders>', 'List<Order>' -creplace 'List<OrderDetails>', 'List<OrderDetail>' -creplace 'List<Revenues>', 'List<Revenue>' -creplace 'List<Costs>', 'List<Cost>' -creplace 'List<GeneralLedgerEntries>', 'List<GeneralLedgerEntry>' -creplace 'virtual Debtors', 'virtual Debtor' -creplace 'virtual DebtorPaymentTransactions', 'virtual DebtorPaymentTransaction' -creplace 'virtual Orders\b', 'virtual Order' -creplace 'virtual OrderDetails', 'virtual OrderDetail' -creplace 'virtual Revenues', 'virtual Revenue' -creplace 'virtual Costs\b', 'virtual Cost' -creplace 'virtual GeneralLedgerEntries', 'virtual GeneralLedgerEntry'; Set-Content '!OUTPUT_FILE!' -Value $content -NoNewline"
+
+    for %%Z in ("!OUTPUT_FILE!") do (
+        if %%~zZ EQU 0 (
+            echo   [WARNING] Empty output detected for !FILENAME!, fallback to raw scaffold content
+            powershell -Command "$raw = Get-Content '!INPUT_FILE!' -Raw; $raw = $raw -creplace 'namespace BizFlow\.Infrastructure\.TempEntities', 'namespace BizFlow.Domain.Entities' -creplace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', ''; Set-Content '!OUTPUT_FILE!' -Value $raw -NoNewline"
+        )
+    )
     
     set /a ENTITY_COUNT+=1
     echo   [OK] Fixed: !FILENAME!
 )
 
 echo   Total entities: !ENTITY_COUNT!
+echo.
+
+:: ============================================
+:: STEP 5.5: FIX DEVICE TOKEN NAMING
+:: ============================================
+echo [STEP 5.5] Fixing DeviceToken naming...
+
+powershell -Command "$targets = @(); if (Test-Path '%FINAL_ENTITIES_DIR%') { $targets += Get-ChildItem '%FINAL_ENTITIES_DIR%' -Filter '*.cs' -File }; foreach ($file in $targets) { $content = Get-Content $file.FullName -Raw; $content = $content -creplace 'public partial class DeviceTokens', 'public partial class DeviceToken' -creplace 'ICollection<DeviceTokens>', 'ICollection<DeviceToken>' -creplace 'List<DeviceTokens>', 'List<DeviceToken>' -creplace 'virtual DeviceTokens', 'virtual DeviceToken'; Set-Content $file.FullName -Value $content -NoNewline }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch DeviceToken names in entities.
+) else (
+    echo   [OK] DeviceToken names patched in entities
+)
+
+powershell -Command "$file = '%FINAL_ENTITIES_DIR%\BusinessLocation.cs'; if (Test-Path $file) { $content = Get-Content $file -Raw; if ($content -notmatch 'ICollection<AccountingPeriod>\s+AccountingPeriods') { $insert = '    public virtual ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();`r`n`r`n'; $content = $content -replace '(public string\? TaxCode \{ get; set; \}\r?\n\r?\n)', ('$1' + $insert); Set-Content $file -Value $content -NoNewline } }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch BusinessLocation.AccountingPeriods navigation.
+) else (
+    echo   [OK] BusinessLocation.AccountingPeriods navigation ensured
+)
 echo.
 
 :: ============================================
@@ -237,6 +272,14 @@ if exist "%DBCONTEXT_INPUT%" (
     echo   [OK] Fixed: BizFlowDbContext.cs
 ) else (
     echo   [WARNING] DbContext not found in TempData
+)
+
+powershell -Command "if (Test-Path '%DBCONTEXT_OUTPUT%') { $content = Get-Content '%DBCONTEXT_OUTPUT%' -Raw; $content = $content -creplace 'DbSet<DeviceTokens>', 'DbSet<DeviceToken>' -creplace 'modelBuilder\.Entity<DeviceTokens>', 'modelBuilder.Entity<DeviceToken>'; Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch DeviceToken names in DbContext.
+) else (
+    echo   [OK] DeviceToken names patched in DbContext
 )
 echo.
 

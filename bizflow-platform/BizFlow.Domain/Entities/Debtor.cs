@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Debtor list per business location.
+/// Debtor list per business location
 /// </summary>
 public partial class Debtor
 {
@@ -16,37 +16,37 @@ public partial class Debtor
     public int BusinessLocationId { get; set; }
 
     /// <summary>
-    /// Debtor name.
+    /// Debtor name
     /// </summary>
     public string Name { get; set; } = null!;
 
     /// <summary>
-    /// Phone number (unique per location).
+    /// Phone number (unique per location)
     /// </summary>
     public string? Phone { get; set; }
 
     /// <summary>
-    /// Address.
+    /// Address
     /// </summary>
     public string? Address { get; set; }
 
     /// <summary>
-    /// Internal notes.
+    /// Internal notes
     /// </summary>
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Allowed credit limit (NULL = unlimited).
+    /// Credit limit (NULL = unlimited)
     /// </summary>
     public decimal? CreditLimit { get; set; }
 
     /// <summary>
-    /// Current debt balance (&gt;0 means debtor owes money).
+    /// Current debt balance (&gt;0 means debtor owes money)
     /// </summary>
     public decimal CurrentBalance { get; set; }
 
     /// <summary>
-    /// Active status.
+    /// Active status
     /// </summary>
     public bool? IsActive { get; set; }
 
@@ -56,7 +56,7 @@ public partial class Debtor
     public DateTime? DeletedAt { get; set; }
 
     /// <summary>
-    /// Creator UserId (FK to Profiles).
+    /// UserId of creator (FK to Profiles)
     /// </summary>
     public Guid CreatedByUserId { get; set; }
 

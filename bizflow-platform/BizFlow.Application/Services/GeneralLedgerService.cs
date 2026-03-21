@@ -40,14 +40,14 @@ namespace BizFlow.Application.Services
 
             var viewMode = (query.ViewMode ?? GeneralLedgerViewMode.Audit).Trim().ToLowerInvariant();
             if (!GeneralLedgerViewMode.IsValid(viewMode))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.LedgerInvalidViewMode);
 
             if (query.TransactionTypes != null && query.TransactionTypes.Any())
             {
                 foreach (var tt in query.TransactionTypes)
                 {
                     if (!string.IsNullOrWhiteSpace(tt) && !GeneralLedgerTransactionType.IsValid(tt.Trim()))
-                        throw new BadRequestException(MessageKeys.BadRequest);
+                        throw new BadRequestException(MessageKeys.LedgerInvalidTransactionType);
                 }
             }
 
@@ -56,7 +56,7 @@ namespace BizFlow.Application.Services
                 foreach (var rt in query.ReferenceTypes)
                 {
                     if (!string.IsNullOrWhiteSpace(rt) && !GeneralLedgerReferenceType.IsValid(rt.Trim()))
-                        throw new BadRequestException(MessageKeys.BadRequest);
+                        throw new BadRequestException(MessageKeys.LedgerInvalidReferenceType);
                 }
             }
 
@@ -65,7 +65,7 @@ namespace BizFlow.Application.Services
                 foreach (var mc in query.MoneyChannels)
                 {
                     if (!string.IsNullOrWhiteSpace(mc) && !MoneyChannelType.IsValid(mc.Trim()))
-                        throw new BadRequestException(MessageKeys.BadRequest);
+                        throw new BadRequestException(MessageKeys.LedgerInvalidMoneyChannel);
                 }
             }
 
@@ -75,16 +75,16 @@ namespace BizFlow.Application.Services
             var earliestAllowedDate = ResolveEarliestAllowedDate(today);
 
             if (query.FromDate.HasValue && (query.FromDate.Value < earliestAllowedDate || query.FromDate.Value > today))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
 
             if (query.ToDate.HasValue && (query.ToDate.Value < earliestAllowedDate || query.ToDate.Value > today))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
 
             query.ToDate ??= today;
             query.FromDate ??= earliestAllowedDate;
 
             if (query.FromDate > query.ToDate)
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
 
             var (items, total) = await _uow.GeneralLedgerEntries.SearchAsync(query);
             var dtos = _mapper.Map<List<GeneralLedgerEntryDto>>(items);

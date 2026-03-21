@@ -53,7 +53,7 @@ namespace BizFlow.Infrastructure.Services
                 await using var transaction = await _context.Database.BeginTransactionAsync();
 
                 await _context.DeviceTokens
-                    .Where(deviceToken => deviceToken.Token == normalizedToken && deviceToken.IsActive)
+                    .Where(deviceToken => deviceToken.Token == normalizedToken && deviceToken.IsActive == true)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(deviceToken => deviceToken.IsActive, false)
                         .SetProperty(deviceToken => deviceToken.LastUsedAt, now));
@@ -242,7 +242,7 @@ namespace BizFlow.Infrastructure.Services
         private async Task<List<string>> GetActiveTokensByProfileIdAsync(Guid profileId)
         {
             return await _context.DeviceTokens
-                .Where(deviceToken => deviceToken.ProfileId == profileId && deviceToken.IsActive)
+                .Where(deviceToken => deviceToken.ProfileId == profileId && deviceToken.IsActive == true)
                 .Select(deviceToken => deviceToken.Token)
                 .ToListAsync();
         }

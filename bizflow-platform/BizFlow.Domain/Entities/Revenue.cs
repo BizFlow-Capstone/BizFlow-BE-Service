@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Business revenue source-of-truth table.
+/// Store revenue - source of truth for all income records
 /// </summary>
 public partial class Revenue
 {
@@ -26,17 +26,17 @@ public partial class Revenue
     public string RevenueType { get; set; } = null!;
 
     /// <summary>
-    /// Revenue amount.
+    /// Revenue amount
     /// </summary>
     public decimal Amount { get; set; }
 
     /// <summary>
-    /// Revenue recognition date.
+    /// Revenue recognition date
     /// </summary>
     public DateOnly RevenueDate { get; set; }
 
     /// <summary>
-    /// Revenue description.
+    /// Revenue description
     /// </summary>
     public string Description { get; set; } = null!;
 
@@ -46,7 +46,7 @@ public partial class Revenue
     public string? MoneyChannel { get; set; }
 
     /// <summary>
-    /// Creator UserId.
+    /// UserId of the creator
     /// </summary>
     public Guid CreatedBy { get; set; }
 

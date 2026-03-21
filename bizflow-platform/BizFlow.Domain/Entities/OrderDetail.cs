@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Order line item details (snapshot pricing at sale time).
+/// Product line item in an order (price snapshot at sale time)
 /// </summary>
 public partial class OrderDetail
 {
@@ -21,22 +21,22 @@ public partial class OrderDetail
     public long SaleItemId { get; set; }
 
     /// <summary>
-    /// Sold quantity.
+    /// Sold quantity
     /// </summary>
     public int Quantity { get; set; }
 
     /// <summary>
-    /// Snapshot unit price at order creation time.
+    /// Unit price snapshot at order creation time
     /// </summary>
     public decimal UnitPrice { get; set; }
 
     /// <summary>
-    /// Line-item discount.
+    /// Line-item discount
     /// </summary>
     public decimal Discount { get; set; }
 
     /// <summary>
-    /// Line amount = Quantity * UnitPrice - Discount.
+    /// Line amount = Quantity * UnitPrice - Discount
     /// </summary>
     public decimal Amount { get; set; }
 
