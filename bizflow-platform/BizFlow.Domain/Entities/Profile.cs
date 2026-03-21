@@ -44,6 +44,7 @@ public partial class Profile
     public virtual ICollection<ImportSchemaVersion> ImportSchemaVersions { get; set; } = new List<ImportSchemaVersion>();
 
     public virtual ICollection<SystemConfig> SystemConfig { get; set; } = new List<SystemConfig>();
-
     public virtual ICollection<UserLocationAssignment> UserLocationAssignments { get; set; } = new List<UserLocationAssignment>();
+
+    public virtual ICollection<DeviceToken> DeviceTokens { get; set; } = new List<DeviceToken>();
 }

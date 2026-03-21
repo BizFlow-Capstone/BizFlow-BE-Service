@@ -117,7 +117,7 @@ namespace BizFlow.Infrastructure.Repositories
                     on profile.AccountId equals account.AccountId
                 select new EmployeeSummaryDto
                 {
-                    UserId = ula.UserId.ToString(),
+                    ProfileId = ula.UserId.ToString(),
                     UserName = profile.FullName,
                     Phone = account.Credentials.Where(c => c.AccountId == account.AccountId && c.Type == "phone").Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
                 }

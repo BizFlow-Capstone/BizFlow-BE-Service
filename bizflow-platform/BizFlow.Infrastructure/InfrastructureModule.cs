@@ -9,6 +9,8 @@ using BizFlow.Application.Common.Models;
 using CloudinaryDotNet;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Infrastructure.Services;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 namespace BizFlow.Infrastructure
 {
@@ -23,6 +25,8 @@ namespace BizFlow.Infrastructure
 
         protected override void Load(ContainerBuilder builder)
         {
+            InitializeFirebaseApp();
+
             builder.RegisterType<UnitOfWork>()
                    .As<IUnitOfWork>()
                    .InstancePerLifetimeScope();
@@ -74,6 +78,43 @@ namespace BizFlow.Infrastructure
 
             // Register Jobs
             builder.RegisterType<ImageCleanupJob>().AsSelf().InstancePerDependency();
+        }
+
+        private void InitializeFirebaseApp()
+        {
+            if (IsFirebaseInitialized())
+            {
+                return;
+            }
+
+            var serviceAccountPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+            if (string.IsNullOrWhiteSpace(serviceAccountPath))
+            {
+                serviceAccountPath = _configuration["Firebase:ServiceAccountPath"];
+            }
+
+            if (string.IsNullOrWhiteSpace(serviceAccountPath) || !File.Exists(serviceAccountPath))
+            {
+                return;
+            }
+
+            FirebaseApp.Create(new AppOptions
+            {
+                Credential = GoogleCredential.FromFile(serviceAccountPath)
+            });
+        }
+
+        private static bool IsFirebaseInitialized()
+        {
+            try
+            {
+                _ = FirebaseApp.DefaultInstance;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -13,8 +13,15 @@ namespace BizFlow.Application.DTOs.Hire
     /// </summary>
     public class EmployeeSummaryDto
     {
-        public string UserId { get; set; } = null!;
+        public string ProfileId { get; set; } = null!;
         public string UserName { get; set; } = null!;
         public string? Phone { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
+        public bool IsAlreadyHired { get; set; }
+        public bool IsActive { get; set; }
+        public string Status { get; set; } = "pending";
+        public DateTime? StartAt { get; set; }
+        public DateTime? EndAt { get; set; }
     }
 }

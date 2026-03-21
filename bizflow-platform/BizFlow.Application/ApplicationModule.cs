@@ -1,11 +1,5 @@
 ﻿using Autofac;
 using AutoMapper;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BizFlow.Application
 {
@@ -27,13 +21,14 @@ namespace BizFlow.Application
             builder.Register(context =>
             {
                 var profiles = context.Resolve<IEnumerable<Profile>>();
+                var loggerFactory = context.Resolve<Microsoft.Extensions.Logging.ILoggerFactory>();
                 var config = new MapperConfiguration(cfg =>
                 {
                     foreach (var profile in profiles)
                     {
                         cfg.AddProfile(profile);
                     }
-                });
+                }, loggerFactory);
                 return config.CreateMapper();
             }).As<IMapper>().InstancePerLifetimeScope();
             

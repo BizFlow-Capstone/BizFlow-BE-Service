@@ -36,9 +36,11 @@ namespace BizFlow.Application.Mappers
 
             // Tuple from Repository → EmployeeSummaryDto
             CreateMap<(Guid UserId, string FullName, string Email, string Phone), EmployeeSummaryDto>()
-                .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId.ToString()))
+                .ForMember(dest => dest.ProfileId, opt => opt.MapFrom(src => src.UserId.ToString()))
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.FullName))
-                .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.Phone));
+                .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.Phone))
+                .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
+                .ForMember(dest => dest.IsAlreadyHired, opt => opt.MapFrom(src => true));
         }
     }
 }

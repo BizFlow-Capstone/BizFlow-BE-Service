@@ -14,6 +14,7 @@ namespace BizFlow.Infrastructure.Repositories
             IRoleRepository roleRepository,
             IBusinessTypeRepository businessTypeRepository,
             IBusinessLocationRepository businessLocationRepository,
+            IAccountingPeriodRepository accountingPeriodRepository,
             IHireRepository hireRepository,
             IProductRepository productRepository,
             IImportRepository importRepository,
@@ -29,6 +30,7 @@ namespace BizFlow.Infrastructure.Repositories
             Roles = roleRepository;
             BusinessTypes = businessTypeRepository;
             BusinessLocations = businessLocationRepository;
+            AccountingPeriods = accountingPeriodRepository;
             Hires = hireRepository;
             Products = productRepository;
             Imports = importRepository;
@@ -44,6 +46,7 @@ namespace BizFlow.Infrastructure.Repositories
         public IRoleRepository Roles { get; set; }
         public IBusinessTypeRepository BusinessTypes { get; set; }
         public IBusinessLocationRepository BusinessLocations { get; set; }
+        public IAccountingPeriodRepository AccountingPeriods { get; set; }
         public IHireRepository Hires { get; set; }
         public IProductRepository Products { get; set; }
         public IImportRepository Imports { get; set; }

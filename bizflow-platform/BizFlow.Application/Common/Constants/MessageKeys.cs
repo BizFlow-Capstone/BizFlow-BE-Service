@@ -91,6 +91,12 @@ namespace BizFlow.Application.Common.Constants
         // ============ HIRE ============
         public const string EmployeesNotHired = "HIRE_EMPLOYEES_NOT_HIRED";
         public const string EmployeesAlreadyAssigned = "LOCATION_EMPLOYEES_ALREADY_ASSIGNED";
+        public const string EmployeeInviteSuccess = "EMPLOYEE_INVITE_SUCCESS";
+        public const string EmployeeAlreadyHired = "EMPLOYEE_ALREADY_HIRED";
+        public const string EmployeeHasActiveAssignments = "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS";
+        public const string EmployeeSearchEmpty = "EMPLOYEE_SEARCH_EMPTY";
+        public const string DeviceTokenRegistered = "DEVICE_TOKEN_REGISTERED";
+        public const string FirebaseConfigMissing = "FIREBASE_CONFIG_MISSING";
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";
@@ -115,6 +121,21 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
         public const string ImportSchemaTemplateCodeConflict = "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT";
 
+        // ============ ACCOUNTING PERIOD ============
+        public const string PeriodCreatedSuccessfully = "PERIOD_CREATED";
+        public const string PeriodFinalizedSuccessfully = "PERIOD_FINALIZED";
+        public const string PeriodReopenedSuccessfully = "PERIOD_REOPENED";
+        public const string PeriodNotFound = "PERIOD_NOT_FOUND";
+        public const string PeriodAlreadyExists = "PERIOD_ALREADY_EXISTS";
+        public const string PeriodNotOpen = "PERIOD_NOT_OPEN";
+        public const string PeriodAlreadyFinalized = "PERIOD_ALREADY_FINALIZED";
+        public const string PeriodNotFinalized = "PERIOD_NOT_FINALIZED";
+        public const string PeriodReopenReasonRequired = "PERIOD_REOPEN_REASON_REQUIRED";
+        public const string PeriodNoBooks = "PERIOD_NO_BOOKS";
+        public const string PeriodOpeningBalanceRequired = "PERIOD_OPENING_BALANCE_REQUIRED";
+        public const string PeriodSuggestionNoSource = "PERIOD_SUGGESTION_NO_SOURCE";
+        public const string PeriodSuggestionFromPrevious = "PERIOD_SUGGESTION_FROM_PREVIOUS";
+        public const string PeriodSuggestionFormula = "PERIOD_SUGGESTION_FORMULA";
         // ============ DEBTOR ============
         public const string DebtorNotFound = "DEBTOR_NOT_FOUND";
         public const string DebtorNotActive = "DEBTOR_NOT_ACTIVE";

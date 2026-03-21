@@ -5,8 +5,91 @@ namespace BizFlow.Infrastructure.DataContext;
 
 public partial class BizFlowDbContext
 {
+    public virtual DbSet<AccountingPeriod> AccountingPeriods { get; set; }
+
+    public virtual DbSet<AccountingPeriodAuditLog> AccountingPeriodAuditLogs { get; set; }
+
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AccountingPeriod>(entity =>
+        {
+            entity.HasKey(e => e.PeriodId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.Property(e => e.PeriodType)
+                .HasMaxLength(10)
+                .HasComment("quarter | year");
+
+            entity.Property(e => e.StartDate).HasColumnType("date");
+
+            entity.Property(e => e.EndDate).HasColumnType("date");
+
+            entity.Property(e => e.OpeningCashBalance)
+                .HasPrecision(15, 2)
+                .HasComment("Opening cash balance");
+
+            entity.Property(e => e.OpeningBankBalance)
+                .HasPrecision(15, 2)
+                .HasComment("Opening bank balance");
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'open'")
+                .HasComment("open | finalized | reopened");
+
+            entity.Property(e => e.FinalizedAt).HasColumnType("datetime");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasColumnType("datetime");
+
+            entity.HasIndex(e => new { e.BusinessLocationId, e.PeriodType, e.Year, e.Quarter }, "idx_period_unique").IsUnique();
+            entity.HasIndex(e => e.Status, "idx_period_status");
+            entity.HasIndex(e => e.Year, "idx_period_year");
+
+            entity.HasOne(d => d.BusinessLocation)
+                .WithMany(p => p.AccountingPeriods)
+                .HasForeignKey(d => d.BusinessLocationId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_period_location");
+        });
+
+        modelBuilder.Entity<AccountingPeriodAuditLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.Property(e => e.Action)
+                .HasMaxLength(50)
+                .HasComment("period_created | period_finalized | period_reopened | book_created | book_exported | group_suggestion");
+
+            entity.Property(e => e.OldValue).HasColumnType("json");
+
+            entity.Property(e => e.NewValue).HasColumnType("json");
+
+            entity.Property(e => e.Reason).HasColumnType("text");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.HasIndex(e => e.PeriodId, "idx_audit_period");
+            entity.HasIndex(e => e.Action, "idx_audit_action");
+            entity.HasIndex(e => e.CreatedAt, "idx_audit_date");
+
+            entity.HasOne(d => d.Period)
+                .WithMany(p => p.AuditLogs)
+                .HasForeignKey(d => d.PeriodId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_audit_period");
+        });
+
         // Global Query Filter: Soft Delete for BusinessLocation
         modelBuilder.Entity<BusinessLocation>().HasQueryFilter(e => e.DeletedAt == null);
 

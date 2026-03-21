@@ -24,6 +24,8 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<Credential> Credentials { get; set; }
 
+    public virtual DbSet<DeviceToken> DeviceTokens { get; set; }
+
     public virtual DbSet<DebtorPaymentTransaction> DebtorPaymentTransactions { get; set; }
 
     public virtual DbSet<Debtor> Debtors { get; set; }
@@ -325,6 +327,38 @@ public partial class BizFlowDbContext : DbContext
                 .HasConstraintName("fk_credential_account");
         });
 
+        modelBuilder.Entity<DeviceToken>(entity =>
+        {
+            entity.HasKey(e => e.DeviceTokenId).HasName("PRIMARY");
+
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => new { e.ProfileId, e.Token }, "idx_device_token_unique").IsUnique();
+            entity.HasIndex(e => new { e.ProfileId, e.IsActive }, "idx_profile_active");
+            entity.HasIndex(e => e.Platform, "idx_platform");
+
+            entity.Property(e => e.ProfileId).HasComment("FK to Profiles");
+            entity.Property(e => e.Token).HasComment("FCM token");
+            entity.Property(e => e.DeviceName)
+                .HasMaxLength(255)
+                .HasComment("Device identifier");
+            entity.Property(e => e.Platform)
+                .HasMaxLength(50)
+                .HasComment("iOS, Android, Web");
+            entity.Property(e => e.RegisteredAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.LastUsedAt).HasColumnType("datetime");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValueSql("'1'")
+                .IsRequired();
+
+            entity.HasOne(d => d.Profile).WithMany(p => p.DeviceTokens)
+                .HasForeignKey(d => d.ProfileId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_device_token_profile");
+        });
+
         modelBuilder.Entity<DebtorPaymentTransaction>(entity =>
         {
             entity.HasKey(e => e.DebtorPaymentTransactionId).HasName("PRIMARY");
@@ -486,9 +520,13 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.IsActive, "idx_hire_is_active");
 
+            entity.HasIndex(e => e.InvitedAt, "idx_hire_invited_at");
+
+            entity.HasIndex(e => e.Status, "idx_hire_status");
+
             entity.HasIndex(e => e.OwnerId, "idx_hire_owner");
 
-            entity.HasIndex(e => new { e.OwnerId, e.EmployeeId }, "idx_hire_owner_employee").IsUnique();
+            entity.HasIndex(e => new { e.OwnerId, e.EmployeeId }, "idx_hire_owner_employee");
 
             entity.Property(e => e.EmployeeId).HasComment("Employee being hired");
             entity.Property(e => e.EndAt)
@@ -498,10 +536,17 @@ public partial class BizFlowDbContext : DbContext
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
                 .HasComment("Hiring status");
-            entity.Property(e => e.OwnerId).HasComment("Owner who hired the employee");
-            entity.Property(e => e.StartAt)
+            entity.Property(e => e.InvitedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasComment("Start date of employment")
+                .HasComment("Invitation timestamp")
+                .HasColumnType("datetime");
+            entity.Property(e => e.OwnerId).HasComment("Owner who hired the employee");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'accepted'")
+                .HasComment("pending, accepted, rejected, inactive");
+            entity.Property(e => e.StartAt)
+                .HasComment("Start date of employment (NULL when pending/rejected)")
                 .HasColumnType("datetime");
 
             entity.HasOne(d => d.Employee).WithMany(p => p.HiresEmployee)
