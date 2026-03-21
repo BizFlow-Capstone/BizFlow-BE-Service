@@ -13,6 +13,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query);
 
         /// <summary>
+        /// Quick search products by location and optional keyword (name or SKU).
+        /// </summary>
+        Task<List<Product>> QuickSearchByLocationAsync(int locationId, string? search);
+
+        /// <summary>
         /// Get product by ID
         /// </summary>
         Task<Product?> GetByIdAsync(long productId);

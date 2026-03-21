@@ -19,16 +19,34 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Debtor> Items, int TotalCount)> SearchAsync(DebtorQueryParams query, IEnumerable<int>? allowedLocationIds = null)
         {
+            // 1. Get Total Count
             var countSpec = new DebtorSearchSpec(query, allowedLocationIds, isCount: true);
             var countQuery = SpecificationEvaluator<Debtor>.GetQuery(_db.Debtors.AsQueryable(), countSpec);
             var totalCount = await countQuery.CountAsync();
 
             if (totalCount == 0) return (Array.Empty<Debtor>(), 0);
 
-            // We do a regular spec query since Debtor search doesn't involve heavy joins
-            var spec = new DebtorSearchSpec(query, allowedLocationIds, isCount: false);
-            var queryResult = SpecificationEvaluator<Debtor>.GetQuery(_db.Debtors.AsQueryable(), spec);
-            var items = await queryResult.ToListAsync();
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new DebtorSearchSpec(query, allowedLocationIds, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Debtor>.GetQuery(_db.Debtors.AsQueryable(), filterSpec);
+
+            var pageNumber = query.PageNumber > 0 ? query.PageNumber : 1;
+            var pageSize = query.PageSize > 0 ? query.PageSize : 20;
+
+            var ids = await filterQuery
+                .Select(d => d.DebtorId)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<Debtor>(), totalCount);
+
+            // 3. Fetch full entities
+            var items = await _db.Debtors
+                .Where(d => ids.Contains(d.DebtorId))
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
 
             return (items, totalCount);
         }

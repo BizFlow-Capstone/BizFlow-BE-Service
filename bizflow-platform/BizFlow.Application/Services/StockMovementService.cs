@@ -13,7 +13,7 @@ namespace BizFlow.Application.Services
         public StockMovement CreateStockMovement(
             Product product,
             int quantityDelta,
-            StockMovementReferenceType? referenceType,
+            string? referenceType,
             long? referenceId,
             string? memo = null)
         {
@@ -24,12 +24,15 @@ namespace BizFlow.Application.Services
                 ? StockMovementType.In
                 : StockMovementType.Out;
 
+            if (referenceType != null && !StockMovementReferenceType.IsValid(referenceType))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
             return new StockMovement
             {
                 ProductId = product.ProductId,
-                MovementType = movementType.ToDbValue(),
+                MovementType = movementType,
                 Quantity = quantityDelta,
-                ReferenceType = referenceType.HasValue ? referenceType.Value.ToDbValue() : null,
+                ReferenceType = referenceType,
                 ReferenceId = referenceId,
                 Memo = memo,
                 BalanceAfter = product.Stock,

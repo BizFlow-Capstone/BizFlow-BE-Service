@@ -57,6 +57,14 @@ namespace BizFlow.Application.Services
             return new PaginatedResponse<ProductSummaryDto>(items, totalCount, pageNumber, pageSize);
         }
 
+        public async Task<List<ProductQuickSearchDto>> SearchQuickProductsAsync(Guid userId, int locationId, string? search)
+        {
+            await ValidateProductAccessAsync(userId, locationId);
+
+            var products = await _unitOfWork.Products.QuickSearchByLocationAsync(locationId, search);
+            return products.Select(p => _mapper.Map<ProductQuickSearchDto>(p)).ToList();
+        }
+
         public async Task<ProductDetailDto?> GetProductDetailAsync(Guid userId, long productId)
         {
             var product = await _unitOfWork.Products.GetByIdWithDetailsAsync(productId);

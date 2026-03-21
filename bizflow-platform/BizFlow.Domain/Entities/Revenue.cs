@@ -16,6 +16,11 @@ public partial class Revenue
     public int BusinessLocationId { get; set; }
 
     /// <summary>
+    /// Soft reference to Order, nullable because some revenues are manual
+    /// </summary>
+    public long? OrderId { get; set; }
+
+    /// <summary>
     /// sale | manual
     /// </summary>
     public string RevenueType { get; set; } = null!;

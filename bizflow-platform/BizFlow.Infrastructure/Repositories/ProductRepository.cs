@@ -67,6 +67,26 @@ namespace BizFlow.Infrastructure.Repositories
             return (items, totalCount);
         }
 
+        public async Task<List<Product>> QuickSearchByLocationAsync(int locationId, string? search)
+        {
+            var query = _dbContext.Products
+                .Where(p => p.BusinessLocationId == locationId)
+                .Include(p => p.SaleItems)
+                    .ThenInclude(s => s.ProductPricePolicies)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var keyword = search.Trim().ToLower();
+                query = query.Where(p => p.ProductName.ToLower().Contains(keyword)
+                    || (p.Sku != null && p.Sku.ToLower().Contains(keyword)));
+            }
+
+            return await query
+                .OrderByDescending(p => p.ProductId)
+                .ToListAsync();
+        }
+
         public async Task<Product?> GetByIdAsync(long productId)
         {
             return await _dbContext.Products

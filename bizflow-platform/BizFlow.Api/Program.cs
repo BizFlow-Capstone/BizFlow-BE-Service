@@ -15,6 +15,7 @@ using System.Text.Json;
 using Hangfire;
 using Hangfire.MySql;
 using BizFlow.Infrastructure.Jobs;
+using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +75,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 builder.Services.Configure<GoogleAuthConfig>(builder.Configuration.GetSection("GoogleAuth"));
 builder.Services.Configure<FirebaseAuthConfig>(builder.Configuration.GetSection("FirebaseAuth"));
 builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(PaginationSettings.SectionName));
+builder.Services.Configure<GeneralLedgerSettings>(builder.Configuration.GetSection(GeneralLedgerSettings.SectionName));
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 
@@ -209,6 +211,37 @@ builder.Services.AddSwaggerGen(c =>
     // Enable Swagger annotations
     c.EnableAnnotations();
 });
+
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true; 
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+        new[] { "application/json", "application/xml", "text/plain", "image/svg+xml" }); 
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = System.IO.Compression.CompressionLevel.Fastest;
+});
+
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+   
+    options.Level = System.IO.Compression.CompressionLevel.Fastest;
+});
+
+builder.Services.AddOutputCache(options =>
+{
+    options.AddBasePolicy(builder => builder.Expire(TimeSpan.FromSeconds(10)));
+
+    options.AddPolicy("PublicData", builder =>
+        builder.Expire(TimeSpan.FromMinutes(5))
+               .SetVaryByQuery("*")); // Vary cache by query parameters
+});
+
 // CORS Configuration - Allow All
 builder.Services.AddCors(options =>
 {
@@ -239,8 +272,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseResponseCompression();
+
 // Use CORS
 app.UseCors("AllowAll");
+app.UseOutputCache();
 app.UseAuthentication();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
