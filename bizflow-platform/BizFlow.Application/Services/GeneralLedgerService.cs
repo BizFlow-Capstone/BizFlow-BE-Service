@@ -91,10 +91,15 @@ namespace BizFlow.Application.Services
 
             var asOfDate = query.ToDate.Value;
             var pageEntryIds = dtos.Select(d => d.EntryId).ToList();
+
             var reversalSummary = await _uow.GeneralLedgerEntries.GetReversalSummaryAsOfAsync(pageEntryIds, asOfDate);
 
+            // if it reverses another entry, it is not reversed, it is a reversal entry
+            // if it is reversed by another entry, it is reversed
+            // if it is not reversed by another entry, it is active
             foreach (var dto in dtos)
             {
+                // check if it is a reversal entry
                 if (dto.IsReversal)
                 {
                     dto.IsReversed = false;
@@ -104,6 +109,7 @@ namespace BizFlow.Application.Services
                     continue;
                 }
 
+                // check if it is reversed by another entry
                 if (reversalSummary.TryGetValue(dto.EntryId, out var summary))
                 {
                     dto.IsReversed = true;

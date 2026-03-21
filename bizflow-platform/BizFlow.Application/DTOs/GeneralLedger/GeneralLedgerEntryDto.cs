@@ -16,9 +16,16 @@ namespace BizFlow.Application.DTOs.GeneralLedger
 
         public SourceLinkDto Source { get; set; } = null!;
 
+        // = true if this entry is reversed, killed by another entry
         public bool IsReversed { get; set; }
+        // id of the entry that reversed this entry
         public long? ReversalEntryId { get; set; }
+        // number of entries that reversed this entry
         public int ReversalCount { get; set; }
+        // reversal || reversed || active
+        // reversal: this entry is a reversal entry
+        // reversed: this entry is reversed by another entry
+        // active: this entry is not reversed
         public string EffectiveStatus { get; set; } = null!;
 
         // Audit mode only: ordered from oldest ancestor to current entry.
