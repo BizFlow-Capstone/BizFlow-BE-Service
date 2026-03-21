@@ -41,7 +41,7 @@ namespace BizFlow.Infrastructure.Services
             // Retry logic
             int maxRetries = _settings.MaxRetries > 0 ? _settings.MaxRetries : 3;
             int attempt = 0;
-            CloudinaryUploadResult lastResult = null;
+            CloudinaryUploadResult? lastResult = null;
 
             while (attempt < maxRetries)
             {

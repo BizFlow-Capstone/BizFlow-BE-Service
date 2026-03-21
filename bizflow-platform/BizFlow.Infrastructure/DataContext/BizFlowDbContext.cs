@@ -1010,6 +1010,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");
+            entity.Property(e => e.OrderId).HasComment("Soft reference to Order, nullable because some revenues are manual");
             entity.Property(e => e.RevenueDate).HasComment("Revenue recorded date");
             entity.Property(e => e.RevenueType)
                 .HasMaxLength(20)

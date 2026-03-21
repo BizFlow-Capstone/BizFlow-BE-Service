@@ -1,4 +1,4 @@
-﻿{
+{
   "COMMON_SUCCESS": "Thành công",
   "COMMON_ERROR": "Có lỗi xảy ra",
   "COMMON_NOT_FOUND": "Không tìm thấy dữ liệu",
@@ -22,6 +22,9 @@
   "LEDGER_IMPORT_CANCELLED_REASON": "hủy phiếu nhập",
   "LEDGER_MANUAL_REVENUE_DELETED_REASON": "xóa doanh thu thủ công",
   "LEDGER_ORDER_CANCELLED_REASON": "hủy đơn hàng",
+  "ORDER_REPLACED_REASON": "Được thay thế bởi đơn hàng {0}",
+  "ORDER_AUTO_ROLLBACK_NOTE": "Hoàn tác nợ tự động từ đơn hàng bị hủy {0}",
+  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Doanh thu ({1}) từ đơn hàng {0}",
   "AUTH_LOGIN_SUCCESS": "Đăng nhập thành công",
   "AUTH_LOGIN_FAILED": "Đăng nhập thất bại",
   "AUTH_LOGOUT_SUCCESS": "Đăng xuất thành công",
@@ -103,6 +106,8 @@
   "IMPORT_LOCATION_NOT_FOUND": "Không tìm thấy địa điểm kinh doanh cho phiếu nhập này",
   "IMPORT_ALREADY_CANCELLED": "Phiếu nhập này đã bị hủy",
   "LOW_STOCK_CONFIRM_REQUIRED": "Một hoặc nhiều sản phẩm không đủ tồn kho. Hãy xác nhận để tiếp tục.",
+  "ORDER_PAYMENT_AMOUNT_MISMATCH": "Tổng thanh toán không khớp: cash + bank + debt phải bằng tổng tiền đơn hàng",
+  "ORDER_LOCATION_CHANGE_NOT_ALLOWED": "Không được phép thay đổi địa điểm kinh doanh trong luồng đơn hàng này",
   "IMPORT_SCHEMA_NOT_FOUND": "Không tìm thấy schema nhập kho",
   "IMPORT_SCHEMA_RETRIEVED": "Lấy danh sách schema nhập kho thành công",
   "IMPORT_SCHEMA_CREATED": "Tạo schema nhập kho thành công",
@@ -117,5 +122,7 @@
   "DEBTOR_PHONE_DUPLICATE": "Số điện thoại này đã được đăng ký cho khách nợ khác tại địa điểm này",
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Không thể xóa khách nợ có dư nợ chưa thanh toán",
   "DEBTOR_PAYMENT_AMOUNT_ZERO": "Số tiền không được bằng 0",
-  "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank"
+  "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank",
+  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Đơn hàng sẽ làm vượt hạn mức công nợ của khách. Hãy xác nhận để tiếp tục",
+  "LEDGER_INVALID_LOOKBACK_UNIT": "Cấu hình GeneralLedger:LookbackUnit phải là một trong các giá trị: day, month, year"
 }

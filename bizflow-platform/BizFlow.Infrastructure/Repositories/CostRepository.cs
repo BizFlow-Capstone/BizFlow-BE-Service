@@ -19,6 +19,7 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Cost> Items, int TotalCount)> SearchAsync(CostQueryParams query)
         {
+            // 1. Get Total Count
             var countSpec = new CostSearchSpec(query, isCount: true);
             var countQuery = SpecificationEvaluator<Cost>.GetQuery(_db.Costs.AsQueryable(), countSpec);
             var totalCount = await countQuery.CountAsync();
@@ -26,9 +27,27 @@ namespace BizFlow.Infrastructure.Repositories
             if (totalCount == 0)
                 return (Array.Empty<Cost>(), 0);
 
-            var spec = new CostSearchSpec(query, isCount: false);
-            var queryResult = SpecificationEvaluator<Cost>.GetQuery(_db.Costs.AsQueryable(), spec);
-            var items = await queryResult.ToListAsync();
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new CostSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Cost>.GetQuery(_db.Costs.AsQueryable(), filterSpec);
+
+            var pageNumber = query.PageNumber ?? 1;
+            var pageSize = query.PageSize ?? 20;
+
+            var ids = await filterQuery
+                .Select(c => c.CostId)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<Cost>(), totalCount);
+
+            // 3. Fetch full entities
+            var items = await _db.Costs
+                .Where(c => ids.Contains(c.CostId))
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
 
             return (items, totalCount);
         }
@@ -38,6 +57,12 @@ namespace BizFlow.Infrastructure.Repositories
 
         public Task<Cost?> GetByImportIdAsync(long importId)
             => _db.Costs.FirstOrDefaultAsync(c => c.ImportId == importId);
+
+        public async Task<IEnumerable<Cost>> GetByIdsAsync(IEnumerable<long> costIds)
+        {
+            if (costIds == null || !costIds.Any()) return Array.Empty<Cost>();
+            return await _db.Costs.Where(c => costIds.Contains(c.CostId)).ToListAsync();
+        }
 
         public async Task<Cost> AddAsync(Cost cost)
         {

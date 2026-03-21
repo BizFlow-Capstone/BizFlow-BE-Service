@@ -11,9 +11,6 @@ namespace BizFlow.Application.DTOs.Order
         public int Quantity { get; set; }
 
         [Range(0, double.MaxValue)]
-        public decimal UnitPrice { get; set; }
-
-        [Range(0, double.MaxValue)]
         public decimal Discount { get; set; } = 0;
     }
 }

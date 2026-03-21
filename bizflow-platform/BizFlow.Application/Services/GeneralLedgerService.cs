@@ -42,17 +42,32 @@ namespace BizFlow.Application.Services
             if (!GeneralLedgerViewMode.IsValid(viewMode))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            if (!string.IsNullOrWhiteSpace(query.TransactionType)
-                && !GeneralLedgerTransactionType.IsValid(query.TransactionType.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+            if (query.TransactionTypes != null && query.TransactionTypes.Any())
+            {
+                foreach (var tt in query.TransactionTypes)
+                {
+                    if (!string.IsNullOrWhiteSpace(tt) && !GeneralLedgerTransactionType.IsValid(tt.Trim()))
+                        throw new BadRequestException(MessageKeys.BadRequest);
+                }
+            }
 
-            if (!string.IsNullOrWhiteSpace(query.ReferenceType)
-                && !GeneralLedgerReferenceType.IsValid(query.ReferenceType.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+            if (query.ReferenceTypes != null && query.ReferenceTypes.Any())
+            {
+                foreach (var rt in query.ReferenceTypes)
+                {
+                    if (!string.IsNullOrWhiteSpace(rt) && !GeneralLedgerReferenceType.IsValid(rt.Trim()))
+                        throw new BadRequestException(MessageKeys.BadRequest);
+                }
+            }
 
-            if (!string.IsNullOrWhiteSpace(query.MoneyChannel)
-                && !MoneyChannelType.IsValid(query.MoneyChannel.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+            if (query.MoneyChannels != null && query.MoneyChannels.Any())
+            {
+                foreach (var mc in query.MoneyChannels)
+                {
+                    if (!string.IsNullOrWhiteSpace(mc) && !MoneyChannelType.IsValid(mc.Trim()))
+                        throw new BadRequestException(MessageKeys.BadRequest);
+                }
+            }
 
             query.ViewMode = viewMode;
 
@@ -133,7 +148,74 @@ namespace BizFlow.Application.Services
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
+
+            await PopulateSourceLinksAsync(dtos);
+
             return new PaginatedResponse<GeneralLedgerEntryDto>(dtos, total, pageNumber, pageSize);
+        }
+
+        private async Task PopulateSourceLinksAsync(List<GeneralLedgerEntryDto> dtos)
+        {
+            var costIds = dtos
+                .Where(d => d.Source != null && d.Source.ReferenceType == GeneralLedgerReferenceType.Cost && d.Source.ReferenceId.HasValue)
+                .Select(d => d.Source.ReferenceId!.Value)
+                .Distinct()
+                .ToList();
+
+            var costs = await _uow.Costs.GetByIdsAsync(costIds);
+            var costDict = costs.ToDictionary(c => c.CostId);
+
+            var revenueIds = dtos
+                .Where(d => d.Source != null && d.Source.ReferenceType == GeneralLedgerReferenceType.Revenue && d.Source.ReferenceId.HasValue)
+                .Select(d => d.Source.ReferenceId!.Value)
+                .Distinct()
+                .ToList();
+
+            var revenues = await _uow.Revenues.GetByIdsAsync(revenueIds);
+            var revenueDict = revenues.ToDictionary(r => r.RevenueId);
+
+            foreach (var dto in dtos)
+            {
+                var source = dto.Source;
+                if (source == null) continue;
+
+                if (source.ReferenceType == GeneralLedgerReferenceType.Revenue)
+                {
+                    if (source.ReferenceId.HasValue && revenueDict.TryGetValue(source.ReferenceId.Value, out var revenue) && revenue.OrderId.HasValue)
+                    {
+                        source.EntityType = "order";
+                        source.EntityId = revenue.OrderId.Value;
+                    }
+                    else
+                    {
+                        source.EntityType = "revenue";
+                        source.EntityId = source.ReferenceId;
+                    }
+                }
+                else if (source.ReferenceType == GeneralLedgerReferenceType.Cost)
+                {
+                    if (source.ReferenceId.HasValue && costDict.TryGetValue(source.ReferenceId.Value, out var cost) && cost.ImportId.HasValue)
+                    {
+                        source.EntityType = "import";
+                        source.EntityId = cost.ImportId;
+                    }
+                    else
+                    {
+                        source.EntityType = "cost";
+                        source.EntityId = source.ReferenceId;
+                    }
+                }
+                else if (source.ReferenceType == GeneralLedgerReferenceType.DebtorPayment)
+                {
+                    source.EntityType = "debtor_payment";
+                    source.EntityId = source.ReferenceId;
+                }
+                else
+                {
+                    source.EntityType = source.ReferenceType;
+                    source.EntityId = source.ReferenceId;
+                }
+            }
         }
 
         private async Task<Dictionary<long, long?>> BuildEntryLinkMapAsync(IEnumerable<long> seedEntryIds)
@@ -175,7 +257,7 @@ namespace BizFlow.Application.Services
                 "day" => today.AddDays(-lookbackValue),
                 "month" => today.AddMonths(-lookbackValue),
                 "year" => today.AddYears(-lookbackValue),
-                _ => throw new InvalidOperationException("GeneralLedger:LookbackUnit must be one of: day, month, year")
+                _ => throw new InvalidOperationException(_messageService.GetMessage(MessageKeys.InvalidLookbackUnit))
             };
         }
 

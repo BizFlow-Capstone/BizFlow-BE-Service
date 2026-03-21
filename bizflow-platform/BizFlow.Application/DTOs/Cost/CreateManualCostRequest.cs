@@ -13,7 +13,7 @@ namespace BizFlow.Application.DTOs.Cost
         /// Cost type (see CostType enum). Default: manual. Cannot be 'import'.
         /// </summary>
         [Required, MaxLength(30)]
-        public string CostType { get; set; } = "manual";
+        public string CostType { get; set; } = BizFlow.Domain.Enums.CostType.Manual;
 
         [Required, MaxLength(500)]
         public string Description { get; set; } = null!;

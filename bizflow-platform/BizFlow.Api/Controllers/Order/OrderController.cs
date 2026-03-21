@@ -42,7 +42,7 @@ namespace BizFlow.Api.Controllers.Order
         }
 
         [HttpPut("orders/{orderId:long}")]
-        [SwaggerOperation(Summary = "Update pending order")]
+        [SwaggerOperation(Summary = "Update order by status", Description = "Updates a pending order directly, or for a completed order creates one replacement (using idempotencyKey) and cancels the old order.")]
         public async Task<IActionResult> Update(long orderId, [FromBody] UpdateOrderRequest request)
         {
             if (!ModelState.IsValid)
@@ -71,17 +71,6 @@ namespace BizFlow.Api.Controllers.Order
         public async Task<IActionResult> Cancel(long orderId, [FromBody] CancelOrderRequest request)
         {
             var result = await _orderService.CancelAsync(GetCurrentUserId(), orderId, request);
-            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
-        }
-
-        [HttpPost("orders/{orderId:long}/edit-completed-save")]
-        [SwaggerOperation(Summary = "Edit completed order by creating new completed and cancelling old")]
-        public async Task<IActionResult> EditCompletedSave(long orderId, [FromBody] UpdateOrderRequest request)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(MessageKeys.ValidationError, ModelState);
-
-            var result = await _orderService.EditCompletedSaveAsync(GetCurrentUserId(), orderId, request);
             return Ok(result, MessageKeys.DataUpdatedSuccessfully);
         }
 

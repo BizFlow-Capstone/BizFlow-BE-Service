@@ -3,6 +3,8 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
 using BizFlow.Infrastructure.DataContext;
+using BizFlow.Application.Specifications.GeneralLedger;
+using BizFlow.Infrastructure.Specifications;
 using Microsoft.EntityFrameworkCore;
 
 namespace BizFlow.Infrastructure.Repositories
@@ -24,62 +26,39 @@ namespace BizFlow.Infrastructure.Repositories
 
             query.ViewMode = viewMode;
 
-            var q = _db.GeneralLedgerEntries
-                .Where(e => e.BusinessLocationId == query.BusinessLocationId)
-                .AsQueryable();
+            // 1. Get Total Count
+            var countSpec = new GeneralLedgerSearchSpec(query, isCount: true);
+            var countQuery = SpecificationEvaluator<GeneralLedgerEntry>.GetQuery(_db.GeneralLedgerEntries.AsQueryable(), countSpec);
+            var totalCount = await countQuery.CountAsync();
 
-            if (!string.IsNullOrWhiteSpace(query.TransactionType))
-            {
-                var transactionType = query.TransactionType.Trim().ToLower();
-                q = q.Where(e => e.TransactionType.ToLower() == transactionType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.ReferenceType))
-            {
-                var referenceType = query.ReferenceType.Trim().ToLower();
-                q = q.Where(e => e.ReferenceType.ToLower() == referenceType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.MoneyChannel))
-            {
-                var moneyChannel = query.MoneyChannel.Trim().ToLower();
-                q = q.Where(e => e.MoneyChannel != null && e.MoneyChannel.ToLower() == moneyChannel);
-            }
-
-            if (query.FromDate.HasValue)
-                q = q.Where(e => e.EntryDate >= query.FromDate.Value);
-
-            if (query.ToDate.HasValue)
-                q = q.Where(e => e.EntryDate <= query.ToDate.Value);
-
-            if (viewMode == GeneralLedgerViewMode.Effective)
-            {
-                if (!query.ToDate.HasValue)
-                    throw new ArgumentException("ToDate is required for effective view mode.", nameof(query.ToDate));
-
-                var asOfDate = query.ToDate.Value;
-
-                q = q.Where(e => !e.IsReversal);
-
-                q = q.Where(e => !_db.GeneralLedgerEntries.Any(r =>
-                    r.IsReversal
-                    && r.ReversedEntryId == e.EntryId
-                    && r.EntryDate <= asOfDate));
-            }
-
-            var totalCount = await q.CountAsync();
             if (totalCount == 0)
                 return (Array.Empty<GeneralLedgerEntry>(), 0);
+
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new GeneralLedgerSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<GeneralLedgerEntry>.GetQuery(_db.GeneralLedgerEntries.AsQueryable(), filterSpec);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
 
-            var items = await q
+            var ids = await filterQuery
                 .OrderByDescending(e => e.EntryDate)
                 .ThenByDescending(e => e.CreatedAt)
                 .ThenByDescending(e => e.EntryId)
+                .Select(e => e.EntryId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<GeneralLedgerEntry>(), totalCount);
+
+            // 3. Fetch full entities
+            var items = await _db.GeneralLedgerEntries
+                .Where(e => ids.Contains(e.EntryId))
+                .OrderByDescending(e => e.EntryDate)
+                .ThenByDescending(e => e.CreatedAt)
+                .ThenByDescending(e => e.EntryId)
                 .ToListAsync();
 
             return (items, totalCount);

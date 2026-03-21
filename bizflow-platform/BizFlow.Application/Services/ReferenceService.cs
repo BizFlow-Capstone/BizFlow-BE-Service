@@ -6,7 +6,7 @@ namespace BizFlow.Application.Services
 {
     public class ReferenceService : IReferenceService
     {
-        public IReadOnlyList<string> GetPaymentMethods() => PaymentMethods.All;
+        public IReadOnlyList<string> GetPaymentMethods() => PaymentMethods.ExposedToUser;
 
         public IReadOnlyList<string> GetBusinessTypeStatuses() => BusinessTypeStatus.All;
 

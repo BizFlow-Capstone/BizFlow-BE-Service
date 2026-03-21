@@ -7,6 +7,9 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using BizFlow.Application.Common.Interfaces;
 
 namespace BizFlow.Application.Services
 {
@@ -17,19 +20,22 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationService _locationService;
         private readonly IStockMovementService _stockMovementService;
         private readonly IGeneralLedgerService _generalLedgerService;
+        private readonly IMessageService _messageService;
 
         public OrderService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
             IStockMovementService stockMovementService,
-            IGeneralLedgerService generalLedgerService)
+            IGeneralLedgerService generalLedgerService,
+            IMessageService messageService)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _stockMovementService = stockMovementService;
             _generalLedgerService = generalLedgerService;
+            _messageService = messageService;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -44,7 +50,8 @@ namespace BizFlow.Application.Services
                 request.CashAmount,
                 request.BankAmount,
                 request.DebtAmount,
-                request.ConfirmLowStock);
+                request.ConfirmLowStock,
+                request.ConfirmCreditLimitExceeded);
 
             if (prepared.RequiresConfirmation)
                 return new OrderActionResultDto { RequiresConfirmation = true, Warnings = prepared.Warnings };
@@ -65,7 +72,7 @@ namespace BizFlow.Application.Services
                     BankAmount = request.BankAmount,
                     DebtAmount = request.DebtAmount,
                     Status = OrderStatus.Pending,
-                    BillMetadata = request.BillMetadata,
+                    BillMetadata = NormalizeBillMetadata(request.BillMetadata),
                     Note = request.Note?.Trim(),
                     CreatedBy = userId,
                     UpdatedBy = userId,
@@ -100,50 +107,65 @@ namespace BizFlow.Application.Services
             if (!isOwner && order.CreatedBy != userId)
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
-            if (!order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
-
-            var prepared = await PrepareOrderDraftAsync(
-                userId,
-                locationId,
-                request.DebtorId,
-                request.Items,
-                request.CashAmount,
-                request.BankAmount,
-                request.DebtAmount,
-                request.ConfirmLowStock);
-
-            if (prepared.RequiresConfirmation)
-                return new OrderActionResultDto { RequiresConfirmation = true, Warnings = prepared.Warnings };
-
-            await _uow.ExecuteResilientAsync(async _ =>
+            if (order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
             {
-                order.DebtorId = request.DebtorId;
-                order.CustomerName = request.CustomerName?.Trim();
-                order.CustomerPhone = request.CustomerPhone?.Trim();
-                order.SubTotal = prepared.SubTotal;
-                order.Discount = prepared.Discount;
-                order.TotalAmount = prepared.TotalAmount;
-                order.CashAmount = request.CashAmount;
-                order.BankAmount = request.BankAmount;
-                order.DebtAmount = request.DebtAmount;
-                order.BillMetadata = request.BillMetadata;
-                order.Note = request.Note?.Trim();
-                order.UpdatedBy = userId;
-                order.UpdatedAt = DateTime.UtcNow;
+                var prepared = await PrepareOrderDraftAsync(
+                    userId,
+                    locationId,
+                    request.DebtorId,
+                    request.Items,
+                    request.CashAmount,
+                    request.BankAmount,
+                    request.DebtAmount,
+                    request.ConfirmLowStock,
+                    request.ConfirmCreditLimitExceeded);
 
-                _uow.OrderDetails.RemoveRange(order.OrderDetails);
+                if (prepared.RequiresConfirmation)
+                    return new OrderActionResultDto { RequiresConfirmation = true, Warnings = prepared.Warnings };
 
-                foreach (var detail in prepared.Details)
-                    detail.OrderId = order.OrderId;
+                await _uow.ExecuteResilientAsync(async _ =>
+                {
+                    order.DebtorId = request.DebtorId;
+                    order.CustomerName = request.CustomerName?.Trim();
+                    order.CustomerPhone = request.CustomerPhone?.Trim();
+                    order.SubTotal = prepared.SubTotal;
+                    order.Discount = prepared.Discount;
+                    order.TotalAmount = prepared.TotalAmount;
+                    order.CashAmount = request.CashAmount;
+                    order.BankAmount = request.BankAmount;
+                    order.DebtAmount = request.DebtAmount;
+                    order.BillMetadata = NormalizeBillMetadata(request.BillMetadata);
+                    order.Note = request.Note?.Trim();
+                    order.UpdatedBy = userId;
+                    order.UpdatedAt = DateTime.UtcNow;
 
-                await _uow.OrderDetails.AddRangeAsync(prepared.Details);
+                    _uow.OrderDetails.RemoveRange(order.OrderDetails);
 
-                _uow.Orders.Update(order);
-            });
+                    foreach (var detail in prepared.Details)
+                        detail.OrderId = order.OrderId;
 
-            var updated = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
-            return new OrderActionResultDto { Order = _mapper.Map<OrderDto>(updated) };
+                    await _uow.OrderDetails.AddRangeAsync(prepared.Details);
+
+                    _uow.Orders.Update(order);
+                });
+
+                var updatedPending = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
+                return new OrderActionResultDto { Order = _mapper.Map<OrderDto>(updatedPending) };
+            }
+
+            if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
+            {
+                var editResult = await EditCompletedSaveAsync(userId, orderId, request);
+                var replacement = await _uow.Orders.GetByIdWithDetailsAsync(editResult.NewOrderId)
+                    ?? throw new NotFoundException(MessageKeys.NotFound);
+
+                return new OrderActionResultDto
+                {
+                    Order = _mapper.Map<OrderDto>(replacement)
+                };
+            }
+
+            throw new BadRequestException(MessageKeys.BadRequest);
         }
 
         public async Task<OrderActionResultDto> CompleteAsync(Guid userId, long orderId, CompleteOrderRequest request)
@@ -205,7 +227,7 @@ namespace BizFlow.Application.Services
                 order.UpdatedBy = userId;
                 _uow.Orders.Update(order);
 
-                var revenues = BuildSaleRevenuesFromOrder(order, locationId, userId);
+                var revenues = BuildSaleRevenuesFromOrder(order, locationId, userId, _messageService);
                 foreach (var revenue in revenues)
                     await _uow.Revenues.AddAsync(revenue);
 
@@ -260,9 +282,26 @@ namespace BizFlow.Application.Services
                         var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                             ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                        debtor.CurrentBalance -= order.DebtAmount;
+                        var rollbackTx = new DebtorPaymentTransaction
+                        {
+                            DebtorId = debtor.DebtorId,
+                            Amount = -order.DebtAmount,
+                            PaymentMethod = PaymentMethods.System,
+                            Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
+                            BalanceBefore = debtor.CurrentBalance,
+                            BalanceAfter = debtor.CurrentBalance - order.DebtAmount,
+                            CreatedByUserId = userId,
+                            PaidAt = DateTime.UtcNow
+                        };
+
+                        debtor.CurrentBalance = rollbackTx.BalanceAfter;
                         debtor.UpdatedAt = DateTime.UtcNow;
+
+                        await _uow.Debtors.AddPaymentAsync(rollbackTx);
                         _uow.Debtors.Update(debtor);
+                        await _uow.SaveChangesAsync();
+
+                        await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
                     }
 
                     var saleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, order.OrderId);
@@ -296,7 +335,11 @@ namespace BizFlow.Application.Services
             var oldOrder = await _uow.Orders.GetByIdWithDetailsAsync(oldOrderId)
                 ?? throw new NotFoundException(MessageKeys.NotFound);
 
-            var locationId = ResolveOrderLocationId(oldOrder, request.BusinessLocationId);
+            var locationId = ResolveOrderLocationId(oldOrder, null);
+
+            if (request.BusinessLocationId != locationId)
+                throw new BadRequestException(MessageKeys.OrderLocationChangeNotAllowed);
+
             await _locationService.ValidateOwnerAsync(userId, locationId);
 
             var idempotencyMarker = BuildEditCompletedIdempotencyMarker(request.IdempotencyKey);
@@ -316,7 +359,7 @@ namespace BizFlow.Application.Services
                 {
                     await CancelAsync(userId, oldOrderId, new CancelOrderRequest
                     {
-                        CancelReason = $"replaced by ORDER#{replacement.OrderId}"
+                        CancelReason = _messageService.GetMessage(MessageKeys.OrderReplacedReason, replacement.OrderCode)
                     });
                 }
 
@@ -340,7 +383,8 @@ namespace BizFlow.Application.Services
                 request.CashAmount,
                 request.BankAmount,
                 request.DebtAmount,
-                request.ConfirmLowStock);
+                request.ConfirmLowStock,
+                request.ConfirmCreditLimitExceeded);
 
             if (prepared.RequiresConfirmation)
                 throw new BadRequestException(MessageKeys.BadRequest);
@@ -362,7 +406,7 @@ namespace BizFlow.Application.Services
                     BankAmount = request.BankAmount,
                     DebtAmount = request.DebtAmount,
                     Status = OrderStatus.Pending,
-                    BillMetadata = request.BillMetadata,
+                    BillMetadata = NormalizeBillMetadata(request.BillMetadata),
                     Note = request.Note?.Trim(),
                     CreatedBy = userId,
                     UpdatedBy = userId,
@@ -372,9 +416,7 @@ namespace BizFlow.Application.Services
 
                 if (!string.IsNullOrWhiteSpace(idempotencyMarker))
                 {
-                    newOrder.BillMetadata = string.IsNullOrWhiteSpace(newOrder.BillMetadata)
-                        ? idempotencyMarker
-                        : $"{newOrder.BillMetadata};{idempotencyMarker}";
+                    newOrder.BillMetadata = AddIdempotencyMarkerToBillMetadata(newOrder.BillMetadata, idempotencyMarker);
                 }
 
                 await _uow.Orders.AddAsync(newOrder);
@@ -420,7 +462,7 @@ namespace BizFlow.Application.Services
                 newOrder.UpdatedBy = userId;
                 _uow.Orders.Update(newOrder);
 
-                var newOrderRevenues = BuildSaleRevenuesFromOrder(newOrder, locationId, userId);
+                var newOrderRevenues = BuildSaleRevenuesFromOrder(newOrder, locationId, userId, _messageService);
                 foreach (var revenue in newOrderRevenues)
                     await _uow.Revenues.AddAsync(revenue);
 
@@ -441,8 +483,8 @@ namespace BizFlow.Application.Services
                         product,
                         detail.Quantity,
                         StockMovementReferenceType.Order,
-                        oldOrder.OrderId,
-                        $"replaced by ORDER#{newOrder.OrderId}");
+                        newOrder.OrderId,
+                        _messageService.GetMessage(MessageKeys.OrderReplacedReason, newOrder.OrderCode));
                     product.StockMovements.Add(movement);
                     _uow.Products.Update(product);
                 }
@@ -452,9 +494,26 @@ namespace BizFlow.Application.Services
                     var oldDebtor = await _uow.Debtors.GetByIdAsync(oldOrder.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    oldDebtor.CurrentBalance -= oldOrder.DebtAmount;
+                    var rollbackTx = new DebtorPaymentTransaction
+                    {
+                        DebtorId = oldDebtor.DebtorId,
+                        Amount = -oldOrder.DebtAmount,
+                        PaymentMethod = PaymentMethods.System,
+                        Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, oldOrder.OrderCode),
+                        BalanceBefore = oldDebtor.CurrentBalance,
+                        BalanceAfter = oldDebtor.CurrentBalance - oldOrder.DebtAmount,
+                        CreatedByUserId = userId,
+                        PaidAt = DateTime.UtcNow
+                    };
+
+                    oldDebtor.CurrentBalance = rollbackTx.BalanceAfter;
                     oldDebtor.UpdatedAt = DateTime.UtcNow;
+
+                    await _uow.Debtors.AddPaymentAsync(rollbackTx);
                     _uow.Debtors.Update(oldDebtor);
+                    await _uow.SaveChangesAsync();
+
+                    await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
                 }
 
                 var oldSaleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, oldOrder.OrderId);
@@ -470,7 +529,7 @@ namespace BizFlow.Application.Services
                 oldOrder.Status = OrderStatus.Cancelled;
                 oldOrder.CancelledAt = DateTime.UtcNow;
                 oldOrder.CancelledBy = userId;
-                oldOrder.CancelReason = $"replaced by ORDER#{newOrder.OrderId}";
+                oldOrder.CancelReason = _messageService.GetMessage(MessageKeys.OrderReplacedReason, newOrder.OrderCode);
                 oldOrder.UpdatedAt = DateTime.UtcNow;
                 oldOrder.UpdatedBy = userId;
                 _uow.Orders.Update(oldOrder);
@@ -563,7 +622,8 @@ namespace BizFlow.Application.Services
                 decimal cashAmount,
                 decimal bankAmount,
                 decimal debtAmount,
-                bool confirmLowStock)
+                bool confirmLowStock,
+                bool confirmCreditLimitExceeded)
         {
             if (itemRequests == null || itemRequests.Count == 0)
                 throw new BadRequestException(MessageKeys.BadRequest);
@@ -576,17 +636,18 @@ namespace BizFlow.Application.Services
             if (saleItems.Any(si => si.Product.BusinessLocationId != businessLocationId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
+            if (debtAmount > 0 && !debtorId.HasValue)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            Debtor? debtor = null;
             if (debtorId.HasValue)
             {
-                var debtor = await _uow.Debtors.GetByIdAsync(debtorId.Value)
+                debtor = await _uow.Debtors.GetByIdAsync(debtorId.Value)
                     ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
                 if (debtor.BusinessLocationId != businessLocationId)
                     throw new ForbiddenException(MessageKeys.Forbidden);
             }
-
-            if (debtAmount > 0 && !debtorId.HasValue)
-                throw new BadRequestException(MessageKeys.BadRequest);
 
             var details = new List<OrderDetail>();
             decimal subTotal = 0;
@@ -598,16 +659,20 @@ namespace BizFlow.Application.Services
             {
                 var saleItem = saleItems.First(si => si.SaleItemId == item.SaleItemId);
 
-                var lineSubTotal = item.Quantity * item.UnitPrice;
-                var lineAmount = lineSubTotal - item.Discount;
-                if (lineAmount < 0)
+                var defaultPolicy = saleItem.ProductPricePolicies.FirstOrDefault(pp => pp.IsDefault);
+                if (defaultPolicy == null)
                     throw new BadRequestException(MessageKeys.BadRequest);
+
+                var unitPrice = defaultPolicy.Price;
+                var lineSubTotal = item.Quantity * unitPrice;
+                var lineAmount = lineSubTotal - item.Discount;
+                lineAmount = lineAmount < 0 ? 0 : lineAmount;
 
                 subTotal += lineSubTotal;
                 discount += item.Discount;
                 total += lineAmount;
 
-                if (saleItem.Product.TrackInventory == true && item.Quantity > saleItem.Product.Stock)
+                if (saleItem.Product.TrackInventory == true && item.Quantity > saleItem.Product.Stock/saleItem.Quantity)
                 {
                     warnings.Add(MessageKeys.LowStockConfirmRequired);
                 }
@@ -616,7 +681,7 @@ namespace BizFlow.Application.Services
                 {
                     SaleItemId = item.SaleItemId,
                     Quantity = item.Quantity,
-                    UnitPrice = item.UnitPrice,
+                    UnitPrice = unitPrice,
                     Discount = item.Discount,
                     Amount = lineAmount,
                     CreatedAt = DateTime.UtcNow,
@@ -624,33 +689,49 @@ namespace BizFlow.Application.Services
                 });
             }
 
-            if (warnings.Any() && !confirmLowStock)
+            var hasLowStockWarning = warnings.Contains(MessageKeys.LowStockConfirmRequired);
+            var hasCreditLimitWarning = false;
+
+            if (debtAmount > 0 && debtor != null && debtor.CreditLimit.HasValue)
+            {
+                var projectedBalance = debtor.CurrentBalance + debtAmount;
+                if (projectedBalance > debtor.CreditLimit.Value)
+                {
+                    warnings.Add(MessageKeys.DebtorCreditLimitExceededConfirmRequired);
+                    hasCreditLimitWarning = true;
+                }
+            }
+
+            var requiresLowStockConfirm = hasLowStockWarning && !confirmLowStock;
+            var requiresCreditLimitConfirm = hasCreditLimitWarning && !confirmCreditLimitExceeded;
+
+            if (requiresLowStockConfirm || requiresCreditLimitConfirm)
             {
                 return (true, warnings, new List<OrderDetail>(), 0, 0, 0);
             }
 
             if (cashAmount + bankAmount + debtAmount != total)
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.OrderPaymentAmountMismatch);
 
             return (false, warnings, details, subTotal, discount, total);
         }
 
-        private static List<Revenue> BuildSaleRevenuesFromOrder(Order order, int businessLocationId, Guid userId)
+        private static List<Revenue> BuildSaleRevenuesFromOrder(Order order, int businessLocationId, Guid userId, IMessageService messageService)
         {
             var revenues = new List<Revenue>();
             var date = DateOnly.FromDateTime(order.CompletedAt ?? DateTime.UtcNow);
-            var marker = $"ORDER#{order.OrderId}";
 
             if (order.CashAmount > 0)
             {
                 revenues.Add(new Revenue
                 {
                     BusinessLocationId = businessLocationId,
+                    OrderId = order.OrderId,
                     RevenueType = RevenueType.Sale,
                     Amount = order.CashAmount,
                     RevenueDate = date,
-                    Description = $"{marker} cash",
-                    MoneyChannel = PaymentMethods.Cash,
+                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Cash),
+                    MoneyChannel = MoneyChannelType.Cash,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -661,11 +742,12 @@ namespace BizFlow.Application.Services
                 revenues.Add(new Revenue
                 {
                     BusinessLocationId = businessLocationId,
+                    OrderId = order.OrderId,
                     RevenueType = RevenueType.Sale,
                     Amount = order.BankAmount,
                     RevenueDate = date,
-                    Description = $"{marker} bank",
-                    MoneyChannel = PaymentMethods.Bank,
+                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Bank),
+                    MoneyChannel = MoneyChannelType.Bank,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -676,11 +758,12 @@ namespace BizFlow.Application.Services
                 revenues.Add(new Revenue
                 {
                     BusinessLocationId = businessLocationId,
+                    OrderId = order.OrderId,
                     RevenueType = RevenueType.Sale,
                     Amount = order.DebtAmount,
                     RevenueDate = date,
-                    Description = $"{marker} debt",
-                    MoneyChannel = "debt",
+                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Debt),
+                    MoneyChannel = MoneyChannelType.Debt,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -695,6 +778,55 @@ namespace BizFlow.Application.Services
                 return null;
 
             return $"IDEMPOTENCY#{idempotencyKey.Trim()}";
+        }
+
+        private static string? NormalizeBillMetadata(string? billMetadata)
+        {
+            if (string.IsNullOrWhiteSpace(billMetadata))
+                return null;
+
+            var trimmed = billMetadata.Trim();
+
+            try
+            {
+                using var _ = JsonDocument.Parse(trimmed);
+                return trimmed;
+            }
+            catch (JsonException)
+            {
+                // Treat non-JSON input as plain text and store it as JSON string.
+                return JsonSerializer.Serialize(trimmed);
+            }
+        }
+
+        private static string AddIdempotencyMarkerToBillMetadata(string? normalizedBillMetadata, string marker)
+        {
+            const string markerField = "idempotencyMarker";
+
+            if (string.IsNullOrWhiteSpace(normalizedBillMetadata))
+            {
+                var obj = new JsonObject
+                {
+                    [markerField] = marker
+                };
+                return obj.ToJsonString();
+            }
+
+            var node = JsonNode.Parse(normalizedBillMetadata);
+
+            if (node is JsonObject jsonObject)
+            {
+                jsonObject[markerField] = marker;
+                return jsonObject.ToJsonString();
+            }
+
+            var wrapped = new JsonObject
+            {
+                ["metadata"] = node,
+                [markerField] = marker
+            };
+
+            return wrapped.ToJsonString();
         }
     }
 }

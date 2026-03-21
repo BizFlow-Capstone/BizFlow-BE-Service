@@ -3,6 +3,10 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
+using BizFlow.Application.Specifications.Orders;
+using BizFlow.Infrastructure.Specifications;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace BizFlow.Infrastructure.Repositories
 {
@@ -17,41 +21,34 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Order> Items, int TotalCount)> SearchAsync(OrderQueryParams query)
         {
-            var q = _db.Orders
-                .Where(o => o.OrderDetails.Any(od => od.SaleItem.Product.BusinessLocationId == query.BusinessLocationId))
-                .AsQueryable();
+            // 1. Get total count
+            var countSpec = new OrderSearchSpec(query, isCount: true);
+            var countQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.AsQueryable(), countSpec);
+            var totalCount = await countQuery.CountAsync();
 
-            if (!string.IsNullOrWhiteSpace(query.Status))
-            {
-                var status = query.Status.Trim().ToLower();
-                q = q.Where(o => o.Status.ToLower() == status);
-            }
-
-            if (query.FromDate.HasValue)
-                q = q.Where(o => o.CreatedAt >= query.FromDate.Value);
-
-            if (query.ToDate.HasValue)
-                q = q.Where(o => o.CreatedAt <= query.ToDate.Value);
-
-            if (!string.IsNullOrWhiteSpace(query.Search))
-            {
-                var s = query.Search.Trim();
-                q = q.Where(o => o.OrderCode.Contains(s)
-                    || (o.CustomerName != null && o.CustomerName.Contains(s))
-                    || (o.CustomerPhone != null && o.CustomerPhone.Contains(s)));
-            }
-
-            var totalCount = await q.CountAsync();
             if (totalCount == 0)
                 return (Array.Empty<Order>(), 0);
+
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new OrderSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.AsQueryable(), filterSpec);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
 
-            var items = await q
-                .OrderByDescending(o => o.CreatedAt)
+            var ids = await filterQuery
+                .Select(o => o.OrderId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<Order>(), totalCount);
+
+            // 3. Fetch full entities
+            var items = await _db.Orders
+                .Where(o => ids.Contains(o.OrderId))
+                .OrderByDescending(o => o.CreatedAt)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
                         .ThenInclude(si => si.Product)
@@ -80,16 +77,46 @@ namespace BizFlow.Infrastructure.Repositories
                 .OrderByDescending(o => o.OrderId)
                 .FirstOrDefaultAsync();
 
-        public Task<Order?> GetLatestReplacementByRefOrderIdAsync(long refOrderId, string idempotencyMarker)
-            => _db.Orders
+        public async Task<Order?> GetLatestReplacementByRefOrderIdAsync(long refOrderId, string idempotencyMarker)
+        {
+            var candidates = await _db.Orders
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
                         .ThenInclude(si => si.Product)
-                .Where(o => o.RefOrderId == refOrderId
-                    && o.BillMetadata != null
-                    && o.BillMetadata.Contains(idempotencyMarker))
+                .Where(o => o.RefOrderId == refOrderId)
                 .OrderByDescending(o => o.OrderId)
-                .FirstOrDefaultAsync();
+                .Take(50)
+                .ToListAsync();
+
+            return candidates.FirstOrDefault(o => HasIdempotencyMarker(o.BillMetadata, idempotencyMarker));
+        }
+
+        private static bool HasIdempotencyMarker(string? billMetadata, string marker)
+        {
+            if (string.IsNullOrWhiteSpace(billMetadata))
+                return false;
+
+            try
+            {
+                var node = JsonNode.Parse(billMetadata);
+                if (node is JsonObject obj)
+                {
+                    var markerValue = obj["idempotencyMarker"]?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(markerValue)
+                        && string.Equals(markerValue, marker, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+
+                return billMetadata.Contains(marker, StringComparison.Ordinal);
+            }
+            catch (JsonException)
+            {
+                // Legacy bad data: fallback to raw string match.
+                return billMetadata.Contains(marker, StringComparison.Ordinal);
+            }
+        }
 
         public Task<Order?> GetByCodeAsync(string orderCode)
             => _db.Orders.FirstOrDefaultAsync(o => o.OrderCode == orderCode);

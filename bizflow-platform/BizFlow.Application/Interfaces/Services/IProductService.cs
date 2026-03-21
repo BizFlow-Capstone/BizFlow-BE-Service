@@ -11,6 +11,11 @@ namespace BizFlow.Application.Interfaces.Services
         Task<PaginatedResponse<ProductSummaryDto>> SearchProductsAsync(Guid userId, ProductQueryParams query);
 
         /// <summary>
+        /// Lightweight product search for order flow by business location and optional keyword.
+        /// </summary>
+        Task<List<ProductQuickSearchDto>> SearchQuickProductsAsync(Guid userId, int locationId, string? search);
+
+        /// <summary>
         /// Get detailed product information by ID
         /// </summary>
         Task<ProductDetailDto?> GetProductDetailAsync(Guid userId, long productId);

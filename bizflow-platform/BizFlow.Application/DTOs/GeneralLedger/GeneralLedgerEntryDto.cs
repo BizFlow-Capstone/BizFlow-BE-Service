@@ -5,8 +5,6 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         public long EntryId { get; set; }
         public int BusinessLocationId { get; set; }
         public string TransactionType { get; set; } = null!;
-        public string ReferenceType { get; set; } = null!;
-        public long? ReferenceId { get; set; }
         public DateOnly EntryDate { get; set; }
         public string Description { get; set; } = null!;
         public decimal DebitAmount { get; set; }
@@ -16,6 +14,8 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         public long? ReversedEntryId { get; set; }
         public DateTime CreatedAt { get; set; }
 
+        public SourceLinkDto Source { get; set; } = null!;
+
         public bool IsReversed { get; set; }
         public long? ReversalEntryId { get; set; }
         public int ReversalCount { get; set; }
@@ -23,5 +23,14 @@ namespace BizFlow.Application.DTOs.GeneralLedger
 
         // Audit mode only: ordered from oldest ancestor to current entry.
         public List<long> HistoryChainEntryIds { get; set; } = new();
+    }
+
+    public class SourceLinkDto
+    {
+        public string ReferenceType { get; set; } = null!;
+        public long? ReferenceId { get; set; }
+
+        public string EntityType { get; set; } = null!;
+        public long? EntityId { get; set; }
     }
 }

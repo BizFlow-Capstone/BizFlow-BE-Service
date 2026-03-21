@@ -10,9 +10,9 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         [Range(1, int.MaxValue)]
         public int BusinessLocationId { get; set; }
 
-        public string? TransactionType { get; set; }
-        public string? ReferenceType { get; set; }
-        public string? MoneyChannel { get; set; }
+        public List<string>? TransactionTypes { get; set; }
+        public List<string>? ReferenceTypes { get; set; }
+        public List<string>? MoneyChannels { get; set; }
         public DateOnly? FromDate { get; set; }
         public DateOnly? ToDate { get; set; }
         public string ViewMode { get; set; } = GeneralLedgerViewMode.Audit;

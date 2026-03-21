@@ -23,6 +23,7 @@ namespace BizFlow.Application.DTOs.Order
         public decimal DebtAmount { get; set; }
 
         public bool ConfirmLowStock { get; set; } = false;
+        public bool ConfirmCreditLimitExceeded { get; set; } = false;
 
         [Required]
         public List<OrderItemRequest> Items { get; set; } = new();

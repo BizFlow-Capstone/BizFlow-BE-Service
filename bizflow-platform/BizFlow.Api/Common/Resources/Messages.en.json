@@ -1,4 +1,4 @@
-﻿{
+{
   "COMMON_SUCCESS": "Success",
   "COMMON_ERROR": "An error occurred",
   "COMMON_NOT_FOUND": "Data not found",
@@ -22,6 +22,9 @@
   "LEDGER_IMPORT_CANCELLED_REASON": "import cancelled",
   "LEDGER_MANUAL_REVENUE_DELETED_REASON": "manual revenue deleted",
   "LEDGER_ORDER_CANCELLED_REASON": "order cancelled",
+  "ORDER_REPLACED_REASON": "Replaced by order {0}",
+  "ORDER_AUTO_ROLLBACK_NOTE": "Auto rollback from cancelled order {0}",
+  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Revenue ({1}) from order {0}",
   "AUTH_LOGIN_SUCCESS": "Login successful",
   "AUTH_LOGIN_FAILED": "Login failed",
   "AUTH_LOGOUT_SUCCESS": "Logout successful",
@@ -103,6 +106,8 @@
   "IMPORT_LOCATION_NOT_FOUND": "Business location for this import was not found",
   "IMPORT_ALREADY_CANCELLED": "This import has already been cancelled",
   "LOW_STOCK_CONFIRM_REQUIRED": "One or more products do not have enough stock. Confirm to continue.",
+  "ORDER_PAYMENT_AMOUNT_MISMATCH": "Payment breakdown mismatch: cash + bank + debt must equal order total",
+  "ORDER_LOCATION_CHANGE_NOT_ALLOWED": "Changing business location is not allowed for this order flow",
   "IMPORT_SCHEMA_NOT_FOUND": "Import schema not found",
   "IMPORT_SCHEMA_RETRIEVED": "Import schemas retrieved successfully",
   "IMPORT_SCHEMA_CREATED": "Import schema created successfully",
@@ -117,5 +122,7 @@
   "DEBTOR_PHONE_DUPLICATE": "A debtor with this phone number already exists in this location",
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Cannot delete a debtor with an outstanding balance",
   "DEBTOR_PAYMENT_AMOUNT_ZERO": "Amount cannot be zero",
-  "DEBTOR_PAYMENT_METHOD_INVALID": "Invalid payment method. Allowed values: cash, bank"
+  "DEBTOR_PAYMENT_METHOD_INVALID": "Invalid payment method. Allowed values: cash, bank",
+  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Debtor credit limit will be exceeded. Confirm to continue",
+  "LEDGER_INVALID_LOOKBACK_UNIT": "Configuration GeneralLedger:LookbackUnit must be one of: day, month, year"
 }

@@ -7,7 +7,7 @@ namespace BizFlow.Application.Specifications.Costs
 {
     public class CostSearchSpec : BaseSpecification<Cost>
     {
-        public CostSearchSpec(CostQueryParams query, bool isCount = false)
+        public CostSearchSpec(CostQueryParams query, bool isCount = false, bool filterOnly = false)
             : base(c => c.BusinessLocationId == query.BusinessLocationId)
         {
             if (!string.IsNullOrWhiteSpace(query.CostType))
@@ -34,7 +34,10 @@ namespace BizFlow.Application.Specifications.Costs
             if (!isCount)
             {
                 AddOrderByDescending(c => c.CreatedAt);
+            }
 
+            if (!isCount && !filterOnly)
+            {
                 var pageNumber = query.PageNumber ?? 1;
                 var pageSize = query.PageSize ?? 20;
                 ApplyPaging((pageNumber - 1) * pageSize, pageSize);

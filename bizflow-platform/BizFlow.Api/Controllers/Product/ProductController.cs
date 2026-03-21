@@ -51,6 +51,20 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Lightweight product search for order flow
+        /// </summary>
+        [HttpGet("locations/{locationId:int}/products/quick-search")]
+        [SwaggerOperation(Summary = "Quick search products", Description = "Search by name/sku in a business location and return: name, sku, imageUrl, sellingPrice, saleItems.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> QuickSearchProducts(int locationId, [FromQuery] string? search)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.SearchQuickProductsAsync(userId, locationId, search);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
         /// Get product detail by ID
         /// </summary>
         [HttpGet("product/{productId:long}")]

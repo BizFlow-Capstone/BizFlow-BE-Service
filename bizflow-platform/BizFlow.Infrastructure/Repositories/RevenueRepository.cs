@@ -4,6 +4,10 @@ using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 
+using BizFlow.Application.Specifications.Revenues;
+using BizFlow.Infrastructure.Specifications;
+using BizFlow.Domain.Enums;
+
 namespace BizFlow.Infrastructure.Repositories
 {
     public class RevenueRepository : IRevenueRepository
@@ -17,39 +21,34 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Revenue> Items, int TotalCount)> SearchAsync(RevenueQueryParams query)
         {
-            var q = _db.Revenues
-                .Where(r => r.BusinessLocationId == query.BusinessLocationId)
-                .AsQueryable();
+            // 1. Get Total Count
+            var countSpec = new RevenueSearchSpec(query, isCount: true);
+            var countQuery = SpecificationEvaluator<Revenue>.GetQuery(_db.Revenues.AsQueryable(), countSpec);
+            var total = await countQuery.CountAsync();
 
-            if (!string.IsNullOrWhiteSpace(query.RevenueType))
-            {
-                var type = query.RevenueType.Trim().ToLower();
-                q = q.Where(r => r.RevenueType.ToLower() == type);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.MoneyChannel))
-            {
-                var channel = query.MoneyChannel.Trim().ToLower();
-                q = q.Where(r => r.MoneyChannel != null && r.MoneyChannel.ToLower() == channel);
-            }
-
-            if (query.FromDate.HasValue)
-                q = q.Where(r => r.RevenueDate >= query.FromDate.Value);
-
-            if (query.ToDate.HasValue)
-                q = q.Where(r => r.RevenueDate <= query.ToDate.Value);
-
-            var total = await q.CountAsync();
             if (total == 0)
                 return (Array.Empty<Revenue>(), 0);
+
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new RevenueSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Revenue>.GetQuery(_db.Revenues.AsQueryable(), filterSpec);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
 
-            var items = await q
-                .OrderByDescending(r => r.CreatedAt)
+            var ids = await filterQuery
+                .Select(r => r.RevenueId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<Revenue>(), total);
+
+            // 3. Fetch full entities
+            var items = await _db.Revenues
+                .Where(r => ids.Contains(r.RevenueId))
+                .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
 
             return (items, total);
@@ -60,14 +59,19 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<List<Revenue>> GetSaleByOrderIdAsync(int businessLocationId, long orderId)
         {
-            var marker = $"ORDER#{orderId}";
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == businessLocationId
-                    && r.RevenueType == "sale"
+                    && r.RevenueType == RevenueType.Sale
                     && r.DeletedAt == null
-                    && r.Description.StartsWith(marker))
+                    && r.OrderId == orderId)
                 .OrderBy(r => r.RevenueId)
                 .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds)
+        {
+            if (revenueIds == null || !revenueIds.Any()) return Array.Empty<Revenue>();
+            return await _db.Revenues.Where(r => revenueIds.Contains(r.RevenueId)).ToListAsync();
         }
 
         public async Task<Revenue> AddAsync(Revenue revenue)

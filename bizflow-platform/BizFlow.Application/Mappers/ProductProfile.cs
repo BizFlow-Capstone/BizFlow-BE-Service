@@ -36,6 +36,18 @@ namespace BizFlow.Application.Mappers
                         .Select(pp => pp.Price)
                         .FirstOrDefault()));
 
+            // Product -> ProductQuickSearchDto
+            CreateMap<Product, ProductQuickSearchDto>()
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.ProductName))
+                .ForMember(dest => dest.SellingPrice, opt => opt.MapFrom(src =>
+                    src.SaleItems
+                        .Where(s => s.Unit.ToLower() == src.Unit.ToLower())
+                        .SelectMany(s => s.ProductPricePolicies)
+                        .Where(pp => pp.IsDefault)
+                        .Select(pp => pp.Price)
+                        .FirstOrDefault()))
+                .ForMember(dest => dest.SaleItems, opt => opt.MapFrom(src => src.SaleItems));
+
             // Product → ProductSaleItemsResponseDto
             CreateMap<Product, ProductSaleItemsResponseDto>()
                 .ForMember(dest => dest.SaleItems, opt => opt.MapFrom(src => src.SaleItems));

@@ -8,7 +8,12 @@ namespace BizFlow.Application.Mappers
     {
         public GeneralLedgerProfile()
         {
-            CreateMap<GeneralLedgerEntry, GeneralLedgerEntryDto>();
+            CreateMap<GeneralLedgerEntry, GeneralLedgerEntryDto>()
+                .ForMember(d => d.Source, opt => opt.MapFrom(s => new SourceLinkDto
+                {
+                    ReferenceType = s.ReferenceType,
+                    ReferenceId = s.ReferenceId
+                }));
         }
     }
 }
