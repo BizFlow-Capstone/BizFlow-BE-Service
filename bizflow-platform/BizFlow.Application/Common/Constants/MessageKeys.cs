@@ -39,6 +39,15 @@ namespace BizFlow.Application.Common.Constants
         public const string OrderAutoRollbackNote = "ORDER_AUTO_ROLLBACK_NOTE";
         public const string OrderRevenueDescriptionFormat = "ORDER_REVENUE_DESCRIPTION_FORMAT";
         public const string InvalidLookbackUnit = "LEDGER_INVALID_LOOKBACK_UNIT";
+        public const string LedgerDateOutOfRange = "LEDGER_DATE_OUT_OF_RANGE";
+        public const string LedgerInvalidDateRange = "LEDGER_INVALID_DATE_RANGE";
+
+        // ============ LEDGER VALIDATION ============
+        public const string LedgerInvalidViewMode = "LEDGER_INVALID_VIEW_MODE";
+        public const string LedgerInvalidTransactionType = "LEDGER_INVALID_TRANSACTION_TYPE";
+        public const string LedgerInvalidReferenceType = "LEDGER_INVALID_REFERENCE_TYPE";
+        public const string LedgerInvalidMoneyChannel = "LEDGER_INVALID_MONEY_CHANNEL";
+        public const string LedgerEffectiveModeRequiresToDate = "LEDGER_EFFECTIVE_MODE_REQUIRES_TODATE";
 
         // ============ AUTHENTICATION ============
         public const string LoginSuccess = "AUTH_LOGIN_SUCCESS";

@@ -25,6 +25,14 @@
   "ORDER_REPLACED_REASON": "Replaced by order {0}",
   "ORDER_AUTO_ROLLBACK_NOTE": "Auto rollback from cancelled order {0}",
   "ORDER_REVENUE_DESCRIPTION_FORMAT": "Revenue ({1}) from order {0}",
+  "LEDGER_INVALID_LOOKBACK_UNIT": "Configuration GeneralLedger:LookbackUnit must be one of: day, month, year",
+  "LEDGER_DATE_OUT_OF_RANGE": "Date must not be in the future or older than the allowed limit",
+  "LEDGER_INVALID_DATE_RANGE": "FromDate must be less than or equal to ToDate",
+  "LEDGER_INVALID_VIEW_MODE": "Invalid view mode selected",
+  "LEDGER_INVALID_TRANSACTION_TYPE": "One or more transaction types are invalid",
+  "LEDGER_INVALID_REFERENCE_TYPE": "One or more reference types are invalid",
+  "LEDGER_INVALID_MONEY_CHANNEL": "One or more money channels are invalid",
+  "LEDGER_EFFECTIVE_MODE_REQUIRES_TODATE": "ToDate is required when using effective view mode",
   "AUTH_LOGIN_SUCCESS": "Login successful",
   "AUTH_LOGIN_FAILED": "Login failed",
   "AUTH_LOGOUT_SUCCESS": "Logout successful",
@@ -142,6 +150,5 @@
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Cannot delete a debtor with an outstanding balance",
   "DEBTOR_PAYMENT_AMOUNT_ZERO": "Amount cannot be zero",
   "DEBTOR_PAYMENT_METHOD_INVALID": "Invalid payment method. Allowed values: cash, bank",
-  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Debtor credit limit will be exceeded. Confirm to continue",
-  "LEDGER_INVALID_LOOKBACK_UNIT": "Configuration GeneralLedger:LookbackUnit must be one of: day, month, year"
+  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Debtor credit limit will be exceeded. Confirm to continue"
 }

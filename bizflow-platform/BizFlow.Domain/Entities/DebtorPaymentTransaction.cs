@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Debtor payment and adjustment transaction history.
+/// Debtor payment transaction history
 /// </summary>
 public partial class DebtorPaymentTransaction
 {
@@ -16,8 +16,7 @@ public partial class DebtorPaymentTransaction
     public long DebtorId { get; set; }
 
     /// <summary>
-    /// Signed amount for this transaction.
-    /// Negative value reduces debt, positive value increases debt.
+    /// Payment amount for this transaction
     /// </summary>
     public decimal Amount { get; set; }
 
@@ -27,27 +26,27 @@ public partial class DebtorPaymentTransaction
     public string PaymentMethod { get; set; } = null!;
 
     /// <summary>
-    /// Transaction notes.
+    /// Transaction notes
     /// </summary>
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Debt balance before the transaction.
+    /// Balance before transaction
     /// </summary>
     public decimal BalanceBefore { get; set; }
 
     /// <summary>
-    /// Debt balance after the transaction.
+    /// Balance after transaction
     /// </summary>
     public decimal BalanceAfter { get; set; }
 
     /// <summary>
-    /// Recorder UserId.
+    /// UserId who recorded the payment
     /// </summary>
     public Guid CreatedByUserId { get; set; }
 
     /// <summary>
-    /// Transaction timestamp.
+    /// Actual payment timestamp
     /// </summary>
     public DateTime PaidAt { get; set; }
 

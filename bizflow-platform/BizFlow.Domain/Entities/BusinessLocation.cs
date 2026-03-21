@@ -47,7 +47,6 @@ public partial class BusinessLocation
     public string? TaxCode { get; set; }
 
     public virtual ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();
-
     public virtual ICollection<Cost> Costs { get; set; } = new List<Cost>();
 
     public virtual ICollection<Debtor> Debtors { get; set; } = new List<Debtor>();

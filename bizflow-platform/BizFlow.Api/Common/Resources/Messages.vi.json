@@ -25,6 +25,14 @@
   "ORDER_REPLACED_REASON": "Được thay thế bởi đơn hàng {0}",
   "ORDER_AUTO_ROLLBACK_NOTE": "Hoàn tác nợ tự động từ đơn hàng bị hủy {0}",
   "ORDER_REVENUE_DESCRIPTION_FORMAT": "Doanh thu ({1}) từ đơn hàng {0}",
+  "LEDGER_INVALID_LOOKBACK_UNIT": "Cấu hình GeneralLedger:LookbackUnit phải là một trong các giá trị: day, month, year",
+  "LEDGER_DATE_OUT_OF_RANGE": "Ngày tra cứu không được ở tương lai hoặc vượt quá giới hạn cho phép",
+  "LEDGER_INVALID_DATE_RANGE": "Từ ngày phải nhỏ hơn hoặc bằng Đến ngày",
+  "LEDGER_INVALID_VIEW_MODE": "Chế độ xem không hợp lệ",
+  "LEDGER_INVALID_TRANSACTION_TYPE": "Một hoặc nhiều loại giao dịch không hợp lệ",
+  "LEDGER_INVALID_REFERENCE_TYPE": "Một hoặc nhiều loại tham chiếu không hợp lệ",
+  "LEDGER_INVALID_MONEY_CHANNEL": "Một hoặc nhiều phương thức thanh toán không hợp lệ",
+  "LEDGER_EFFECTIVE_MODE_REQUIRES_TODATE": "Bắt buộc phải chọn mốc thời gian Đến Ngày (ToDate) khi xem sổ theo chế độ ngầm định",
   "AUTH_LOGIN_SUCCESS": "Đăng nhập thành công",
   "AUTH_LOGIN_FAILED": "Đăng nhập thất bại",
   "AUTH_LOGOUT_SUCCESS": "Đăng xuất thành công",
@@ -142,6 +150,5 @@
   "DEBTOR_HAS_OUTSTANDING_BALANCE": "Không thể xóa khách nợ có dư nợ chưa thanh toán",
   "DEBTOR_PAYMENT_AMOUNT_ZERO": "Số tiền không được bằng 0",
   "DEBTOR_PAYMENT_METHOD_INVALID": "Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, bank",
-  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Đơn hàng sẽ làm vượt hạn mức công nợ của khách. Hãy xác nhận để tiếp tục",
-  "LEDGER_INVALID_LOOKBACK_UNIT": "Cấu hình GeneralLedger:LookbackUnit phải là một trong các giá trị: day, month, year"
+  "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED": "Đơn hàng sẽ làm vượt hạn mức công nợ của khách. Hãy xác nhận để tiếp tục"
 }

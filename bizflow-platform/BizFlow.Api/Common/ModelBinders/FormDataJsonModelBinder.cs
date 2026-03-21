@@ -59,8 +59,7 @@ namespace BizFlow.Api.Common.ModelBinders
             }
             catch (JsonException ex)
             {
-                // Provide helpful error message with the actual JSON for debugging
-                var errorMessage = $"Cannot parse PriceTiers JSON. Ensure it's a valid array like: [{{\"unit\":\"box\",\"quantity\":1,\"price\":1000}}]. Error: {ex.Message}";
+                var errorMessage = $"Cannot parse JSON array for {modelName}. Make sure it's valid format. Error: {ex.Message}";
                 bindingContext.ModelState.TryAddModelError(modelName, errorMessage);
                 bindingContext.Result = ModelBindingResult.Failed();
             }
@@ -81,15 +80,27 @@ namespace BizFlow.Api.Common.ModelBinders
                 throw new ArgumentNullException(nameof(context));
             }
 
-            // Only apply to List<T> types AND only when binding from form data (not JSON body)
-            // Note: BindingSource is often null for properties of a [FromForm] class
+            // Only apply to List<T> types where T is a complex object (like PriceTier, ImportItem)
             if (context.Metadata.ModelType.IsGenericType &&
-                context.Metadata.ModelType.GetGenericTypeDefinition() == typeof(List<>) &&
-                (context.BindingInfo.BindingSource == null || 
-                 context.BindingInfo.BindingSource.Id == "Form" || 
-                 context.BindingInfo.BindingSource.Id == "FormFile"))
+                context.Metadata.ModelType.GetGenericTypeDefinition() == typeof(List<>))
             {
-                return new FormDataJsonModelBinder();
+                var elementType = context.Metadata.ModelType.GetGenericArguments()[0];
+                
+                // Exclude simple types. The default ASP.NET Core binder handles List<string> from query/form perfectly.
+                if (elementType == typeof(string) || 
+                    elementType.IsPrimitive || 
+                    elementType == typeof(Guid) || 
+                    elementType.IsEnum)
+                {
+                    return null;
+                }
+
+                if (context.BindingInfo.BindingSource == null || 
+                    context.BindingInfo.BindingSource.Id == "Form" || 
+                    context.BindingInfo.BindingSource.Id == "FormFile")
+                {
+                    return new FormDataJsonModelBinder();
+                }
             }
 
             return null;
