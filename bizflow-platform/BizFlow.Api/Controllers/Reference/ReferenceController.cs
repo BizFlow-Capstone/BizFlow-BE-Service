@@ -2,6 +2,7 @@ using BizFlow.Api.Common.Controllers;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Swashbuckle.AspNetCore.Annotations;
@@ -12,6 +13,7 @@ namespace BizFlow.Api.Controllers.Reference
     /// Reference / lookup data
     /// </summary>
     [Route("api/reference")]
+    [Authorize]
     public class ReferenceController : BaseApiController
     {
         private readonly IReferenceService _referenceService;

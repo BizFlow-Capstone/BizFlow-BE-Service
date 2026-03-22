@@ -1,4 +1,5 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
@@ -17,9 +18,6 @@ namespace BizFlow.Api.Controllers.Import
     public class ImportController : PaginatedApiController
     {
         private readonly IImportService _importService;
-
-        // TODO: Replace with actual JWT-based user identification
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
         public ImportController(
             IImportService importService,
@@ -149,10 +147,7 @@ namespace BizFlow.Api.Controllers.Import
 
         #region Private Helper Methods
 
-        private Guid GetCurrentUserId()
-        {
-            return _mockCurrentUserId;
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         #endregion
     }

@@ -1,6 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
@@ -9,6 +8,8 @@ using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
+using System;
+using System.Threading.Tasks;
 
 namespace BizFlow.Api.Controllers.Debtor
 {
@@ -20,8 +21,6 @@ namespace BizFlow.Api.Controllers.Debtor
     {
         private readonly IDebtorService _debtorService;
 
-        // TODO: Replace with actual JWT-based user identification
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
         public DebtorController(
             IDebtorService debtorService,
@@ -188,10 +187,7 @@ namespace BizFlow.Api.Controllers.Debtor
 
         #region Private Helper Methods
 
-        private Guid GetCurrentUserId()
-        {
-            return _mockCurrentUserId;
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         #endregion
     }

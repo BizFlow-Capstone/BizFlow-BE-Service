@@ -2,6 +2,7 @@ using BizFlow.Api.Common.Controllers;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -11,6 +12,7 @@ namespace BizFlow.Api.Controllers.BusinessType
     /// Business Type Management APIs
     /// </summary>
     [Route("api/business-types")]
+    [Authorize]
     public class BusinessTypeController : BaseApiController
     {
         private readonly IBusinessTypeService _businessTypeService;

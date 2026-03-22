@@ -60,10 +60,7 @@ namespace BizFlow.Api.Controllers
         /// <summary>
         /// Gets current user ID securely from JWT token claims
         /// </summary>
-        private Guid GetCurrentUserId()
-        {
-            return User.GetRequiredUserId();
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         #endregion
     }

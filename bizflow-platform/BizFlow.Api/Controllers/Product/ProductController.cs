@@ -1,9 +1,11 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
@@ -14,13 +16,10 @@ namespace BizFlow.Api.Controllers.Product
     /// Product Management APIs
     /// </summary>
     [Route("api/my-business")]
+    [Authorize]
     public class ProductController : PaginatedApiController
     {
         private readonly IProductService _productService;
-
-        // TODO: Replace with actual JWT-based user identification
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
-        //private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440003");
 
         public ProductController(
             IProductService productService,
@@ -218,10 +217,7 @@ namespace BizFlow.Api.Controllers.Product
 
         #region Private Helper Methods
 
-        private Guid GetCurrentUserId()
-        {
-            return _mockCurrentUserId;
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         /// <summary>
         #endregion

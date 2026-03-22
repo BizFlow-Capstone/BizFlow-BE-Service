@@ -1,4 +1,5 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
@@ -14,8 +15,6 @@ namespace BizFlow.Api.Controllers.Order
     public class OrderController : PaginatedApiController
     {
         private readonly IOrderService _orderService;
-
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
         public OrderController(
             IOrderService orderService,
@@ -91,9 +90,6 @@ namespace BizFlow.Api.Controllers.Order
             return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
-        private Guid GetCurrentUserId()
-        {
-            return _mockCurrentUserId;
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
     }
 }
