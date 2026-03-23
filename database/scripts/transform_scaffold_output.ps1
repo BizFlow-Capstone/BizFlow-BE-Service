@@ -54,6 +54,9 @@ function Apply-CommonTypeReplacements {
 
     foreach ($old in $typeMap.Keys) {
         $new = $typeMap[$old]
+        $oldEscaped = [regex]::Escape($old)
+        $newEscaped = [regex]::Escape($new)
+
         $Content = $Content -creplace "public partial class $old\b", "public partial class $new"
         $Content = $Content -creplace "DbSet<$old>", "DbSet<$new>"
         $Content = $Content -creplace "modelBuilder\.Entity<$old>", "modelBuilder.Entity<$new>"
@@ -61,8 +64,17 @@ function Apply-CommonTypeReplacements {
         $Content = $Content -creplace "List<$old>", "List<$new>"
         $Content = $Content -creplace "virtual $old\b", "virtual $new"
         $Content = $Content -creplace "HasForeignKey<$old>", "HasForeignKey<$new>"
+
+        # Fix one-to-one navigation property names like: Profile? Profiles -> Profile? Profile
+        $Content = $Content -creplace "(\\b$newEscaped\\??\\s+)$oldEscaped\\b", "`$1$new"
     }
 
+    # Explicit safety net for common one-to-one scaffold naming from EF
+    $Content = $Content.Replace('Profile? Profiles', 'Profile? Profile')
+    $Content = $Content.Replace('Profile Profiles', 'Profile Profile')
+    $Content = $Content -creplace '\bProfile\?\s+Profiles\b', 'Profile? Profile'
+    $Content = $Content -creplace '\bProfile\s+Profiles\b', 'Profile Profile'
+    $Content = $Content.Replace('WithOne(p => p.Profiles)', 'WithOne(p => p.Profile)')
     $Content = $Content -creplace 'WithOne\(p => p\.Profiles\)', 'WithOne(p => p.Profile)'
     return $Content
 }

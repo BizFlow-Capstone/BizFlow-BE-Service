@@ -276,7 +276,7 @@ echo.
 :: ============================================
 echo [STEP 5.5] Fixing DeviceToken naming...
 
-powershell -Command "$targets = @(); if (Test-Path '%FINAL_ENTITIES_DIR%') { $targets += Get-ChildItem '%FINAL_ENTITIES_DIR%' -Filter '*.cs' -File }; foreach ($file in $targets) { $content = Get-Content $file.FullName -Raw; $content = $content -creplace 'public partial class DeviceTokens', 'public partial class DeviceToken' -creplace 'ICollection<DeviceTokens>', 'ICollection<DeviceToken>' -creplace 'List<DeviceTokens>', 'List<DeviceToken>' -creplace 'virtual DeviceTokens', 'virtual DeviceToken'; Set-Content $file.FullName -Value $content -NoNewline }"
+powershell -Command "$targets = @(); if (Test-Path '%FINAL_ENTITIES_DIR%') { $targets += Get-ChildItem '%FINAL_ENTITIES_DIR%' -Filter '*.cs' -File }; foreach ($file in $targets) { $content = Get-Content $file.FullName -Raw; $content = $content -creplace 'public partial class DeviceTokens', 'public partial class DeviceToken' -creplace 'ICollection<DeviceTokens>', 'ICollection<DeviceToken>' -creplace 'List<DeviceTokens>', 'List<DeviceToken>' -creplace 'virtual DeviceTokens', 'virtual DeviceToken' -creplace '\bProfile\?\s+Profiles\b', 'Profile? Profile' -creplace '\bProfile\s+Profiles\b', 'Profile Profile'; $content = $content.Replace('Profile? Profiles', 'Profile? Profile').Replace('Profile Profiles', 'Profile Profile'); Set-Content $file.FullName -Value $content -NoNewline }"
 
 if errorlevel 1 (
     echo   [WARNING] Failed to patch DeviceToken names in entities.
@@ -284,7 +284,7 @@ if errorlevel 1 (
     echo   [OK] DeviceToken names patched in entities
 )
 
-powershell -Command "$file = '%FINAL_ENTITIES_DIR%\BusinessLocation.cs'; if (Test-Path $file) { $content = Get-Content $file -Raw; if ($content -notmatch 'ICollection<AccountingPeriod>\s+AccountingPeriods') { $insert = '    public virtual ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();`r`n`r`n'; $content = $content -replace '(public string\? TaxCode \{ get; set; \}\r?\n\r?\n)', ('$1' + $insert); Set-Content $file -Value $content -NoNewline } }"
+powershell -Command "$file = '%FINAL_ENTITIES_DIR%\BusinessLocation.cs'; if (Test-Path $file) { $content = Get-Content $file -Raw; if ($content -notmatch 'ICollection<AccountingPeriod>\s+AccountingPeriods') { $insert = '    public virtual ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();'; $content = $content -replace '(public string\? TaxCode \{ get; set; \}\r?\n\r?\n)', ('$1' + $insert); Set-Content $file -Value $content -NoNewline } }"
 
 if errorlevel 1 (
     echo   [WARNING] Failed to patch BusinessLocation.AccountingPeriods navigation.
@@ -318,7 +318,7 @@ if exist "%DBCONTEXT_INPUT%" (
     echo   [WARNING] DbContext not found in TempData
 )
 
-powershell -Command "if (Test-Path '%DBCONTEXT_OUTPUT%') { $content = Get-Content '%DBCONTEXT_OUTPUT%' -Raw; $content = $content -creplace 'DbSet<DeviceTokens>', 'DbSet<DeviceToken>' -creplace 'modelBuilder\.Entity<DeviceTokens>', 'modelBuilder.Entity<DeviceToken>'; Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline }"
+powershell -Command "if (Test-Path '%DBCONTEXT_OUTPUT%') { $content = Get-Content '%DBCONTEXT_OUTPUT%' -Raw; $content = $content -creplace 'DbSet<DeviceTokens>', 'DbSet<DeviceToken>' -creplace 'modelBuilder\.Entity<DeviceTokens>', 'modelBuilder.Entity<DeviceToken>' -creplace '\bProfile\?\s+Profiles\b', 'Profile? Profile' -creplace '\bProfile\s+Profiles\b', 'Profile Profile' -creplace 'WithOne\(p => p\.Profiles\)', 'WithOne(p => p.Profile)'; $content = $content.Replace('Profile? Profiles', 'Profile? Profile').Replace('Profile Profiles', 'Profile Profile').Replace('WithOne(p => p.Profiles)', 'WithOne(p => p.Profile)'); Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline }"
 
 if errorlevel 1 (
     echo   [WARNING] Failed to patch DeviceToken names in DbContext.
