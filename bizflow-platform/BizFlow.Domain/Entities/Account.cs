@@ -38,7 +38,7 @@ public partial class Account
 
     public virtual ICollection<Credential> Credentials { get; set; } = new List<Credential>();
 
-    public virtual Profile? Profile { get; set; }
+    public virtual Profile? Profiles { get; set; }
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
