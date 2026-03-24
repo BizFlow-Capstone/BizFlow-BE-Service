@@ -98,3 +98,10 @@ bld/
 **/packages/*
 !**/packages/build/
 
+# ==========================================
+# Agents and Skills
+# ==========================================
+.agents
+.claude
+skills-lock.json
+skills

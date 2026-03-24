@@ -10,5 +10,5 @@
 
 -- Insert this migration (placeholder)
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 
-VALUES ('007_placeholder', '1.0.0')
+VALUES ('007_alter_primary_key_types', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;

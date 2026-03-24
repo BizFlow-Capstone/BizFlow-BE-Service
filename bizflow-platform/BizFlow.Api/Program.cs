@@ -78,6 +78,7 @@ builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(
 builder.Services.Configure<GeneralLedgerSettings>(builder.Configuration.GetSection(GeneralLedgerSettings.SectionName));
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
+builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -295,5 +296,30 @@ RecurringJob.AddOrUpdate<ImageCleanupJob>(
                   //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
                   // "* * * * *" // Every minute
 );
+
+RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
+    "subscription-expiry-check",
+    job => job.ExecuteAsync(),
+    "0 * * * *");
+
+RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
+    "subscription-reminder",
+    job => job.ExecuteAsync(),
+    "0 1 * * *");
+
+RecurringJob.AddOrUpdate<UsageSnapshotJob>(
+    "usage-snapshot",
+    job => job.ExecuteAsync(),
+    "0 17 * * *");
+
+RecurringJob.AddOrUpdate<FirestoreSyncJob>(
+    "firestore-sync",
+    job => job.ExecuteAsync(),
+    "0 */6 * * *");
+
+RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
+    "stale-txn-cleanup",
+    job => job.ExecuteAsync(),
+    "30 */6 * * *");
 
 app.Run();

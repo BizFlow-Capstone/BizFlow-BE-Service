@@ -141,3 +141,10 @@ CREATE TABLE SubscriptionAuditLogs (
 
 -- 9. Add optimized index to UserLocationAssignments for 'require feature' check
 CREATE INDEX idx_ula_location_owner_active ON UserLocationAssignments(BusinessLocationId, IsOwner, IsActive);
+
+-- =============================================
+-- Insert migration history
+-- =============================================
+INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('048_create_subscription_payment_tables', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';
