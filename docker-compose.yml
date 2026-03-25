@@ -43,11 +43,14 @@ services:
       - CloudinarySettings__ApiKey=${CLOUDINARY_API_KEY}
       - CloudinarySettings__ApiSecret=${CLOUDINARY_API_SECRET}
       # Firebase FCM
-      - Firebase__ProjectId=${FIREBASE_PROJECT_ID}
+      - FirebaseAuth__ProjectId=${FIREBASE_PROJECT_ID}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/firebase-adminsdk.json
       - Firebase__ServiceAccountPath=/app/credentials/firebase-adminsdk.json
       # Stripe
-      - Stripe__SecretKey=${STRIPE_SECRET_KEY}
+      - StripeSettings__SecretKey=${STRIPE_SECRET_KEY}
+      - StripeSettings__WebhookSecret=${STRIPE_WEBHOOK_SECRET}
+      - StripeSettings__SuccessUrl=${STRIPE_SUCCESS_URL:-bizflow://payment/success?session_id={CHECKOUT_SESSION_ID}}
+      - StripeSettings__CancelUrl=${STRIPE_CANCEL_URL:-bizflow://payment/cancel}
       # AI Service internal URL (container-to-container)
       - AiService__BaseUrl=http://bizflow-ai:5000
     volumes:
