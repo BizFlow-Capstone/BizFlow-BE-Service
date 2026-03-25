@@ -7,6 +7,15 @@ namespace BizFlow.Application.DTOs.Notification
         public List<NotificationActionTypeDto> ActionTypes { get; set; } = new();
         public List<NotificationTargetDto> Targets { get; set; } = new();
         public List<NotificationTriggerDto> Triggers { get; set; } = new();
+        public List<NotificationTemplatePlaceholderDto> Placeholders { get; set; } = new();
+    }
+
+    public class NotificationTemplatePlaceholderDto
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string ExampleValue { get; set; } = string.Empty;
     }
 
     public class NotificationTriggerDto

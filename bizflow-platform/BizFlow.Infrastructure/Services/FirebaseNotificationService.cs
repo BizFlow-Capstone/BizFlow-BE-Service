@@ -37,6 +37,19 @@ namespace BizFlow.Infrastructure.Services
             ["buypackagepage"] = "SubscriptionPlansPage"
         };
 
+        private static readonly HashSet<string> AllowedTemplatePlaceholders = new(StringComparer.Ordinal)
+        {
+            "UserName",
+            "FullName",
+            "Phone",
+            "Email",
+            "OwnerName",
+            "BusinessName",
+            "BusinessLocation"
+        };
+
+        private static readonly Regex TemplatePlaceholderRegex = new("\\{(\\w+)\\}", RegexOptions.Compiled);
+
         private readonly BizFlowDbContext _context;
         private readonly ILogger<FirebaseNotificationService> _logger;
         private readonly IConfiguration _configuration;
@@ -400,6 +413,58 @@ namespace BizFlow.Infrastructure.Services
                         Feature = "Subscription",
                         TriggerDescription = "Dùng cho luồng tự động khi gói dịch vụ bị huỷ."
                     }
+                },
+                Placeholders = new List<NotificationTemplatePlaceholderDto>
+                {
+                    new()
+                    {
+                        Key = "UserName",
+                        Token = "{UserName}",
+                        Description = "Tên hiển thị của người nhận thông báo.",
+                        ExampleValue = "Nguyễn Văn A"
+                    },
+                    new()
+                    {
+                        Key = "FullName",
+                        Token = "{FullName}",
+                        Description = "Bí danh tương đương UserName (họ tên đầy đủ).",
+                        ExampleValue = "Nguyễn Văn A"
+                    },
+                    new()
+                    {
+                        Key = "Phone",
+                        Token = "{Phone}",
+                        Description = "Số điện thoại của người nhận (nếu có credential phone).",
+                        ExampleValue = "0901234567"
+                    },
+                    new()
+                    {
+                        Key = "Email",
+                        Token = "{Email}",
+                        Description = "Email của người nhận (email credential hoặc Google email).",
+                        ExampleValue = "user@bizflow.vn"
+                    },
+                    new()
+                    {
+                        Key = "OwnerName",
+                        Token = "{OwnerName}",
+                        Description = "Tên chủ cửa hàng trong các luồng mời nhân viên.",
+                        ExampleValue = "Chủ BizFlow"
+                    },
+                    new()
+                    {
+                        Key = "BusinessName",
+                        Token = "{BusinessName}",
+                        Description = "Tên cửa hàng/địa điểm liên quan đến thông báo.",
+                        ExampleValue = "BizFlow Store Q1"
+                    },
+                    new()
+                    {
+                        Key = "BusinessLocation",
+                        Token = "{BusinessLocation}",
+                        Description = "Bí danh của BusinessName (tên địa điểm/cửa hàng).",
+                        ExampleValue = "BizFlow Store Q1"
+                    }
                 }
             });
         }
@@ -444,7 +509,7 @@ namespace BizFlow.Infrastructure.Services
                     ContentTemplate = request.ContentTemplate.Trim(),
                     DefaultActionType = NormalizeNullable(request.DefaultActionType),
                     DefaultTargetScreen = NormalizeNullable(request.DefaultTargetScreen),
-                    DefaultActionPayloadJson = NormalizeJsonOrNull(request.DefaultActionPayloadJson),
+                    DefaultActionPayloadJson = NormalizeActionPayloadJsonOrNull(request.DefaultActionPayloadJson),
                     IsActive = request.IsActive,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -459,7 +524,7 @@ namespace BizFlow.Infrastructure.Services
                 template.ContentTemplate = request.ContentTemplate.Trim();
                 template.DefaultActionType = NormalizeNullable(request.DefaultActionType);
                 template.DefaultTargetScreen = NormalizeNullable(request.DefaultTargetScreen);
-                template.DefaultActionPayloadJson = NormalizeJsonOrNull(request.DefaultActionPayloadJson);
+                template.DefaultActionPayloadJson = NormalizeActionPayloadJsonOrNull(request.DefaultActionPayloadJson);
                 template.IsActive = request.IsActive;
                 template.UpdatedAt = DateTime.UtcNow;
             }
@@ -521,7 +586,7 @@ namespace BizFlow.Infrastructure.Services
 
             var actionType = NormalizeNullable(request.ActionType) ?? template?.DefaultActionType;
             var targetScreen = NormalizeNullable(request.TargetScreen) ?? template?.DefaultTargetScreen;
-            var actionPayloadJson = NormalizeJsonOrNull(request.ActionPayloadJson) ?? template?.DefaultActionPayloadJson;
+            var actionPayloadJson = NormalizeActionPayloadJsonOrNull(request.ActionPayloadJson) ?? template?.DefaultActionPayloadJson;
             var dataJson = NormalizeJsonOrNull(request.DataJson);
 
             ValidateActionConfiguration(actionType, targetScreen, actionPayloadJson, "actionType", "targetScreen", "actionPayloadJson");
@@ -657,14 +722,6 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task ArchiveExpiredNotificationsAsync(CancellationToken cancellationToken = default)
         {
-            await _context.Database.ExecuteSqlRawAsync(@"
-INSERT INTO UserNotificationsArchive
-(UserNotificationId, UserId, NotificationId, NotificationType, Priority, Title, Content, ActionType, TargetScreen, ActionPayloadJson, DeliveryStatus, CreatedAt, SentAt, ReadAt, ErrorMessage)
-SELECT UserNotificationId, UserId, NotificationId, NotificationType, Priority, Title, Content, ActionType, TargetScreen, ActionPayloadJson, DeliveryStatus, CreatedAt, SentAt, ReadAt, ErrorMessage
-FROM UserNotifications
-WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY)
-AND UserNotificationId NOT IN (SELECT UserNotificationId FROM UserNotificationsArchive);", cancellationToken);
-
             await _context.Database.ExecuteSqlRawAsync(@"
 DELETE FROM UserNotifications
 WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationToken);
@@ -809,21 +866,30 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
 
                 _context.Notifications.Add(notificationRecord);
 
-                var notifications = recipientUserIds.Select(userId => new UserNotification
+                var recipientTemplateDataMap = await BuildRecipientTemplateDataAsync(recipientUserIds, cancellationToken);
+
+                var notifications = recipientUserIds.Select(userId =>
                 {
-                    UserId = userId,
-                    NotificationId = notificationRecord.NotificationId,
-                    NotificationType = dispatch.NotificationType,
-                    Priority = dispatch.Priority,
-                    Title = dispatch.Title,
-                    Content = dispatch.Content,
-                    ActionType = dispatch.ActionType,
-                    TargetScreen = dispatch.TargetScreen,
-                    ActionPayloadJson = dispatch.ActionPayloadJson,
-                    DeliveryStatus = "SENT",
-                    CreatedAt = now,
-                    SentAt = now,
-                    ReadAt = null
+                    var templateData = recipientTemplateDataMap.TryGetValue(userId, out var data)
+                        ? data
+                        : new Dictionary<string, string>();
+
+                    return new UserNotification
+                    {
+                        UserId = userId,
+                        NotificationId = notificationRecord.NotificationId,
+                        NotificationType = dispatch.NotificationType,
+                        Priority = dispatch.Priority,
+                        Title = RenderTemplate(dispatch.Title, templateData),
+                        Content = RenderTemplate(dispatch.Content, templateData),
+                        ActionType = dispatch.ActionType,
+                        TargetScreen = dispatch.TargetScreen,
+                        ActionPayloadJson = dispatch.ActionPayloadJson,
+                        DeliveryStatus = "SENT",
+                        CreatedAt = now,
+                        SentAt = now,
+                        ReadAt = null
+                    };
                 }).ToList();
 
                 _context.UserNotifications.AddRange(notifications);
@@ -832,7 +898,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
                 foreach (var notification in notifications)
                 {
                     var pushData = BuildPushData(dispatch, notification.UserNotificationId);
-                    var pushError = await SendUserNotificationPushAsync(notification.UserId, dispatch.Title, dispatch.Content, dispatch.Priority, pushData, cancellationToken);
+                    var pushError = await SendUserNotificationPushAsync(notification.UserId, notification.Title, notification.Content, dispatch.Priority, pushData, cancellationToken);
 
                     if (_realtimePublisher != null)
                     {
@@ -1016,6 +1082,218 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
             return existingIds;
         }
 
+        private async Task<Dictionary<Guid, Dictionary<string, string>>> BuildRecipientTemplateDataAsync(
+            List<Guid> recipientUserIds,
+            CancellationToken cancellationToken)
+        {
+            var profiles = await _context.Profiles
+                .AsNoTracking()
+                .Where(profile => recipientUserIds.Contains(profile.ProfileId))
+                .Select(profile => new
+                {
+                    profile.ProfileId,
+                    profile.AccountId,
+                    profile.FullName
+                })
+                .ToListAsync(cancellationToken);
+
+            var accountIds = profiles
+                .Select(profile => profile.AccountId)
+                .Distinct()
+                .ToList();
+
+            var credentialRows = new List<(Guid AccountId, string Type, string Identifier, string? GoogleEmail)>();
+
+            if (accountIds.Count > 0)
+            {
+                var rawCredentials = await _context.Credentials
+                    .AsNoTracking()
+                    .Where(credential => accountIds.Contains(credential.AccountId))
+                    .Select(credential => new
+                    {
+                        credential.AccountId,
+                        credential.Type,
+                        credential.Identifier,
+                        credential.GoogleEmail
+                    })
+                    .ToListAsync(cancellationToken);
+
+                credentialRows = rawCredentials
+                    .Select(credential => (credential.AccountId, credential.Type, credential.Identifier, credential.GoogleEmail))
+                    .ToList();
+            }
+
+            var credentialByAccountId = credentialRows
+                .GroupBy(credential => (Guid)credential.AccountId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new
+                    {
+                        Phone = group
+                            .Where(credential => string.Equals(credential.Type, "phone", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault(),
+                        Email = group
+                            .Where(credential => string.Equals(credential.Type, "email", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault()
+                                ?? group
+                                    .Where(credential => string.Equals(credential.Type, "google", StringComparison.OrdinalIgnoreCase))
+                                    .Select(credential => credential.GoogleEmail)
+                                    .FirstOrDefault()
+                    });
+
+            var recipientAssignments = await _context.UserLocationAssignments
+                .AsNoTracking()
+                .Where(assignment => recipientUserIds.Contains(assignment.UserId) && (assignment.IsActive == null || assignment.IsActive == true))
+                .Select(assignment => new
+                {
+                    assignment.UserId,
+                    assignment.BusinessLocationId,
+                    assignment.IsOwner,
+                    assignment.AssignedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            var primaryAssignmentByUserId = recipientAssignments
+                .GroupBy(assignment => assignment.UserId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(assignment => assignment.IsOwner)
+                        .ThenByDescending(assignment => assignment.AssignedAt)
+                        .First());
+
+            var locationIds = recipientAssignments
+                .Select(assignment => assignment.BusinessLocationId)
+                .Distinct()
+                .ToList();
+
+            var businessLocationById = locationIds.Count == 0
+                ? new Dictionary<int, (string LocationName, string? Phone, string? Email)>()
+                : await _context.BusinessLocations
+                    .AsNoTracking()
+                    .Where(location => locationIds.Contains(location.BusinessLocationId))
+                    .Select(location => new
+                    {
+                        location.BusinessLocationId,
+                        location.LocationName,
+                        location.Phone,
+                        location.Email
+                    })
+                    .ToDictionaryAsync(
+                        location => location.BusinessLocationId,
+                        location => (location.LocationName, location.Phone, location.Email),
+                        cancellationToken);
+
+            var ownerAssignments = new List<(int BusinessLocationId, Guid UserId)>();
+
+            if (locationIds.Count > 0)
+            {
+                var ownerAssignmentRows = await _context.UserLocationAssignments
+                    .AsNoTracking()
+                    .Where(assignment => locationIds.Contains(assignment.BusinessLocationId)
+                        && assignment.IsOwner
+                        && (assignment.IsActive == null || assignment.IsActive == true))
+                    .Select(assignment => new
+                    {
+                        assignment.BusinessLocationId,
+                        assignment.UserId,
+                        assignment.AssignedAt
+                    })
+                    .GroupBy(assignment => assignment.BusinessLocationId)
+                    .Select(group => group
+                        .OrderByDescending(assignment => assignment.AssignedAt)
+                        .First())
+                    .ToListAsync(cancellationToken);
+
+                ownerAssignments = ownerAssignmentRows
+                    .Select(assignment => (assignment.BusinessLocationId, assignment.UserId))
+                    .ToList();
+            }
+
+            var ownerUserIds = ownerAssignments
+                .Select(assignment => assignment.UserId)
+                .Distinct()
+                .ToList();
+
+            var ownerNameByUserId = ownerUserIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : await _context.Profiles
+                    .AsNoTracking()
+                    .Where(profile => ownerUserIds.Contains(profile.ProfileId))
+                    .Select(profile => new { profile.ProfileId, profile.FullName })
+                    .ToDictionaryAsync(
+                        profile => profile.ProfileId,
+                        profile => profile.FullName,
+                        cancellationToken);
+
+            var ownerNameByLocationId = ownerAssignments
+                .ToDictionary(
+                    assignment => assignment.BusinessLocationId,
+                    assignment => ownerNameByUserId.TryGetValue(assignment.UserId, out var ownerName)
+                        ? ownerName
+                        : string.Empty);
+
+            var result = new Dictionary<Guid, Dictionary<string, string>>();
+
+            foreach (var profile in profiles)
+            {
+                credentialByAccountId.TryGetValue(profile.AccountId, out var credentialInfo);
+
+                var fullName = profile.FullName?.Trim() ?? string.Empty;
+
+                var templateData = new Dictionary<string, string>
+                {
+                    ["UserName"] = fullName,
+                    ["FullName"] = fullName
+                };
+
+                if (!string.IsNullOrWhiteSpace(credentialInfo?.Phone))
+                {
+                    templateData["Phone"] = credentialInfo!.Phone!;
+                }
+
+                if (!string.IsNullOrWhiteSpace(credentialInfo?.Email))
+                {
+                    templateData["Email"] = credentialInfo!.Email!;
+                }
+
+                if (primaryAssignmentByUserId.TryGetValue(profile.ProfileId, out var assignment)
+                    && businessLocationById.TryGetValue(assignment.BusinessLocationId, out var businessLocation))
+                {
+                    if (!string.IsNullOrWhiteSpace(businessLocation.LocationName))
+                    {
+                        templateData["BusinessName"] = businessLocation.LocationName;
+                        templateData["BusinessLocation"] = businessLocation.LocationName;
+                    }
+
+                    if (!templateData.ContainsKey("Phone") && !string.IsNullOrWhiteSpace(businessLocation.Phone))
+                    {
+                        templateData["Phone"] = businessLocation.Phone!;
+                    }
+
+                    if (!templateData.ContainsKey("Email") && !string.IsNullOrWhiteSpace(businessLocation.Email))
+                    {
+                        templateData["Email"] = businessLocation.Email!;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(ownerNameByLocationId.GetValueOrDefault(assignment.BusinessLocationId)))
+                    {
+                        templateData["OwnerName"] = ownerNameByLocationId[assignment.BusinessLocationId];
+                    }
+                    else if (assignment.IsOwner)
+                    {
+                        templateData["OwnerName"] = fullName;
+                    }
+                }
+
+                result[profile.ProfileId] = templateData;
+            }
+
+            return result;
+        }
+
         private static List<Guid> ParseRecipientUserIds(string? recipientUserIdsJson)
         {
             if (string.IsNullOrWhiteSpace(recipientUserIdsJson))
@@ -1042,9 +1320,12 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
                 throw new BadRequestException(MessageKeys.BadRequest);
             }
 
+            ValidateAllowedTemplatePlaceholders(request.TitleTemplate, "titleTemplate");
+            ValidateAllowedTemplatePlaceholders(request.ContentTemplate, "contentTemplate");
+
             var defaultActionType = NormalizeNullable(request.DefaultActionType);
             var defaultTargetScreen = NormalizeNullable(request.DefaultTargetScreen);
-            var defaultActionPayloadJson = NormalizeJsonOrNull(request.DefaultActionPayloadJson);
+            var defaultActionPayloadJson = NormalizeActionPayloadJsonOrNull(request.DefaultActionPayloadJson);
 
             ValidateActionConfiguration(
                 defaultActionType,
@@ -1057,6 +1338,34 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
             request.DefaultActionType = defaultActionType;
             request.DefaultTargetScreen = CanonicalizeTargetScreen(defaultTargetScreen);
             request.DefaultActionPayloadJson = defaultActionPayloadJson;
+        }
+
+        private static void ValidateAllowedTemplatePlaceholders(string template, string fieldName)
+        {
+            if (string.IsNullOrWhiteSpace(template))
+            {
+                return;
+            }
+
+            var invalidPlaceholders = TemplatePlaceholderRegex
+                .Matches(template)
+                .Select(match => match.Groups[1].Value)
+                .Where(placeholder => !AllowedTemplatePlaceholders.Contains(placeholder))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(placeholder => placeholder, StringComparer.Ordinal)
+                .ToList();
+
+            if (invalidPlaceholders.Count == 0)
+            {
+                return;
+            }
+
+            throw new BadRequestException(MessageKeys.BadRequest, new
+            {
+                field = fieldName,
+                invalidPlaceholders,
+                allowedPlaceholders = AllowedTemplatePlaceholders.OrderBy(placeholder => placeholder, StringComparer.Ordinal)
+            });
         }
 
         private static void ValidateActionConfiguration(
@@ -1164,6 +1473,27 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
             }
         }
 
+        private static string? NormalizeActionPayloadJsonOrNull(string? actionPayload)
+        {
+            if (string.IsNullOrWhiteSpace(actionPayload))
+            {
+                return null;
+            }
+
+            var normalized = actionPayload.Trim();
+
+            if (normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return JsonSerializer.Serialize(new Dictionary<string, string>
+                {
+                    ["route"] = normalized
+                });
+            }
+
+            return NormalizeJsonOrNull(normalized);
+        }
+
         private static string NormalizePriority(string? priority)
         {
             if (string.IsNullOrWhiteSpace(priority))
@@ -1182,10 +1512,15 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationTok
                 return string.Empty;
             }
 
-            return Regex.Replace(template, "\\{(\\w+)\\}", match =>
+            return TemplatePlaceholderRegex.Replace(template, match =>
             {
                 var key = match.Groups[1].Value;
-                return data.TryGetValue(key, out var value) ? value : match.Value;
+                if (data.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+
+                return AllowedTemplatePlaceholders.Contains(key) ? string.Empty : match.Value;
             });
         }
 
