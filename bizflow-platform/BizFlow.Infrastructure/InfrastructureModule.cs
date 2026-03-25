@@ -78,6 +78,9 @@ namespace BizFlow.Infrastructure
 
             // Register Jobs
             builder.RegisterType<ImageCleanupJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<ScheduledNotificationDispatchJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
         }
 
         private void InitializeFirebaseApp()

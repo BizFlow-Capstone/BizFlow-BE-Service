@@ -106,6 +106,13 @@ namespace BizFlow.Application.Common.Constants
         public const string EmployeeSearchEmpty = "EMPLOYEE_SEARCH_EMPTY";
         public const string DeviceTokenRegistered = "DEVICE_TOKEN_REGISTERED";
         public const string FirebaseConfigMissing = "FIREBASE_CONFIG_MISSING";
+        public const string NotificationUnreadCountRetrieved = "NOTIFICATION_UNREAD_COUNT_RETRIEVED";
+        public const string NotificationMarkedAsRead = "NOTIFICATION_MARKED_AS_READ";
+        public const string NotificationMarkedAllAsRead = "NOTIFICATION_MARKED_ALL_AS_READ";
+        public const string NotificationTemplateSaved = "NOTIFICATION_TEMPLATE_SAVED";
+        public const string NotificationTemplateUpdated = "NOTIFICATION_TEMPLATE_UPDATED";
+        public const string NotificationDispatchCreated = "NOTIFICATION_DISPATCH_CREATED";
+        public const string NotificationDispatchProcessed = "NOTIFICATION_DISPATCH_PROCESSED";
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";

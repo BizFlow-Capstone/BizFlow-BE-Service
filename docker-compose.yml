@@ -46,12 +46,20 @@ services:
       - Firebase__ProjectId=${FIREBASE_PROJECT_ID}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/firebase-adminsdk.json
       - Firebase__ServiceAccountPath=/app/credentials/firebase-adminsdk.json
+      # RabbitMQ
+      - RabbitMQ__Host=${RABBITMQ_HOST:-rabbitmq}
+      - RabbitMQ__Port=${RABBITMQ_PORT:-5672}
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-guest}
       # Stripe
       - Stripe__SecretKey=${STRIPE_SECRET_KEY}
       # AI Service internal URL (container-to-container)
       - AiService__BaseUrl=http://bizflow-ai:5000
     volumes:
       - ./docker/credentials:/app/credentials:ro
+    depends_on:
+      rabbitmq:
+        condition: service_started
     networks:
       - bizflow-network
 
@@ -70,6 +78,18 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
       - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+    networks:
+      - bizflow-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: bizflow-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     networks:
       - bizflow-network
 
