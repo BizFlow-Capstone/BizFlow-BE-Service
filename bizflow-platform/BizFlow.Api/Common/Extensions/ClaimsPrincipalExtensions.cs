@@ -79,6 +79,16 @@ public static class ClaimsPrincipalExtensions
             string.Equals(c.Value, role, StringComparison.OrdinalIgnoreCase));
     }
 
+    public static void EnsureAdminRole(this ClaimsPrincipal? principal)
+    {
+        EnsureAuthenticated(principal);
+
+        if (!principal.HasRole("admin"))
+        {
+            throw new ForbiddenException(MessageKeys.AdminOnly);
+        }
+    }
+
     private static void EnsureAuthenticated(ClaimsPrincipal? principal)
     {
         if (!principal.IsAuthenticated())
