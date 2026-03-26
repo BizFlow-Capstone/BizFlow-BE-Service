@@ -215,7 +215,7 @@ namespace BizFlow.Application.Services
                     var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    debtor.CurrentBalance += order.DebtAmount;
+                    debtor.CurrentBalance -= order.DebtAmount;
                     debtor.UpdatedAt = DateTime.UtcNow;
                     _uow.Debtors.Update(debtor);
                 }
@@ -282,29 +282,29 @@ namespace BizFlow.Application.Services
                         var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                             ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                        var rollbackTx = new DebtorPaymentTransaction
-                        {
-                            DebtorId = debtor.DebtorId,
-                            Amount = -order.DebtAmount,
-                            PaymentMethod = PaymentMethods.System,
-                            Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
-                            BalanceBefore = debtor.CurrentBalance,
-                            BalanceAfter = debtor.CurrentBalance - order.DebtAmount,
-                            CreatedByUserId = userId,
-                            PaidAt = DateTime.UtcNow
-                        };
+                    var rollbackTx = new DebtorPaymentTransaction
+                    {
+                        DebtorId = debtor.DebtorId,
+                        Amount = order.DebtAmount,
+                        PaymentMethod = PaymentMethods.System,
+                        Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
+                        BalanceBefore = debtor.CurrentBalance,
+                        BalanceAfter = debtor.CurrentBalance + order.DebtAmount,
+                        CreatedByUserId = userId,
+                        PaidAt = DateTime.UtcNow
+                    };
 
-                        debtor.CurrentBalance = rollbackTx.BalanceAfter;
-                        debtor.UpdatedAt = DateTime.UtcNow;
+                    debtor.CurrentBalance = rollbackTx.BalanceAfter;
+                    debtor.UpdatedAt = DateTime.UtcNow;
 
-                        await _uow.Debtors.AddPaymentAsync(rollbackTx);
-                        _uow.Debtors.Update(debtor);
-                        await _uow.SaveChangesAsync();
+                    await _uow.Debtors.AddPaymentAsync(rollbackTx);
+                    _uow.Debtors.Update(debtor);
+                    await _uow.SaveChangesAsync();
 
-                        await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
-                    }
+                    await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
+                }
 
-                    var saleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, order.OrderId);
+                var saleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, order.OrderId);
                     foreach (var revenue in saleRevenues)
                     {
                         revenue.DeletedAt = DateTime.UtcNow;
@@ -450,7 +450,7 @@ namespace BizFlow.Application.Services
                     var newDebtor = await _uow.Debtors.GetByIdAsync(newOrder.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    newDebtor.CurrentBalance += newOrder.DebtAmount;
+                    newDebtor.CurrentBalance -= newOrder.DebtAmount;
                     newDebtor.UpdatedAt = DateTime.UtcNow;
                     _uow.Debtors.Update(newDebtor);
                 }
@@ -497,11 +497,11 @@ namespace BizFlow.Application.Services
                     var rollbackTx = new DebtorPaymentTransaction
                     {
                         DebtorId = oldDebtor.DebtorId,
-                        Amount = -oldOrder.DebtAmount,
+                        Amount = oldOrder.DebtAmount,
                         PaymentMethod = PaymentMethods.System,
                         Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, oldOrder.OrderCode),
                         BalanceBefore = oldDebtor.CurrentBalance,
-                        BalanceAfter = oldDebtor.CurrentBalance - oldOrder.DebtAmount,
+                        BalanceAfter = oldDebtor.CurrentBalance + oldOrder.DebtAmount,
                         CreatedByUserId = userId,
                         PaidAt = DateTime.UtcNow
                     };
@@ -694,8 +694,8 @@ namespace BizFlow.Application.Services
 
             if (debtAmount > 0 && debtor != null && debtor.CreditLimit.HasValue)
             {
-                var projectedBalance = debtor.CurrentBalance + debtAmount;
-                if (projectedBalance > debtor.CreditLimit.Value)
+                var projectedBalance = debtor.CurrentBalance - debtAmount;
+                if (-projectedBalance > debtor.CreditLimit.Value)
                 {
                     warnings.Add(MessageKeys.DebtorCreditLimitExceededConfirmRequired);
                     hasCreditLimitWarning = true;

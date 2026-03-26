@@ -144,6 +144,14 @@ namespace BizFlow.Infrastructure.Repositories
                     ula.IsActive == true);
         }
 
+        public async Task<Guid?> GetOwnerIdByLocationAsync(int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.BusinessLocationId == locationId && ula.IsOwner && ula.IsActive == true)
+                .Select(ula => (Guid?)ula.UserId)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)
         {
             return await (

@@ -14,6 +14,8 @@ namespace BizFlow.Application.Interfaces.Services
         IReadOnlyList<string> GetOrderStatuses();
         IReadOnlyList<string> GetProductStatuses();
         IReadOnlyList<string> GetRevenueTypes();
+        IReadOnlyList<string> GetSubscriptionStatuses();
+        IReadOnlyList<string> GetSubscriptionTransactionTypes();
         IReadOnlyList<string> GetStockMovementTypes();
         IReadOnlyList<string> GetStockMovementReferenceTypes();
     }

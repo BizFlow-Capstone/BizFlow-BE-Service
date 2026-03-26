@@ -41,7 +41,7 @@ public partial class Debtor
     public decimal? CreditLimit { get; set; }
 
     /// <summary>
-    /// Số dư nợ hiện tại (&gt;0 = đang nợ)
+    /// Số dư nợ hiện tại (&lt;0 = đang nợ, &gt;0 = chủ nợ)
     /// </summary>
     public decimal CurrentBalance { get; set; }
 

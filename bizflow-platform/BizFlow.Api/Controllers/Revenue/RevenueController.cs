@@ -43,6 +43,22 @@ namespace BizFlow.Api.Controllers.Revenue
             return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetRevenues), new { });
         }
 
+        [HttpPut("revenues/{revenueId:long}")]
+        [SwaggerOperation(Summary = "Update manual revenue")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateManual(long revenueId, [FromBody] UpdateManualRevenueRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(MessageKeys.ValidationError, ModelState);
+
+            var userId = GetCurrentUserId();
+            var result = await _revenueService.UpdateManualAsync(userId, revenueId, request);
+            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+        }
+
         [HttpGet("revenues")]
         [SwaggerOperation(Summary = "List revenues")]
         [ProducesResponseType(StatusCodes.Status200OK)]
