@@ -1,4 +1,4 @@
-﻿using BizFlow.Application.Interfaces.Repositories;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -24,7 +24,12 @@ namespace BizFlow.Infrastructure.Repositories
             IGeneralLedgerRepository generalLedgerRepository,
             IRevenueRepository revenueRepository,
             IOrderRepository orderRepository,
-            IOrderDetailRepository orderDetailRepository)
+            IOrderDetailRepository orderDetailRepository,
+            IAccountingBookRepository accountingBookRepository,
+            IAccountingTemplateRepository accountingTemplateRepository,
+            ITaxRulesetRepository taxRulesetRepository,
+            IFormulaDefinitionRepository formulaDefinitionRepository,
+            IFormulaResultRepository formulaResultRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -41,6 +46,11 @@ namespace BizFlow.Infrastructure.Repositories
             Revenues = revenueRepository;
             Orders = orderRepository;
             OrderDetails = orderDetailRepository;
+            AccountingBooks = accountingBookRepository;
+            AccountingTemplates = accountingTemplateRepository;
+            TaxRulesets = taxRulesetRepository;
+            FormulaDefinitions = formulaDefinitionRepository;
+            FormulaResults = formulaResultRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -57,6 +67,13 @@ namespace BizFlow.Infrastructure.Repositories
         public IRevenueRepository Revenues { get; set; }
         public IOrderRepository Orders { get; set; }
         public IOrderDetailRepository OrderDetails { get; set; }
+
+        // ── Accounting Book Module ──
+        public IAccountingBookRepository AccountingBooks { get; set; }
+        public IAccountingTemplateRepository AccountingTemplates { get; set; }
+        public ITaxRulesetRepository TaxRulesets { get; set; }
+        public IFormulaDefinitionRepository FormulaDefinitions { get; set; }
+        public IFormulaResultRepository FormulaResults { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

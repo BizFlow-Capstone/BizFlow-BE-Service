@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure.DataContext;
 using BizFlow.Infrastructure.Repositories;
@@ -81,6 +81,14 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<ScheduledNotificationDispatchJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
+
+            // Register Accounting Book engines
+            builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
+                   .As<IFormulaEngine>()
+                   .InstancePerLifetimeScope();
+            builder.RegisterType<BizFlow.Infrastructure.Services.BookRendering.BookRenderingService>()
+                   .As<IBookRenderingService>()
+                   .InstancePerLifetimeScope();
         }
 
         private void InitializeFirebaseApp()

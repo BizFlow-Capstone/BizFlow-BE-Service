@@ -66,6 +66,22 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<UserLocationAssignment> UserLocationAssignments { get; set; }
 
+    // ── Accounting Book Module ──
+    public virtual DbSet<TaxRuleset> TaxRulesets { get; set; }
+    public virtual DbSet<TaxGroupRule> TaxGroupRules { get; set; }
+    public virtual DbSet<IndustryTaxRate> IndustryTaxRates { get; set; }
+    public virtual DbSet<AccountingTemplate> AccountingTemplates { get; set; }
+    public virtual DbSet<AccountingTemplateVersion> AccountingTemplateVersions { get; set; }
+    public virtual DbSet<MappableEntity> MappableEntities { get; set; }
+    public virtual DbSet<MappableField> MappableFields { get; set; }
+    public virtual DbSet<TemplateFieldMapping> TemplateFieldMappings { get; set; }
+    public virtual DbSet<AccountingBook> AccountingBooks { get; set; }
+    public virtual DbSet<AccountingBookBusinessType> AccountingBookBusinessTypes { get; set; }
+    public virtual DbSet<AccountingExport> AccountingExports { get; set; }
+    public virtual DbSet<TaxPayment> TaxPayments { get; set; }
+    public virtual DbSet<FormulaDefinition> FormulaDefinitions { get; set; }
+    public virtual DbSet<FormulaResult> FormulaResults { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
@@ -1210,6 +1226,242 @@ public partial class BizFlowDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.UserLocationAssignments)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("fk_user_location_assignment_profile");
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // Accounting Book Module — Entity Configurations
+        // ═══════════════════════════════════════════════════════════
+
+        modelBuilder.Entity<TaxRuleset>(entity =>
+        {
+            entity.HasKey(e => e.RulesetId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => new { e.Code, e.Version }, "idx_ruleset_code_version").IsUnique();
+            entity.Property(e => e.Code).HasMaxLength(50);
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.Version).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<TaxGroupRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.RulesetId, "idx_tgr_ruleset");
+            entity.HasIndex(e => new { e.RulesetId, e.GroupNumber }, "idx_tgr_ruleset_group").IsUnique();
+            entity.Property(e => e.GroupName).HasMaxLength(100);
+            entity.Property(e => e.GroupDescription).HasColumnType("text");
+            entity.Property(e => e.ConditionsJson).HasColumnType("json");
+            entity.Property(e => e.OutcomesJson).HasColumnType("json");
+            entity.HasOne(d => d.Ruleset).WithMany(p => p.GroupRules)
+                .HasForeignKey(d => d.RulesetId).HasConstraintName("fk_tgr_ruleset");
+        });
+
+        modelBuilder.Entity<IndustryTaxRate>(entity =>
+        {
+            entity.HasKey(e => e.RateId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.RulesetId, "idx_itr_ruleset");
+            entity.HasIndex(e => new { e.RulesetId, e.BusinessTypeId, e.TaxType }, "idx_itr_unique").IsUnique();
+            entity.Property(e => e.TaxType).HasMaxLength(20);
+            entity.Property(e => e.TaxRate).HasPrecision(5, 4);
+            entity.Property(e => e.Description).HasMaxLength(200);
+            entity.HasOne(d => d.Ruleset).WithMany(p => p.IndustryTaxRates)
+                .HasForeignKey(d => d.RulesetId).HasConstraintName("fk_itr_ruleset");
+            entity.HasOne(d => d.BusinessType).WithMany()
+                .HasForeignKey(d => d.BusinessTypeId).HasConstraintName("fk_itr_business_type");
+        });
+
+        modelBuilder.Entity<AccountingTemplate>(entity =>
+        {
+            entity.HasKey(e => e.TemplateId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.TemplateCode, "idx_template_code").IsUnique();
+            entity.Property(e => e.TemplateCode).HasMaxLength(20);
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.ApplicableGroups).HasColumnType("json");
+            entity.Property(e => e.ApplicableMethods).HasColumnType("json");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<AccountingTemplateVersion>(entity =>
+        {
+            entity.HasKey(e => e.TemplateVersionId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.TemplateId, "idx_tv_template");
+            entity.HasIndex(e => e.IsActive, "idx_tv_active");
+            entity.Property(e => e.VersionLabel).HasMaxLength(20);
+            entity.Property(e => e.TemplateFileUrl).HasMaxLength(500);
+            entity.Property(e => e.ChangeNotes).HasColumnType("text");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.HasOne(d => d.Template).WithMany(p => p.Versions)
+                .HasForeignKey(d => d.TemplateId).HasConstraintName("fk_tv_template");
+        });
+
+        modelBuilder.Entity<MappableEntity>(entity =>
+        {
+            entity.HasKey(e => e.EntityId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.EntityCode, "idx_me_code").IsUnique();
+            entity.Property(e => e.EntityCode).HasMaxLength(50);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.Category).HasMaxLength(50).HasDefaultValueSql("'revenue'");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).ValueGeneratedOnAddOrUpdate().HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<MappableField>(entity =>
+        {
+            entity.HasKey(e => e.FieldId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.EntityId, "idx_mf_entity");
+            entity.HasIndex(e => new { e.EntityId, e.FieldCode }, "idx_mf_entity_field").IsUnique();
+            entity.Property(e => e.FieldCode).HasMaxLength(100);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.DataType).HasMaxLength(20);
+            entity.Property(e => e.AllowedAggregations).HasColumnType("json");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).ValueGeneratedOnAddOrUpdate().HasColumnType("datetime");
+            entity.HasOne(d => d.Entity).WithMany(p => p.Fields)
+                .HasForeignKey(d => d.EntityId).HasConstraintName("fk_mf_entity");
+        });
+
+        modelBuilder.Entity<TemplateFieldMapping>(entity =>
+        {
+            entity.HasKey(e => e.MappingId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.TemplateVersionId, "idx_tfm_version");
+            entity.HasIndex(e => new { e.SourceEntityId, e.SourceFieldId }, "idx_tfm_source");
+            entity.HasIndex(e => e.FormulaId, "idx_tfm_formula");
+            entity.Property(e => e.FieldCode).HasMaxLength(50);
+            entity.Property(e => e.FieldLabel).HasMaxLength(200);
+            entity.Property(e => e.FieldType).HasMaxLength(20);
+            entity.Property(e => e.SourceType).HasMaxLength(30);
+            entity.Property(e => e.FilterJson).HasColumnType("json");
+            entity.Property(e => e.AggregationType).HasMaxLength(20);
+            entity.Property(e => e.FormulaExpression).HasMaxLength(500);
+            entity.Property(e => e.DependsOn).HasColumnType("json");
+            entity.Property(e => e.ExportColumn).HasMaxLength(10);
+            entity.HasOne(d => d.TemplateVersion).WithMany(p => p.FieldMappings)
+                .HasForeignKey(d => d.TemplateVersionId).HasConstraintName("fk_tfm_version");
+            entity.HasOne(d => d.SourceEntity).WithMany()
+                .HasForeignKey(d => d.SourceEntityId).HasConstraintName("fk_tfm_source_entity");
+            entity.HasOne(d => d.SourceField).WithMany()
+                .HasForeignKey(d => d.SourceFieldId).HasConstraintName("fk_tfm_source_field");
+            entity.HasOne(d => d.Formula).WithMany(p => p.FieldMappings)
+                .HasForeignKey(d => d.FormulaId).HasConstraintName("fk_tfm_formula");
+        });
+
+        modelBuilder.Entity<AccountingBook>(entity =>
+        {
+            entity.HasKey(e => e.BookId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => new { e.BusinessLocationId, e.PeriodId }, "idx_book_location_period");
+            entity.HasIndex(e => e.Status, "idx_book_status");
+            entity.Property(e => e.TaxMethod).HasMaxLength(20);
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValueSql("'active'");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.ArchivedAt).HasColumnType("datetime");
+            entity.HasOne(d => d.BusinessLocation).WithMany()
+                .HasForeignKey(d => d.BusinessLocationId).OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_book_location");
+            entity.HasOne(d => d.Period).WithMany()
+                .HasForeignKey(d => d.PeriodId).HasConstraintName("fk_book_period");
+            entity.HasOne(d => d.TemplateVersion).WithMany(p => p.AccountingBooks)
+                .HasForeignKey(d => d.TemplateVersionId).HasConstraintName("fk_book_template_version");
+            entity.HasOne(d => d.Ruleset).WithMany(p => p.AccountingBooks)
+                .HasForeignKey(d => d.RulesetId).HasConstraintName("fk_book_ruleset");
+        });
+
+        modelBuilder.Entity<AccountingBookBusinessType>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => new { e.BookId, e.BusinessTypeId }, "idx_abbt_book_bt").IsUnique();
+            entity.HasIndex(e => e.TaxProfileKey, "idx_abbt_profile");
+            entity.Property(e => e.TaxProfileKey).HasMaxLength(100);
+            entity.HasOne(d => d.Book).WithMany(p => p.BookBusinessTypes)
+                .HasForeignKey(d => d.BookId).OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_abbt_book");
+            entity.HasOne(d => d.BusinessType).WithMany()
+                .HasForeignKey(d => d.BusinessTypeId).HasConstraintName("fk_abbt_business_type");
+        });
+
+        modelBuilder.Entity<AccountingExport>(entity =>
+        {
+            entity.HasKey(e => e.ExportId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.BookId, "idx_export_book");
+            entity.HasIndex(e => e.ExportedAt, "idx_export_date");
+            entity.Property(e => e.TaxMethod).HasMaxLength(20);
+            entity.Property(e => e.RulesetVersion).HasMaxLength(20);
+            entity.Property(e => e.SummaryJson).HasColumnType("longtext");
+            entity.Property(e => e.ExportFormat).HasMaxLength(10);
+            entity.Property(e => e.FileUrl).HasMaxLength(500);
+            entity.Property(e => e.FilePublicId).HasMaxLength(255);
+            entity.Property(e => e.ExportedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.Notes).HasColumnType("text");
+            entity.HasOne(d => d.Book).WithMany(p => p.Exports)
+                .HasForeignKey(d => d.BookId).HasConstraintName("fk_export_book");
+        });
+
+        modelBuilder.Entity<TaxPayment>(entity =>
+        {
+            entity.HasKey(e => e.TaxPaymentId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.BusinessLocationId, "idx_taxpay_location");
+            entity.HasIndex(e => e.TaxType, "idx_taxpay_type");
+            entity.HasIndex(e => e.PeriodId, "idx_taxpay_period");
+            entity.Property(e => e.TaxType).HasMaxLength(10);
+            entity.Property(e => e.Amount).HasPrecision(15, 2);
+            entity.Property(e => e.PaymentMethod).HasMaxLength(20);
+            entity.Property(e => e.ReferenceNumber).HasMaxLength(100);
+            entity.Property(e => e.Notes).HasColumnType("text");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.DeletedAt).HasColumnType("datetime");
+            entity.HasOne(d => d.BusinessLocation).WithMany()
+                .HasForeignKey(d => d.BusinessLocationId).OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_taxpay_location");
+            entity.HasOne(d => d.Period).WithMany()
+                .HasForeignKey(d => d.PeriodId).HasConstraintName("fk_taxpay_period");
+        });
+
+        modelBuilder.Entity<FormulaDefinition>(entity =>
+        {
+            entity.HasKey(e => e.FormulaId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => e.Code, "idx_fd_code").IsUnique();
+            entity.Property(e => e.Code).HasMaxLength(50);
+            entity.Property(e => e.Name).HasMaxLength(255);
+            entity.Property(e => e.Description).HasColumnType("text");
+            entity.Property(e => e.FormulaType).HasMaxLength(20);
+            entity.Property(e => e.ExpressionJson).HasColumnType("json");
+            entity.Property(e => e.ResultDataType).HasMaxLength(10).HasDefaultValueSql("'decimal'");
+            entity.Property(e => e.RoundingMode).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).ValueGeneratedOnAddOrUpdate().HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<FormulaResult>(entity =>
+        {
+            entity.HasKey(e => e.ResultId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.HasIndex(e => new { e.BookId, e.FormulaId, e.ProductId, e.BusinessTypeId, e.SectionCode },
+                "idx_fr_composite").IsUnique();
+            entity.HasIndex(e => new { e.BookId, e.IsStale }, "idx_fr_stale");
+            entity.Property(e => e.ProductId).HasMaxLength(36).HasDefaultValueSql("''");
+            entity.Property(e => e.BusinessTypeId).HasMaxLength(36).HasDefaultValueSql("''");
+            entity.Property(e => e.SectionCode).HasMaxLength(50).HasDefaultValueSql("''");
+            entity.Property(e => e.ResultValue).HasPrecision(18, 4);
+            entity.Property(e => e.ComputedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+            entity.HasOne(d => d.Book).WithMany(p => p.FormulaResults)
+                .HasForeignKey(d => d.BookId).HasConstraintName("fk_fr_book");
+            entity.HasOne(d => d.Formula).WithMany(p => p.Results)
+                .HasForeignKey(d => d.FormulaId).HasConstraintName("fk_fr_formula");
         });
 
         OnModelCreatingPartial(modelBuilder);

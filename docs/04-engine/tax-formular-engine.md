@@ -63,11 +63,13 @@
 ```
 
 **Rendering Service** chỉ lo:
+
 1. Query data rows (Revenues, Costs, GL...)
 2. Gọi `FormulaEngine.EvaluateAll(bookId, context)` → nhận được `Dictionary<string, decimal>`
 3. Gắn kết quả vào các dòng tổng hợp / dòng thuế
 
 **Formula Engine** chỉ lo:
+
 1. Đọc `FormulaDefinitions` (ExpressionJson)
 2. Tính toán (query data nếu cần, tham chiếu ô khác, apply công thức)
 3. Trả kết quả + cache vào `FormulaResults`
