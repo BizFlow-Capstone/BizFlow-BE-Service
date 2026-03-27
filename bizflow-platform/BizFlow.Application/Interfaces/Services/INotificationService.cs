@@ -11,6 +11,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task SendSilentNotificationAsync(Guid userId, Dictionary<string, string> data);
         Task SendEmployeeInviteAsync(Guid employeeId, string ownerName);
         Task NotifyEmployeeRemovedAsync(Guid employeeId, string businessName);
+        Task SendInvitationReplyAsync(Guid ownerUserId, bool isAccepted, string employeeName);
 
         Task<NotificationActionCatalogDto> GetActionCatalogAsync();
         Task<IEnumerable<NotificationTemplateDto>> GetTemplatesAsync();

@@ -432,8 +432,5 @@ IsActive = VALUES(IsActive);
 -- =============================================
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
 VALUES
-('050_create_notification_center_tables', '1.0.0'),
-('051_notification_outbox_archive_and_priority', '1.0.0'),
-('052_realign_campaign_notification_relationships', '1.0.0'),
-('053_cleanup_legacy_notification_dispatch_columns', '1.0.0')
+('050_create_notification_center_tables', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);
