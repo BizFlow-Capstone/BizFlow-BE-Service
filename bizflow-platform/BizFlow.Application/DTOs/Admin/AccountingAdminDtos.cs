@@ -59,6 +59,10 @@ public class AdminTemplateFieldMappingDto
     public string FieldLabel { get; set; } = string.Empty;
     public string FieldType { get; set; } = string.Empty;
     public string? SourceType { get; set; }
+    public int? SourceEntityId { get; set; }
+    public int? SourceFieldId { get; set; }
+    public string? FilterJson { get; set; }
+    public string? AggregationType { get; set; }
     public long? FormulaId { get; set; }
     public string? FormulaExpression { get; set; }
     public int SortOrder { get; set; }
@@ -109,6 +113,10 @@ public class UpdateTemplateFieldMappingRequest
     public string? FieldLabel { get; set; }
     public string? FieldType { get; set; }
     public string? SourceType { get; set; }
+    public int? SourceEntityId { get; set; }
+    public int? SourceFieldId { get; set; }
+    public string? FilterJson { get; set; }
+    public string? AggregationType { get; set; }
     public long? FormulaId { get; set; }
     public string? FormulaExpression { get; set; }
     public int? SortOrder { get; set; }

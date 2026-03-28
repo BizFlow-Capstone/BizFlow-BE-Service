@@ -252,7 +252,8 @@ public class BookRenderingService : IBookRenderingService
                     ["Amount"] = r.Amount,
                     ["RevenueType"] = r.RevenueType,
                     ["MoneyChannel"] = r.MoneyChannel,
-                    ["OrderId"] = r.OrderId
+                    ["OrderId"] = r.OrderId,
+                    ["BusinessTypeId"] = r.BusinessTypeId
                 }
             }).ToList(),
             HasMore = hasMore,
@@ -370,6 +371,13 @@ public class BookRenderingService : IBookRenderingService
     // ────────────────────────────────────────────────────────
     private static object? ExtractFieldValue(SourceRow row, TemplateFieldMapping mapping)
     {
+        if (!string.IsNullOrWhiteSpace(mapping.SourceField?.FieldCode))
+        {
+            var sourceFieldValue = ExtractBySourceFieldCode(row, mapping.SourceField.FieldCode);
+            if (sourceFieldValue != null)
+                return sourceFieldValue;
+        }
+
         // Map field code to source data
         // FieldCode in mapping maps to specific source entity fields
         return mapping.FieldCode switch
@@ -393,6 +401,36 @@ public class BookRenderingService : IBookRenderingService
 
             // Fallback: try direct match
             _ => row.Values.GetValueOrDefault(mapping.FieldCode)
+        };
+    }
+
+    private static object? ExtractBySourceFieldCode(SourceRow row, string sourceFieldCode)
+    {
+        return sourceFieldCode switch
+        {
+            // Revenue/Order
+            "RevenueId" => row.Values.GetValueOrDefault("RevenueId"),
+            "RevenueDate" or "CompletedAt" => row.Values.GetValueOrDefault("RevenueDate") ?? row.Date,
+            "Amount" or "TotalAmount" or "CostAmount" => row.Values.GetValueOrDefault("Amount"),
+            "Description" or "CostDescription" => row.Values.GetValueOrDefault("Description"),
+            "OrderId" or "OrderCode" => row.Values.GetValueOrDefault("OrderId"),
+            "RevenueType" => row.Values.GetValueOrDefault("RevenueType"),
+            "BusinessTypeId" => row.Values.GetValueOrDefault("BusinessTypeId"),
+
+            // Cost
+            "CostDate" => row.Values.GetValueOrDefault("CostDate") ?? row.Date,
+            "CostType" or "CostCategory" => row.Values.GetValueOrDefault("CostType"),
+
+            // GL
+            "EntryId" => row.Values.GetValueOrDefault("EntryId"),
+            "EntryDate" => row.Values.GetValueOrDefault("EntryDate") ?? row.Date,
+            "DebitAmount" => row.Values.GetValueOrDefault("DebitAmount"),
+            "CreditAmount" => row.Values.GetValueOrDefault("CreditAmount"),
+            "TransactionType" => row.Values.GetValueOrDefault("TransactionType"),
+            "MoneyChannel" => row.Values.GetValueOrDefault("MoneyChannel"),
+
+            // Fallback direct lookup by metadata field code
+            _ => row.Values.GetValueOrDefault(sourceFieldCode)
         };
     }
 

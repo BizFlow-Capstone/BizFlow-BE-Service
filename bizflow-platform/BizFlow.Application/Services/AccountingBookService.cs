@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.AccountingBook;
+using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
@@ -76,24 +77,31 @@ public class AccountingBookService : IAccountingBookService
         if (!businessTypeIds.Any())
             throw new BadRequestException("NO_BUSINESS_TYPES_FOR_LOCATION");
 
-        // 5. Create one combined profile per template (all business types in one book)
-        var combinedProfileKey = $"ALL_BUSINESS_TYPES|METHOD_{request.TaxMethod}";
+        var allBusinessTypes = (await _uow.BusinessTypes.GetAllAsync())
+            .ToDictionary(bt => bt.BusinessTypeId, bt => bt.Name);
+        var locationBusinessTypes = businessTypeIds
+            .Select(id => new BusinessTypeInBookDto
+            {
+                BusinessTypeId = id,
+                Name = allBusinessTypes.GetValueOrDefault(id, string.Empty)
+            })
+            .ToList();
 
-        // 6. Create books per template
+        // 5. Create books per template
         var createdBooks = new List<BookListItemDto>();
 
         await _uow.ExecuteResilientAsync(async ct =>
         {
             foreach (var (template, version) in templateVersions)
             {
-                // Check if book already exists for this period + template in combined mode
+                // Check if book already exists for this location + period + template.
                 var exists = await _uow.AccountingBooks.ExistsForPeriodAsync(
-                    request.PeriodId, version.TemplateVersionId, combinedProfileKey);
+                    locationId, request.PeriodId, version.TemplateVersionId);
                 if (exists)
                 {
                     _logger.LogWarning(
-                        "Book already exists for period {PeriodId}, template {Code}, profile {Profile}",
-                        request.PeriodId, template.TemplateCode, combinedProfileKey);
+                        "Book already exists for location {LocationId}, period {PeriodId}, template {Code}",
+                        locationId, request.PeriodId, template.TemplateCode);
                     continue;
                 }
 
@@ -107,12 +115,7 @@ public class AccountingBookService : IAccountingBookService
                     RulesetId = ruleset.RulesetId,
                     Status = "active",
                     CreatedByUserId = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    BookBusinessTypes = businessTypeIds.Select(btId => new AccountingBookBusinessType
-                    {
-                        BusinessTypeId = btId,
-                        TaxProfileKey = combinedProfileKey
-                    }).ToList()
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 await _uow.AccountingBooks.AddAsync(book);
@@ -126,11 +129,8 @@ public class AccountingBookService : IAccountingBookService
                     GroupNumber = book.GroupNumber,
                     TaxMethod = book.TaxMethod,
                     Status = book.Status,
-                    TaxProfileKey = combinedProfileKey,
-                    BusinessTypes = businessTypeIds.Select(id => new BusinessTypeInBookDto
-                    {
-                        BusinessTypeId = id
-                    }).ToList(),
+                    TaxProfileKey = string.Empty,
+                    BusinessTypes = locationBusinessTypes,
                     CreatedAt = book.CreatedAt
                 });
             }
@@ -152,6 +152,7 @@ public class AccountingBookService : IAccountingBookService
         await _locationService.ValidateOwnerAsync(userId, locationId);
 
         var books = await _uow.AccountingBooks.GetByLocationAndPeriodAsync(locationId, periodId);
+        var locationBusinessTypes = await GetBusinessTypesForLocation(locationId);
 
         return books.Select(b => new BookListItemDto
         {
@@ -161,12 +162,8 @@ public class AccountingBookService : IAccountingBookService
             GroupNumber = b.GroupNumber,
             TaxMethod = b.TaxMethod,
             Status = b.Status,
-            TaxProfileKey = b.BookBusinessTypes.FirstOrDefault()?.TaxProfileKey ?? "",
-            BusinessTypes = b.BookBusinessTypes.Select(bt => new BusinessTypeInBookDto
-            {
-                BusinessTypeId = bt.BusinessTypeId,
-                Name = bt.BusinessType?.Name ?? ""
-            }).ToList(),
+            TaxProfileKey = string.Empty,
+            BusinessTypes = locationBusinessTypes,
             CreatedAt = b.CreatedAt
         }).ToList();
     }
@@ -185,18 +182,14 @@ public class AccountingBookService : IAccountingBookService
 
         var template = book.TemplateVersion?.Template;
         var mappings = book.TemplateVersion?.FieldMappings?.OrderBy(m => m.SortOrder).ToList() ?? new();
+        var businessTypeIds = await GetBusinessTypeIdsForLocation(locationId);
 
         // Build render context
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, book.PeriodId);
-        var renderCtx = BuildRenderContext(book, period);
+        var renderCtx = BuildRenderContext(book, period, businessTypeIds);
 
         // Compute formula summary (KPIs)
         var formulaSummary = await _renderingService.ComputeSummaryAsync(renderCtx);
-
-        var businessTypeIds = book.BookBusinessTypes
-            .Select(bt => bt.BusinessTypeId)
-            .Distinct()
-            .ToList();
 
         var rulesetRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(book.RulesetId, businessTypeIds);
         var allBusinessTypes = (await _uow.BusinessTypes.GetAllAsync())
@@ -318,7 +311,8 @@ public class AccountingBookService : IAccountingBookService
 
         // Build render context
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, book.PeriodId);
-        var renderCtx = BuildRenderContext(book, period);
+        var businessTypeIds = await GetBusinessTypeIdsForLocation(locationId);
+        var renderCtx = BuildRenderContext(book, period, businessTypeIds);
 
         // Render live rows via engine
         var renderResult = await _renderingService.RenderRowsAsync(renderCtx, cursor, batchSize);
@@ -337,7 +331,7 @@ public class AccountingBookService : IAccountingBookService
     // PRIVATE HELPERS
     // ────────────────────────────────────────────────────────
 
-    private BookRenderContext BuildRenderContext(AccountingBook book, AccountingPeriod? period)
+    private BookRenderContext BuildRenderContext(AccountingBook book, AccountingPeriod? period, List<Guid> businessTypeIds)
     {
         return new BookRenderContext
         {
@@ -351,10 +345,26 @@ public class AccountingBookService : IAccountingBookService
             GroupNumber = book.GroupNumber,
             TaxMethod = book.TaxMethod,
             RulesetId = book.RulesetId,
-            BusinessTypeIds = book.BookBusinessTypes
-                .Select(bt => bt.BusinessTypeId)
-                .ToList()
+            BusinessTypeIds = businessTypeIds
         };
+    }
+
+    private async Task<List<BusinessTypeInBookDto>> GetBusinessTypesForLocation(int locationId)
+    {
+        var ids = await GetBusinessTypeIdsForLocation(locationId);
+        if (!ids.Any())
+            return new List<BusinessTypeInBookDto>();
+
+        var map = (await _uow.BusinessTypes.GetAllAsync())
+            .ToDictionary(bt => bt.BusinessTypeId, bt => bt.Name);
+
+        return ids
+            .Select(id => new BusinessTypeInBookDto
+            {
+                BusinessTypeId = id,
+                Name = map.GetValueOrDefault(id, string.Empty)
+            })
+            .ToList();
     }
 
     private async Task<List<Guid>> GetBusinessTypeIdsForLocation(int locationId)
@@ -371,7 +381,29 @@ public class AccountingBookService : IAccountingBookService
         if (ids.Any())
             return ids;
 
-        // Fallback: avoid hard-failing new/empty locations by using active business types.
+        // Fallback 1: derive from revenue classifications if location has no products.
+        var revenueQuery = new RevenueQueryParams
+        {
+            BusinessLocationId = locationId,
+            PageNumber = 1,
+            PageSize = int.MaxValue
+        };
+        var (revenues, _) = await _uow.Revenues.SearchAsync(revenueQuery);
+        ids = revenues
+            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+            .Select(r => r.BusinessTypeId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (ids.Any())
+        {
+            _logger.LogWarning(
+                "No product-linked business type for location {LocationId}, fallback to revenue-linked business types.",
+                locationId);
+            return ids;
+        }
+
+        // Fallback 2: avoid hard-failing new/empty locations by using active business types.
         var businessTypes = await _uow.BusinessTypes.GetAllAsync();
         ids = businessTypes
             .Where(bt => string.Equals(bt.Status, ProductStatus.Active, StringComparison.OrdinalIgnoreCase))

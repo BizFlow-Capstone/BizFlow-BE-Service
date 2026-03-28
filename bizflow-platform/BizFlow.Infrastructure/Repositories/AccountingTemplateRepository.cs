@@ -52,6 +52,10 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
             .Include(x => x.Template)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.Formula)
+            .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
+                .ThenInclude(m => m.SourceField)
+            .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
+                .ThenInclude(m => m.SourceEntity)
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
     }
 
@@ -62,6 +66,10 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
             .Include(x => x.AccountingBooks)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.Formula)
+            .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
+                .ThenInclude(m => m.SourceField)
+            .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
+                .ThenInclude(m => m.SourceEntity)
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
     }
 

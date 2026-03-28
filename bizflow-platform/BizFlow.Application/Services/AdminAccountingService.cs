@@ -1,6 +1,7 @@
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.Admin;
+using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
@@ -76,6 +77,10 @@ public class AdminAccountingService : IAdminAccountingService
                     FieldLabel = m.FieldLabel,
                     FieldType = m.FieldType,
                     SourceType = m.SourceType,
+                    SourceEntityId = m.SourceEntityId,
+                    SourceFieldId = m.SourceFieldId,
+                    FilterJson = m.FilterJson,
+                    AggregationType = m.AggregationType,
                     FormulaId = m.FormulaId,
                     FormulaExpression = m.FormulaExpression,
                     SortOrder = m.SortOrder
@@ -263,6 +268,14 @@ public class AdminAccountingService : IAdminAccountingService
             mapping.FieldType = request.FieldType;
         if (request.SourceType != null)
             mapping.SourceType = request.SourceType;
+        if (request.SourceEntityId.HasValue)
+            mapping.SourceEntityId = request.SourceEntityId;
+        if (request.SourceFieldId.HasValue)
+            mapping.SourceFieldId = request.SourceFieldId;
+        if (request.FilterJson != null)
+            mapping.FilterJson = request.FilterJson;
+        if (request.AggregationType != null)
+            mapping.AggregationType = request.AggregationType;
         if (request.FormulaId.HasValue)
             mapping.FormulaId = request.FormulaId;
         if (request.FormulaExpression != null)
@@ -280,6 +293,10 @@ public class AdminAccountingService : IAdminAccountingService
             FieldLabel = mapping.FieldLabel,
             FieldType = mapping.FieldType,
             SourceType = mapping.SourceType,
+            SourceEntityId = mapping.SourceEntityId,
+            SourceFieldId = mapping.SourceFieldId,
+            FilterJson = mapping.FilterJson,
+            AggregationType = mapping.AggregationType,
             FormulaId = mapping.FormulaId,
             FormulaExpression = mapping.FormulaExpression,
             SortOrder = mapping.SortOrder
@@ -421,6 +438,24 @@ public class AdminAccountingService : IAdminAccountingService
         {
             var products = await _uow.Products.QuickSearchByLocationAsync(request.BusinessLocationId, null);
             businessTypeIds = products.Where(p => p.DeletedAt == null).Select(p => p.BusinessTypeId).Distinct().ToList();
+
+            if (businessTypeIds.Count == 0)
+            {
+                var revenueQuery = new RevenueQueryParams
+                {
+                    BusinessLocationId = request.BusinessLocationId,
+                    FromDate = period.StartDate,
+                    ToDate = period.EndDate,
+                    PageNumber = 1,
+                    PageSize = int.MaxValue
+                };
+                var (revenues, _) = await _uow.Revenues.SearchAsync(revenueQuery);
+                businessTypeIds = revenues
+                    .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+                    .Select(r => r.BusinessTypeId!.Value)
+                    .Distinct()
+                    .ToList();
+            }
         }
 
         var ctx = new BookRenderContext

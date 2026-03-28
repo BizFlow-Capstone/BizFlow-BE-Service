@@ -23,8 +23,6 @@ public class AccountingBookRepository : IAccountingBookRepository
     public async Task<AccountingBook?> GetByIdWithBusinessTypesAsync(long bookId)
     {
         return await _context.Set<AccountingBook>()
-            .Include(x => x.BookBusinessTypes)
-                .ThenInclude(bt => bt.BusinessType)
             .Include(x => x.TemplateVersion)
                 .ThenInclude(v => v.Template)
             .Include(x => x.TemplateVersion)
@@ -35,8 +33,6 @@ public class AccountingBookRepository : IAccountingBookRepository
     public async Task<List<AccountingBook>> GetByLocationAndPeriodAsync(int locationId, long periodId)
     {
         return await _context.Set<AccountingBook>()
-            .Include(x => x.BookBusinessTypes)
-                .ThenInclude(bt => bt.BusinessType)
             .Include(x => x.TemplateVersion)
                 .ThenInclude(v => v.Template)
             .Where(x => x.BusinessLocationId == locationId && x.PeriodId == periodId && x.Status == "active")
@@ -44,13 +40,13 @@ public class AccountingBookRepository : IAccountingBookRepository
             .ToListAsync();
     }
 
-    public async Task<bool> ExistsForPeriodAsync(long periodId, int templateVersionId, string taxProfileKey)
+    public async Task<bool> ExistsForPeriodAsync(int locationId, long periodId, int templateVersionId)
     {
         return await _context.Set<AccountingBook>()
-            .AnyAsync(x => x.PeriodId == periodId
+            .AnyAsync(x => x.BusinessLocationId == locationId
+                && x.PeriodId == periodId
                 && x.TemplateVersionId == templateVersionId
-                && x.Status == "active"
-                && x.BookBusinessTypes.Any(bt => bt.TaxProfileKey == taxProfileKey));
+                && x.Status == "active");
     }
 
     public async Task AddAsync(AccountingBook book)

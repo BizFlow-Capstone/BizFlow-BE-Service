@@ -114,6 +114,31 @@
     </div>
 
     <div class="card">
+        <h2>Field Mapping Testing</h2>
+        <div class="row">
+            <div class="col"><label>MappingId</label><input id="fmMappingId" type="number" /></div>
+            <div class="col"><label>SourceType</label><input id="fmSourceType" placeholder="query | formula | static | auto" /></div>
+            <div class="col"><label>SourceEntityId</label><input id="fmSourceEntityId" type="number" placeholder="e.g. 3 = gl_entries" /></div>
+            <div class="col"><label>SourceFieldId</label><input id="fmSourceFieldId" type="number" placeholder="e.g. 11 = EntryDate" /></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>FieldLabel (optional)</label><input id="fmFieldLabel" /></div>
+            <div class="col"><label>FieldType (optional)</label><input id="fmFieldType" placeholder="date | text | decimal | computed" /></div>
+            <div class="col"><label>AggregationType (optional)</label><input id="fmAggregationType" placeholder="sum | avg | none" /></div>
+        </div>
+        <label>FilterJson (optional)</label>
+        <textarea id="fmFilterJson" placeholder='{"MoneyChannel":"cash"}'></textarea>
+        <div class="actions">
+            <button class="alt" onclick="prefillMappingFromVersionDetail()">Prefill From Version Detail</button>
+            <button onclick="updateFieldMappingRef()">Update Mapping Ref</button>
+        </div>
+        <div id="fieldMappingResult" class="log"></div>
+        <div class="muted" style="margin-top:8px;">
+            Tip: lấy MappingId từ Get Detail của TemplateVersion (fieldMappings[].mappingId), sau đó remap SourceEntityId/SourceFieldId để test cột.
+        </div>
+    </div>
+
+    <div class="card">
         <h2>Formula Testing</h2>
         <div class="row">
             <div class="col"><label>FormulaId</label><input id="formulaId" type="number" /></div>
@@ -306,6 +331,69 @@ async function deleteVersionDraft() {
     const id = document.getElementById('versionId').value;
     await call('DELETE', `/api/admin/accounting/template-versions/${id}`);
 }
+
+function prefillMappingFromVersionDetail() {
+    const raw = document.getElementById('versionDetail').textContent || '';
+    if (!raw.trim()) {
+        json('fieldMappingResult', { message: 'Please load version detail first' });
+        return;
+    }
+
+    let detail;
+    try {
+        detail = JSON.parse(raw);
+    } catch {
+        json('fieldMappingResult', { message: 'Version detail is not valid JSON' });
+        return;
+    }
+
+    const mappings = detail.fieldMappings || [];
+    if (!mappings.length) {
+        json('fieldMappingResult', { message: 'No fieldMappings in version detail' });
+        return;
+    }
+
+    const selected = mappings[0];
+    document.getElementById('fmMappingId').value = selected.mappingId ?? '';
+    document.getElementById('fmSourceType').value = selected.sourceType ?? '';
+    document.getElementById('fmSourceEntityId').value = selected.sourceEntityId ?? '';
+    document.getElementById('fmSourceFieldId').value = selected.sourceFieldId ?? '';
+    document.getElementById('fmFieldLabel').value = selected.fieldLabel ?? '';
+    document.getElementById('fmFieldType').value = selected.fieldType ?? '';
+    document.getElementById('fmAggregationType').value = selected.aggregationType ?? '';
+    document.getElementById('fmFilterJson').value = selected.filterJson ?? '';
+
+    json('fieldMappingResult', { message: 'Prefilled using first mapping from version detail', mapping: selected });
+}
+
+async function updateFieldMappingRef() {
+    const mappingId = Number(document.getElementById('fmMappingId').value);
+    if (!mappingId) {
+        json('fieldMappingResult', { message: 'MappingId is required' });
+        return;
+    }
+
+    const sourceType = document.getElementById('fmSourceType').value.trim();
+    const sourceEntityIdRaw = document.getElementById('fmSourceEntityId').value.trim();
+    const sourceFieldIdRaw = document.getElementById('fmSourceFieldId').value.trim();
+    const fieldLabel = document.getElementById('fmFieldLabel').value.trim();
+    const fieldType = document.getElementById('fmFieldType').value.trim();
+    const aggregationType = document.getElementById('fmAggregationType').value.trim();
+    const filterJson = document.getElementById('fmFilterJson').value.trim();
+
+    const body = {};
+    if (sourceType) body.sourceType = sourceType;
+    if (sourceEntityIdRaw) body.sourceEntityId = Number(sourceEntityIdRaw);
+    if (sourceFieldIdRaw) body.sourceFieldId = Number(sourceFieldIdRaw);
+    if (fieldLabel) body.fieldLabel = fieldLabel;
+    if (fieldType) body.fieldType = fieldType;
+    if (aggregationType) body.aggregationType = aggregationType;
+    if (filterJson) body.filterJson = filterJson;
+
+    const data = await call('PATCH', `/api/admin/accounting/field-mappings/${mappingId}/testing`, body);
+    json('fieldMappingResult', data);
+}
+
 async function updateFormula() {
     const id = document.getElementById('formulaId').value;
     const body = {

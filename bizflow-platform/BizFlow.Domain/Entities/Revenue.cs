@@ -16,6 +16,11 @@ public partial class Revenue
     public int BusinessLocationId { get; set; }
 
     /// <summary>
+    /// Optional business type classification for accounting book context
+    /// </summary>
+    public Guid? BusinessTypeId { get; set; }
+
+    /// <summary>
     /// Soft reference to Order, nullable because some revenues are manual
     /// </summary>
     public long? OrderId { get; set; }
@@ -58,4 +63,5 @@ public partial class Revenue
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
+    public virtual BusinessType? BusinessType { get; set; }
 }

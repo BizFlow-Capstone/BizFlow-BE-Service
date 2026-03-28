@@ -1054,6 +1054,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.BusinessLocationId, "idx_revenue_location");
 
+            entity.HasIndex(e => e.BusinessTypeId, "idx_revenue_business_type");
+
             entity.HasIndex(e => new { e.BusinessLocationId, e.RevenueDate }, "idx_revenue_location_date");
 
             entity.HasIndex(e => e.RevenueType, "idx_revenue_type");
@@ -1062,6 +1064,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasPrecision(15, 2)
                 .HasComment("Revenue amount");
             entity.Property(e => e.BusinessLocationId).HasComment("FK to BusinessLocations");
+            entity.Property(e => e.BusinessTypeId).HasComment("Nguon phan loai nganh nghe cho book live view");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
@@ -1085,6 +1088,10 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.BusinessLocationId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("fk_revenue_location");
+
+            entity.HasOne(d => d.BusinessType).WithMany(p => p.Revenues)
+                .HasForeignKey(d => d.BusinessTypeId)
+                .HasConstraintName("fk_revenue_business_type");
         });
 
         modelBuilder.Entity<Role>(entity =>

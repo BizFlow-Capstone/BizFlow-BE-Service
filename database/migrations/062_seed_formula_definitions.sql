@@ -41,7 +41,7 @@ INSERT INTO FormulaDefinitions (Code, Name, Description, FormulaType, Expression
 ('S2A_PIT', 'Thuế TNCN — S2a',
  'MAX(0, DT toàn bộ - 500 triệu) × PIT rate',
  'TAX_RATE',
- '{"op":"MULTIPLY","left":{"fn":"MAX","args":[{"literal":0},{"op":"SUBTRACT","left":{"ref":"S2A_TOTAL_REVENUE_ALL"},"right":{"literal":500000000}}]},"right":{"lookup":{"entity":"IndustryTaxRates","field":"TaxRate","filter":{"TaxType":"PIT_M1"}}}}',
+ '{"op":"MULTIPLY","left":{"fn":"MAX","args":[{"literal":0},{"op":"SUBTRACT","left":{"ref":"S2A_TOTAL_REVENUE_ALL"},"right":{"literal":500000000}}]},"right":{"lookup":{"entity":"IndustryTaxRates","field":"TaxRate","filter":{"TaxType":"PIT_METHOD_1"}}}}',
  'decimal', 0),
 
 
@@ -83,7 +83,7 @@ INSERT INTO FormulaDefinitions (Code, Name, Description, FormulaType, Expression
 ('S2C_PIT', 'Thuế TNCN Cách 2 — S2c',
  'MAX(0, chênh lệch) × PIT rate Cách 2',
  'TAX_RATE',
- '{"op":"MULTIPLY","left":{"fn":"MAX","args":[{"literal":0},{"ref":"S2C_PROFIT"}]},"right":{"lookup":{"entity":"IndustryTaxRates","field":"TaxRate","filter":{"TaxType":"PIT_M1"}}}}',
+ '{"op":"MULTIPLY","left":{"fn":"MAX","args":[{"literal":0},{"ref":"S2C_PROFIT"}]},"right":{"lookup":{"entity":"IndustryTaxRates","field":"TaxRate","filter":{"TaxType":"PIT_METHOD_1"}}}}',
  'decimal', 0),
 
 

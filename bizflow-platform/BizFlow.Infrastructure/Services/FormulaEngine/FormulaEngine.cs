@@ -261,12 +261,22 @@ public class FormulaEngine : IFormulaEngine
                     foreach (var p in f.EnumerateObject())
                         filter[p.Name] = p.Value.GetString() ?? "";
 
-                var taxType = filter.GetValueOrDefault("TaxType", "VAT");
+                var taxType = filter.GetValueOrDefault("TaxType", "VAT").Trim();
                 var rates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
                     ctx.RulesetId, ctx.BusinessTypeIds);
 
-                // Return the first matching rate (all business types in this book share same rate)
-                var rate = rates.FirstOrDefault(r => r.TaxType == taxType);
+                // Strict string match by design: TaxType token in formula must match DB token exactly.
+                var rate = rates.FirstOrDefault(r =>
+                    string.Equals(r.TaxType, taxType, StringComparison.Ordinal));
+
+                if (rate == null)
+                {
+                    var availableTaxTypes = string.Join(",", rates.Select(x => x.TaxType).Distinct().OrderBy(x => x));
+                    _logger.LogWarning(
+                        "Tax rate not found with exact TaxType match. Requested={TaxType}, RulesetId={RulesetId}, BusinessTypeCount={BusinessTypeCount}, Available=[{AvailableTaxTypes}]",
+                        taxType, ctx.RulesetId, ctx.BusinessTypeIds.Count, availableTaxTypes);
+                }
+
                 return rate?.TaxRate ?? 0m;
 
             default:
