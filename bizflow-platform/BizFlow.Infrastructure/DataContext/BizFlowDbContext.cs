@@ -1292,7 +1292,7 @@ public partial class BizFlowDbContext : DbContext
             entity.UseCollation("utf8mb4_unicode_ci");
             entity.HasIndex(e => e.TemplateId, "idx_tv_template");
             entity.HasIndex(e => e.IsActive, "idx_tv_active");
-            entity.Property(e => e.VersionLabel).HasMaxLength(20);
+            entity.Property(e => e.VersionLabel).HasMaxLength(50);
             entity.Property(e => e.TemplateFileUrl).HasMaxLength(500);
             entity.Property(e => e.ChangeNotes).HasColumnType("text");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");

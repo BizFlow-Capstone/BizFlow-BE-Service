@@ -98,3 +98,4 @@ bld/
 **/packages/*
 !**/packages/build/
 
+.gitnexus

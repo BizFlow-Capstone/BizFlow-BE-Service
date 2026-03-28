@@ -28,4 +28,28 @@ public class FormulaDefinitionRepository : IFormulaDefinitionRepository
             .Where(x => x.IsActive)
             .ToListAsync();
     }
+
+    public async Task<List<FormulaDefinition>> GetAllAsync()
+    {
+        return await _context.Set<FormulaDefinition>()
+            .OrderBy(x => x.FormulaId)
+            .ToListAsync();
+    }
+
+    public async Task<FormulaDefinition?> GetByIdAsync(long formulaId)
+    {
+        return await _context.Set<FormulaDefinition>()
+            .FirstOrDefaultAsync(x => x.FormulaId == formulaId);
+    }
+
+    public async Task<FormulaDefinition> AddAsync(FormulaDefinition formula)
+    {
+        await _context.Set<FormulaDefinition>().AddAsync(formula);
+        return formula;
+    }
+
+    public void Update(FormulaDefinition formula)
+    {
+        _context.Set<FormulaDefinition>().Update(formula);
+    }
 }

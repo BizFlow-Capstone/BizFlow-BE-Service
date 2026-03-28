@@ -5,6 +5,8 @@
 > Quay về [report-accounting-flow.md](../03-flows/report-accounting-flow.md) (index)
 >
 > **Mục đích**: Tính toán tất cả ô computed trong template TT152 — tổng hợp (SUM), tham chiếu ô khác, công thức thuế, bình quân gia quyền, lookup giá trị ngoài. Công thức lưu dạng structured JSON trong DB, không hardcode.
+>
+> **Đọc thêm (chi tiết toán tử và cách evaluate)**: [formula-operator-guide.md](formula-operator-guide.md)
 
 ---
 
