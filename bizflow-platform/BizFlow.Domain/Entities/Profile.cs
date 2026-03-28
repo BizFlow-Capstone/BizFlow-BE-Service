@@ -51,6 +51,9 @@ public partial class Profile
     public virtual ICollection<ImportSchemaVersion> ImportSchemaVersions { get; set; } = new List<ImportSchemaVersion>();
 
     public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
+    public virtual ICollection<NotificationDispatch> NotificationDispatches { get; set; } = new List<NotificationDispatch>();
+
+    public virtual ICollection<UserNotification> UserNotifications { get; set; } = new List<UserNotification>();
 
     public virtual ICollection<SystemConfig> SystemConfig { get; set; } = new List<SystemConfig>();
 

@@ -228,6 +228,7 @@ Query tổng doanh thu:
 | 4 | [accounting-book-flow-v2.md](accounting-book-flow-v2.md) | Templates + Metadata Registry + Books + Exports + TaxPayments + TT152 Specs (S1a, S2a–S2e) |
 | 5 | [dashboard-report-flow.md](dashboard-report-flow.md) | AccountingSettings + Cash Flow + Dashboard Widgets + Reports |
 | 6 | [tax-formular-engine.md](../04-engine/tax-formular-engine.md) | FormulaDefinitions + FormulaResults — Formula Engine cho computed cells (AGGREGATE, CELL_REF, TAX_RATE, WEIGHTED_AVG, EXTERNAL_LOOKUP) |
+| 7 | [accounting-book-revenue-centric-plan.md](accounting-book-revenue-centric-plan.md) | Plan chot theo huong Revenue-centric: bo lien ket book-business type, override VAT/PIT theo book, bulk reclassify cho FE |
 
 ### Companion Docs
 

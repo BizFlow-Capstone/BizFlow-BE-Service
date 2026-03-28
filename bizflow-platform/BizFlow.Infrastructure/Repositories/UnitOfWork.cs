@@ -32,7 +32,12 @@ namespace BizFlow.Infrastructure.Repositories
             IFeatureUsageRepository featureUsageRepository,
             ISubscriptionAuditLogRepository subscriptionAuditLogRepository,
             ISubscriptionPlanPriceRepository subscriptionPlanPriceRepository,
-            IFeatureRepository featureRepository)
+            IFeatureRepository featureRepository,
+            IAccountingBookRepository accountingBookRepository,
+            IAccountingTemplateRepository accountingTemplateRepository,
+            ITaxRulesetRepository taxRulesetRepository,
+            IFormulaDefinitionRepository formulaDefinitionRepository,
+            IFormulaResultRepository formulaResultRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -57,6 +62,11 @@ namespace BizFlow.Infrastructure.Repositories
             SubscriptionAuditLogs = subscriptionAuditLogRepository;
             PlanPrices = subscriptionPlanPriceRepository;
             Features = featureRepository;
+            AccountingBooks = accountingBookRepository;
+            AccountingTemplates = accountingTemplateRepository;
+            TaxRulesets = taxRulesetRepository;
+            FormulaDefinitions = formulaDefinitionRepository;
+            FormulaResults = formulaResultRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -81,6 +91,13 @@ namespace BizFlow.Infrastructure.Repositories
         public ISubscriptionAuditLogRepository SubscriptionAuditLogs { get; set; }
         public ISubscriptionPlanPriceRepository PlanPrices { get; set; }
         public IFeatureRepository Features { get; set; }
+
+        // ── Accounting Book Module ──
+        public IAccountingBookRepository AccountingBooks { get; set; }
+        public IAccountingTemplateRepository AccountingTemplates { get; set; }
+        public ITaxRulesetRepository TaxRulesets { get; set; }
+        public IFormulaDefinitionRepository FormulaDefinitions { get; set; }
+        public IFormulaResultRepository FormulaResults { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

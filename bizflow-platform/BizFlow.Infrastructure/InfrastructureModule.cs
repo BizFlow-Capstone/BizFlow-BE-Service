@@ -96,6 +96,17 @@ namespace BizFlow.Infrastructure
                  builder.RegisterType<StripePendingReconcileJob>().AsSelf().InstancePerDependency();
                  builder.RegisterType<StripeRefundReconcileJob>().AsSelf().InstancePerDependency();
                  builder.RegisterType<SubscriptionPlanStripeCatalogSyncJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<ScheduledNotificationDispatchJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
+
+            // Register Accounting Book engines
+            builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
+                   .As<IFormulaEngine>()
+                   .InstancePerLifetimeScope();
+            builder.RegisterType<BizFlow.Infrastructure.Services.BookRendering.BookRenderingService>()
+                   .As<IBookRenderingService>()
+                   .InstancePerLifetimeScope();
         }
 
         private void InitializeFirebaseApp()

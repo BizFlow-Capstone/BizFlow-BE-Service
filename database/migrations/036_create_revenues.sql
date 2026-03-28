@@ -17,6 +17,7 @@
 CREATE TABLE IF NOT EXISTS Revenues (
     RevenueId          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   BusinessLocationId INT NOT NULL COMMENT 'FK to BusinessLocations',
+  BusinessTypeId     CHAR(36) DEFAULT NULL COMMENT 'Nguon phan loai nganh nghe cho book live view',
     RevenueType        VARCHAR(20) NOT NULL COMMENT 'sale | manual',
   Amount             DECIMAL(15,2) NOT NULL COMMENT 'Revenue amount',
   RevenueDate        DATE NOT NULL COMMENT 'Revenue recognition date',
@@ -28,8 +29,11 @@ CREATE TABLE IF NOT EXISTS Revenues (
 
     CONSTRAINT fk_revenue_location FOREIGN KEY (BusinessLocationId)
         REFERENCES BusinessLocations(BusinessLocationId) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_revenue_business_type FOREIGN KEY (BusinessTypeId)
+      REFERENCES BusinessTypes(BusinessTypeId) ON DELETE SET NULL ON UPDATE CASCADE,
 
     INDEX idx_revenue_location (BusinessLocationId),
+    INDEX idx_revenue_business_type (BusinessTypeId),
     INDEX idx_revenue_location_date (BusinessLocationId, RevenueDate),
     INDEX idx_revenue_type (RevenueType)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

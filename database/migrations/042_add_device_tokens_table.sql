@@ -20,3 +20,10 @@ CREATE TABLE IF NOT EXISTS DeviceTokens (
     INDEX idx_profile_active (ProfileId, IsActive),
     INDEX idx_platform (Platform)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- Insert migration history
+-- =============================================
+INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('042_add_device_tokens_table', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);

@@ -72,6 +72,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   # ---------------------------------------------------------------------------
   # Stripe CLI — forwards webhooks to the API (same Docker network; no host-side `stripe listen`)

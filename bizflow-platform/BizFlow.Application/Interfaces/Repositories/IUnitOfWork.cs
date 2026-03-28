@@ -31,6 +31,13 @@ namespace BizFlow.Application.Interfaces.Repositories
         IFeatureRepository Features { get; }
         ISubscriptionAuditLogRepository SubscriptionAuditLogs { get; }
 
+        // ── Accounting Book Module ──
+        IAccountingBookRepository AccountingBooks { get; }
+        IAccountingTemplateRepository AccountingTemplates { get; }
+        ITaxRulesetRepository TaxRulesets { get; }
+        IFormulaDefinitionRepository FormulaDefinitions { get; }
+        IFormulaResultRepository FormulaResults { get; }
+
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync();

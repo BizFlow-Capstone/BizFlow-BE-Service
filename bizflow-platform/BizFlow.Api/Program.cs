@@ -1,20 +1,25 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using BizFlow.Api.Common.Middleware;
+using BizFlow.Api.Hubs;
+using BizFlow.Api.Services;
 using BizFlow.Application;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.Interfaces.Services;
 using BizFlow.Infrastructure;
+using BizFlow.Infrastructure.Consumers;
+using BizFlow.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using MassTransit;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json;
 using Hangfire;
 using Hangfire.MySql;
-using BizFlow.Infrastructure.Jobs;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,6 +96,38 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Add HttpContextAccessor
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<INotificationRealtimePublisher, SignalRNotificationRealtimePublisher>();
+
+builder.Services.AddMassTransit(x =>
+{
+    x.SetKebabCaseEndpointNameFormatter();
+    x.AddConsumer<NotificationDispatchRequestedConsumer>();
+
+    x.AddConfigureEndpointsCallback((context, endpointName, cfg) =>
+    {
+        cfg.UseMessageRetry(retry => retry.Interval(3, TimeSpan.FromSeconds(5)));
+        cfg.UseDelayedRedelivery(redelivery => redelivery.Interval(2, TimeSpan.FromSeconds(15)));
+    });
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var host = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+        var port = int.TryParse(builder.Configuration["RabbitMQ:Port"], out var rabbitPort) ? rabbitPort : 5672;
+        var username = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+        var password = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+        cfg.Host(host, (ushort)port, "/", h =>
+        {
+            h.Username(username);
+            h.Password(password);
+        });
+
+        cfg.UseDelayedMessageScheduler();
+
+        cfg.ConfigureEndpoints(context);
+    });
+});
 //===================================================================================
 // Use Autofac as the DI container
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
@@ -146,6 +183,17 @@ builder.Services.AddAuthentication(options =>
             {
                 context.Response.Headers.Append("IS-TOKEN-EXPIRED", "true");
             }
+            return Task.CompletedTask;
+        },
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+            {
+                context.Token = accessToken;
+            }
+
             return Task.CompletedTask;
         },
         OnChallenge = context =>
@@ -329,6 +377,7 @@ app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Hangfire Dashboard
 app.UseHangfireDashboard();
@@ -383,5 +432,22 @@ RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
     "subscription-plan-stripe-catalog-sync",
     job => job.ExecuteAsync(),
     "0 1 * * *");
+RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
+    "scheduled-notification-dispatch",
+    job => job.ExecuteAsync(),
+    "* * * * *"
+);
+
+RecurringJob.AddOrUpdate<NotificationOutboxJob>(
+    "notification-outbox",
+    job => job.ExecuteAsync(),
+    "* * * * *"
+);
+
+RecurringJob.AddOrUpdate<NotificationRetentionJob>(
+    "notification-retention",
+    job => job.ExecuteAsync(),
+    "0 2 * * *"
+);
 
 app.Run();
