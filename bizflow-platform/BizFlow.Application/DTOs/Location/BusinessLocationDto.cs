@@ -12,6 +12,7 @@ namespace BizFlow.Application.DTOs.Location
         public string? City { get; set; }
         public string? Phone { get; set; }
         public bool IsActive { get; set; }
+        public Guid OwnerProfileId { get; set; }
         public string? OwnerName { get; set; }
     }
 }
