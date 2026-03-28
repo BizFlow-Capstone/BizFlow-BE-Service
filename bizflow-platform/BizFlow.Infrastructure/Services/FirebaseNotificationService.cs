@@ -1,4 +1,6 @@
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Application.Common.Interfaces;
+using BizFlow.Application.Common.Constants;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
 using FirebaseAdmin;
@@ -15,15 +17,18 @@ namespace BizFlow.Infrastructure.Services
         private readonly BizFlowDbContext _context;
         private readonly ILogger<FirebaseNotificationService> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IMessageService _messageService;
 
         public FirebaseNotificationService(
             BizFlowDbContext context,
             ILogger<FirebaseNotificationService> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IMessageService messageService)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
+            _messageService = messageService;
         }
 
         public async Task RegisterDeviceTokenAsync(Guid userId, string token, string? deviceName, string platform)
@@ -239,6 +244,20 @@ namespace BizFlow.Infrastructure.Services
             return SendSilentNotificationAsync(employeeId, data);
         }
 
+        public Task NotifySubscriptionExpiringAsync(Guid ownerId, string planName, int daysRemaining, decimal price)
+        {
+            var title = _messageService.GetMessage(MessageKeys.SubscriptionExpiringTitle);
+            var body = _messageService.GetMessage(MessageKeys.SubscriptionExpiringBody, planName, daysRemaining, price);
+            return SendToAllDevicesAsync(ownerId, title, body);
+        }
+
+        public Task NotifySubscriptionExpiredAsync(Guid ownerId, string planName)
+        {
+            var title = _messageService.GetMessage(MessageKeys.SubscriptionExpiredTitle);
+            var body = _messageService.GetMessage(MessageKeys.SubscriptionExpiredBody, planName);
+            return SendToAllDevicesAsync(ownerId, title, body);
+        }
+
         private async Task<List<string>> GetActiveTokensByProfileIdAsync(Guid profileId)
         {
             return await _context.DeviceTokens
@@ -318,14 +337,21 @@ namespace BizFlow.Infrastructure.Services
                     var serviceAccountPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
                     if (string.IsNullOrWhiteSpace(serviceAccountPath))
                     {
+                        serviceAccountPath = _configuration["FirebaseAuth:ServiceAccountPath"];
+                    }
+
+                    // Backward compatibility for old key naming.
+                    if (string.IsNullOrWhiteSpace(serviceAccountPath))
+                    {
                         serviceAccountPath = _configuration["Firebase:ServiceAccountPath"];
                     }
 
                     if (string.IsNullOrWhiteSpace(serviceAccountPath) || !File.Exists(serviceAccountPath))
                     {
                         _logger.LogWarning(
-                            "Firebase service account file not found. GOOGLE_APPLICATION_CREDENTIALS={EnvPath}, Firebase:ServiceAccountPath={ConfigPath}",
+                            "Firebase service account file not found. GOOGLE_APPLICATION_CREDENTIALS={EnvPath}, FirebaseAuth:ServiceAccountPath={ConfigPath}, Firebase:ServiceAccountPath={LegacyConfigPath}",
                             Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS"),
+                            _configuration["FirebaseAuth:ServiceAccountPath"],
                             _configuration["Firebase:ServiceAccountPath"]);
                         return null;
                     }

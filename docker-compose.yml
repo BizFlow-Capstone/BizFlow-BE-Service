@@ -4,9 +4,6 @@
 # This file defines shared services across all environments.
 # Do NOT run this file directly. Use the environment-specific overrides:
 #
-#   Development:
-#     docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d
-#
 #   Production:
 #     docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d
 #
@@ -34,24 +31,26 @@ services:
       - JwtSettings__Audience=${JWT_AUDIENCE:-BizFlowUsers}
       - JwtSettings__AccessTokenExpirationMinutes=${JWT_ACCESS_EXPIRY_MINUTES:-5}
       - JwtSettings__RefreshTokenExpirationDays=${JWT_REFRESH_EXPIRY_DAYS:-365}
-      # Google OAuth
-      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID}
+      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID:-}
       - GoogleAuth__AndroidClientId=${GOOGLE_ANDROID_CLIENT_ID:-}
-      - GoogleAuth__ClientSecret=${GOOGLE_CLIENT_SECRET}
+      - GoogleAuth__ClientSecret=${GOOGLE_CLIENT_SECRET:-}
       # Cloudinary
-      - CloudinarySettings__CloudName=${CLOUDINARY_CLOUD_NAME}
-      - CloudinarySettings__ApiKey=${CLOUDINARY_API_KEY}
-      - CloudinarySettings__ApiSecret=${CLOUDINARY_API_SECRET}
+      - CloudinarySettings__CloudName=${CLOUDINARY_CLOUD_NAME:-}
+      - CloudinarySettings__ApiKey=${CLOUDINARY_API_KEY:-}
+      - CloudinarySettings__ApiSecret=${CLOUDINARY_API_SECRET:-}
       # Firebase FCM
-      - FirebaseAuth__ProjectId=${FIREBASE_PROJECT_ID}
+      - FirebaseAuth__ProjectId=${FIREBASE_PROJECT_ID:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/firebase-adminsdk.json
-      - Firebase__ServiceAccountPath=/app/credentials/firebase-adminsdk.json
+      - FirebaseAuth__ServiceAccountPath=/app/credentials/firebase-adminsdk.json
       # Stripe
-      - StripeSettings__SecretKey=${STRIPE_SECRET_KEY}
-      - StripeSettings__WebhookSecret=${STRIPE_WEBHOOK_SECRET}
-      - StripeSettings__SuccessUrl=${STRIPE_SUCCESS_URL:-bizflow://payment/success?session_id={CHECKOUT_SESSION_ID}}
-      - StripeSettings__CancelUrl=${STRIPE_CANCEL_URL:-bizflow://payment/cancel}
-      # AI Service internal URL (container-to-container)
+      - StripeSettings__SecretKey=${STRIPE_SECRET_KEY:-}
+      - StripeSettings__WebhookSecret=${STRIPE_WEBHOOK_SECRET:-}
+      - StripeSettings__SuccessCallbackUrl=${STRIPE_CALLBACK_SUCCESS_URL:-http://localhost:8080/api/subscriptions/payment/redirect/success}
+      - StripeSettings__CancelCallbackUrl=${STRIPE_CALLBACK_CANCEL_URL:-http://localhost:8080/api/subscriptions/payment/redirect/cancel}
+      - StripeSettings__WebSuccessUrl=${STRIPE_WEB_SUCCESS_URL:-http://localhost:8080/}
+      - StripeSettings__WebCancelUrl=${STRIPE_WEB_CANCEL_URL:-http://localhost:8080/}
+      - StripeSettings__MobileSuccessUrl=${STRIPE_MOBILE_SUCCESS_URL:-bizflow://payment/success}
+      - StripeSettings__MobileCancelUrl=${STRIPE_MOBILE_CANCEL_URL:-bizflow://payment/cancel}
       - AiService__BaseUrl=http://bizflow-ai:5000
     volumes:
       - ./docker/credentials:/app/credentials:ro
@@ -70,7 +69,7 @@ services:
     profiles:
       - ai
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
       - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
     networks:

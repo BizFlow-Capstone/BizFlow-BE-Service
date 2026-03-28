@@ -1059,19 +1059,64 @@ RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // usage_tracking: Chỉ Backend (Admin SDK) được ghi
-    // App chỉ đọc nếu ownerProfileId match hoặc là employee của owner
-    match /usage_tracking/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Chỉ Admin SDK (Backend) ghi được
-    }
-    
-    // active_assignments: App chỉ đọc doc của chính mình
-    match /active_assignments/{profileId} {
-      allow read: if request.auth != null 
-                  && request.auth.token.profileId == profileId;
-      allow write: if false; // Chỉ Admin SDK (Backend) ghi được
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function myProfileId() {
+            return isSignedIn() && request.auth.token.profileId is string
+                ? request.auth.token.profileId
+                : "";
+        }
+
+        function isClientReadEnabled() {
+            let gatePath = /databases/$(database)/documents/system_config/firestore_gate;
+            // Fail-closed kill-switch: FE reads are allowed only when gate doc exists and is explicitly true.
+            return exists(gatePath)
+                && get(gatePath).data.allowClientRead is bool
+                && get(gatePath).data.allowClientRead == true;
+        }
+
+        function canReadOwnerUsage(ownerProfileId) {
+            let me = myProfileId();
+            let memberPath = /databases/$(database)/documents/subscription_access/$(ownerProfileId)/members/$(me);
+            // "Chủ mua, tớ dùng": owner đọc trực tiếp, member đọc khi owner cấp quyền.
+            return me == ownerProfileId
+                || (exists(memberPath)
+                        && get(memberPath).data.isActive == true
+                        && get(memberPath).data.canReadUsage == true);
+        }
+
+        // usage_tracking: FE chỉ đọc khi có quyền; FE tuyệt đối không ghi.
+        match /usage_tracking/{docId} {
+            allow get: if isSignedIn()
+                                    && isClientReadEnabled()
+                                    && resource.data.ownerProfileId is string
+                                    && canReadOwnerUsage(resource.data.ownerProfileId);
+            allow list: if false;
+            allow create, update, delete: if false;
+        }
+
+        // active_assignments: FE chỉ đọc doc của chính mình; FE không ghi.
+        match /active_assignments/{profileId} {
+            allow get: if isSignedIn()
+                                    && isClientReadEnabled()
+                                    && myProfileId() == profileId;
+            allow list: if false;
+            allow create, update, delete: if false;
+        }
+
+        // Access grants + kill-switch đều do backend quản lý.
+        match /subscription_access/{ownerProfileId}/members/{memberProfileId} {
+            allow read, write: if false;
+        }
+
+        match /system_config/{docId} {
+            allow read, write: if false;
+        }
+
+        match /{document=**} {
+            allow read, write: if false;
     }
   }
 }

@@ -16,7 +16,7 @@ namespace BizFlow.Application.DTOs.Subscription
 
         public CreatePlanPriceRequest? Price { get; set; }
 
-        public List<PlanFeatureRequest> Features { get; set; } = new();
+        public List<PlanFeatureRequest>? Features { get; set; }
     }
 
     public class UpdateSubscriptionPlanRequest
@@ -33,7 +33,7 @@ namespace BizFlow.Application.DTOs.Subscription
 
         public UpdatePlanPriceRequest? Price { get; set; }
 
-        public List<PlanFeatureRequest> Features { get; set; } = new();
+        public List<PlanFeatureRequest> Features { get; set; }
     }
 
     public class CreatePlanPriceRequest
@@ -74,6 +74,6 @@ namespace BizFlow.Application.DTOs.Subscription
         public int FeatureId { get; set; }
 
         [Required]
-        public int UsageLimit { get; set; }
+        public int UsageLimit { get; set; } = -1;
     }
 }

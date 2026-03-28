@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,6 +22,14 @@ namespace BizFlow.Application.Interfaces.Repositories
         IRevenueRepository Revenues { get; }
         IOrderRepository Orders { get; }
         IOrderDetailRepository OrderDetails { get; }
+        IProfileRepository Profiles { get; }
+        ISubscriptionRepository Subscriptions { get; }
+        ISubscriptionPlanRepository SubscriptionPlans { get; }
+        ITransactionRepository Transactions { get; }
+        IFeatureUsageRepository FeatureUsages { get; }
+        ISubscriptionPlanPriceRepository PlanPrices { get; }
+        IFeatureRepository Features { get; }
+        ISubscriptionAuditLogRepository SubscriptionAuditLogs { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

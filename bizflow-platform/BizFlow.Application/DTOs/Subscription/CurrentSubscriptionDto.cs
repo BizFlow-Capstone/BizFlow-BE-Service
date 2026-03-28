@@ -7,6 +7,5 @@ namespace BizFlow.Application.DTOs.Subscription
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public SubscriptionPlanDto? Plan { get; set; }
-        public List<PlanFeatureDto> Features { get; set; } = new();
     }
 }

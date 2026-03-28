@@ -100,6 +100,12 @@ namespace BizFlow.Application.DTOs.Auth
         public string? DeviceInfo { get; set; }
     }
 
+    public class FirebaseCustomTokenResponse
+    {
+        public Guid ProfileId { get; set; }
+        public string CustomToken { get; set; } = null!;
+    }
+
     public class AuthResponse
     {
         public string AccessToken { get; set; } = null!;

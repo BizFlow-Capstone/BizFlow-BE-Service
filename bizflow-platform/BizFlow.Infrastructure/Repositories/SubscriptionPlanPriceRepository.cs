@@ -25,6 +25,9 @@ namespace BizFlow.Infrastructure.Repositories
             await _context.SubscriptionPlanPrices.AddAsync(price);
         }
 
+        /// <summary>
+        /// Bulk update DB; caller phải đồng bộ entity đang track (ExecuteUpdate không cập nhật tracker).
+        /// </summary>
         public async Task DeactivateByPlanIdAsync(int subscriptionPlanId)
         {
             await _context.SubscriptionPlanPrices

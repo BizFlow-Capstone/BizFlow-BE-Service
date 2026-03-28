@@ -1,4 +1,4 @@
-﻿using BizFlow.Application.Interfaces.Repositories;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -24,7 +24,15 @@ namespace BizFlow.Infrastructure.Repositories
             IGeneralLedgerRepository generalLedgerRepository,
             IRevenueRepository revenueRepository,
             IOrderRepository orderRepository,
-            IOrderDetailRepository orderDetailRepository)
+            IOrderDetailRepository orderDetailRepository,
+            IProfileRepository profileRepository,
+            ISubscriptionRepository subscriptionRepository,
+            ISubscriptionPlanRepository subscriptionPlanRepository,
+            ITransactionRepository transactionRepository,
+            IFeatureUsageRepository featureUsageRepository,
+            ISubscriptionAuditLogRepository subscriptionAuditLogRepository,
+            ISubscriptionPlanPriceRepository subscriptionPlanPriceRepository,
+            IFeatureRepository featureRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -41,6 +49,14 @@ namespace BizFlow.Infrastructure.Repositories
             Revenues = revenueRepository;
             Orders = orderRepository;
             OrderDetails = orderDetailRepository;
+            Profiles = profileRepository;
+            Subscriptions = subscriptionRepository;
+            SubscriptionPlans = subscriptionPlanRepository;
+            Transactions = transactionRepository;
+            FeatureUsages = featureUsageRepository;
+            SubscriptionAuditLogs = subscriptionAuditLogRepository;
+            PlanPrices = subscriptionPlanPriceRepository;
+            Features = featureRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -57,6 +73,14 @@ namespace BizFlow.Infrastructure.Repositories
         public IRevenueRepository Revenues { get; set; }
         public IOrderRepository Orders { get; set; }
         public IOrderDetailRepository OrderDetails { get; set; }
+        public IProfileRepository Profiles { get; set; }
+        public ISubscriptionRepository Subscriptions { get; set; }
+        public ISubscriptionPlanRepository SubscriptionPlans { get; set; }
+        public ITransactionRepository Transactions { get; set; }
+        public IFeatureUsageRepository FeatureUsages { get; set; }
+        public ISubscriptionAuditLogRepository SubscriptionAuditLogs { get; set; }
+        public ISubscriptionPlanPriceRepository PlanPrices { get; set; }
+        public IFeatureRepository Features { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

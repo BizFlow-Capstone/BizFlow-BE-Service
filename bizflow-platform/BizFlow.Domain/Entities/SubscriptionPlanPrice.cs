@@ -30,19 +30,41 @@ public partial class SubscriptionPlanPrice
     public virtual SubscriptionPlan SubscriptionPlan { get; set; } = null!;
 
     /// <summary>
-    /// Computes the effective price based on discount rules
+    /// Giảm giá đang hiệu lực tại <paramref name="atUtc"/> khi có <see cref="DiscountedPrice"/>
+    /// và thời điểm nằm trong [DiscountStart, DiscountEnd] (null = không giới hạn phía đó).
+    /// </summary>
+    public bool IsDiscountPeriodActive(DateTime? atUtc = null)
+    {
+        if (!DiscountedPrice.HasValue)
+            return false;
+
+        var now = atUtc ?? DateTime.UtcNow;
+        if (DiscountStart.HasValue && now < NormalizeToUtc(DiscountStart.Value))
+            return false;
+        if (DiscountEnd.HasValue && now > NormalizeToUtc(DiscountEnd.Value))
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Giá thu thực tế: dùng giá giảm chỉ khi <see cref="IsDiscountPeriodActive"/> tại thời điểm đó.
     /// </summary>
     public decimal GetEffectivePrice(DateTime? atTime = null)
     {
-        var now = atTime ?? DateTime.UtcNow;
+        if (!DiscountedPrice.HasValue)
+            return BasePrice;
 
-        if (IsDiscountActive && DiscountedPrice.HasValue
-            && (DiscountStart == null || now >= DiscountStart)
-            && (DiscountEnd == null || now <= DiscountEnd))
+        return IsDiscountPeriodActive(atTime) ? DiscountedPrice.Value : BasePrice;
+    }
+
+    private static DateTime NormalizeToUtc(DateTime dt)
+    {
+        return dt.Kind switch
         {
-            return DiscountedPrice.Value;
-        }
-
-        return BasePrice;
+            DateTimeKind.Utc => dt,
+            DateTimeKind.Local => dt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+        };
     }
 }

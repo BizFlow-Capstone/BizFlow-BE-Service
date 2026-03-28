@@ -72,7 +72,11 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
 
+    public virtual DbSet<SubscriptionPlanPrice> SubscriptionPlanPrices { get; set; }
+
     public virtual DbSet<Subscription> Subscriptions { get; set; }
+
+    public virtual DbSet<StripeWebhookEvent> StripeWebhookEvents { get; set; }
 
     public virtual DbSet<SystemConfig> SystemConfig { get; set; }
 
@@ -407,7 +411,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Hạn mức tín dụng cho phép (NULL = không giới hạn)");
             entity.Property(e => e.CurrentBalance)
                 .HasPrecision(15, 2)
-                .HasComment("Số dư nợ hiện tại (>0 = đang nợ)");
+                .HasComment("Số dư nợ hiện tại (<0 = đang nợ, >0 = chủ nợ)");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
@@ -487,6 +491,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.Property(e => e.PeriodEnd).HasColumnType("datetime");
             entity.Property(e => e.PeriodStart).HasColumnType("datetime");
+            entity.Property(e => e.AllocatedLimit).HasColumnType("int");
+            entity.Property(e => e.UsedCount).HasColumnType("int");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
@@ -1272,20 +1278,55 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.StripePriceId, "StripePriceId").IsUnique();
 
-            entity.Property(e => e.BasePrice).HasPrecision(15, 2);
+            entity.Property(e => e.StripeProductId).HasMaxLength(255);
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-            entity.Property(e => e.DiscountedPrice).HasPrecision(15, 2);
+            entity.Property(e => e.Description).HasColumnType("text");
             entity.Property(e => e.DurationDays).HasDefaultValueSql("'30'");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'");
+            entity.Property(e => e.DeletedAt).HasColumnType("datetime");
             entity.Property(e => e.Name).HasMaxLength(100);
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
+
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+        });
+
+        modelBuilder.Entity<SubscriptionPlanPrice>(entity =>
+        {
+            entity.HasKey(e => e.PriceId).HasName("PRIMARY");
+
+            entity
+                .ToTable(tb => tb.HasComment("Price history for subscription plans"))
+                .UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.SubscriptionPlanId, "idx_price_plan");
+            entity.HasIndex(e => new { e.SubscriptionPlanId, e.IsActive }, "idx_price_active");
+
+            entity.Property(e => e.BasePrice).HasPrecision(15, 2);
+            entity.Property(e => e.DiscountedPrice).HasPrecision(15, 2);
+            entity.Property(e => e.DiscountStart).HasColumnType("datetime");
+            entity.Property(e => e.DiscountEnd).HasColumnType("datetime");
+            entity.Property(e => e.IsActive).HasDefaultValue(false);
+            entity.Property(e => e.Currency)
+                .HasMaxLength(3)
+                .HasDefaultValueSql("'VND'");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.SubscriptionPlan).WithMany(p => p.Prices)
+                .HasForeignKey(d => d.SubscriptionPlanId)
+                .HasConstraintName("fk_price_plan");
         });
 
         modelBuilder.Entity<Subscription>(entity =>
@@ -1325,6 +1366,42 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.SubscriptionPlanId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("subscriptions_ibfk_2");
+        });
+
+        modelBuilder.Entity<StripeWebhookEvent>(entity =>
+        {
+            entity.HasKey(e => e.StripeWebhookEventId).HasName("PRIMARY");
+
+            entity
+                .ToTable(tb => tb.HasComment("Stores Stripe webhook events for idempotency and replay safety"))
+                .UseCollation("utf8mb4_unicode_ci");
+
+            entity.HasIndex(e => e.EventId, "ux_swe_event_id").IsUnique();
+
+            entity.HasIndex(e => new { e.ProcessingStatus, e.UpdatedAt }, "idx_swe_status_updated");
+
+            entity.Property(e => e.AttemptCount)
+                .HasDefaultValueSql("'1'");
+            entity.Property(e => e.EventId)
+                .HasMaxLength(100);
+            entity.Property(e => e.EventType)
+                .HasMaxLength(80);
+            entity.Property(e => e.LastError)
+                .HasColumnType("text");
+            entity.Property(e => e.ProcessedAt)
+                .HasColumnType("datetime");
+            entity.Property(e => e.ProcessingStatus)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("'Received'");
+            entity.Property(e => e.ReceivedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+            entity.Property(e => e.StripeCreatedAt)
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
         });
 
         modelBuilder.Entity<SystemConfig>(entity =>

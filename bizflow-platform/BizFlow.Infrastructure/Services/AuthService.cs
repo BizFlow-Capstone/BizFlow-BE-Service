@@ -554,6 +554,34 @@ namespace BizFlow.Infrastructure.Services
             }).ToList();
         }
 
+        public async Task<FirebaseCustomTokenResponse> CreateFirebaseCustomTokenAsync(Guid profileId)
+        {
+            var profileExists = await _db.Profiles
+                .AsNoTracking()
+                .AnyAsync(p => p.ProfileId == profileId);
+
+            if (!profileExists)
+            {
+                throw new KeyNotFoundException("Profile not found");
+            }
+
+            var firebaseAuth = GetFirebaseAuth();
+            var claims = new Dictionary<string, object>
+            {
+                ["profileId"] = profileId.ToString()
+            };
+
+            var customToken = await firebaseAuth.CreateCustomTokenAsync(profileId.ToString(), claims);
+
+            _logger.LogInformation("Firebase custom token created. ProfileId={ProfileId}", profileId);
+
+            return new FirebaseCustomTokenResponse
+            {
+                ProfileId = profileId,
+                CustomToken = customToken
+            };
+        }
+
         // ===== Private helpers =====
 
         private async Task<GoogleJsonWebSignature.Payload> VerifyGoogleTokenAsync(string idToken)

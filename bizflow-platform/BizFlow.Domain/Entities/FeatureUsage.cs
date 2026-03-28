@@ -16,6 +16,13 @@ public partial class FeatureUsage
 
     public int UsedCount { get; set; }
 
+    /// <summary>
+    /// Accumulated allocated limit for this feature within the current subscription period.
+    /// When user purchases the same plan multiple times (quantity stacking), this value is increased accordingly.
+    /// -1 means unlimited.
+    /// </summary>
+    public int AllocatedLimit { get; set; }
+
     public DateTime PeriodStart { get; set; }
 
     public DateTime PeriodEnd { get; set; }

@@ -138,6 +138,24 @@ namespace BizFlow.Api.Controllers.Reference
             return Ok(_referenceService.GetRevenueTypes(), MessageKeys.DataRetrievedSuccessfully);
         }
 
+        [HttpGet("subscription-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get subscription statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetSubscriptionStatuses()
+        {
+            return Ok(_referenceService.GetSubscriptionStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("subscription-transaction-types")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get subscription transaction types")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetSubscriptionTransactionTypes()
+        {
+            return Ok(_referenceService.GetSubscriptionTransactionTypes(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
         [HttpGet("stock-movement-types")]
         [OutputCache(PolicyName = "PublicData")]
         [SwaggerOperation(Summary = "Get stock movement types")]

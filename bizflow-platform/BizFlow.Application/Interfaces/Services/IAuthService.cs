@@ -54,5 +54,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Get linked credentials for an account.
         /// </summary>
         Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId);
+
+        /// <summary>
+        /// Create Firebase custom token for a profile id.
+        /// </summary>
+        Task<FirebaseCustomTokenResponse> CreateFirebaseCustomTokenAsync(Guid profileId);
     }
 }

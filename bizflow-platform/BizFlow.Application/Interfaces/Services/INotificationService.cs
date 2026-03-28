@@ -8,5 +8,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task SendSilentNotificationAsync(Guid userId, Dictionary<string, string> data);
         Task SendEmployeeInviteAsync(Guid employeeId, string ownerName);
         Task NotifyEmployeeRemovedAsync(Guid employeeId, string businessName);
+        Task NotifySubscriptionExpiringAsync(Guid ownerId, string planName, int daysRemaining, decimal price);
+        Task NotifySubscriptionExpiredAsync(Guid ownerId, string planName);
     }
 }

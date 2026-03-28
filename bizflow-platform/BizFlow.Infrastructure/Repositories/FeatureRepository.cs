@@ -20,5 +20,20 @@ namespace BizFlow.Infrastructure.Repositories
                 .OrderBy(f => f.FeatureId)
                 .ToListAsync();
         }
+
+        public async Task<HashSet<int>> GetExistingIdsAsync(IEnumerable<int> featureIds)
+        {
+            var distinct = featureIds.Distinct().ToList();
+            if (distinct.Count == 0)
+                return new HashSet<int>();
+
+            var found = await _context.Features
+                .AsNoTracking()
+                .Where(f => distinct.Contains(f.FeatureId))
+                .Select(f => f.FeatureId)
+                .ToListAsync();
+
+            return found.ToHashSet();
+        }
     }
 }

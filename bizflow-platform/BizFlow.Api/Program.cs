@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using BizFlow.Api.Common.Middleware;
 using BizFlow.Application;
@@ -16,6 +16,8 @@ using Hangfire;
 using Hangfire.MySql;
 using BizFlow.Infrastructure.Jobs;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +51,42 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     // options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var messageService = context.HttpContext.RequestServices.GetRequiredService<IMessageService>();
+        var fieldErrors = new Dictionary<string, List<string>>();
+        foreach (var (fieldKey, state) in context.ModelState)
+        {
+            foreach (var error in state.Errors)
+            {
+                var raw = string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? error.Exception?.Message
+                    : error.ErrorMessage;
+                var keyOrText = string.IsNullOrWhiteSpace(raw) ? MessageKeys.ValidationError : raw;
+                var localized = messageService.GetMessage(keyOrText);
+                var key = string.IsNullOrEmpty(fieldKey) ? "." : fieldKey;
+                if (!fieldErrors.TryGetValue(key, out var list))
+                {
+                    list = new List<string>();
+                    fieldErrors[key] = list;
+                }
+
+                list.Add(localized);
+            }
+        }
+
+        var errorsObj = fieldErrors.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+        var response = ApiResponse.ErrorResponse(
+            MessageKeys.ValidationError,
+            messageService.GetMessage(MessageKeys.ValidationError),
+            errorsObj);
+        return new BadRequestObjectResult(response);
+    };
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add HttpContextAccessor
@@ -273,11 +311,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseResponseCompression();
+// Hangfire HTML pages are sensitive to middleware caching/compression.
+// Exclude /hangfire endpoints to avoid "ERR_CONTENT_DECODING_FAILED" in browser.
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
+{
+    app.UseResponseCompression();
+});
 
 // Use CORS
 app.UseCors("AllowAll");
-app.UseOutputCache();
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
+{
+    app.UseOutputCache();
+});
 app.UseAuthentication();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
@@ -320,6 +366,22 @@ RecurringJob.AddOrUpdate<FirestoreSyncJob>(
 RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
     "stale-txn-cleanup",
     job => job.ExecuteAsync(),
-    "30 */6 * * *");
+    "30 3 * * *");
+
+RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
+    "stripe-pending-reconcile",
+    job => job.ExecuteAsync(),
+    "*/15 * * * *");
+
+RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
+    "stripe-refund-reconcile",
+    job => job.ExecuteAsync(),
+    "7 */2 * * *");
+
+// Giá hiệu dụng theo cửa sổ giảm giá + đồng bộ Stripe Price — mỗi ngày 01:00 UTC
+RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
+    "subscription-plan-stripe-catalog-sync",
+    job => job.ExecuteAsync(),
+    "0 1 * * *");
 
 app.Run();
