@@ -13,6 +13,7 @@
 #     into STRIPE_WEBHOOK_SECRET, then restart bizflow-api (secret may change each listen session).
 #   - Stop when not testing Stripe: docker stop bizflow-stripe-cli
 #   - Start again: docker start bizflow-stripe-cli
+#   - Build: docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d --build
 #   - Logs: docker logs bizflow-stripe-cli
 # =============================================================================
 
