@@ -6,6 +6,14 @@
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev down
+#
+# Stripe webhook (dev): stripe-cli service runs `listen` and forwards to bizflow-api.
+#   - Requires STRIPE_SECRET_KEY in .env.dev (CLI reads STRIPE_API_KEY in the container).
+#   - First run: `docker logs bizflow-stripe-cli` → copy the "webhook signing secret" line (whsec_...)
+#     into STRIPE_WEBHOOK_SECRET, then restart bizflow-api (secret may change each listen session).
+#   - Stop when not testing Stripe: docker stop bizflow-stripe-cli
+#   - Start again: docker start bizflow-stripe-cli
+#   - Logs: docker logs bizflow-stripe-cli
 # =============================================================================
 
 services:
@@ -64,6 +72,25 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Stripe CLI — forwards webhooks to the API (same Docker network; no host-side `stripe listen`)
+  # ---------------------------------------------------------------------------
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: bizflow-stripe-cli
+    restart: unless-stopped
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+    command:
+      - listen
+      - --forward-to
+      - http://bizflow-api:8080/api/webhooks/stripe
+    depends_on:
+      bizflow-api:
+        condition: service_started
+    networks:
+      - bizflow-network
 
 volumes:
   mysql_data:
