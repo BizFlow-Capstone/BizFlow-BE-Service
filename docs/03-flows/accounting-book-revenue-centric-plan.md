@@ -9,12 +9,14 @@
 ## 1. Muc tieu va ket luan da chot
 
 ### 1.1 Muc tieu
+
 - Don gian hoa luong Accounting Book cho Owner.
 - Nganh nghe de tinh thue phai di tu doanh thu thuc te.
 - Van cho phep chinh sua Revenue/Cost sau khi ky da ket thuc.
 - Snapshot da export/da chot khong bi hoi to.
 
 ### 1.2 Ket luan nghiep vu da chot
+
 - Nguon phan loai nganh nghe duy nhat: `Revenues.BusinessTypeId`.
 - Accounting Book la live view (doc du lieu), khong phan loai nganh trong Book.
 - Danh sach nganh trong Book = cac nganh co doanh thu phat sinh trong ky.

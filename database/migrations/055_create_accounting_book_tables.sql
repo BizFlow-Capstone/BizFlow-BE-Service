@@ -1,5 +1,5 @@
 -- =============================================
--- Migration 055: AccountingBooks + AccountingBookBusinessTypes + AccountingExports
+-- Migration 055: AccountingBooks + AccountingExports
 -- Module: Accounting Book — Book Generation
 -- =============================================
 
@@ -32,28 +32,9 @@ CREATE TABLE AccountingBooks (
         REFERENCES AccountingTemplateVersions(TemplateVersionId),
     CONSTRAINT fk_book_ruleset FOREIGN KEY (RulesetId)
         REFERENCES TaxRulesets(RulesetId),
+    UNIQUE INDEX uq_book_location_period_template_version (BusinessLocationId, PeriodId, TemplateVersionId),
     INDEX idx_book_location_period (BusinessLocationId, PeriodId),
     INDEX idx_book_status (Status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
--- AccountingBookBusinessTypes (bảng trung gian — 1 book gộp nhiều ngành cùng tax rate)
-CREATE TABLE AccountingBookBusinessTypes (
-    Id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    BookId BIGINT NOT NULL,
-    BusinessTypeId CHAR(36) NOT NULL,
-
-    -- Tax profile key để debug/trace vì sao 2 ngành được gộp chung
-    TaxProfileKey VARCHAR(100) NOT NULL
-        COMMENT 'Readable key: VAT_1.00|PIT_0.50|METHOD_method_1',
-
-    -- FKs & Indexes
-    CONSTRAINT fk_abbt_book FOREIGN KEY (BookId)
-        REFERENCES AccountingBooks(BookId) ON DELETE CASCADE,
-    CONSTRAINT fk_abbt_business_type FOREIGN KEY (BusinessTypeId)
-        REFERENCES BusinessTypes(BusinessTypeId),
-    UNIQUE INDEX idx_abbt_book_bt (BookId, BusinessTypeId),
-    INDEX idx_abbt_profile (TaxProfileKey)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
