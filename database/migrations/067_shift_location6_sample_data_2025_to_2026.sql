@@ -1,6 +1,10 @@
 -- Migration 067: Shift sample data of location 6 from year 2025 to 2026
 -- This migration is for environments where 063 was already executed before date alignment.
 
+-- Align session collation with table defaults (utf8mb4_unicode_ci) to avoid ERROR 1267
+-- when comparing CHAR/VARCHAR columns to literals or user variables (MySQL 8 default is utf8mb4_0900_ai_ci).
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 SET @createdBy = 'ff45309c-7b0b-4012-933b-042405d75685';
 
 -- 1) Revenues: move 2025 sample rows to 2026

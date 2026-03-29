@@ -1,6 +1,8 @@
 -- Migration 068: Fix revenue/cost sample date shift for location 6
 -- 067 used a CreatedBy filter that may not match seeded rows in some environments.
 
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- 1) Revenues: shift manual/sale sample rows in 2025 to 2026
 UPDATE Revenues
 SET RevenueDate = DATE_ADD(RevenueDate, INTERVAL 1 YEAR)
