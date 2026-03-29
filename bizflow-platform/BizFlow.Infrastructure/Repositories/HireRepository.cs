@@ -22,7 +22,10 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<Guid>> GetHiredEmployeeIdsAsync(Guid ownerId)
         {
             return await _context.Hires
-                .Where(h => h.OwnerId == ownerId && h.IsActive == true)
+                .Where(h =>
+                    h.OwnerId == ownerId &&
+                    h.IsActive == true &&
+                    (h.Status == "accepted" || h.Status == "Accepted"))
                 .Select(h => h.EmployeeId)
                 .ToListAsync();
         }

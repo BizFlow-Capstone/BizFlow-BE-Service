@@ -1,5 +1,6 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
+using BizFlow.Api.Common.Filters;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Location;
@@ -51,27 +52,28 @@ namespace BizFlow.Api.Controllers.Location
             return Created(location, MessageKeys.DataCreatedSuccessfully, nameof(GetOwnedLocations), null!);
         }
 
-        [HttpPatch("me/owned/{id:int}/status")]
+        [HttpPatch("me/owned/{locationId:int}/status")]
+        [RequireFeature(FeatureCodes.Locations)]
         [SwaggerOperation(Summary = "Update location status", Description = "Toggle IsActive flag. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateLocationStatus(int id, [FromBody] UpdateLocationStatusRequest request)
+        public async Task<IActionResult> UpdateLocationStatus(int locationId, [FromBody] UpdateLocationStatusRequest request)
         {
             var userId = GetCurrentUserId();
-            await _locationService.UpdateLocationStatusAsync(userId, id, request.IsActive);
+            await _locationService.UpdateLocationStatusAsync(userId, locationId, request.IsActive);
             return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
-        [HttpPut("me/owned/{id:int}")]
+        [HttpPut("me/owned/{locationId:int}")]
         [SwaggerOperation(Summary = "Update location info", Description = "Update name, address, phone, city. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateLocation(int id, [FromBody] UpdateLocationRequest request)
+        public async Task<IActionResult> UpdateLocation(int locationId, [FromBody] UpdateLocationRequest request)
         {
             var userId = GetCurrentUserId();
-            await _locationService.UpdateLocationAsync(userId, id, request);
+            await _locationService.UpdateLocationAsync(userId, locationId, request);
             return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
@@ -100,15 +102,15 @@ namespace BizFlow.Api.Controllers.Location
             return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
-        [HttpDelete("me/owned/{id:int}")]
+        [HttpDelete("me/owned/{locationId:int}")]
         [SwaggerOperation(Summary = "Delete location", Description = "Soft delete - sets DeletedAt. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteLocation(int id)
+        public async Task<IActionResult> DeleteLocation(int locationId)
         {
             var userId = GetCurrentUserId();
-            await _locationService.DeleteLocationAsync(userId, id);
+            await _locationService.DeleteLocationAsync(userId, locationId);
             return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
@@ -127,15 +129,15 @@ namespace BizFlow.Api.Controllers.Location
 
         #region Shared APIs (Owner + Employee)
 
-        [HttpGet("{id:int}")]
+        [HttpGet("{locationId:int}")]
         [SwaggerOperation(Summary = "Get location detail", Description = "Returns location detail. Owner or assigned Employee.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetLocationDetail(int id)
+        public async Task<IActionResult> GetLocationDetail(int locationId)
         {
             var userId = GetCurrentUserId();
-            var detail = await _locationService.GetLocationDetailAsync(userId, id);
+            var detail = await _locationService.GetLocationDetailAsync(userId, locationId);
             return Ok(detail, MessageKeys.DataRetrievedSuccessfully);
         }
 

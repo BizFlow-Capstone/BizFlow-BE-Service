@@ -1,4 +1,4 @@
-﻿using BizFlow.Domain.Entities;
+using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Interfaces.Repositories
 {

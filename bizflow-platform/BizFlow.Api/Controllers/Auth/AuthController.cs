@@ -1,4 +1,5 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Auth;
@@ -316,6 +317,26 @@ namespace BizFlow.Api.Controllers.Auth
                 var result = await _authService.GetCredentialsAsync(accountId);
                 Logger.LogInformation("Get credentials success. AccountId={AccountId}, Count={Count}", accountId, result.Count);
                 return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("firebase/custom-token")]
+        [Authorize]
+        public async Task<IActionResult> CreateFirebaseCustomToken()
+        {
+            try
+            {
+                var profileId = User.GetRequiredUserId();
+                var result = await _authService.CreateFirebaseCustomTokenAsync(profileId);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.NotFound);
             }
             catch (Exception ex)
             {

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizFlow - Subscription Payment + Firestore Tester</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1d2433;
+      --muted: #5a657a;
+      --border: #d8dfef;
+      --primary: #1f6feb;
+      --success: #1a7f37;
+      --danger: #b42318;
+      --mono-bg: #0f172a;
+      --mono-text: #d1fae5;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 15% 10%, #e9f0ff 0%, var(--bg) 45%, #eef7ff 100%);
+      min-height: 100vh;
+    }
+    .container { max-width: 980px; margin: 24px auto; padding: 0 16px 24px; }
+    h1 { margin: 0 0 12px; font-size: 28px; }
+    p.lead { margin: 0 0 16px; color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 28px rgba(20, 30, 55, 0.08);
+      margin-bottom: 14px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 18px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    label { font-size: 13px; color: var(--muted); font-weight: 600; }
+    input, select {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 14px;
+      outline: none;
+      width: 100%;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--primary);
+      color: white;
+    }
+    button.success { background: var(--success); }
+    button.secondary { background: #334155; }
+    #status {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+    .mono {
+      margin-top: 8px;
+      background: var(--mono-bg);
+      color: var(--mono-text);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 12px;
+      word-break: break-word;
+      max-height: 340px;
+      overflow: auto;
+      border: 1px solid #1e293b;
+    }
+    .ok { color: #86efac; font-weight: 700; }
+    .bad { color: #fca5a5; font-weight: 700; }
+    .live { color: #60a5fa; font-weight: 700; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Subscription Payment + Firestore Tester</h1>
+    <p class="lead">
+      Test nhanh luong subscription: create checkout, xem current plan, transactions, va kiem tra ket noi Firestore.
+    </p>
+
+    <div class="card">
+      <h2>1) API Auth Setup</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Base API URL</label>
+          <input id="baseUrl" value="http://localhost:8080" />
+        </div>
+        <div class="field">
+          <label>Bearer Token (JWT)</label>
+          <input id="token" placeholder="eyJhbGciOi..." />
+        </div>
+      </div>
+      <div class="hint">Token lay tu login API. Tat ca request ben duoi se dung token nay.</div>
+    </div>
+
+    <div class="card">
+      <h2>2) Checkout</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Subscription Plan Id</label>
+          <input id="planId" type="number" value="17" />
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input id="quantity" type="number" min="1" value="1" />
+        </div>
+        <div class="field">
+          <label>Platform</label>
+          <select id="platform">
+            <option value="web">web</option>
+            <option value="mobile">mobile</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btnCheckout" class="success">Create Checkout Session</button>
+        <button id="btnOpenCheckout" class="secondary" disabled>Open Latest Checkout URL</button>
+      </div>
+      <div class="hint">Neu thanh toan xong, webhook se cap nhat transaction va current subscription.</div>
+    </div>
+
+    <div class="card">
+      <h2>3) Query Current + Transactions</h2>
+      <div class="row">
+        <button id="btnCurrent">GET /api/subscriptions/current</button>
+        <button id="btnTransactions">GET /api/subscriptions/transactions</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4) Firestore Health Check</h2>
+      <div class="row">
+        <button id="btnFirestoreHealth">GET /api/test/firebase/firestore/health</button>
+      </div>
+      <div class="hint">
+        Neu API tra ve <code>isConnected = true</code> thi backend da ket noi Firestore thanh cong (config + credentials + quyen truy cap OK).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>5) Firestore Realtime (Production mode)</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Firebase apiKey</label>
+          <input id="fbApiKey" placeholder="AIza..."/>
+        </div>
+        <div class="field">
+          <label>Firebase authDomain</label>
+          <input id="fbAuthDomain" placeholder="bizflow-bxxxxx.firebaseapp.com"/>
+        </div>
+        <div class="field">
+          <label>Firebase projectId</label>
+          <input id="fbProjectId" placeholder="bizflow-bxxxx" />
+        </div>
+        <div class="field">
+          <label>Firebase appId</label>
+          <input id="fbAppId" placeholder="1:xxx:web:yyy"/>
+        </div>
+        <div class="field">
+          <label>Firebase custom token (mint từ backend)</label>
+          <input id="fbCustomToken" placeholder="eyJhbGciOiJSUzI1NiIsImtpZCI6..." />
+        </div>
+        <div class="field">
+          <label>Owner Profile Id (GUID)</label>
+          <input id="ownerProfileId" placeholder="dcdae036-b139-492d-9a03-bbc18b4aa21a"/>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btnFirestoreUsage">GET /api/test/firebase/firestore/usage (BE)</button>
+        <button id="btnFirestoreGateDebug">GET /api/test/firebase/firestore/gate-debug (BE)</button>
+        <button id="btnMintFirebaseCustomToken" class="secondary">Mint Custom Token (BE)</button>
+        <button id="btnFirebaseSignIn">Firebase Sign In</button>
+        <button id="btnConnectRealtime" class="success">Connect Realtime Listener</button>
+        <button id="btnDisconnectRealtime" class="secondary">Disconnect Listener</button>
+      </div>
+      <div class="hint">
+        Firestore <b>khong bao gio</b> tra ve &quot;rule nao fail&quot; — chi co <code>permission-denied</code> / message chung.
+        Bam <b>gate-debug</b> de xem trang thai <code>system_config/firestore_gate</code> (BE doc bang Admin SDK; FE khong doc duoc vi rules).
+        Production flow: <code>signInWithCustomToken</code> roi <code>onSnapshot usage_tracking/{ownerProfileId}_active</code>.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>6) Background Jobs - Test & Verify</h2>
+      <div class="row">
+        <button id="btnOpenHangfire" class="secondary">Open Hangfire Dashboard</button>
+      </div>
+      <div class="hint">
+        Vao Recurring Jobs trong Hangfire, bam <b>Trigger now</b> de test tung job ngay lap tuc.
+      </div>
+      <div id="jobGuide" class="mono"></div>
+    </div>
+
+    <div id="status">Ready.</div>
+    <div id="resultMeta" class="hint"></div>
+    <div id="result" class="mono"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { getAuth, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const resultMetaEl = document.getElementById("resultMeta");
+    const jobGuideEl = document.getElementById("jobGuide");
+    const btnOpenCheckout = document.getElementById("btnOpenCheckout");
+    const btnMintFirebaseCustomToken = document.getElementById("btnMintFirebaseCustomToken");
+    let latestCheckoutUrl = "";
+    let firebaseApp = null;
+    let firestoreDb = null;
+    let firebaseAuth = null;
+    let firestoreUnsubscribe = null;
+    let currentFirebaseUser = null;
+
+    function renderJobGuide() {
+      const lines = [
+        "=== JOB PURPOSE + HOW TO TEST ===",
+        "",
+        "1) subscription-expiry-check",
+        "- Purpose: Het han subscription -> set status Expired, mark Firestore usage expired, gui thong bao.",
+        "- Trigger test: Dat EndDate subscription <= now - 30m, Trigger now.",
+        "- Verify: GET /api/subscriptions/current -> status Expired; Firestore usage.status = 'expired'.",
+        "",
+        "2) subscription-reminder",
+        "- Purpose: Gui reminder T-3 va T-1 truoc khi het han.",
+        "- Trigger test: Tao sub co EndDate trong cua so T-3 hoac T-1, Trigger now.",
+        "- Verify: LastReminderSentAt duoc cap nhat; co notification logs/devices.",
+        "",
+        "3) usage-snapshot",
+        "- Purpose: Ghi SubscriptionAuditLog action=USAGE_SNAPSHOT cho active subs.",
+        "- Trigger test: Trigger now.",
+        "- Verify: DB table SubscriptionAuditLogs co ban ghi moi action USAGE_SNAPSHOT.",
+        "",
+        "4) firestore-sync",
+        "- Purpose: Dong bo SQL <-> Firestore usage, tao doc neu thieu, heal mismatch used count.",
+        "- Trigger test: sua lech used count giua SQL va Firestore, Trigger now.",
+        "- Verify: Firestore usage doc duoc tao/updated; DB SubscriptionAuditLogs co FIRESTORE_RESYNC/FIRESTORE_ANOMALY.",
+        "",
+        "5) stale-txn-cleanup",
+        "- Purpose: Safety-net, pending transaction >24h -> Failed.",
+        "- Trigger test: Tao transaction Pending cu hon 24h, Trigger now.",
+        "- Verify: GET /api/subscriptions/transactions -> transaction status Failed.",
+        "",
+        "6) stripe-pending-reconcile",
+        "- Purpose: doi soat pending transaction >30m voi Stripe, heal thanh Success hoac mark Failed.",
+        "- Trigger test: Co Pending transaction va checkout session tren Stripe, Trigger now.",
+        "- Verify: transactions thay doi Success/Failed phu hop; current subscription duoc kich hoat neu paid.",
+        "",
+        "7) stripe-refund-reconcile",
+        "- Purpose: keo refund gan day tu Stripe de bo sung neu miss webhook.",
+        "- Trigger test: Tao refund tren Stripe, Trigger now.",
+        "- Verify: transaction -> Refunded; EndDate bi rollback (neu co subscription da cong don).",
+        "",
+        "=== QUICK CHECK APIS ===",
+        "- GET /api/subscriptions/current",
+        "- GET /api/subscriptions/transactions",
+        "- GET /api/test/firebase/firestore/usage",
+        "",
+        "=== DASHBOARD ===",
+        "- /hangfire -> Recurring Jobs -> Trigger now -> xem Last execution / Next execution / Succeeded-Failed stats."
+      ];
+      jobGuideEl.textContent = lines.join("\n");
+    }
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.style.color = isError ? "#b42318" : "#5a657a";
+    }
+
+    function tryParseJsonString(value) {
+      if (typeof value !== "string") return value;
+      const t = value.trim();
+      if (!(t.startsWith("{") || t.startsWith("["))) return value;
+      try { return JSON.parse(t); } catch (_) { return value; }
+    }
+
+    function normalizeDeep(value) {
+      if (Array.isArray(value)) return value.map(normalizeDeep);
+      if (value && typeof value === "object") {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) out[k] = normalizeDeep(v);
+        return out;
+      }
+      return tryParseJsonString(value);
+    }
+
+    function formatForDisplay(payload) {
+      if (!payload || typeof payload !== "object") {
+        return typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      }
+
+      const parts = [];
+      if ("data" in payload) {
+        parts.push("=== DATA ===");
+        parts.push(JSON.stringify(payload.data, null, 2));
+      } else {
+        parts.push("=== RESPONSE ===");
+        parts.push(JSON.stringify(payload, null, 2));
+      }
+
+      const meta = {};
+      ["success", "messageCode", "message", "timestamp"].forEach((k) => {
+        if (k in payload) meta[k] = payload[k];
+      });
+      if (Object.keys(meta).length > 0) {
+        parts.push("");
+        parts.push("=== META ===");
+        parts.push(JSON.stringify(meta, null, 2));
+      }
+
+      if (payload.errors) {
+        parts.push("");
+        parts.push("=== ERRORS ===");
+        parts.push(JSON.stringify(payload.errors, null, 2));
+      }
+
+      if (payload.warnings) {
+        parts.push("");
+        parts.push("=== WARNINGS ===");
+        parts.push(JSON.stringify(payload.warnings, null, 2));
+      }
+
+      return parts.join("\n");
+    }
+
+    function dump(obj, statusCode = null, ok = null) {
+      const normalized = normalizeDeep(obj);
+      resultEl.textContent = formatForDisplay(normalized);
+      if (statusCode == null) {
+        resultMetaEl.textContent = "";
+      } else {
+        resultMetaEl.innerHTML = `HTTP <strong>${statusCode}</strong> - <span class="${ok ? "ok" : "bad"}">${ok ? "SUCCESS" : "FAILED"}</span>`;
+      }
+    }
+
+    function getConfig() {
+      const baseUrl = document.getElementById("baseUrl").value.trim().replace(/\/+$/, "");
+      const token = document.getElementById("token").value.trim();
+      return { baseUrl, token };
+    }
+
+    async function callApi(path, method = "GET", body = null) {
+      const { baseUrl, token } = getConfig();
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : null
+      });
+      const text = await res.text();
+      let data = text;
+      try { data = JSON.parse(text); } catch (_) {}
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    function serializeFirebaseError(err) {
+      if (!err) return null;
+      return {
+        name: err.name,
+        code: err.code,
+        message: err.message,
+        customData: err.customData ?? null
+      };
+    }
+
+    async function buildFirestorePermissionHints({ firebaseUser, ownerProfileId, clientProjectId }) {
+      const hints = [];
+      const expectedDocId = ownerProfileId ? `${ownerProfileId}_active` : "";
+      const uid = firebaseUser?.uid || "";
+      const idTokenResult = firebaseUser ? await firebaseUser.getIdTokenResult() : null;
+      const claimPid = idTokenResult?.claims?.profileId;
+
+      hints.push("Ghi chu: Firestore Security Rules khong tra ve chi tiet rule nao bi tu choi.");
+      hints.push(`FE dang nghe doc: usage_tracking/${expectedDocId || "(thieu ownerProfileId)"}`);
+      hints.push(`Firebase uid: ${uid || "(chua sign-in)"}`);
+      hints.push(`Claim profileId: ${claimPid ?? "(khong co)"}`);
+      if (ownerProfileId && uid && ownerProfileId !== uid) {
+        hints.push("CANH BAO: ownerProfileId khac Firebase uid -> rule owner-docId co the khong khop (tru khi la member + grant).");
+      }
+
+      const gateRes = await callApi("/api/test/firebase/firestore/gate-debug");
+      const g = gateRes.data?.data;
+      if (!gateRes.ok) {
+        hints.push(`gate-debug API loi HTTP ${gateRes.status} (can JWT hop le).`);
+        return { hints, gate: null, gateHttpOk: false };
+      }
+
+      hints.push(`BE Firestore projectId: ${g?.projectId ?? "(unknown)"}`);
+      if (clientProjectId && g?.projectId && clientProjectId !== g.projectId) {
+        hints.push("LOI THUONG GAP: Firebase Web config projectId KHAC project BE dang dung -> rules/data khac project -> permission-denied.");
+      }
+      hints.push(`Gate doc exists: ${g?.gateDocExists}`);
+      hints.push(`allowClientRead: ${g?.allowClientRead}`);
+      hints.push(`allowClientReadNoAuth: ${g?.allowClientReadNoAuth}`);
+      hints.push(`isClientReadEnabled (mirror rules): ${g?.isClientReadEnabled}`);
+      if (g?.reason) hints.push(`Gate ly do: ${g.reason}`);
+
+      if (g && !g.isClientReadEnabled) {
+        hints.push("NGUYEN NHAN CO THE: isClientReadEnabled = false -> rules chan moi get usage_tracking.");
+      }
+
+      return { hints, gate: g, gateHttpOk: true };
+    }
+
+    document.getElementById("btnCheckout").addEventListener("click", async () => {
+      try {
+        const payload = {
+          subscriptionPlanId: Number(document.getElementById("planId").value),
+          quantity: Number(document.getElementById("quantity").value),
+          platform: document.getElementById("platform").value
+        };
+        setStatus("Creating checkout session...");
+        const res = await callApi("/api/subscriptions/checkout", "POST", payload);
+        dump(res.data, res.status, res.ok);
+        if (!res.ok) return setStatus(`Checkout failed (${res.status})`, true);
+        latestCheckoutUrl = res.data?.data?.sessionUrl || "";
+        btnOpenCheckout.disabled = !latestCheckoutUrl;
+        setStatus("Checkout session created.");
+      } catch (e) {
+        setStatus(`Checkout error: ${e.message || e}`, true);
+      }
+    });
+
+    btnOpenCheckout.addEventListener("click", () => {
+      if (!latestCheckoutUrl) return;
+      window.open(latestCheckoutUrl, "_blank");
+    });
+
+    document.getElementById("btnCurrent").addEventListener("click", async () => {
+      try {
+        setStatus("Loading current subscription...");
+        const res = await callApi("/api/subscriptions/current");
+        dump(res.data, res.status, res.ok);
+        setStatus(res.ok ? "Current subscription loaded." : `Current failed (${res.status})`, !res.ok);
+      } catch (e) {
+        setStatus(`Current error: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnTransactions").addEventListener("click", async () => {
+      try {
+        setStatus("Loading transactions...");
+        const res = await callApi("/api/subscriptions/transactions?page=1&pageSize=20");
+        dump(res.data, res.status, res.ok);
+        setStatus(res.ok ? "Transactions loaded." : `Transactions failed (${res.status})`, !res.ok);
+      } catch (e) {
+        setStatus(`Transactions error: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnFirestoreHealth").addEventListener("click", async () => {
+      try {
+        setStatus("Checking Firestore connection...");
+        const res = await callApi("/api/test/firebase/firestore/health");
+        dump(res.data, res.status, res.ok);
+        const connected = Boolean(res.data?.data?.isConnected);
+        const reason = res.data?.data?.reason || "";
+        if (res.ok && connected) {
+          setStatus("Firestore connected.");
+        } else if (res.ok && !connected) {
+          setStatus(`Firestore not connected. ${reason || "Check Firebase ProjectId / credentials / Firestore database."}`, true);
+        } else {
+          setStatus(`Firestore health check failed (${res.status})`, true);
+        }
+      } catch (e) {
+        setStatus(`Firestore health error: ${e.message || e}`, true);
+      }
+    });
+
+    async function loadFirestoreUsage(showStatus = true) {
+      const res = await callApi("/api/test/firebase/firestore/usage");
+      dump(res.data, res.status, res.ok);
+      if (!res.ok) {
+        if (showStatus) setStatus(`Firestore usage failed (${res.status})`, true);
+        return;
+      }
+
+      const connected = Boolean(res.data?.data?.health?.isConnected);
+      const reason = res.data?.data?.health?.reason || "";
+      const exists = Boolean(res.data?.data?.exists);
+      const docId = res.data?.data?.docId || "(unknown)";
+      if (!connected) {
+        if (showStatus) setStatus(`Firestore not connected. ${reason || "Check Firebase ProjectId / credentials / Firestore database."}`, true);
+      } else if (!exists) {
+        if (showStatus) setStatus(`Firestore connected, nhung chua co doc ${docId}. Hay thanh toan thanh cong de tao usage doc.`);
+      } else if (showStatus) {
+        setStatus(`Firestore connected. Da lay du lieu realtime tu doc ${docId}.`);
+      }
+    }
+
+    document.getElementById("btnFirestoreUsage").addEventListener("click", async () => {
+      try {
+        setStatus("Loading Firestore usage...");
+        await loadFirestoreUsage(true);
+      } catch (e) {
+        setStatus(`Firestore usage error: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnFirestoreGateDebug").addEventListener("click", async () => {
+      try {
+        setStatus("Loading Firestore gate (server-side)...");
+        const res = await callApi("/api/test/firebase/firestore/gate-debug");
+        dump(res.data, res.status, res.ok);
+        setStatus(res.ok ? "Gate-debug loaded." : `Gate-debug failed (${res.status})`, !res.ok);
+      } catch (e) {
+        setStatus(`Gate-debug error: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnMintFirebaseCustomToken").addEventListener("click", async () => {
+      try {
+        const token = document.getElementById("token").value.trim();
+        if (!token) {
+          throw new Error("Thieu Bearer token. Hay login API truoc (token JWT).");
+        }
+
+        setStatus("Mint Firebase custom token tu BE...");
+        const res = await callApi("/api/auth/firebase/custom-token", "POST", null);
+        dump(res.data, res.status, res.ok);
+
+        if (!res.ok) {
+          setStatus(`Mint custom token failed (${res.status})`, true);
+          return;
+        }
+
+        const mintedToken = res.data?.data?.customToken;
+        const mintedProfileId = res.data?.data?.profileId;
+        if (!mintedToken) {
+          setStatus("Mint success nhung khong thay customToken trong response.", true);
+          return;
+        }
+
+        document.getElementById("fbCustomToken").value = mintedToken;
+
+        const ownerProfileIdEl = document.getElementById("ownerProfileId");
+        const currentOwnerProfileId = ownerProfileIdEl.value.trim();
+        if (!currentOwnerProfileId && mintedProfileId) {
+          ownerProfileIdEl.value = String(mintedProfileId);
+        }
+
+        setStatus("Mint custom token thanh cong. Hay bam 'Firebase Sign In' de ket noi.");
+      } catch (e) {
+        setStatus(`Mint custom token error: ${e.message || e}`, true);
+      }
+    });
+
+    function getFirebaseClientConfig() {
+      return {
+        apiKey: document.getElementById("fbApiKey").value.trim(),
+        authDomain: document.getElementById("fbAuthDomain").value.trim(),
+        projectId: document.getElementById("fbProjectId").value.trim(),
+        appId: document.getElementById("fbAppId").value.trim()
+      };
+    }
+
+    function ensureFirebaseInitialized() {
+      const cfg = getFirebaseClientConfig();
+      if (!cfg.apiKey || !cfg.projectId || !cfg.appId) {
+        throw new Error("Thieu Firebase config: apiKey/projectId/appId.");
+      }
+
+      if (!firebaseApp) {
+        firebaseApp = initializeApp(cfg, "subscription-firestore-tester");
+        firestoreDb = getFirestore(firebaseApp);
+        firebaseAuth = getAuth(firebaseApp);
+        onAuthStateChanged(firebaseAuth, (user) => {
+          currentFirebaseUser = user || null;
+        });
+      }
+
+      return cfg;
+    }
+
+    async function ensureFirebaseSignedIn() {
+      ensureFirebaseInitialized();
+      if (currentFirebaseUser) {
+        return currentFirebaseUser;
+      }
+
+      const customToken = document.getElementById("fbCustomToken").value.trim();
+      if (!customToken) {
+        throw new Error("Thieu Firebase custom token. Hay mint token tu backend roi dan vao.");
+      }
+
+      const credential = await signInWithCustomToken(firebaseAuth, customToken);
+      currentFirebaseUser = credential.user;
+      return currentFirebaseUser;
+    }
+
+    document.getElementById("btnFirebaseSignIn").addEventListener("click", async () => {
+      try {
+        setStatus("Signing in Firebase...");
+        const user = await ensureFirebaseSignedIn();
+        const idTokenResult = await user.getIdTokenResult();
+        dump({
+          source: "firebase-auth",
+          uid: user.uid,
+          email: user.email || null,
+          providerData: user.providerData?.map(p => p.providerId) || [],
+          claims: idTokenResult?.claims || {}
+        }, 200, true);
+        setStatus("Firebase sign-in thanh cong.");
+      } catch (e) {
+        dump({ source: "firebase-auth", error: e.message || String(e) }, 500, false);
+        setStatus(`Firebase sign-in that bai: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnConnectRealtime").addEventListener("click", async () => {
+      try {
+        const user = await ensureFirebaseSignedIn();
+        const ownerProfileId = document.getElementById("ownerProfileId").value.trim();
+        if (!ownerProfileId) {
+          throw new Error("Thieu Owner Profile Id.");
+        }
+
+        if (firestoreUnsubscribe) {
+          firestoreUnsubscribe();
+          firestoreUnsubscribe = null;
+        }
+
+        const docId = `${ownerProfileId}_active`;
+        const docRef = doc(firestoreDb, "usage_tracking", docId);
+
+        firestoreUnsubscribe = onSnapshot(docRef, (snapshot) => {
+          const payload = {
+            source: "firebase-sdk-realtime",
+            firebaseUid: user.uid,
+            docPath: `usage_tracking/${docId}`,
+            exists: snapshot.exists(),
+            updatedAtClient: new Date().toISOString(),
+            data: snapshot.exists() ? snapshot.data() : null
+          };
+          dump(payload, 200, true);
+          resultMetaEl.innerHTML = `<span class="live">Realtime connected - last event: ${new Date().toLocaleTimeString()}</span>`;
+          if (snapshot.exists()) {
+            setStatus(`Dang nghe realtime Firestore: usage_tracking/${docId}`);
+          } else {
+            setStatus(`Dang nghe realtime Firestore, doc chua ton tai: usage_tracking/${docId}`);
+          }
+        }, async (err) => {
+          const clientCfg = getFirebaseClientConfig();
+          const { hints, gate } = await buildFirestorePermissionHints({
+            firebaseUser: user,
+            ownerProfileId,
+            clientProjectId: clientCfg.projectId
+          });
+          dump(
+            {
+              source: "firebase-sdk-realtime",
+              error: serializeFirebaseError(err) || err?.message || String(err),
+              docPathTried: `usage_tracking/${docId}`,
+              hintList: hints,
+              gateFromBe: gate
+            },
+            500,
+            false
+          );
+          setStatus(`Realtime listener error: ${err?.code || ""} ${err?.message || err}`, true);
+        });
+
+        setStatus("Da ket noi realtime listener thanh cong (ket noi giu lien tuc).");
+      } catch (e) {
+        setStatus(`Connect realtime error: ${e.message || e}`, true);
+      }
+    });
+
+    document.getElementById("btnDisconnectRealtime").addEventListener("click", () => {
+      if (firestoreUnsubscribe) {
+        firestoreUnsubscribe();
+        firestoreUnsubscribe = null;
+      }
+      resultMetaEl.textContent = "";
+      setStatus("Da ngat listener realtime.");
+    });
+
+    document.getElementById("btnOpenHangfire").addEventListener("click", () => {
+      const { baseUrl } = getConfig();
+      window.open(`${baseUrl}/hangfire`, "_blank");
+    });
+
+    renderJobGuide();
+  </script>
+</body>
+</html>
