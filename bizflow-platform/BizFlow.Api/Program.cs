@@ -22,27 +22,33 @@ using Hangfire;
 using Hangfire.MySql;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Hangfire Configuration
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseStorage(
-        new MySqlStorage(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
-            new MySqlStorageOptions
-            {
-                TablesPrefix = "hf_"
-            }
-        )
-    ));
+var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
-// Add the processing server as IHostedService
-builder.Services.AddHangfireServer();
+// Hangfire Configuration
+if (isHangfireEnabled)
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseStorage(
+            new MySqlStorage(
+                defaultConnectionString!,
+                new MySqlStorageOptions
+                {
+                    TablesPrefix = "hf_"
+                }
+            )
+        ));
+
+    // Add the processing server as IHostedService
+    builder.Services.AddHangfireServer();
+}
 
 // Add services to the container.
 
@@ -379,75 +385,109 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Hangfire Dashboard
-app.UseHangfireDashboard();
+if (isHangfireEnabled)
+{
+    // Hangfire Dashboard
+    app.UseHangfireDashboard();
 
-// Schedule Recurring Job
-RecurringJob.AddOrUpdate<ImageCleanupJob>(
-    "image-cleanup",
-    job => job.ExecuteAsync(),
-     "5 17 * * *" // 17:05 Vietnam time (UTC+7)
-                  //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
-                  //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
-                  // "* * * * *" // Every minute
-);
+    // Schedule Recurring Job
+    RecurringJob.AddOrUpdate<ImageCleanupJob>(
+        "image-cleanup",
+        job => job.ExecuteAsync(),
+         "5 17 * * *" // 17:05 Vietnam time (UTC+7)
+                      //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
+                      //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
+                      // "* * * * *" // Every minute
+    );
 
-RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
-    "subscription-expiry-check",
-    job => job.ExecuteAsync(),
-    "0 * * * *");
+    RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
+        "subscription-expiry-check",
+        job => job.ExecuteAsync(),
+        "0 * * * *");
 
-RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
-    "subscription-reminder",
-    job => job.ExecuteAsync(),
-    "0 1 * * *");
+    RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
+        "subscription-reminder",
+        job => job.ExecuteAsync(),
+        "0 1 * * *");
 
-RecurringJob.AddOrUpdate<UsageSnapshotJob>(
-    "usage-snapshot",
-    job => job.ExecuteAsync(),
-    "0 17 * * *");
+    RecurringJob.AddOrUpdate<UsageSnapshotJob>(
+        "usage-snapshot",
+        job => job.ExecuteAsync(),
+        "0 17 * * *");
 
-RecurringJob.AddOrUpdate<FirestoreSyncJob>(
-    "firestore-sync",
-    job => job.ExecuteAsync(),
-    "0 */6 * * *");
+    RecurringJob.AddOrUpdate<FirestoreSyncJob>(
+        "firestore-sync",
+        job => job.ExecuteAsync(),
+        "0 */6 * * *");
 
-RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
-    "stale-txn-cleanup",
-    job => job.ExecuteAsync(),
-    "30 3 * * *");
+    RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
+        "stale-txn-cleanup",
+        job => job.ExecuteAsync(),
+        "30 3 * * *");
 
-RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
-    "stripe-pending-reconcile",
-    job => job.ExecuteAsync(),
-    "*/15 * * * *");
+    RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
+        "stripe-pending-reconcile",
+        job => job.ExecuteAsync(),
+        "*/15 * * * *");
 
-RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
-    "stripe-refund-reconcile",
-    job => job.ExecuteAsync(),
-    "7 */2 * * *");
+    RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
+        "stripe-refund-reconcile",
+        job => job.ExecuteAsync(),
+        "7 */2 * * *");
 
-// Giá hiệu dụng theo cửa sổ giảm giá + đồng bộ Stripe Price — mỗi ngày 01:00 UTC
-RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
-    "subscription-plan-stripe-catalog-sync",
-    job => job.ExecuteAsync(),
-    "0 1 * * *");
-RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
-    "scheduled-notification-dispatch",
-    job => job.ExecuteAsync(),
-    "* * * * *"
-);
+    // Giá hiệu dụng theo cửa sổ giảm giá + đồng bộ Stripe Price — mỗi ngày 01:00 UTC
+    RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
+        "subscription-plan-stripe-catalog-sync",
+        job => job.ExecuteAsync(),
+        "0 1 * * *");
+    RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
+        "scheduled-notification-dispatch",
+        job => job.ExecuteAsync(),
+        "* * * * *"
+    );
 
-RecurringJob.AddOrUpdate<NotificationOutboxJob>(
-    "notification-outbox",
-    job => job.ExecuteAsync(),
-    "* * * * *"
-);
+    RecurringJob.AddOrUpdate<NotificationOutboxJob>(
+        "notification-outbox",
+        job => job.ExecuteAsync(),
+        "* * * * *"
+    );
 
-RecurringJob.AddOrUpdate<NotificationRetentionJob>(
-    "notification-retention",
-    job => job.ExecuteAsync(),
-    "0 2 * * *"
-);
+    RecurringJob.AddOrUpdate<NotificationRetentionJob>(
+        "notification-retention",
+        job => job.ExecuteAsync(),
+        "0 2 * * *"
+    );
+}
+else
+{
+    app.Logger.LogWarning("Hangfire is disabled: {Reason}", hangfireDisableReason);
+}
 
 app.Run();
+
+static bool IsHangfireStorageReachable(string? connectionString, out string reason)
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        reason = "ConnectionStrings:DefaultConnection is missing or empty.";
+        return false;
+    }
+
+    try
+    {
+        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString)
+        {
+            ConnectionTimeout = 3
+        };
+
+        using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
+        connection.Open();
+        reason = string.Empty;
+        return true;
+    }
+    catch (Exception ex)
+    {
+        reason = $"unable to connect to MySQL ({ex.Message})";
+        return false;
+    }
+}

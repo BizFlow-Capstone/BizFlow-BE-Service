@@ -817,7 +817,7 @@ namespace BizFlow.Infrastructure.Services
                 {
                     app = FirebaseApp.Create(new AppOptions
                     {
-                        Credential = GoogleCredential.GetApplicationDefault(),
+                        Credential = ResolveFirebaseCredential(),
                         ProjectId = _firebaseConfig.ProjectId
                     });
                 }
@@ -834,6 +834,29 @@ namespace BizFlow.Infrastructure.Services
             }
 
             return FirebaseAuth.GetAuth(app);
+        }
+
+        private GoogleCredential ResolveFirebaseCredential()
+        {
+            var envPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+            var configPath = string.IsNullOrWhiteSpace(_firebaseConfig.ServiceAccountPath)
+                ? null
+                : _firebaseConfig.ServiceAccountPath.Trim();
+
+            var candidatePath = !string.IsNullOrWhiteSpace(envPath) ? envPath : configPath;
+            if (!string.IsNullOrWhiteSpace(candidatePath))
+            {
+                if (File.Exists(candidatePath))
+                {
+                    return GoogleCredential.FromFile(candidatePath);
+                }
+
+                throw new InvalidOperationException(
+                    $"Firebase service account file not found at '{candidatePath}'. " +
+                    $"GOOGLE_APPLICATION_CREDENTIALS='{envPath}', FirebaseAuth:ServiceAccountPath='{configPath}'.");
+            }
+
+            return GoogleCredential.GetApplicationDefault();
         }
     }
 }
