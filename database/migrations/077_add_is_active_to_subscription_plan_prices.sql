@@ -15,4 +15,4 @@ SET spp.IsActive = TRUE;
 CREATE INDEX idx_price_active ON SubscriptionPlanPrices (SubscriptionPlanId, IsActive);
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('076_add_is_active_to_subscription_plan_prices', '1.0.0');
+VALUES ('077_add_is_active_to_subscription_plan_prices', '1.0.0');

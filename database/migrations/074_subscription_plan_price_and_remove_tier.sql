@@ -36,5 +36,5 @@ ALTER TABLE SubscriptionPlans DROP COLUMN Tier;
 -- Insert migration history
 -- =============================================
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('049_subscription_plan_price_and_remove_tier', '1.0.0')
+VALUES ('074_subscription_plan_price_and_remove_tier', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';

@@ -94,5 +94,5 @@ INSERT IGNORE INTO SubscriptionPlanPrices (PriceId, SubscriptionPlanId, BasePric
 -- Insert migration history
 -- =============================================
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('075_seed_subscription_sample_data', '1.0.0')
+VALUES ('076_seed_subscription_sample_data', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';

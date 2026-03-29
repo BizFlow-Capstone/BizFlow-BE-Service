@@ -21,6 +21,6 @@ ALTER TABLE FeatureUsages
     MODIFY AllocatedLimit INT NOT NULL;
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('078_add_allocated_limit_to_feature_usages', '1.0.0')
+VALUES ('079_add_allocated_limit_to_feature_usages', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';
 
