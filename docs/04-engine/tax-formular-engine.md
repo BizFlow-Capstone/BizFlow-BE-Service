@@ -5,6 +5,8 @@
 > Quay về [report-accounting-flow.md](../03-flows/report-accounting-flow.md) (index)
 >
 > **Mục đích**: Tính toán tất cả ô computed trong template TT152 — tổng hợp (SUM), tham chiếu ô khác, công thức thuế, bình quân gia quyền, lookup giá trị ngoài. Công thức lưu dạng structured JSON trong DB, không hardcode.
+>
+> **Đọc thêm (chi tiết toán tử và cách evaluate)**: [formula-operator-guide.md](formula-operator-guide.md)
 
 ---
 
@@ -63,11 +65,13 @@
 ```
 
 **Rendering Service** chỉ lo:
+
 1. Query data rows (Revenues, Costs, GL...)
 2. Gọi `FormulaEngine.EvaluateAll(bookId, context)` → nhận được `Dictionary<string, decimal>`
 3. Gắn kết quả vào các dòng tổng hợp / dòng thuế
 
 **Formula Engine** chỉ lo:
+
 1. Đọc `FormulaDefinitions` (ExpressionJson)
 2. Tính toán (query data nếu cần, tham chiếu ô khác, apply công thức)
 3. Trả kết quả + cache vào `FormulaResults`

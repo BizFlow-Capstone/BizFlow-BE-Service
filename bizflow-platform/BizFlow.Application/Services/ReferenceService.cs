@@ -30,6 +30,10 @@ namespace BizFlow.Application.Services
 
         public IReadOnlyList<string> GetRevenueTypes() => RevenueType.All;
 
+        public IReadOnlyList<string> GetSubscriptionStatuses() => SubscriptionStatus.All;
+
+        public IReadOnlyList<string> GetSubscriptionTransactionTypes() => TransactionType.All;
+
         public IReadOnlyList<string> GetStockMovementTypes() => StockMovementType.All;
 
         public IReadOnlyList<string> GetStockMovementReferenceTypes() => StockMovementReferenceType.All;

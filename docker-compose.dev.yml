@@ -6,6 +6,15 @@
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev down
+#
+# Stripe webhook (dev): stripe-cli service runs `listen` and forwards to bizflow-api.
+#   - Requires STRIPE_SECRET_KEY in .env.dev (CLI reads STRIPE_API_KEY in the container).
+#   - First run: `docker logs bizflow-stripe-cli` → copy the "webhook signing secret" line (whsec_...)
+#     into STRIPE_WEBHOOK_SECRET, then restart bizflow-api (secret may change each listen session).
+#   - Stop when not testing Stripe: docker stop bizflow-stripe-cli
+#   - Start again: docker start bizflow-stripe-cli
+#   - Build: docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d --build
+#   - Logs: docker logs bizflow-stripe-cli
 # =============================================================================
 
 services:
@@ -29,7 +38,7 @@ services:
     networks:
       - bizflow-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,13 +68,34 @@ services:
   # API — dev settings: expose port directly (no nginx needed in dev)
   # ---------------------------------------------------------------------------
   bizflow-api:
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-bizflow_db};User=${MYSQL_USER:-admin};Password=${MYSQL_PASSWORD};CharSet=utf8mb4;SslMode=none;AllowPublicKeyRetrieval=true;Allow User Variables=true;
     ports:
-      - "8080:8080"                        # Access API at http://localhost:8080
+      - "8080:8080"
     depends_on:
       mysql:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+
+  # ---------------------------------------------------------------------------
+  # Stripe CLI — forwards webhooks to the API (same Docker network; no host-side `stripe listen`)
+  # ---------------------------------------------------------------------------
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: bizflow-stripe-cli
+    restart: unless-stopped
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+    command:
+      - listen
+      - --forward-to
+      - http://bizflow-api:8080/api/webhooks/stripe
+    depends_on:
+      bizflow-api:
+        condition: service_started
+    networks:
+      - bizflow-network
 
 volumes:
   mysql_data:

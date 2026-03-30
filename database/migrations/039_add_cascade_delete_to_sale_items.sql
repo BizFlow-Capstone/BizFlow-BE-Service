@@ -32,3 +32,9 @@ ALTER TABLE `OrderDetails`
 ADD CONSTRAINT `fk_order_detail_sale_item`
 FOREIGN KEY (`SaleItemId`) REFERENCES `SaleItems` (`SaleItemId`) ON DELETE CASCADE;
 
+-- =============================================
+-- Insert migration history
+-- =============================================
+INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('039_add_cascade_delete_to_sale_items', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Store expenses - source of truth for all expense records
+/// Chi phí cửa hàng - source-of-truth cho mọi khoản chi
 /// </summary>
 public partial class Cost
 {
@@ -21,22 +21,22 @@ public partial class Cost
     public string CostType { get; set; } = null!;
 
     /// <summary>
-    /// FK to Imports (only when CostType = import)
+    /// FK to Imports (chỉ có khi CostType = import)
     /// </summary>
     public long? ImportId { get; set; }
 
     /// <summary>
-    /// Expense description
+    /// Mô tả nội dung chi phí
     /// </summary>
     public string Description { get; set; } = null!;
 
     /// <summary>
-    /// Expense amount
+    /// Giá trị chi phí
     /// </summary>
     public decimal Amount { get; set; }
 
     /// <summary>
-    /// Expense date
+    /// Ngày phát sinh chi phí
     /// </summary>
     public DateOnly CostDate { get; set; }
 
@@ -46,17 +46,17 @@ public partial class Cost
     public string? PaymentMethod { get; set; }
 
     /// <summary>
-    /// Receipt/invoice URL (Cloudinary)
+    /// URL chứng từ/hóa đơn (Cloudinary)
     /// </summary>
     public string? DocumentUrl { get; set; }
 
     /// <summary>
-    /// Cloudinary public ID of the receipt/invoice
+    /// Public ID Cloudinary của chứng từ
     /// </summary>
     public string? DocumentPublicId { get; set; }
 
     /// <summary>
-    /// UserId of the creator
+    /// UserId người tạo bản ghi
     /// </summary>
     public Guid CreatedBy { get; set; }
 

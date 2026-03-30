@@ -27,6 +27,11 @@ public partial class Profile
     /// </summary>
     public string? TaxCode { get; set; }
 
+    /// <summary>
+    /// Stripe Customer ID for payment orchestration
+    /// </summary>
+    public string? StripeCustomerId { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 
     public virtual Account Account { get; set; } = null!;
@@ -45,11 +50,14 @@ public partial class Profile
 
     public virtual ICollection<ImportSchemaVersion> ImportSchemaVersions { get; set; } = new List<ImportSchemaVersion>();
 
+    public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
     public virtual ICollection<NotificationDispatch> NotificationDispatches { get; set; } = new List<NotificationDispatch>();
 
     public virtual ICollection<UserNotification> UserNotifications { get; set; } = new List<UserNotification>();
 
     public virtual ICollection<SystemConfig> SystemConfig { get; set; } = new List<SystemConfig>();
+
+    public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 
     public virtual ICollection<UserLocationAssignment> UserLocationAssignments { get; set; } = new List<UserLocationAssignment>();
 }

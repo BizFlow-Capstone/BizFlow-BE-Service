@@ -6,6 +6,8 @@ using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -22,7 +24,7 @@ public class CostServiceTests
 
     public CostServiceTests()
     {
-        var cfg = new MapperConfiguration(c => c.CreateMap<Cost, CostDto>());
+        var cfg = new MapperConfiguration(c => c.CreateProfile("Test", p => p.CreateMap<Cost, CostDto>()), NullLoggerFactory.Instance);
         _mapper = cfg.CreateMapper();
 
         _uow.SetupGet(x => x.Costs).Returns(_costRepo.Object);

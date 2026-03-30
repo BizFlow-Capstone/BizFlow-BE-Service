@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfileId() {
+      // Strict prod: signed-in only, prefer custom claim, fallback to uid.
+      return isSignedIn()
+        ? (
+            request.auth.token.profileId is string
+              ? request.auth.token.profileId
+              : request.auth.uid
+          )
+        : "";
+    }
+
+    function isClientReadEnabled() {
+      let gatePath = /databases/$(database)/documents/system_config/firestore_gate;
+      // Strict prod: only allow signed-in FE reads when allowClientRead=true.
+      return exists(gatePath)
+        && get(gatePath).data.allowClientRead is bool
+        && get(gatePath).data.allowClientRead == true;
+    }
+
+    function canReadOwnerUsage(ownerProfileId) {
+      let me = myProfileId();
+      let memberPath = /databases/$(database)/documents/subscription_access/$(ownerProfileId)/members/$(me);
+      return me == ownerProfileId
+        || (exists(memberPath)
+            && get(memberPath).data.isActive == true
+            && get(memberPath).data.canReadUsage == true);
+    }
+
+    match /usage_tracking/{docId} {
+      allow get: if isSignedIn()
+                  && isClientReadEnabled()
+                  && (
+                      // Owner can read/listen own active doc even before first write.
+                      docId == (myProfileId() + "_active")
+                      || (resource.data.ownerProfileId is string
+                          && canReadOwnerUsage(resource.data.ownerProfileId))
+                  );
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /active_assignments/{profileId} {
+      allow get: if isSignedIn()
+                  && isClientReadEnabled()
+                  && myProfileId() == profileId;
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // Backend-managed only.
+    match /subscription_access/{ownerProfileId}/members/{memberProfileId} {
+      allow read, write: if false;
+    }
+
+    // Kill-switch doc is backend-managed only.
+    match /system_config/{docId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -554,6 +554,34 @@ namespace BizFlow.Infrastructure.Services
             }).ToList();
         }
 
+        public async Task<FirebaseCustomTokenResponse> CreateFirebaseCustomTokenAsync(Guid profileId)
+        {
+            var profileExists = await _db.Profiles
+                .AsNoTracking()
+                .AnyAsync(p => p.ProfileId == profileId);
+
+            if (!profileExists)
+            {
+                throw new KeyNotFoundException("Profile not found");
+            }
+
+            var firebaseAuth = GetFirebaseAuth();
+            var claims = new Dictionary<string, object>
+            {
+                ["profileId"] = profileId.ToString()
+            };
+
+            var customToken = await firebaseAuth.CreateCustomTokenAsync(profileId.ToString(), claims);
+
+            _logger.LogInformation("Firebase custom token created. ProfileId={ProfileId}", profileId);
+
+            return new FirebaseCustomTokenResponse
+            {
+                ProfileId = profileId,
+                CustomToken = customToken
+            };
+        }
+
         // ===== Private helpers =====
 
         private async Task<GoogleJsonWebSignature.Payload> VerifyGoogleTokenAsync(string idToken)
@@ -789,7 +817,7 @@ namespace BizFlow.Infrastructure.Services
                 {
                     app = FirebaseApp.Create(new AppOptions
                     {
-                        Credential = GoogleCredential.GetApplicationDefault(),
+                        Credential = ResolveFirebaseCredential(),
                         ProjectId = _firebaseConfig.ProjectId
                     });
                 }
@@ -806,6 +834,29 @@ namespace BizFlow.Infrastructure.Services
             }
 
             return FirebaseAuth.GetAuth(app);
+        }
+
+        private GoogleCredential ResolveFirebaseCredential()
+        {
+            var envPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+            var configPath = string.IsNullOrWhiteSpace(_firebaseConfig.ServiceAccountPath)
+                ? null
+                : _firebaseConfig.ServiceAccountPath.Trim();
+
+            var candidatePath = !string.IsNullOrWhiteSpace(envPath) ? envPath : configPath;
+            if (!string.IsNullOrWhiteSpace(candidatePath))
+            {
+                if (File.Exists(candidatePath))
+                {
+                    return GoogleCredential.FromFile(candidatePath);
+                }
+
+                throw new InvalidOperationException(
+                    $"Firebase service account file not found at '{candidatePath}'. " +
+                    $"GOOGLE_APPLICATION_CREDENTIALS='{envPath}', FirebaseAuth:ServiceAccountPath='{configPath}'.");
+            }
+
+            return GoogleCredential.GetApplicationDefault();
         }
     }
 }

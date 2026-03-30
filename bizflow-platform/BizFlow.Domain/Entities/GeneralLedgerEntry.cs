@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Immutable accounting ledger - append only, no updates/deletes
+/// Sổ cái kế toán bất biến - chỉ thêm, không sửa/xoá
 /// </summary>
 public partial class GeneralLedgerEntry
 {
@@ -26,27 +26,27 @@ public partial class GeneralLedgerEntry
     public string ReferenceType { get; set; } = null!;
 
     /// <summary>
-    /// Source entity ID (polymorphic, no hard FK)
+    /// ID của thực thể nguồn (polymorphic, không có FK cứng)
     /// </summary>
     public long? ReferenceId { get; set; }
 
     /// <summary>
-    /// Transaction date
+    /// Ngày phát sinh nghiệp vụ
     /// </summary>
     public DateOnly EntryDate { get; set; }
 
     /// <summary>
-    /// Ledger entry description
+    /// Mô tả nội dung bút toán
     /// </summary>
     public string Description { get; set; } = null!;
 
     /// <summary>
-    /// Debit amount
+    /// Số tiền Nợ (debit)
     /// </summary>
     public decimal DebitAmount { get; set; }
 
     /// <summary>
-    /// Credit amount
+    /// Số tiền Có (credit)
     /// </summary>
     public decimal CreditAmount { get; set; }
 
@@ -56,17 +56,17 @@ public partial class GeneralLedgerEntry
     public string? MoneyChannel { get; set; }
 
     /// <summary>
-    /// TRUE if this is a reversal entry
+    /// TRUE nếu đây là bản ghi đảo (reversal entry)
     /// </summary>
     public bool IsReversal { get; set; }
 
     /// <summary>
-    /// Reversed entry ID (self-reference)
+    /// EntryId bị đảo ngược (tự tham chiếu)
     /// </summary>
     public long? ReversedEntryId { get; set; }
 
     /// <summary>
-    /// IMMUTABLE - must not be changed after creation
+    /// IMMUTABLE - không được thay đổi sau khi tạo
     /// </summary>
     public DateTime CreatedAt { get; set; }
 

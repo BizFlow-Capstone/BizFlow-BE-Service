@@ -61,6 +61,34 @@ namespace BizFlow.Application.Services
             return _mapper.Map<RevenueDto>(revenue);
         }
 
+        public async Task<RevenueDto> UpdateManualAsync(Guid userId, long revenueId, UpdateManualRevenueRequest request)
+        {
+            var revenue = await _uow.Revenues.GetByIdAsync(revenueId)
+                ?? throw new NotFoundException(MessageKeys.NotFound);
+
+            await _locationService.ValidateOwnerAsync(userId, revenue.BusinessLocationId);
+
+            if (!revenue.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (!PaymentMethods.IsValid(request.MoneyChannel))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            revenue.Amount = request.Amount;
+            revenue.RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            revenue.Description = request.Description.Trim();
+            revenue.MoneyChannel = request.MoneyChannel.Trim().ToLower();
+
+            _uow.Revenues.Update(revenue);
+            await _uow.SaveChangesAsync();
+
+            await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueUpdatedReversalReason);
+            await _generalLedgerService.RecordManualRevenueAsync(revenue);
+            await _uow.SaveChangesAsync();
+
+            return _mapper.Map<RevenueDto>(revenue);
+        }
+
         public async Task<PaginatedResponse<RevenueDto>> ListAsync(Guid userId, RevenueQueryParams query)
         {
             await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);

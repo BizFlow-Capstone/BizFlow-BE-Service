@@ -44,6 +44,7 @@ namespace BizFlow.Infrastructure.Repositories
                     City = loc.City,
                     Phone = loc.Phone,
                     IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
                     OwnerName = ownerProfile.FullName
                 }
             ).ToListAsync();
@@ -77,6 +78,7 @@ namespace BizFlow.Infrastructure.Repositories
                     City = loc.City,
                     Phone = loc.Phone,
                     IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
                     OwnerName = ownerProfile.FullName
                 }
             ).FirstOrDefaultAsync();
@@ -102,6 +104,7 @@ namespace BizFlow.Infrastructure.Repositories
                     Phone = loc.Phone,
                     TaxCode = loc.TaxCode,
                     IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
                     OwnerName = ownerProfile.FullName
                 }
             ).FirstOrDefaultAsync();
@@ -142,6 +145,14 @@ namespace BizFlow.Infrastructure.Repositories
                     ula.UserId == userId &&
                     ula.BusinessLocationId == locationId &&
                     ula.IsActive == true);
+        }
+
+        public async Task<Guid?> GetOwnerIdByLocationAsync(int locationId)
+        {
+            return await _context.UserLocationAssignments
+                .Where(ula => ula.BusinessLocationId == locationId && ula.IsOwner && ula.IsActive == true)
+                .Select(ula => (Guid?)ula.UserId)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)

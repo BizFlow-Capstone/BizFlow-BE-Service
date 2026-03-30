@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BizFlow Admin Accounting Lab</title>
+    <style>
+        :root { --bg:#0b1020; --panel:#131a2e; --line:#253052; --txt:#e7ecff; --muted:#9aa8d6; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; }   
+        * { box-sizing:border-box; }
+        body { margin:0; font-family:Segoe UI,Arial,sans-serif; background:linear-gradient(120deg,#0b1020,#131a2e 45%,#0f1630); color:var(--txt); }
+        .wrap { max-width:1300px; margin:0 auto; padding:20px; }
+        .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+        h1 { font-size:22px; margin:0 0 12px; }
+        h2 { font-size:16px; margin:0 0 10px; }
+        h3 { font-size:14px; margin:0 0 8px; }
+        .row { display:flex; gap:10px; flex-wrap:wrap; }
+        .col { flex:1 1 240px; }
+        label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+        input, textarea, select { width:100%; background:#0f1630; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+        textarea { min-height:92px; font-family:Consolas,monospace; }
+        button { background:#2e4fff; color:white; border:none; padding:9px 12px; border-radius:8px; cursor:pointer; }
+        button.alt { background:#334155; }
+        button.warn { background:#7c2d12; }
+        .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+        .muted { color:var(--muted); font-size:12px; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:12px; }
+        .kpi { background:#0f1630; border:1px solid var(--line); border-radius:10px; padding:10px; }
+        .kpi .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px; }
+        .kpi .value { font-size:24px; font-weight:700; margin-top:4px; }
+        .table-wrap { max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+        table { width:100%; border-collapse:collapse; font-size:13px; }
+        th, td { border-bottom:1px solid var(--line); padding:7px; text-align:left; vertical-align:top; }
+        th { color:var(--muted); font-size:11px; text-transform:uppercase; }
+        td .mini { font-size:11px; color:var(--muted); }
+        .log { max-height:300px; overflow:auto; background:#0a1022; border:1px solid var(--line); border-radius:8px; padding:8px; font-family:Consolas,monospace; font-size:12px; white-space:pre-wrap; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Admin Accounting Lab</h1>
+
+    <div class="card">
+        <h2>Config</h2>
+        <div class="row">
+            <div class="col"><label>Base URL</label><input id="baseUrl" value="http://localhost:7270" /></div>
+            <div class="col"><label>Bearer Token</label><input id="token" placeholder="eyJ..." /></div>
+        </div>
+        <div class="actions">
+            <button onclick="loadOverview()">Load Overview</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Overview</h2>
+        <div class="kpis">
+            <div class="kpi"><div class="label">Templates</div><div id="kpiTemplates" class="value">0</div></div>
+            <div class="kpi"><div class="label">Template Versions</div><div id="kpiVersions" class="value">0</div></div>
+            <div class="kpi"><div class="label">Rulesets</div><div id="kpiRulesets" class="value">0</div></div>
+            <div class="kpi"><div class="label">Formulas</div><div id="kpiFormulas" class="value">0</div></div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <h3>Templates</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Code</th><th>Name</th><th>Versions</th><th>Active</th></tr>
+                        </thead>
+                        <tbody id="templatesBody"><tr><td colspan="5" class="muted">No data</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <h3>Rulesets</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Code</th><th>Version</th><th>Rules</th><th>Active</th></tr>
+                        </thead>
+                        <tbody id="rulesetsBody"><tr><td colspan="5" class="muted">No data</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col">
+                <h3>Formulas</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Code</th><th>Name</th><th>Type</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="formulasBody"><tr><td colspan="5" class="muted">No data</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Template Version Actions</h2>
+        <div class="row">
+            <div class="col"><label>TemplateVersionId</label><input id="versionId" type="number" /></div>
+            <div class="col"><label>VersionLabel</label><input id="versionLabel" /></div>
+            <div class="col"><label>EffectiveFrom (yyyy-mm-dd)</label><input id="effectiveFrom" /></div>
+        </div>
+        <div class="actions">
+            <button onclick="getVersionDetail()">Get Detail</button>
+            <button onclick="cloneVersion()">Clone</button>
+            <button onclick="updateVersion()">Update</button>
+            <button onclick="activateVersion()">Activate (Admin)</button>
+            <button class="alt" onclick="deactivateVersion()">Deactivate (Admin)</button>
+            <button class="warn" onclick="deleteVersionDraft()">Delete Draft (Admin)</button>
+        </div>
+        <div id="versionDetail" class="log"></div>
+    </div>
+
+    <div class="card">
+        <h2>Field Mapping Testing</h2>
+        <div class="row">
+            <div class="col"><label>MappingId</label><input id="fmMappingId" type="number" /></div>
+            <div class="col"><label>SourceType</label><input id="fmSourceType" placeholder="query | formula | static | auto" /></div>
+            <div class="col"><label>SourceEntityId</label><input id="fmSourceEntityId" type="number" placeholder="e.g. 3 = gl_entries" /></div>
+            <div class="col"><label>SourceFieldId</label><input id="fmSourceFieldId" type="number" placeholder="e.g. 11 = EntryDate" /></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>FieldLabel (optional)</label><input id="fmFieldLabel" /></div>
+            <div class="col"><label>FieldType (optional)</label><input id="fmFieldType" placeholder="date | text | decimal | computed" /></div>
+            <div class="col"><label>AggregationType (optional)</label><input id="fmAggregationType" placeholder="sum | avg | none" /></div>
+        </div>
+        <label>FilterJson (optional)</label>
+        <textarea id="fmFilterJson" placeholder='{"MoneyChannel":"cash"}'></textarea>
+        <div class="actions">
+            <button class="alt" onclick="prefillMappingFromVersionDetail()">Prefill From Version Detail</button>
+            <button onclick="updateFieldMappingRef()">Update Mapping Ref</button>
+        </div>
+        <div id="fieldMappingResult" class="log"></div>
+        <div class="muted" style="margin-top:8px;">
+            Tip: lấy MappingId từ Get Detail của TemplateVersion (fieldMappings[].mappingId), sau đó remap SourceEntityId/SourceFieldId để test cột.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Formula Testing</h2>
+        <div class="row">
+            <div class="col"><label>FormulaId</label><input id="formulaId" type="number" /></div>
+            <div class="col"><label>Name</label><input id="formulaName" /></div>
+            <div class="col"><label>FormulaType</label><input id="formulaType" /></div>
+        </div>
+        <label>Description</label>
+        <input id="formulaDescription" />
+        <label>ExpressionJson</label>
+        <textarea id="formulaJson"></textarea>
+        <div class="actions">
+            <button class="alt" onclick="getFormulaDetail()">Get Formula Detail</button>
+            <button onclick="updateFormula()">Update Formula (Testing)</button>
+            <button onclick="cloneFormula()">Clone Formula</button>
+        </div>
+        <div id="formulaDetail" class="log"></div>
+    </div>
+
+    <div class="card">
+        <h2>Template Formula Impact</h2>
+        <div class="row">
+            <div class="col"><label>TemplateVersionId</label><input id="impactTemplateVersionId" type="number" /></div>
+            <div class="col"><label>Formula In Template</label><select id="impactFormulaSelect"></select></div>
+            <div class="col"><label>Row Index To Compare</label><input id="impactRowIndex" type="number" value="0" /></div>
+        </div>
+        <div class="actions">
+            <button class="alt" onclick="loadTemplateFormulasForImpact()">Load Formulas In Template</button>
+            <button onclick="captureImpactBaseline()">1) Capture Before</button>
+            <button onclick="applyFormulaAndCompareImpact()">2) Apply Formula + Compare</button>
+        </div>
+        <div class="row" style="margin-top:10px;">
+            <div class="col">
+                <h3>Template Formulas</h3>
+                <div id="impactFormulaList" class="log"></div>
+            </div>
+            <div class="col">
+                <h3>Impact Diff</h3>
+                <div id="impactDiff" class="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Preview (Any template version)</h2>
+        <div class="row">
+            <div class="col"><label>LocationId</label><input id="pLocation" type="number" value="6" /></div>
+            <div class="col"><label>PeriodId</label><input id="pPeriod" type="number" value="1" /></div>
+            <div class="col"><label>TemplateVersionId</label><input id="pTemplateVersion" type="number" /></div>
+            <div class="col"><label>GroupNumber</label><input id="pGroup" type="number" value="2" /></div>
+            <div class="col"><label>TaxMethod</label><input id="pMethod" value="method_1" /></div>
+            <div class="col"><label>RulesetId</label><input id="pRuleset" type="number" value="1" /></div>
+            <div class="col"><label>BatchSize</label><input id="pBatch" type="number" value="20" /></div>
+        </div>
+        <label>BusinessTypeIds (comma-separated GUIDs, optional)</label>
+        <input id="pBusinessTypeIds" placeholder="guid1,guid2" />
+        <div class="actions"><button onclick="preview()">Run Preview</button></div>
+        <div id="previewBox" class="log"></div>
+    </div>
+
+    <div class="card">
+        <h2>API Log</h2>
+        <div id="log" class="log"></div>
+    </div>
+</div>
+
+<script>
+let impactBeforePreview = null;
+
+function headers() {
+    const token = document.getElementById('token').value.trim();
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h.Authorization = `Bearer ${token}`;
+    return h;
+}
+function base() { return document.getElementById('baseUrl').value.trim(); }
+function log(msg) {
+    const el = document.getElementById('log');
+    el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n\n` + el.textContent;
+}
+async function call(method, path, body) {
+    const url = `${base()}${path}`;
+    const opt = { method, headers: headers() };
+    if (body !== undefined) opt.body = JSON.stringify(body);
+    const res = await fetch(url, opt);
+    const txt = await res.text();
+    let data = txt;
+    try { data = JSON.parse(txt); } catch {}
+    log(`${method} ${path} -> ${res.status}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
+    return data?.data ?? data;
+}
+function json(el, data) { document.getElementById(el).textContent = JSON.stringify(data, null, 2); }
+
+function getPreviewRequestFromInputs() {
+    const idsRaw = document.getElementById('pBusinessTypeIds').value.trim();
+    return {
+        businessLocationId: Number(document.getElementById('pLocation').value),
+        periodId: Number(document.getElementById('pPeriod').value),
+        templateVersionId: Number(document.getElementById('pTemplateVersion').value),
+        groupNumber: Number(document.getElementById('pGroup').value),
+        taxMethod: document.getElementById('pMethod').value,
+        rulesetId: Number(document.getElementById('pRuleset').value),
+        batchSize: Number(document.getElementById('pBatch').value),
+        businessTypeIds: idsRaw ? idsRaw.split(',').map(x => x.trim()).filter(Boolean) : []
+    };
+}
+
+function validatePreviewRequest(body) {
+    const errors = [];
+    if (!body.businessLocationId || body.businessLocationId <= 0) errors.push('businessLocationId must be > 0');
+    if (!body.periodId || body.periodId <= 0) errors.push('periodId must be > 0');
+    if (!body.templateVersionId || body.templateVersionId <= 0) errors.push('templateVersionId must be > 0');
+    if (!body.rulesetId || body.rulesetId <= 0) errors.push('rulesetId must be > 0');
+    return errors;
+}
+
+async function loadOverview() {
+    const data = await call('GET', '/api/admin/accounting/overview');
+    const templates = data.templates || [];
+    const rulesets = data.taxRulesets || [];
+    const formulas = data.formulas || [];
+
+    const totalVersions = templates.reduce((sum, t) => sum + (t.versions?.length || 0), 0);
+    document.getElementById('kpiTemplates').textContent = templates.length;
+    document.getElementById('kpiVersions').textContent = totalVersions;
+    document.getElementById('kpiRulesets').textContent = rulesets.length;
+    document.getElementById('kpiFormulas').textContent = formulas.length;
+
+    const tBody = document.getElementById('templatesBody');
+    tBody.innerHTML = templates.length
+        ? templates.map(t => `
+            <tr>
+                <td>${t.templateId}</td>
+                <td>${t.templateCode || ''}</td>
+                <td>${t.name || ''}</td>
+                <td>${t.versions?.length || 0}</td>
+                <td>${t.isActive ? 'Yes' : 'No'}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="muted">No templates</td></tr>';
+
+    const rBody = document.getElementById('rulesetsBody');
+    rBody.innerHTML = rulesets.length
+        ? rulesets.map(r => `
+            <tr>
+                <td>${r.rulesetId}</td>
+                <td>${r.code || ''}</td>
+                <td>${r.version || ''}</td>
+                <td><div>${r.groupRuleCount || 0}</div><div class="mini">industry: ${r.industryRateCount || 0}</div></td>
+                <td>${r.isActive ? 'Yes' : 'No'}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="muted">No rulesets</td></tr>';
+
+    const fBody = document.getElementById('formulasBody');
+    fBody.innerHTML = formulas.length
+        ? formulas.map(f => `
+            <tr>
+                <td>${f.formulaId}</td>
+                <td>${f.code || ''}</td>
+                <td>${f.name || ''}</td>
+                <td>${f.formulaType || ''}</td>
+                <td><button class="alt" onclick="pickFormula(${f.formulaId})">Load</button></td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="muted">No formulas</td></tr>';
+}
+async function getVersionDetail() {
+    const id = document.getElementById('versionId').value;
+    const data = await call('GET', `/api/admin/accounting/template-versions/${id}`);
+    json('versionDetail', data);
+}
+async function cloneVersion() {
+    const id = document.getElementById('versionId').value;
+    await call('POST', `/api/admin/accounting/template-versions/${id}/clone`);
+}
+async function updateVersion() {
+    const id = document.getElementById('versionId').value;
+    const body = {
+        versionLabel: document.getElementById('versionLabel').value || null,
+        effectiveFrom: document.getElementById('effectiveFrom').value || null
+    };
+    await call('PATCH', `/api/admin/accounting/template-versions/${id}`, body);
+}
+async function activateVersion() {
+    const id = document.getElementById('versionId').value;
+    await call('POST', `/api/admin/accounting/template-versions/${id}/activate`);
+}
+async function deactivateVersion() {
+    const id = document.getElementById('versionId').value;
+    await call('POST', `/api/admin/accounting/template-versions/${id}/deactivate`);
+}
+async function deleteVersionDraft() {
+    const id = document.getElementById('versionId').value;
+    await call('DELETE', `/api/admin/accounting/template-versions/${id}`);
+}
+
+function prefillMappingFromVersionDetail() {
+    const raw = document.getElementById('versionDetail').textContent || '';
+    if (!raw.trim()) {
+        json('fieldMappingResult', { message: 'Please load version detail first' });
+        return;
+    }
+
+    let detail;
+    try {
+        detail = JSON.parse(raw);
+    } catch {
+        json('fieldMappingResult', { message: 'Version detail is not valid JSON' });
+        return;
+    }
+
+    const mappings = detail.fieldMappings || [];
+    if (!mappings.length) {
+        json('fieldMappingResult', { message: 'No fieldMappings in version detail' });
+        return;
+    }
+
+    const selected = mappings[0];
+    document.getElementById('fmMappingId').value = selected.mappingId ?? '';
+    document.getElementById('fmSourceType').value = selected.sourceType ?? '';
+    document.getElementById('fmSourceEntityId').value = selected.sourceEntityId ?? '';
+    document.getElementById('fmSourceFieldId').value = selected.sourceFieldId ?? '';
+    document.getElementById('fmFieldLabel').value = selected.fieldLabel ?? '';
+    document.getElementById('fmFieldType').value = selected.fieldType ?? '';
+    document.getElementById('fmAggregationType').value = selected.aggregationType ?? '';
+    document.getElementById('fmFilterJson').value = selected.filterJson ?? '';
+
+    json('fieldMappingResult', { message: 'Prefilled using first mapping from version detail', mapping: selected });
+}
+
+async function updateFieldMappingRef() {
+    const mappingId = Number(document.getElementById('fmMappingId').value);
+    if (!mappingId) {
+        json('fieldMappingResult', { message: 'MappingId is required' });
+        return;
+    }
+
+    const sourceType = document.getElementById('fmSourceType').value.trim();
+    const sourceEntityIdRaw = document.getElementById('fmSourceEntityId').value.trim();
+    const sourceFieldIdRaw = document.getElementById('fmSourceFieldId').value.trim();
+    const fieldLabel = document.getElementById('fmFieldLabel').value.trim();
+    const fieldType = document.getElementById('fmFieldType').value.trim();
+    const aggregationType = document.getElementById('fmAggregationType').value.trim();
+    const filterJson = document.getElementById('fmFilterJson').value.trim();
+
+    const body = {};
+    if (sourceType) body.sourceType = sourceType;
+    if (sourceEntityIdRaw) body.sourceEntityId = Number(sourceEntityIdRaw);
+    if (sourceFieldIdRaw) body.sourceFieldId = Number(sourceFieldIdRaw);
+    if (fieldLabel) body.fieldLabel = fieldLabel;
+    if (fieldType) body.fieldType = fieldType;
+    if (aggregationType) body.aggregationType = aggregationType;
+    if (filterJson) body.filterJson = filterJson;
+
+    const data = await call('PATCH', `/api/admin/accounting/field-mappings/${mappingId}/testing`, body);
+    json('fieldMappingResult', data);
+}
+
+async function updateFormula() {
+    const id = document.getElementById('formulaId').value;
+    const body = {
+        name: document.getElementById('formulaName').value || null,
+        description: document.getElementById('formulaDescription').value || null,
+        formulaType: document.getElementById('formulaType').value || null,
+        expressionJson: document.getElementById('formulaJson').value || null
+    };
+    await call('PATCH', `/api/admin/accounting/formulas/${id}/testing`, body);
+}
+
+async function getFormulaDetail() {
+    const id = document.getElementById('formulaId').value;
+    if (!id) return;
+    const data = await call('GET', `/api/admin/accounting/formulas/${id}`);
+    bindFormula(data);
+}
+
+function pickFormula(id) {
+    document.getElementById('formulaId').value = id;
+    const impactSelect = document.getElementById('impactFormulaSelect');
+    if (impactSelect && Array.from(impactSelect.options).some(o => Number(o.value) === Number(id))) {
+        impactSelect.value = id;
+    }
+    getFormulaDetail();
+}
+
+function bindFormula(data) {
+    if (!data) return;
+    document.getElementById('formulaId').value = data.formulaId ?? '';
+    document.getElementById('formulaName').value = data.name ?? '';
+    document.getElementById('formulaType').value = data.formulaType ?? '';
+    document.getElementById('formulaDescription').value = data.description ?? '';
+    document.getElementById('formulaJson').value = data.expressionJson ?? '';
+    json('formulaDetail', data);
+}
+async function cloneFormula() {
+    const id = document.getElementById('formulaId').value;
+    await call('POST', `/api/admin/accounting/formulas/${id}/clone`, {});
+}
+
+async function loadTemplateFormulasForImpact() {
+    const templateVersionId = Number(document.getElementById('impactTemplateVersionId').value);
+    if (!templateVersionId) {
+        json('impactFormulaList', { message: 'TemplateVersionId is required' });
+        return;
+    }
+
+    const formulas = await call('GET', `/api/admin/accounting/template-versions/${templateVersionId}/formulas`);
+    const list = formulas || [];
+    const select = document.getElementById('impactFormulaSelect');
+    select.innerHTML = list.length
+        ? list.map(f => `<option value="${f.formulaId}">${f.formulaId} - ${f.code} (${f.name})</option>`).join('')
+        : '<option value="">No formulas</option>';
+
+    json('impactFormulaList', list);
+
+    if (list.length) {
+        const firstFormulaId = list[0].formulaId;
+        document.getElementById('formulaId').value = firstFormulaId;
+        document.getElementById('pTemplateVersion').value = templateVersionId;
+        await getFormulaDetail();
+    }
+}
+
+async function captureImpactBaseline() {
+    const body = getPreviewRequestFromInputs();
+    const errors = validatePreviewRequest(body);
+    if (errors.length) {
+        json('impactDiff', { message: 'Invalid preview request', errors });
+        return;
+    }
+
+    impactBeforePreview = await call('POST', '/api/admin/accounting/testing/preview', body);
+    json('impactDiff', { status: 'baseline-captured', summary: impactBeforePreview?.summary || null });
+}
+
+function diffObject(before, after) {
+    const keys = Array.from(new Set([...(Object.keys(before || {})), ...(Object.keys(after || {}))]));
+    const changed = [];
+    for (const k of keys) {
+        const b = before?.[k];
+        const a = after?.[k];
+        if (JSON.stringify(b) !== JSON.stringify(a)) {
+            changed.push({ field: k, before: b ?? null, after: a ?? null });
+        }
+    }
+    return changed;
+}
+
+async function applyFormulaAndCompareImpact() {
+    if (!impactBeforePreview) {
+        json('impactDiff', { message: 'Please capture baseline first (step 1)' });
+        return;
+    }
+
+    const selectedFormulaId = Number(document.getElementById('impactFormulaSelect').value || document.getElementById('formulaId').value);
+    if (!selectedFormulaId) {
+        json('impactDiff', { message: 'Please choose a formula in template' });
+        return;
+    }
+
+    document.getElementById('formulaId').value = selectedFormulaId;
+    await updateFormula();
+
+    const body = getPreviewRequestFromInputs();
+    const errors = validatePreviewRequest(body);
+    if (errors.length) {
+        json('impactDiff', { message: 'Invalid preview request', errors });
+        return;
+    }
+
+    const afterPreview = await call('POST', '/api/admin/accounting/testing/preview', body);
+
+    const rowIndex = Number(document.getElementById('impactRowIndex').value || 0);
+    const beforeRow = impactBeforePreview?.rows?.items?.[rowIndex] || null;
+    const afterRow = afterPreview?.rows?.items?.[rowIndex] || null;
+
+    const summaryDiff = diffObject(impactBeforePreview?.summary || {}, afterPreview?.summary || {});
+    const rowDiff = diffObject(beforeRow || {}, afterRow || {});
+
+    json('impactDiff', {
+        rowIndex,
+        summaryDiff,
+        rowDiff,
+        beforeSummary: impactBeforePreview?.summary || null,
+        afterSummary: afterPreview?.summary || null
+    });
+}
+
+async function preview() {
+    const body = getPreviewRequestFromInputs();
+    const errors = validatePreviewRequest(body);
+    if (errors.length) {
+        json('previewBox', { message: 'Invalid preview request', errors });
+        return;
+    }
+
+    const data = await call('POST', '/api/admin/accounting/testing/preview', body);
+    json('previewBox', data);
+}
+</script>
+</body>
+</html>

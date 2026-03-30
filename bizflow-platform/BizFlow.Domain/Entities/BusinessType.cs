@@ -33,4 +33,6 @@ public partial class BusinessType
     public virtual Profile? ModifiedByNavigation { get; set; }
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+
+    public virtual ICollection<Revenue> Revenues { get; set; } = new List<Revenue>();
 }

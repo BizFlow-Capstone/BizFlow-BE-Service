@@ -12,6 +12,9 @@ namespace BizFlow.Application.Interfaces.Services
         Task SendEmployeeInviteAsync(Guid employeeId, string ownerName);
         Task NotifyEmployeeRemovedAsync(Guid employeeId, string businessName);
         Task SendInvitationReplyAsync(Guid ownerUserId, bool isAccepted, string employeeName);
+        Task NotifySubscriptionExpiringAsync(Guid ownerId, string planName, int daysRemaining, decimal price);
+        Task NotifySubscriptionExpiredAsync(Guid ownerId, string planName);
+
 
         Task<NotificationActionCatalogDto> GetActionCatalogAsync();
         Task<IEnumerable<NotificationTemplateDto>> GetTemplatesAsync();

@@ -1,0 +1,229 @@
+@host = https://localhost:7270
+@contentType = application/json
+
+# ================================================================
+# ACCOUNTING BOOK API TEST — Phase A + C
+# ================================================================
+# Prerequisites:
+#   1. Login first (Auth.http → Google Login) → copy accessToken
+#   2. Must have an active accounting period (create via AccountingPeriod API)
+#   3. Must have a business location (locationId)
+#   4. Seed data (058-062) must be applied
+#
+# Test order:
+#   1. Create Books  → create books from template codes
+#   2. List Books    → list all books for a period
+#   3. Get Summary   → get KPI + column schema for a book
+#   4. Get Rows      → cursor-based data rows (placeholder)
+# ================================================================
+
+# -------------------- VARIABLES --------------------
+# After login, paste your accessToken here:
+@accessToken = <PASTE_YOUR_ACCESS_TOKEN_HERE>
+
+# Your business location ID (check from existing data)
+@locationId = 1
+
+# Your accounting period ID (must be an active period)
+@periodId = 1
+
+# After creating books, copy bookId here:
+@bookId = 1
+
+
+### ====================================================
+### 1. CREATE BOOKS — Nhóm 1 (Exempt, chỉ S1a)
+### ====================================================
+### Expected: 201 Created
+### Creates 1 book (S1a) per tax profile group
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 1,
+    "taxMethod": "exempt",
+    "templateCodes": ["S1a"]
+}
+
+
+### ====================================================
+### 2. CREATE BOOKS — Nhóm 2, Cách 1 (chỉ S2a)
+### ====================================================
+### Expected: 201 Created
+### S2a is for method_1 only
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 2,
+    "taxMethod": "method_1",
+    "templateCodes": ["S2a"]
+}
+
+
+### ====================================================
+### 3. CREATE BOOKS — Nhóm 2, Cách 2 (S2b + S2c + S2d + S2e)
+### ====================================================
+### Expected: 201 Created
+### Should create 4 books × N tax profile groups
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 2,
+    "taxMethod": "method_2",
+    "templateCodes": ["S2b", "S2c", "S2d", "S2e"]
+}
+
+
+### ====================================================
+### 4. CREATE BOOKS — Duplicate check
+### ====================================================
+### Expected: 201 but CreatedBooks = [] (skip duplicates)
+### Running same request again should not create duplicates
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 1,
+    "taxMethod": "exempt",
+    "templateCodes": ["S1a"]
+}
+
+
+### ====================================================
+### 5. CREATE BOOKS — Invalid template code
+### ====================================================
+### Expected: 400 TEMPLATE_NOT_FOUND
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 1,
+    "taxMethod": "exempt",
+    "templateCodes": ["S99_INVALID"]
+}
+
+
+### ====================================================
+### 6. CREATE BOOKS — Wrong group for template
+### ====================================================
+### Expected: 400 TEMPLATE_NOT_APPLICABLE_GROUP
+### S1a chỉ cho Nhóm 1, không cho Nhóm 2
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 2,
+    "taxMethod": "method_1",
+    "templateCodes": ["S1a"]
+}
+
+
+### ====================================================
+### 7. CREATE BOOKS — Wrong method for template
+### ====================================================
+### Expected: 400 TEMPLATE_NOT_APPLICABLE_METHOD
+### S2a chỉ cho method_1, không cho method_2
+### ====================================================
+POST {{host}}/api/locations/{{locationId}}/accounting/books
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+    "periodId": {{periodId}},
+    "groupNumber": 2,
+    "taxMethod": "method_2",
+    "templateCodes": ["S2a"]
+}
+
+
+### ====================================================
+### 8. LIST BOOKS — Get all books for a period
+### ====================================================
+### Expected: 200 OK — array of BookListItemDto
+### Includes template info, business types, taxProfileKey
+### ====================================================
+GET {{host}}/api/locations/{{locationId}}/accounting/books?periodId={{periodId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 9. GET BOOK SUMMARY — KPI + Column schema
+### ====================================================
+### Expected: 200 OK — BookSummaryResponse
+### Returns templateCode, columns (field schema), totals
+### ====================================================
+GET {{host}}/api/locations/{{locationId}}/accounting/books/{{bookId}}/summary
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 10. GET BOOK ROWS — Cursor-based pagination
+### ====================================================
+### Expected: 200 OK — BookRowsResponse (empty for now)
+### Phase B will wire render engine for live data
+### Response: { rows: [], hasMore: false, nextCursor: null }
+### ====================================================
+GET {{host}}/api/locations/{{locationId}}/accounting/books/{{bookId}}/rows?batchSize=200
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 11. GET BOOK ROWS — With cursor (page 2+)
+### ====================================================
+### Replace cursor value with nextCursor from previous response
+### ====================================================
+GET {{host}}/api/v1/locations/{{locationId}}/accounting/books/{{bookId}}/rows?cursor=PASTE_NEXT_CURSOR_HERE&batchSize=200
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 12. GET BOOK ROWS — Max batch size cap
+### ====================================================
+### batchSize > 200 should be capped to 200
+### ====================================================
+GET {{host}}/api/v1/locations/{{locationId}}/accounting/books/{{bookId}}/rows?batchSize=999
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 13. GET BOOK SUMMARY — Invalid bookId
+### ====================================================
+### Expected: 404 BOOK_NOT_FOUND
+### ====================================================
+GET {{host}}/api/v1/locations/{{locationId}}/accounting/books/99999/summary
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+
+### ====================================================
+### 14. NO AUTH — Should fail 401
+### ====================================================
+### Expected: 401 Unauthorized
+### ====================================================
+GET {{host}}/api/v1/locations/{{locationId}}/accounting/books?periodId={{periodId}}
+Content-Type: {{contentType}}

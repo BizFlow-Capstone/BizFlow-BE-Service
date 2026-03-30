@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using BizFlow.Api.Common.Middleware;
 using BizFlow.Api.Hubs;
@@ -6,10 +6,11 @@ using BizFlow.Api.Services;
 using BizFlow.Application;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
-using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.Interfaces.Services;
 using BizFlow.Infrastructure;
 using BizFlow.Infrastructure.Consumers;
+using BizFlow.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using MassTransit;
@@ -19,28 +20,35 @@ using System.Text;
 using System.Text.Json;
 using Hangfire;
 using Hangfire.MySql;
-using BizFlow.Infrastructure.Jobs;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.Mvc;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Hangfire Configuration
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseStorage(
-        new MySqlStorage(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
-            new MySqlStorageOptions
-            {
-                TablesPrefix = "hf_"
-            }
-        )
-    ));
+var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
-// Add the processing server as IHostedService
-builder.Services.AddHangfireServer();
+// Hangfire Configuration
+if (isHangfireEnabled)
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseStorage(
+            new MySqlStorage(
+                defaultConnectionString!,
+                new MySqlStorageOptions
+                {
+                    TablesPrefix = "hf_"
+                }
+            )
+        ));
+
+    // Add the processing server as IHostedService
+    builder.Services.AddHangfireServer();
+}
 
 // Add services to the container.
 
@@ -54,6 +62,42 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     // options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var messageService = context.HttpContext.RequestServices.GetRequiredService<IMessageService>();
+        var fieldErrors = new Dictionary<string, List<string>>();
+        foreach (var (fieldKey, state) in context.ModelState)
+        {
+            foreach (var error in state.Errors)
+            {
+                var raw = string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? error.Exception?.Message
+                    : error.ErrorMessage;
+                var keyOrText = string.IsNullOrWhiteSpace(raw) ? MessageKeys.ValidationError : raw;
+                var localized = messageService.GetMessage(keyOrText);
+                var key = string.IsNullOrEmpty(fieldKey) ? "." : fieldKey;
+                if (!fieldErrors.TryGetValue(key, out var list))
+                {
+                    list = new List<string>();
+                    fieldErrors[key] = list;
+                }
+
+                list.Add(localized);
+            }
+        }
+
+        var errorsObj = fieldErrors.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+        var response = ApiResponse.ErrorResponse(
+            MessageKeys.ValidationError,
+            messageService.GetMessage(MessageKeys.ValidationError),
+            errorsObj);
+        return new BadRequestObjectResult(response);
+    };
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add HttpContextAccessor
@@ -115,6 +159,7 @@ builder.Services.Configure<PaginationSettings>(builder.Configuration.GetSection(
 builder.Services.Configure<GeneralLedgerSettings>(builder.Configuration.GetSection(GeneralLedgerSettings.SectionName));
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
+builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -320,11 +365,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseResponseCompression();
+// Hangfire HTML pages are sensitive to middleware caching/compression.
+// Exclude /hangfire endpoints to avoid "ERR_CONTENT_DECODING_FAILED" in browser.
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
+{
+    app.UseResponseCompression();
+});
 
 // Use CORS
 app.UseCors("AllowAll");
-app.UseOutputCache();
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
+{
+    app.UseOutputCache();
+});
 app.UseAuthentication();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
@@ -332,35 +385,109 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Hangfire Dashboard
-app.UseHangfireDashboard();
+if (isHangfireEnabled)
+{
+    // Hangfire Dashboard
+    app.UseHangfireDashboard();
 
-// Schedule Recurring Job
-RecurringJob.AddOrUpdate<ImageCleanupJob>(
-    "image-cleanup",
-    job => job.ExecuteAsync(),
-     "5 17 * * *" // 17:05 Vietnam time (UTC+7)
-                  //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
-                  //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
-                  // "* * * * *" // Every minute
-);
+    // Schedule Recurring Job
+    RecurringJob.AddOrUpdate<ImageCleanupJob>(
+        "image-cleanup",
+        job => job.ExecuteAsync(),
+         "5 17 * * *" // 17:05 Vietnam time (UTC+7)
+                      //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
+                      //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
+                      // "* * * * *" // Every minute
+    );
 
-RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
-    "scheduled-notification-dispatch",
-    job => job.ExecuteAsync(),
-    "* * * * *"
-);
+    RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
+        "subscription-expiry-check",
+        job => job.ExecuteAsync(),
+        "0 * * * *");
 
-RecurringJob.AddOrUpdate<NotificationOutboxJob>(
-    "notification-outbox",
-    job => job.ExecuteAsync(),
-    "* * * * *"
-);
+    RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
+        "subscription-reminder",
+        job => job.ExecuteAsync(),
+        "0 1 * * *");
 
-RecurringJob.AddOrUpdate<NotificationRetentionJob>(
-    "notification-retention",
-    job => job.ExecuteAsync(),
-    "0 2 * * *"
-);
+    RecurringJob.AddOrUpdate<UsageSnapshotJob>(
+        "usage-snapshot",
+        job => job.ExecuteAsync(),
+        "0 17 * * *");
+
+    RecurringJob.AddOrUpdate<FirestoreSyncJob>(
+        "firestore-sync",
+        job => job.ExecuteAsync(),
+        "0 */6 * * *");
+
+    RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
+        "stale-txn-cleanup",
+        job => job.ExecuteAsync(),
+        "30 3 * * *");
+
+    RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
+        "stripe-pending-reconcile",
+        job => job.ExecuteAsync(),
+        "*/15 * * * *");
+
+    RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
+        "stripe-refund-reconcile",
+        job => job.ExecuteAsync(),
+        "7 */2 * * *");
+
+    // Giá hiệu dụng theo cửa sổ giảm giá + đồng bộ Stripe Price — mỗi ngày 01:00 UTC
+    RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
+        "subscription-plan-stripe-catalog-sync",
+        job => job.ExecuteAsync(),
+        "0 1 * * *");
+    RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
+        "scheduled-notification-dispatch",
+        job => job.ExecuteAsync(),
+        "* * * * *"
+    );
+
+    RecurringJob.AddOrUpdate<NotificationOutboxJob>(
+        "notification-outbox",
+        job => job.ExecuteAsync(),
+        "* * * * *"
+    );
+
+    RecurringJob.AddOrUpdate<NotificationRetentionJob>(
+        "notification-retention",
+        job => job.ExecuteAsync(),
+        "0 2 * * *"
+    );
+}
+else
+{
+    app.Logger.LogWarning("Hangfire is disabled: {Reason}", hangfireDisableReason);
+}
 
 app.Run();
+
+static bool IsHangfireStorageReachable(string? connectionString, out string reason)
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        reason = "ConnectionStrings:DefaultConnection is missing or empty.";
+        return false;
+    }
+
+    try
+    {
+        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString)
+        {
+            ConnectionTimeout = 3
+        };
+
+        using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
+        connection.Open();
+        reason = string.Empty;
+        return true;
+    }
+    catch (Exception ex)
+    {
+        reason = $"unable to connect to MySQL ({ex.Message})";
+        return false;
+    }
+}

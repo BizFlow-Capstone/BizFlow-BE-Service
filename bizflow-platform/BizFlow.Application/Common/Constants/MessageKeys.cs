@@ -33,6 +33,7 @@ namespace BizFlow.Application.Common.Constants
         public const string ManualCostUpdatedReversalReason = "LEDGER_MANUAL_COST_UPDATED_REASON";
         public const string ManualCostDeletedReversalReason = "LEDGER_MANUAL_COST_DELETED_REASON";
         public const string ImportCancelledReversalReason = "LEDGER_IMPORT_CANCELLED_REASON";
+        public const string ManualRevenueUpdatedReversalReason = "LEDGER_MANUAL_REVENUE_UPDATED_REASON";
         public const string ManualRevenueDeletedReversalReason = "LEDGER_MANUAL_REVENUE_DELETED_REASON";
         public const string OrderCancelledReversalReason = "LEDGER_ORDER_CANCELLED_REASON";
         public const string OrderReplacedReason = "ORDER_REPLACED_REASON";
@@ -160,5 +161,38 @@ namespace BizFlow.Application.Common.Constants
         public const string DebtorPaymentAmountZero = "DEBTOR_PAYMENT_AMOUNT_ZERO";
         public const string DebtorPaymentMethodInvalid = "DEBTOR_PAYMENT_METHOD_INVALID";
         public const string DebtorCreditLimitExceededConfirmRequired = "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED";
+
+        // ============ SUBSCRIPTION & PAYMENT ============
+        public const string SubscriptionAlreadyActive = "SUBSCRIPTION_ALREADY_ACTIVE";
+        public const string NoActiveSubscription = "SUBSCRIPTION_NO_ACTIVE_SUBSCRIPTION";
+        public const string SubscriptionPlanNotFound = "SUBSCRIPTION_PLAN_NOT_FOUND";
+        public const string PlanStripePriceNotConfigured = "SUBSCRIPTION_PLAN_STRIPE_PRICE_NOT_CONFIGURED";
+        public const string StripeSecretMissing = "SUBSCRIPTION_STRIPE_SECRET_MISSING";
+        public const string StripePriceNotConfigured = "SUBSCRIPTION_STRIPE_PRICE_NOT_CONFIGURED";
+        public const string InvalidWebhookSignature = "SUBSCRIPTION_INVALID_WEBHOOK_SIGNATURE";
+        public const string LocationIdRequired = "SUBSCRIPTION_LOCATION_ID_REQUIRED";
+        public const string InvalidSubscriptionPlanId = "SUBSCRIPTION_INVALID_PLAN_ID";
+        public const string SubscriptionCheckoutQuantityInvalid = "SUBSCRIPTION_CHECKOUT_QUANTITY_INVALID";
+        public const string SubscriptionAccessGrantMemberInvalid = "SUBSCRIPTION_ACCESS_GRANT_MEMBER_INVALID";
+        public const string SubscriptionPlanDeleteHasActiveSubscriptions = "SUBSCRIPTION_PLAN_DELETE_HAS_ACTIVE_SUBSCRIPTIONS";
+        public const string SubscriptionPlanActivateRequiresPrice = "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_PRICE";
+        public const string SubscriptionPlanActivateRequiresFeatures = "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_FEATURES";
+        public const string SubscriptionPlanFeatureNotFound = "SUBSCRIPTION_PLAN_FEATURE_NOT_FOUND";
+        public const string SubscriptionActivatedTitle = "SUBSCRIPTION_ACTIVATED_TITLE";
+        public const string SubscriptionActivatedBody = "SUBSCRIPTION_ACTIVATED_BODY";
+        public const string PaymentFailedTitle = "SUBSCRIPTION_PAYMENT_FAILED_TITLE";
+        public const string PaymentFailedBody = "SUBSCRIPTION_PAYMENT_FAILED_BODY";
+        public const string SubscriptionExpiringTitle = "SUBSCRIPTION_EXPIRING_TITLE";
+        public const string SubscriptionExpiringBody = "SUBSCRIPTION_EXPIRING_BODY";
+        public const string SubscriptionExpiredTitle = "SUBSCRIPTION_EXPIRED_TITLE";
+        public const string SubscriptionExpiredBody = "SUBSCRIPTION_EXPIRED_BODY";
+        public const string SubscriptionEmployeeExpiringTitle = "SUBSCRIPTION_EMPLOYEE_EXPIRING_TITLE";
+        public const string SubscriptionEmployeeExpiringBody = "SUBSCRIPTION_EMPLOYEE_EXPIRING_BODY";
+        public const string SubscriptionDiscountStartInPast = "SUBSCRIPTION_DISCOUNT_START_IN_PAST";
+        public const string SubscriptionDiscountEndInPast = "SUBSCRIPTION_DISCOUNT_END_IN_PAST";
+        public const string SubscriptionDiscountEndMustBeAfterStart = "SUBSCRIPTION_DISCOUNT_END_MUST_BE_AFTER_START";
+
+        // ============ ADMIN ============
+        public const string AdminOnly = "ADMIN_ONLY";
     }
 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Store revenue - source of truth for all income records
+/// Doanh thu cửa hàng - source-of-truth cho mọi khoản thu
 /// </summary>
 public partial class Revenue
 {
@@ -14,6 +14,11 @@ public partial class Revenue
     /// FK to BusinessLocations
     /// </summary>
     public int BusinessLocationId { get; set; }
+
+    /// <summary>
+    /// Optional business type classification for accounting book context
+    /// </summary>
+    public Guid? BusinessTypeId { get; set; }
 
     /// <summary>
     /// Soft reference to Order, nullable because some revenues are manual
@@ -26,17 +31,17 @@ public partial class Revenue
     public string RevenueType { get; set; } = null!;
 
     /// <summary>
-    /// Revenue amount
+    /// Giá trị doanh thu
     /// </summary>
     public decimal Amount { get; set; }
 
     /// <summary>
-    /// Revenue recognition date
+    /// Ngày ghi nhận doanh thu
     /// </summary>
     public DateOnly RevenueDate { get; set; }
 
     /// <summary>
-    /// Revenue description
+    /// Mô tả nội dung doanh thu
     /// </summary>
     public string Description { get; set; } = null!;
 
@@ -46,7 +51,7 @@ public partial class Revenue
     public string? MoneyChannel { get; set; }
 
     /// <summary>
-    /// UserId of the creator
+    /// UserId người tạo bản ghi
     /// </summary>
     public Guid CreatedBy { get; set; }
 
@@ -58,4 +63,5 @@ public partial class Revenue
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
+    public virtual BusinessType? BusinessType { get; set; }
 }

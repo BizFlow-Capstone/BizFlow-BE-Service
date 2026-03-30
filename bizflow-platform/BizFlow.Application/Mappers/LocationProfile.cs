@@ -32,7 +32,9 @@ namespace BizFlow.Application.Mappers
             // BusinessLocation → BusinessLocationDto (kept for potential reuse)
             CreateMap<BusinessLocation, BusinessLocationDto>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.BusinessLocationId))
-                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.LocationName));
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.LocationName))
+                .ForMember(dest => dest.OwnerProfileId, opt => opt.Ignore())
+                .ForMember(dest => dest.OwnerName, opt => opt.Ignore());
 
             // Tuple from Repository → EmployeeSummaryDto
             CreateMap<(Guid UserId, string FullName, string Email, string Phone), EmployeeSummaryDto>()

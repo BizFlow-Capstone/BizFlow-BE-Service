@@ -58,7 +58,7 @@ namespace BizFlow.Application.Mappers
             PaymentMethod = request.PaymentMethod.ToLower(),
             Notes = request.Notes?.Trim(),
             BalanceBefore = balanceBefore,
-            // Signed amount: negative means reducing debt, positive means adding debt.
+            // Positive amount → balance increases → debt decreases. Negative amount → balance decreases → debt increases.
             BalanceAfter = balanceBefore + request.Amount,
             CreatedByUserId = createdByUserId,
             PaidAt = DateTime.UtcNow
