@@ -72,6 +72,8 @@ namespace BizFlow.Application.Services
                 Amount = request.Amount,
                 CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
                 PaymentMethod = normalizedPaymentMethod,
+                DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber),
+                DocumentDate = request.DocumentDate,
                 DocumentUrl = documentUrl,
                 DocumentPublicId = documentPublicId,
                 CreatedBy = userId,
@@ -110,6 +112,8 @@ namespace BizFlow.Application.Services
             cost.Amount = request.Amount;
             cost.CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             cost.PaymentMethod = normalizedPaymentMethod;
+            cost.DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber);
+            cost.DocumentDate = request.DocumentDate;
             cost.UpdatedAt = DateTime.UtcNow;
 
             // Handle document image removal
@@ -185,7 +189,7 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
         }
 
-        public async Task<Cost> CreateImportCostAsync(Guid userId, Import import)
+        public async Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null)
         {
             return await _uow.ExecuteResilientAsync(async _ =>
             {
@@ -198,6 +202,8 @@ namespace BizFlow.Application.Services
                     {
                         existing.DeletedAt = null;
                         existing.UpdatedAt = DateTime.UtcNow;
+                        existing.DocumentNumber = NormalizeDocumentNumber(documentNumber);
+                        existing.DocumentDate = documentDate;
                         _uow.Costs.Update(existing);
 
                         await _generalLedgerService.RecordImportCostAsync(existing);
@@ -215,6 +221,8 @@ namespace BizFlow.Application.Services
                     Amount = import.TotalAmount,
                     CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
                     PaymentMethod = null,
+                    DocumentNumber = NormalizeDocumentNumber(documentNumber),
+                    DocumentDate = documentDate,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -243,6 +251,14 @@ namespace BizFlow.Application.Services
 
             await _generalLedgerService.ReverseCostEntriesAsync(cost, reason ?? MessageKeys.ImportCancelledReversalReason);
             await _uow.SaveChangesAsync();
+        }
+
+        private static string? NormalizeDocumentNumber(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return value.Trim();
         }
     }
 }

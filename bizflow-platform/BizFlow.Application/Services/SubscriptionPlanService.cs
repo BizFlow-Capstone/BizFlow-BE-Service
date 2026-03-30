@@ -92,15 +92,15 @@ namespace BizFlow.Application.Services
 
                 var discounted = request.Price.DiscountedPrice;
                 var row = new SubscriptionPlanPrice
-                {
-                    BasePrice = request.Price.BasePrice,
+            {
+                BasePrice = request.Price.BasePrice,
                     DiscountedPrice = discounted,
                     DiscountStart = discounted.HasValue ? request.Price.DiscountStart : null,
                     DiscountEnd = discounted.HasValue ? request.Price.DiscountEnd : null,
                     IsActive = true,
-                    Currency = "VND",
-                    CreatedAt = now,
-                    UpdatedAt = now
+                Currency = "VND",
+                CreatedAt = now,
+                UpdatedAt = now
                 };
                 row.IsDiscountActive = row.IsDiscountPeriodActive(now);
                 plan.Prices.Add(row);
@@ -243,8 +243,8 @@ namespace BizFlow.Application.Services
             }
             else
             {
-                _unitOfWork.SubscriptionPlans.Delete(plan);
-                await _unitOfWork.SaveChangesAsync();
+            _unitOfWork.SubscriptionPlans.Delete(plan);
+            await _unitOfWork.SaveChangesAsync();
 
                 _logger.LogInformation("Hard-deleted subscription plan {PlanId}", planId);
             }

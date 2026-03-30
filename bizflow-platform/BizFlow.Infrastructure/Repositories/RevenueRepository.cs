@@ -48,6 +48,7 @@ namespace BizFlow.Infrastructure.Repositories
             // 3. Fetch full entities
             var items = await _db.Revenues
                 .Where(r => ids.Contains(r.RevenueId))
+                .Include(r => r.BusinessType)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
 
@@ -55,7 +56,9 @@ namespace BizFlow.Infrastructure.Repositories
         }
 
         public Task<Revenue?> GetByIdAsync(long revenueId)
-            => _db.Revenues.FirstOrDefaultAsync(r => r.RevenueId == revenueId);
+            => _db.Revenues
+                .Include(r => r.BusinessType)
+                .FirstOrDefaultAsync(r => r.RevenueId == revenueId);
 
         public async Task<List<Revenue>> GetSaleByOrderIdAsync(int businessLocationId, long orderId)
         {
@@ -71,7 +74,10 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds)
         {
             if (revenueIds == null || !revenueIds.Any()) return Array.Empty<Revenue>();
-            return await _db.Revenues.Where(r => revenueIds.Contains(r.RevenueId)).ToListAsync();
+            return await _db.Revenues
+                .Where(r => revenueIds.Contains(r.RevenueId))
+                .Include(r => r.BusinessType)
+                .ToListAsync();
         }
 
         public async Task<Revenue> AddAsync(Revenue revenue)

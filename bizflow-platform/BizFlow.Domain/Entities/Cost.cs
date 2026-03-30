@@ -56,6 +56,16 @@ public partial class Cost
     public string? DocumentPublicId { get; set; }
 
     /// <summary>
+    /// Số hiệu chứng từ (optional)
+    /// </summary>
+    public string? DocumentNumber { get; set; }
+
+    /// <summary>
+    /// Ngày chứng từ (optional)
+    /// </summary>
+    public DateOnly? DocumentDate { get; set; }
+
+    /// <summary>
     /// UserId người tạo bản ghi
     /// </summary>
     public Guid CreatedBy { get; set; }

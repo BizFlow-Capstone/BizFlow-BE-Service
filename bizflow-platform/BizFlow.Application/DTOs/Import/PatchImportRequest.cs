@@ -6,5 +6,15 @@ namespace BizFlow.Application.DTOs.Import
         /// Required: date the goods were received
         /// </summary>
         public DateTime? ReceivedAt { get; set; }
+
+        /// <summary>
+        /// Optional voucher number to store on generated import cost.
+        /// </summary>
+        public string? DocumentNumber { get; set; }
+
+        /// <summary>
+        /// Optional voucher date to store on generated import cost.
+        /// </summary>
+        public DateOnly? DocumentDate { get; set; }
     }
 }

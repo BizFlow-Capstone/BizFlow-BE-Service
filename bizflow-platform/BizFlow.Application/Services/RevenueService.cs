@@ -32,6 +32,7 @@ namespace BizFlow.Application.Services
         public async Task<RevenueDto> CreateManualAsync(Guid userId, CreateManualRevenueRequest request)
         {
             await _locationService.ValidateOwnerAsync(userId, request.BusinessLocationId);
+            var businessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
 
             if (!PaymentMethods.IsValid(request.MoneyChannel))
                 throw new BadRequestException(MessageKeys.BadRequest);
@@ -41,11 +42,14 @@ namespace BizFlow.Application.Services
                 var entity = new Revenue
                 {
                     BusinessLocationId = request.BusinessLocationId,
+                    BusinessTypeId = businessTypeId,
                     RevenueType = RevenueType.Manual,
                     Amount = request.Amount,
                     RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
                     Description = request.Description.Trim(),
                     MoneyChannel = request.MoneyChannel.Trim().ToLower(),
+                    DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber),
+                    DocumentDate = request.DocumentDate,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -74,10 +78,13 @@ namespace BizFlow.Application.Services
             if (!PaymentMethods.IsValid(request.MoneyChannel))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            revenue.BusinessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
             revenue.Amount = request.Amount;
             revenue.RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             revenue.Description = request.Description.Trim();
             revenue.MoneyChannel = request.MoneyChannel.Trim().ToLower();
+            revenue.DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber);
+            revenue.DocumentDate = request.DocumentDate;
 
             _uow.Revenues.Update(revenue);
             await _uow.SaveChangesAsync();
@@ -132,6 +139,21 @@ namespace BizFlow.Application.Services
 
                 await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueDeletedReversalReason);
             });
+        }
+
+        private static string? NormalizeDocumentNumber(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return value.Trim();
+        }
+
+        private static Guid EnsureBusinessTypeRequired(Guid? businessTypeId)
+        {
+            if (!businessTypeId.HasValue || businessTypeId.Value == Guid.Empty)
+                throw new BadRequestException(MessageKeys.BadRequest);
+            return businessTypeId.Value;
         }
     }
 }

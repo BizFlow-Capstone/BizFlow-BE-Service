@@ -95,7 +95,7 @@ namespace BizFlow.Application.Services
             // Auto create import cost + GL when created directly as CONFIRMED.
             if (status == ImportStatus.Confirmed)
             {
-                await _costService.CreateImportCostAsync(userId, import);
+                await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
             }
 
             var result = _mapper.Map<ImportSummaryDto>(import);
@@ -201,7 +201,7 @@ namespace BizFlow.Application.Services
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
 
-            await _costService.CreateImportCostAsync(userId, import);
+            await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
 
             return new ImportPatchResultDto
             {

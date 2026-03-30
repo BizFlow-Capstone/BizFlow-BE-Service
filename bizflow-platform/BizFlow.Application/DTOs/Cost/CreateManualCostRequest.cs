@@ -26,6 +26,11 @@ namespace BizFlow.Application.DTOs.Cost
         /// <summary>Payment method: cash | bank</summary>
         public string? PaymentMethod { get; set; }
 
+        [MaxLength(100)]
+        public string? DocumentNumber { get; set; }
+
+        public DateOnly? DocumentDate { get; set; }
+
         /// <summary>
         /// Image stream (populated from IFormFile on controller).
         /// </summary>

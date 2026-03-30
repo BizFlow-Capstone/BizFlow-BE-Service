@@ -8,7 +8,9 @@ namespace BizFlow.Application.Mappers
     {
         public RevenueProfile()
         {
-            CreateMap<Revenue, RevenueDto>();
+            CreateMap<Revenue, RevenueDto>()
+                .ForMember(dest => dest.BusinessTypeName,
+                    opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : null));
         }
     }
 }

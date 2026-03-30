@@ -12,6 +12,8 @@ namespace BizFlow.Application.DTOs.Order
         public long? DebtorId { get; set; }
         public string? Note { get; set; }
         public string? BillMetadata { get; set; }
+        public string? DocumentNumber { get; set; }
+        public DateOnly? DocumentDate { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal CashAmount { get; set; }
