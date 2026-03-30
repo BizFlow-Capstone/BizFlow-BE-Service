@@ -1,4 +1,5 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Services;
@@ -17,14 +18,27 @@ namespace BizFlow.Api.Controllers.Reference
     public class ReferenceController : BaseApiController
     {
         private readonly IReferenceService _referenceService;
+        private readonly ISubscriptionPlanService _subscriptionPlanService;
 
         public ReferenceController(
             IReferenceService referenceService,
+            ISubscriptionPlanService subscriptionPlanService,
             IMessageService messageService,
             ILogger<ReferenceController> logger)
             : base(messageService, logger)
         {
             _referenceService = referenceService;
+            _subscriptionPlanService = subscriptionPlanService;
+        }
+
+        [HttpGet("features")]
+        [SwaggerOperation(Summary = "Get all subscription features (admin only)")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetFeatures()
+        {
+            User.EnsureAdminRole();
+            var features = await _subscriptionPlanService.GetAllFeaturesAsync();
+            return Ok(features, MessageKeys.DataRetrievedSuccessfully);
         }
 
         /// <summary>
