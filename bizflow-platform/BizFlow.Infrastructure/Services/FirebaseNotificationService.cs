@@ -46,7 +46,8 @@ namespace BizFlow.Infrastructure.Services
             "Email",
             "OwnerName",
             "BusinessName",
-            "BusinessLocation"
+            "BusinessLocation",
+            "EmployeeName"
         };
 
         private static readonly Regex TemplatePlaceholderRegex = new("\\{(\\w+)\\}", RegexOptions.Compiled);
@@ -323,6 +324,27 @@ namespace BizFlow.Infrastructure.Services
             });
         }
 
+        public async Task SendInvitationReplyAsync(Guid ownerUserId, bool isAccepted, string employeeName)
+        {
+            var eventCode = isAccepted ? "INVITE_ACCEPTED" : "INVITE_REJECTED";
+            var normalizedEmployeeName = string.IsNullOrWhiteSpace(employeeName) ? "Nhân viên" : employeeName.Trim();
+
+            var templateData = new Dictionary<string, string>
+            {
+                ["EmployeeName"] = normalizedEmployeeName
+            };
+
+            await CreateDispatchAsync(Guid.Empty, new CreateNotificationDispatchRequest
+            {
+                EventCode = eventCode,
+                NotificationType = eventCode,
+                TemplateData = templateData,
+                Priority = "HIGH",
+                SendToAllUsers = false,
+                RecipientUserIds = new List<Guid> { ownerUserId }
+            });
+        }
+
         public Task<NotificationActionCatalogDto> GetActionCatalogAsync()
         {
             return Task.FromResult(new NotificationActionCatalogDto
@@ -392,6 +414,18 @@ namespace BizFlow.Infrastructure.Services
                         EventCode = "EMPLOYEE_REMOVED",
                         Feature = "Employee management",
                         TriggerDescription = "Tự động gửi khi chủ doanh nghiệp xoá/đuổi nhân viên khỏi địa điểm."
+                    },
+                    new()
+                    {
+                        EventCode = "INVITE_ACCEPTED",
+                        Feature = "Employee management",
+                        TriggerDescription = "Tự động gửi cho chủ doanh nghiệp khi nhân viên chấp nhận lời mời."
+                    },
+                    new()
+                    {
+                        EventCode = "INVITE_REJECTED",
+                        Feature = "Employee management",
+                        TriggerDescription = "Tự động gửi cho chủ doanh nghiệp khi nhân viên từ chối lời mời."
                     },
                     new()
                     {
@@ -468,6 +502,13 @@ namespace BizFlow.Infrastructure.Services
                         Token = "{BusinessLocation}",
                         Description = "Bí danh của BusinessName (tên địa điểm/cửa hàng).",
                         ExampleValue = "BizFlow Store Q1"
+                    },
+                    new()
+                    {
+                        Key = "EmployeeName",
+                        Token = "{EmployeeName}",
+                        Description = "Tên nhân viên trong các luồng phản hồi lời mời (chấp nhận/từ chối).",
+                        ExampleValue = "Nguyễn Thị B"
                     }
                 }
             });

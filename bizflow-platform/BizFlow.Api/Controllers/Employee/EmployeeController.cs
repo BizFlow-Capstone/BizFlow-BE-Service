@@ -15,14 +15,17 @@ namespace BizFlow.Api.Controllers.Employee
     public class EmployeeController : BaseApiController
     {
         private readonly IEmployeeService _employeeService;
+        private readonly INotificationService _notificationService;
 
         public EmployeeController(
             IEmployeeService employeeService,
+            INotificationService notificationService,
             IMessageService messageService,
             ILogger<EmployeeController> logger)
             : base(messageService, logger)
         {
             _employeeService = employeeService;
+            _notificationService = notificationService;
         }
 
         [HttpGet("search")]
@@ -89,6 +92,21 @@ namespace BizFlow.Api.Controllers.Employee
         {
             var userId = GetCurrentUserId();
             await _employeeService.RejectInvitationAsync(userId, hireId);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
+        }
+
+        [HttpPost("invitations/reply-notification")]
+        [SwaggerOperation(
+            Summary = "Send invitation reply notification",
+            Description = "Notify the business owner that the employee has accepted or rejected the invitation. Uses the INVITE_ACCEPTED / INVITE_REJECTED notification templates stored in the database.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> SendInvitationReplyNotification([FromBody] SendInvitationReplyNotificationRequest request)
+        {
+            await _notificationService.SendInvitationReplyAsync(
+                request.OwnerUserId,
+                request.IsAccepted,
+                request.EmployeeName);
             return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 

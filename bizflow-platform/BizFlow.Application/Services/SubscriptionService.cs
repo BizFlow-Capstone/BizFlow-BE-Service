@@ -518,12 +518,14 @@ namespace BizFlow.Application.Services
             var plan = await _unitOfWork.SubscriptionPlans.GetByIdAsync(subscriptionPlanId)
                 ?? throw new NotFoundException(MessageKeys.SubscriptionPlanNotFound);
 
+            var planPrice = await _unitOfWork.PlanPrices.GetActiveByPlanIdAsync(subscriptionPlanId);
+            await EnsureStripePriceForCheckoutAsync(plan, planPrice);
+
             if (string.IsNullOrWhiteSpace(plan.StripePriceId))
             {
                 throw new BadRequestException(MessageKeys.PlanStripePriceNotConfigured);
             }
 
-            var planPrice = await _unitOfWork.PlanPrices.GetActiveByPlanIdAsync(subscriptionPlanId);
             var unitPrice = planPrice?.GetEffectivePrice() ?? 0m;
             var totalPlanPrice = unitPrice * safeQuantity;
             var finalAmount = decimal.Round(Math.Max(0m, totalPlanPrice - prorationCredit), 2, MidpointRounding.AwayFromZero);
@@ -582,6 +584,87 @@ namespace BizFlow.Application.Services
                 Currency = transaction.Currency,
                 TransactionType = transactionType
             };
+        }
+
+        /// <summary>
+        /// Best-effort auto provisioning: if a plan is missing StripePriceId at checkout time,
+        /// try creating a Stripe price from current effective plan price.
+        /// </summary>
+        private async Task EnsureStripePriceForCheckoutAsync(SubscriptionPlan plan, SubscriptionPlanPrice? activePrice)
+        {
+            if (!string.IsNullOrWhiteSpace(plan.StripePriceId))
+            {
+                return;
+            }
+
+            if (!_stripeService.IsConfigured)
+            {
+                _logger.LogWarning(
+                    "Skip Stripe price auto-provision for plan {PlanId}: Stripe service not configured",
+                    plan.SubscriptionPlanId);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(plan.StripeProductId))
+            {
+                try
+                {
+                    var productMetadata = new Dictionary<string, string>
+                    {
+                        ["subscriptionPlanId"] = plan.SubscriptionPlanId.ToString(),
+                        ["source"] = "checkout-autoprovision"
+                    };
+
+                    var createdProduct = await _stripeService.CreateProductAsync(
+                        plan.Name,
+                        plan.Description,
+                        productMetadata);
+
+                    plan.StripeProductId = createdProduct.Id;
+                    _logger.LogInformation(
+                        "Auto-provisioned StripeProductId for plan {PlanId}: {StripeProductId}",
+                        plan.SubscriptionPlanId,
+                        plan.StripeProductId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to auto-provision Stripe product for plan {PlanId}",
+                        plan.SubscriptionPlanId);
+                    return;
+                }
+            }
+
+            var unitAmount = (long)(activePrice?.GetEffectivePrice() ?? 0m);
+            if (unitAmount <= 0)
+            {
+                _logger.LogWarning(
+                    "Skip Stripe price auto-provision for plan {PlanId}: effective price is invalid ({UnitAmount})",
+                    plan.SubscriptionPlanId,
+                    unitAmount);
+                return;
+            }
+
+            try
+            {
+                var created = await _stripeService.CreatePriceAsync(plan.StripeProductId, unitAmount);
+                plan.StripePriceId = created.Id;
+                plan.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Auto-provisioned StripePriceId for plan {PlanId}: {StripePriceId}",
+                    plan.SubscriptionPlanId,
+                    plan.StripePriceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to auto-provision Stripe price for plan {PlanId}",
+                    plan.SubscriptionPlanId);
+            }
         }
 
         private static int ResolveCheckoutQuantity(StripeCheckoutSessionPayload session)
