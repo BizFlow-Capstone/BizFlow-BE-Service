@@ -73,6 +73,6 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('080_add_document_number_and_date_to_costs_revenues', '1.0.0')
+VALUES ('081_add_document_number_and_date_to_costs_revenues', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);
 
