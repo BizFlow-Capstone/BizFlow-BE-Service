@@ -40,7 +40,7 @@ namespace BizFlow.Application.Services
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
         {
-            await _locationService.ValidateOwnerAsync(userId, request.BusinessLocationId);
+            await _locationService.ValidateLocationAccessAsync(userId, request.BusinessLocationId);
 
             var prepared = await PrepareOrderDraftAsync(
                 userId,
@@ -340,7 +340,10 @@ namespace BizFlow.Application.Services
             if (request.BusinessLocationId != locationId)
                 throw new BadRequestException(MessageKeys.OrderLocationChangeNotAllowed);
 
-            await _locationService.ValidateOwnerAsync(userId, locationId);
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+            var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner && oldOrder.CreatedBy != userId)
+                throw new ForbiddenException(MessageKeys.Forbidden);
 
             var idempotencyMarker = BuildEditCompletedIdempotencyMarker(request.IdempotencyKey);
             Order? replacement = null;

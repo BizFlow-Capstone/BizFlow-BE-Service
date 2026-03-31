@@ -50,10 +50,31 @@ namespace BizFlow.Application.Services
 
         public async Task<CurrentSubscriptionDto> GetCurrentSubscriptionAsync(Guid profileId)
         {
-            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(profileId);
+            return await GetCurrentSubscriptionByOwnerAsync(profileId);
+        }
+
+        public async Task<CurrentSubscriptionDto> GetCurrentSubscriptionByLocationAsync(Guid profileId, int locationId)
+        {
+            if (locationId <= 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var hasAccess = await _businessLocationRepository.HasAccessToLocationAsync(profileId, locationId);
+            if (!hasAccess)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            var ownerId = await _businessLocationRepository.GetOwnerIdByLocationAsync(locationId);
+            if (!ownerId.HasValue)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            return await GetCurrentSubscriptionByOwnerAsync(ownerId.Value);
+        }
+
+        private async Task<CurrentSubscriptionDto> GetCurrentSubscriptionByOwnerAsync(Guid ownerProfileId)
+        {
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
             if (active == null)
             {
-                var hasAny = await _unitOfWork.Subscriptions.HasAnySubscriptionAsync(profileId);
+                var hasAny = await _unitOfWork.Subscriptions.HasAnySubscriptionAsync(ownerProfileId);
                 return new CurrentSubscriptionDto
                 {
                     Status = hasAny ? SubscriptionStatus.Expired : SubscriptionStatus.Inactive

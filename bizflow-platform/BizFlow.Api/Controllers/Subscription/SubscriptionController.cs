@@ -25,10 +25,12 @@ namespace BizFlow.Api.Controllers.Subscription
         }
 
         [HttpGet("current")]
-        public async Task<IActionResult> GetCurrent()
+        public async Task<IActionResult> GetCurrent([FromQuery] int? businessLocationId = null)
         {
             var profileId = User.GetRequiredUserId();
-            var current = await _subscriptionService.GetCurrentSubscriptionAsync(profileId);
+            var current = businessLocationId.HasValue
+                ? await _subscriptionService.GetCurrentSubscriptionByLocationAsync(profileId, businessLocationId.Value)
+                : await _subscriptionService.GetCurrentSubscriptionAsync(profileId);
             return Ok(current, MessageKeys.DataRetrievedSuccessfully);
         }
 
