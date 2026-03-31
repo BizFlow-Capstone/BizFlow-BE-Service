@@ -100,3 +100,50 @@ public class BookRowsResponse
     public int LoadedCount { get; set; }
     public int? TotalEstimated { get; set; }
 }
+
+// ── GET /sections Response ──
+public class BookSectionsResponse
+{
+    public long BookId { get; set; }
+    public string TemplateCode { get; set; } = null!;
+    public string TemplateName { get; set; } = null!;
+
+    /// <summary>
+    /// Timestamp when section data was computed. Helps client detect staleness.
+    /// </summary>
+    public DateTime LastCalculatedAt { get; set; }
+
+    public List<BookColumnDto> Columns { get; set; } = new();
+    public List<BookSectionResponseDto> Sections { get; set; } = new();
+    public List<SectionRowDto> FooterRows { get; set; } = new();
+}
+
+public class BookSectionResponseDto
+{
+    public string SectionType { get; set; } = null!;
+    public string? BusinessTypeId { get; set; }
+    public string? BusinessTypeName { get; set; }
+    public int GroupIndex { get; set; }
+    public List<SectionRowDto> Rows { get; set; } = new();
+}
+
+public class SectionRowDto
+{
+    public string LineType { get; set; } = null!;
+    public Dictionary<string, object?> Values { get; set; } = new();
+    public DataFilterDto? DataFilter { get; set; }
+    public TaxMetadataDto? TaxMetadata { get; set; }
+}
+
+public class DataFilterDto
+{
+    public string? BusinessTypeId { get; set; }
+    public string? Section { get; set; }
+}
+
+public class TaxMetadataDto
+{
+    public string TaxType { get; set; } = null!;
+    public decimal Rate { get; set; }
+    public string Source { get; set; } = "DEFAULT";
+}

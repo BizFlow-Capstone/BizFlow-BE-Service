@@ -10,6 +10,7 @@ public interface IAccountingTemplateRepository
     Task<AccountingTemplateVersion?> GetActiveVersionByTemplateIdAsync(int templateId);
     Task<AccountingTemplateVersion?> GetVersionWithMappingsAsync(int templateVersionId);
     Task<AccountingTemplateVersion?> GetVersionWithMappingsAndBooksAsync(int templateVersionId);
+    Task<List<TemplateRowDefinition>> GetRowDefinitionsAsync(int templateVersionId);
     Task<AccountingTemplateVersion> AddVersionAsync(AccountingTemplateVersion version);
     void UpdateVersion(AccountingTemplateVersion version);
     void RemoveVersion(AccountingTemplateVersion version);

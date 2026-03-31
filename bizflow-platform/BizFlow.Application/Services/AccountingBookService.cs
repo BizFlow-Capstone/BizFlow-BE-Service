@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.AccountingBook;
 using BizFlow.Application.DTOs.Revenue;
@@ -39,7 +40,7 @@ public class AccountingBookService : IAccountingBookService
         // 1. Validate period exists and is NOT finalized
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, request.PeriodId)
             ?? throw new NotFoundException("PERIOD_NOT_FOUND");
-        if (period.Status == "finalized")
+        if (period.Status == AccountingPeriodConstants.PeriodStatuses.Finalized)
             throw new BadRequestException("PERIOD_FINALIZED");
 
         // 2. Validate active ruleset
@@ -113,7 +114,7 @@ public class AccountingBookService : IAccountingBookService
                     GroupNumber = request.GroupNumber,
                     TaxMethod = request.TaxMethod,
                     RulesetId = ruleset.RulesetId,
-                    Status = "active",
+                    Status = AccountingBookConstants.BookStatuses.Active,
                     CreatedByUserId = userId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -328,6 +329,82 @@ public class AccountingBookService : IAccountingBookService
     }
 
     // ────────────────────────────────────────────────────────
+    // GET BOOK SECTIONS (structure + formula values)
+    // ────────────────────────────────────────────────────────
+    public async Task<BookSectionsResponse> GetBookSectionsAsync(int locationId, Guid userId, long bookId)
+    {
+        await _locationService.ValidateOwnerAsync(userId, locationId);
+
+        var book = await _uow.AccountingBooks.GetByIdWithBusinessTypesAsync(bookId)
+            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+        if (book.BusinessLocationId != locationId)
+            throw new ForbiddenException("COMMON_FORBIDDEN");
+
+        var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, book.PeriodId);
+        var businessTypeIds = await GetBusinessTypeIdsForLocation(locationId);
+        var renderCtx = BuildRenderContext(book, period, businessTypeIds);
+
+        var renderResult = await _renderingService.RenderSectionsAsync(renderCtx);
+        var template = book.TemplateVersion?.Template;
+
+        return new BookSectionsResponse
+        {
+            BookId = book.BookId,
+            TemplateCode = template?.TemplateCode ?? "",
+            TemplateName = template?.Name ?? "",
+            LastCalculatedAt = DateTime.UtcNow,
+            Columns = renderResult.Columns,
+            Sections = renderResult.Sections.Select(s => new BookSectionResponseDto
+            {
+                SectionType = s.SectionType,
+                BusinessTypeId = s.GroupKey,
+                BusinessTypeName = s.GroupName,
+                GroupIndex = s.GroupIndex,
+                Rows = s.Rows.Select(r => MapToSectionRow(r)).ToList()
+            }).ToList(),
+            FooterRows = renderResult.FooterRows.Select(r => MapToSectionRow(r)).ToList()
+        };
+    }
+
+    private static SectionRowDto MapToSectionRow(Dictionary<string, object?> raw)
+    {
+        var lineType = raw.GetValueOrDefault("lineType")?.ToString() ?? "unknown";
+        var values = new Dictionary<string, object?>(raw);
+        values.Remove("lineType");
+        values.Remove("dataFilter");
+        values.Remove("taxMetadata");
+
+        DataFilterDto? dataFilter = null;
+        if (raw.GetValueOrDefault("dataFilter") is Dictionary<string, object?> df)
+        {
+            dataFilter = new DataFilterDto
+            {
+                BusinessTypeId = df.GetValueOrDefault("businessTypeId")?.ToString(),
+                Section = df.GetValueOrDefault("section")?.ToString()
+            };
+        }
+
+        TaxMetadataDto? taxMeta = null;
+        if (raw.GetValueOrDefault("taxMetadata") is Dictionary<string, object?> tm)
+        {
+            taxMeta = new TaxMetadataDto
+            {
+                TaxType = tm.GetValueOrDefault("taxType")?.ToString() ?? "",
+                Rate = tm.GetValueOrDefault("rate") is decimal r ? r : 0m,
+                Source = tm.GetValueOrDefault("source")?.ToString() ?? "DEFAULT"
+            };
+        }
+
+        return new SectionRowDto
+        {
+            LineType = lineType,
+            Values = values,
+            DataFilter = dataFilter,
+            TaxMetadata = taxMeta
+        };
+    }
+
+    // ────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ────────────────────────────────────────────────────────
 
@@ -342,6 +419,7 @@ public class AccountingBookService : IAccountingBookService
             PeriodEnd = period?.EndDate ?? DateOnly.MaxValue,
             TemplateVersionId = book.TemplateVersionId,
             TemplateCode = book.TemplateVersion?.Template?.TemplateCode ?? "",
+            DataSourceType = book.TemplateVersion?.Template?.DataSourceType ?? "revenues",
             GroupNumber = book.GroupNumber,
             TaxMethod = book.TaxMethod,
             RulesetId = book.RulesetId,

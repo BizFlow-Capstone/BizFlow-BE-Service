@@ -56,6 +56,7 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
                 .ThenInclude(m => m.SourceField)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.SourceEntity)
+            .Include(x => x.RowDefinitions.OrderBy(r => r.Position).ThenBy(r => r.SortOrder))
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
     }
 
@@ -70,7 +71,18 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
                 .ThenInclude(m => m.SourceField)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.SourceEntity)
+            .Include(x => x.RowDefinitions.OrderBy(r => r.Position).ThenBy(r => r.SortOrder))
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
+    }
+
+    public async Task<List<TemplateRowDefinition>> GetRowDefinitionsAsync(int templateVersionId)
+    {
+        return await _context.Set<TemplateRowDefinition>()
+            .Include(x => x.Formula)
+            .Where(x => x.TemplateVersionId == templateVersionId)
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.SortOrder)
+            .ToListAsync();
     }
 
     public async Task<AccountingTemplateVersion> AddVersionAsync(AccountingTemplateVersion version)

@@ -1,6 +1,7 @@
--- Migration: 049_subscription_plan_price_and_remove_tier
+-- Migration: 074_subscription_plan_price_and_remove_tier
 -- Moves pricing from SubscriptionPlans to new SubscriptionPlanPrices table.
 -- Adds Description to SubscriptionPlans. Removes Tier, BasePrice, DiscountedPrice.
+-- Idempotent: safe to re-run.
 
 -- 1. Create SubscriptionPlanPrices table
 CREATE TABLE IF NOT EXISTS SubscriptionPlanPrices (
@@ -19,18 +20,56 @@ CREATE TABLE IF NOT EXISTS SubscriptionPlanPrices (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Price history for subscription plans';
 
--- 2. Migrate existing prices into SubscriptionPlanPrices
-INSERT INTO SubscriptionPlanPrices (SubscriptionPlanId, BasePrice, DiscountedPrice, IsDiscountActive, Currency, CreatedAt, UpdatedAt)
-SELECT SubscriptionPlanId, BasePrice, DiscountedPrice, (DiscountedPrice IS NOT NULL), 'VND', CreatedAt, UpdatedAt
-FROM SubscriptionPlans;
+-- 2-4. Migrate data + schema changes (wrapped in procedure for idempotency)
+DROP PROCEDURE IF EXISTS migrate_074;
+DELIMITER $$
+CREATE PROCEDURE migrate_074()
+BEGIN
+    -- 2. Migrate existing prices — only if source columns still exist
+    IF EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SubscriptionPlans' AND COLUMN_NAME = 'BasePrice'
+    ) THEN
+        INSERT INTO SubscriptionPlanPrices (SubscriptionPlanId, BasePrice, DiscountedPrice, IsDiscountActive, Currency, CreatedAt, UpdatedAt)
+        SELECT sp.SubscriptionPlanId, sp.BasePrice, sp.DiscountedPrice, (sp.DiscountedPrice IS NOT NULL), 'VND', sp.CreatedAt, sp.UpdatedAt
+        FROM SubscriptionPlans sp
+        WHERE sp.SubscriptionPlanId NOT IN (SELECT DISTINCT SubscriptionPlanId FROM SubscriptionPlanPrices);
+    END IF;
 
--- 3. Add Description column
-ALTER TABLE SubscriptionPlans ADD COLUMN Description TEXT NULL AFTER Name;
+    -- 3. Add Description column if not exists
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SubscriptionPlans' AND COLUMN_NAME = 'Description'
+    ) THEN
+        ALTER TABLE SubscriptionPlans ADD COLUMN Description TEXT NULL AFTER Name;
+    END IF;
 
--- 4. Drop old columns
-ALTER TABLE SubscriptionPlans DROP COLUMN BasePrice;
-ALTER TABLE SubscriptionPlans DROP COLUMN DiscountedPrice;
-ALTER TABLE SubscriptionPlans DROP COLUMN Tier;
+    -- 4. Drop old columns if they still exist
+    IF EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SubscriptionPlans' AND COLUMN_NAME = 'BasePrice'
+    ) THEN
+        ALTER TABLE SubscriptionPlans DROP COLUMN BasePrice;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SubscriptionPlans' AND COLUMN_NAME = 'DiscountedPrice'
+    ) THEN
+        ALTER TABLE SubscriptionPlans DROP COLUMN DiscountedPrice;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'SubscriptionPlans' AND COLUMN_NAME = 'Tier'
+    ) THEN
+        ALTER TABLE SubscriptionPlans DROP COLUMN Tier;
+    END IF;
+END$$
+DELIMITER ;
+
+CALL migrate_074();
+DROP PROCEDURE IF EXISTS migrate_074;
 
 -- =============================================
 -- Insert migration history

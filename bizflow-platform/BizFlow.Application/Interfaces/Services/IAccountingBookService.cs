@@ -8,4 +8,5 @@ public interface IAccountingBookService
     Task<List<BookListItemDto>> ListBooksAsync(int locationId, Guid userId, long periodId);
     Task<BookSummaryResponse> GetBookSummaryAsync(int locationId, Guid userId, long bookId);
     Task<BookRowsResponse> GetBookRowsAsync(int locationId, Guid userId, long bookId, string? cursor, int batchSize = 200);
+    Task<BookSectionsResponse> GetBookSectionsAsync(int locationId, Guid userId, long bookId);
 }

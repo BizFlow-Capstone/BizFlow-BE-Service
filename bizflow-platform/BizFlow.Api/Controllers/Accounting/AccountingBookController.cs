@@ -73,5 +73,16 @@ public class AccountingBookController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpGet("{bookId:long}/sections")]
+    [SwaggerOperation(Summary = "Get book sections", Description = "Get book structure with sections, formula values, and data placeholders")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBookSections(int locationId, long bookId)
+    {
+        var result = await _accountingBookService.GetBookSectionsAsync(locationId, GetCurrentUserId(), bookId);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
     private Guid GetCurrentUserId() => User.GetRequiredUserId();
 }

@@ -161,11 +161,20 @@ public class FormulaEngine : IFormulaEngine
             PageSize = int.MaxValue
         };
 
-        if (filters.TryGetValue("RevenueType", out var rt))
-            query.RevenueType = rt.Split(',').First();
+        // RevenueType filter may contain multiple comma-separated values (e.g. "sale,manual").
+        // RevenueQueryParams only supports a single value, so we filter in-memory for multi-value.
+        var revenueTypes = filters.TryGetValue("RevenueType", out var rt)
+            ? rt.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : Array.Empty<string>();
+
+        if (revenueTypes.Length == 1)
+            query.RevenueType = revenueTypes[0];
 
         var (items, _) = await _uow.Revenues.SearchAsync(query);
         var list = items.Where(r => r.DeletedAt == null).ToList();
+
+        if (revenueTypes.Length > 1)
+            list = list.Where(r => revenueTypes.Contains(r.RevenueType, StringComparer.OrdinalIgnoreCase)).ToList();
 
         return aggType.ToUpper() switch
         {

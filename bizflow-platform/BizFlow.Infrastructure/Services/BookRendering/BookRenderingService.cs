@@ -1,5 +1,6 @@
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
@@ -44,10 +45,6 @@ public class BookRenderingService : IBookRenderingService
         // 2. Query source data based on template type
         var sourceRows = await QuerySourceDataAsync(context, dataMappings, cursor, batchSize);
 
-        // 2.1 Precompute formula values so formula columns can be returned with concrete values
-        var (formulaValues, formulaIdToCode) = await EvaluateTemplateFormulasAsync(context, version);
-        var formulaValuesByFieldCode = BuildFormulaFieldValues(version, formulaValues, formulaIdToCode);
-
         // 3. Auto-increment STT
         var sttOffset = ParseCursorOffset(cursor);
 
@@ -58,18 +55,21 @@ public class BookRenderingService : IBookRenderingService
         foreach (var sourceRow in sourceRows.Items)
         {
             var row = new Dictionary<string, object?>();
+            row["lineType"] = "data";
+            var currentStt = sttOffset + (++rowIndex);
 
-            foreach (var mapping in version.FieldMappings.OrderBy(m => m.SortOrder))
+            foreach (var mapping in dataMappings)
             {
                 row[mapping.FieldCode] = mapping.SourceType switch
                 {
-                    "auto" => sttOffset + (++rowIndex),
+                    "auto" => currentStt,
                     "query" => ExtractFieldValue(sourceRow, mapping),
-                    "static" => null, // Static values set by template
-                    "formula" => formulaValuesByFieldCode.GetValueOrDefault(mapping.FieldCode),
                     _ => null
                 };
             }
+
+            // Attach business type identifier so client can group data rows by section.
+            row["businessTypeId"] = sourceRow.Values.GetValueOrDefault("BusinessTypeId")?.ToString();
 
             rows.Add(row);
         }
@@ -83,6 +83,256 @@ public class BookRenderingService : IBookRenderingService
                 : null,
             LoadedCount = rows.Count,
             TotalEstimated = sourceRows.TotalEstimated
+        };
+    }
+
+    public async Task<BookSectionsRenderResult> RenderSectionsAsync(BookRenderContext context)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAsync(context.TemplateVersionId);
+        if (version == null)
+            return new BookSectionsRenderResult();
+
+        var rowDefinitions = await _uow.AccountingTemplates.GetRowDefinitionsAsync(context.TemplateVersionId);
+
+        var columns = version.FieldMappings
+            .Where(m => m.SourceType == "query" || m.SourceType == "auto")
+            .OrderBy(m => m.SortOrder)
+            .Select(m => new Application.DTOs.AccountingBook.BookColumnDto
+            {
+                FieldCode = m.FieldCode,
+                Label = m.FieldLabel,
+                FieldType = m.FieldType,
+                ExportColumn = m.ExportColumn
+            })
+            .ToList();
+
+        var (formulaValues, _) = await EvaluateTemplateFormulasAsync(context, version);
+
+        // Build formula lookup: FormulaId → computed value
+        var formulaIdToValue = new Dictionary<long, decimal>();
+        foreach (var rd in rowDefinitions.Where(r => r.FormulaId.HasValue && r.Formula != null))
+        {
+            if (formulaValues.TryGetValue(rd.Formula!.Code, out var val))
+                formulaIdToValue[rd.FormulaId!.Value] = val;
+        }
+
+        // Load tax rates once — used by both per_group sections and footer
+        var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(context.RulesetId, context.BusinessTypeIds);
+        var taxRateLookup = taxRates
+            .GroupBy(x => NormalizeTaxType(x.TaxType))
+            .ToDictionary(g => g.Key, g => g.First().TaxRate, StringComparer.OrdinalIgnoreCase);
+
+        var perGroupDefs = rowDefinitions
+            .Where(r => r.Position == RowDefinitionConstants.Position.PerGroup)
+            .OrderBy(r => r.SortOrder)
+            .ToList();
+
+        var perSectionDefs = rowDefinitions
+            .Where(r => r.Position == RowDefinitionConstants.Position.PerSection)
+            .OrderBy(r => r.SortOrder)
+            .ToList();
+
+        var footerDefinitions = rowDefinitions
+            .Where(r => r.Position == RowDefinitionConstants.Position.EndOfBook)
+            .OrderBy(r => r.SortOrder)
+            .ToList();
+
+        var sections = new List<BookSectionDto>();
+        var groupedTaxTotals = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var groupIndex = 0;
+
+        // ── Path A: per_group — repeat definitions per group key (data-driven) ──
+        if (perGroupDefs.Count > 0)
+        {
+            var groupByField = perGroupDefs
+                .Select(d => d.GroupByField)
+                .FirstOrDefault(f => !string.IsNullOrWhiteSpace(f));
+            var sectionType = perGroupDefs
+                .Select(d => d.SectionType)
+                .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "group";
+
+            var (groupKeys, groupNames, groupAmounts, perGroupTaxRates) =
+                await ResolveGroupDataAsync(context, groupByField);
+
+            foreach (var groupKey in groupKeys)
+            {
+                groupIndex++;
+                var subtotal = groupAmounts.GetValueOrDefault(groupKey);
+                var groupName = groupNames.GetValueOrDefault(groupKey) ?? groupKey;
+
+                var sectionRows = new List<Dictionary<string, object?>>();
+                foreach (var rowDef in perGroupDefs)
+                {
+                    var row = new Dictionary<string, object?> { ["lineType"] = rowDef.RowType };
+
+                    if (rowDef.RowType == RowDefinitionConstants.RowType.DataPlaceholder)
+                    {
+                        var filter = new Dictionary<string, object?>();
+                        if (!string.IsNullOrWhiteSpace(groupByField))
+                            filter[ToCamelCase(groupByField)] = groupKey;
+                        row["dataFilter"] = filter;
+                        sectionRows.Add(row);
+                        continue;
+                    }
+
+                    var resolvedLabel = ResolveRowLabel(rowDef.RowLabel, groupIndex, groupName);
+                    if (!string.IsNullOrWhiteSpace(resolvedLabel))
+                        row["dien_giai"] = resolvedLabel;
+
+                    if (rowDef.RowType == RowDefinitionConstants.RowType.Subtotal || rowDef.RowType == RowDefinitionConstants.RowType.SectionSubtotal)
+                    {
+                        row["so_tien"] = ResolveFormulaValue(rowDef, formulaIdToValue) ?? subtotal;
+                    }
+                    else if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
+                    {
+                        var taxType = NormalizeTaxType(rowDef.TaxType);
+                        var taxRate = perGroupTaxRates.GetValueOrDefault((groupKey, taxType));
+                        var taxAmount = subtotal * taxRate;
+                        row["so_tien"] = taxAmount;
+                        row["taxMetadata"] = new Dictionary<string, object?>
+                        {
+                            ["taxType"] = rowDef.TaxType,
+                            ["rate"] = taxRate,
+                            ["source"] = "DEFAULT"
+                        };
+
+                        if (!string.IsNullOrWhiteSpace(taxType))
+                            groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
+                    }
+
+                    sectionRows.Add(row);
+                }
+
+                sections.Add(new BookSectionDto
+                {
+                    SectionType = sectionType,
+                    GroupKey = groupKey,
+                    GroupName = groupName,
+                    GroupIndex = groupIndex,
+                    Rows = sectionRows
+                });
+            }
+        }
+
+        // ── Path B: per_section (S2c, S2e) — definitions define sections sequentially ──
+        if (perSectionDefs.Count > 0)
+        {
+            var logicalSections = SplitDefinitionsByHeader(perSectionDefs);
+
+            foreach (var (headerDef, bodyDefs) in logicalSections)
+            {
+                groupIndex++;
+                var sectionType = headerDef?.SectionType ?? perSectionDefs.First().SectionType ?? "section";
+                var sectionName = headerDef?.RowLabel ?? $"Section {groupIndex}";
+
+                var sectionRows = new List<Dictionary<string, object?>>();
+
+                // Add header row
+                if (headerDef != null)
+                {
+                    sectionRows.Add(new Dictionary<string, object?>
+                    {
+                        ["lineType"] = headerDef.RowType,
+                        ["dien_giai"] = headerDef.RowLabel
+                    });
+                }
+
+                foreach (var rowDef in bodyDefs)
+                {
+                    var row = new Dictionary<string, object?> { ["lineType"] = rowDef.RowType };
+
+                    if (rowDef.RowType == RowDefinitionConstants.RowType.DataPlaceholder)
+                    {
+                        row["dataFilter"] = new Dictionary<string, object?>
+                        {
+                            ["section"] = sectionName
+                        };
+                        sectionRows.Add(row);
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rowDef.RowLabel))
+                        row["dien_giai"] = rowDef.RowLabel;
+
+                    // Resolve value from linked formula, or fall back to 0
+                    var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
+                    if (formulaVal.HasValue)
+                        row["so_tien"] = formulaVal.Value;
+
+                    if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
+                    {
+                        var taxType = NormalizeTaxType(rowDef.TaxType);
+                        // Tax amount from formula if linked, else 0
+                        var taxAmount = formulaVal ?? 0m;
+                        row["so_tien"] = taxAmount;
+                        row["taxMetadata"] = new Dictionary<string, object?>
+                        {
+                            ["taxType"] = rowDef.TaxType,
+                            ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
+                            ["source"] = rowDef.FormulaId.HasValue ? "FORMULA" : "DEFAULT"
+                        };
+                        if (!string.IsNullOrWhiteSpace(taxType))
+                            groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
+                    }
+
+                    sectionRows.Add(row);
+                }
+
+                sections.Add(new BookSectionDto
+                {
+                    SectionType = sectionType,
+                    GroupKey = sectionName,
+                    GroupName = sectionName,
+                    GroupIndex = groupIndex,
+                    Rows = sectionRows
+                });
+            }
+        }
+
+        // ── Footer rows (end_of_book) ──
+        var footerRows = new List<Dictionary<string, object?>>();
+        foreach (var rowDef in footerDefinitions)
+        {
+            var row = new Dictionary<string, object?>
+            {
+                ["lineType"] = rowDef.RowType
+            };
+
+            if (!string.IsNullOrWhiteSpace(rowDef.RowLabel))
+                row["dien_giai"] = rowDef.RowLabel;
+
+            // Try formula value first (covers profit_row, grand_total, tax_line, etc.)
+            var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
+            if (formulaVal.HasValue)
+            {
+                row["so_tien"] = formulaVal.Value;
+            }
+            else if (rowDef.RowType == RowDefinitionConstants.RowType.GrandTotal || rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
+            {
+                // Fallback: sum from section-level grouped tax totals
+                var taxType = NormalizeTaxType(rowDef.TaxType);
+                row["so_tien"] = groupedTaxTotals.GetValueOrDefault(taxType);
+            }
+
+            if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine && !row.ContainsKey("taxMetadata"))
+            {
+                var taxType = NormalizeTaxType(rowDef.TaxType);
+                row["taxMetadata"] = new Dictionary<string, object?>
+                {
+                    ["taxType"] = rowDef.TaxType,
+                    ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
+                    ["source"] = rowDef.FormulaId.HasValue ? "FORMULA" : "DEFAULT"
+                };
+            }
+
+            footerRows.Add(row);
+        }
+
+        return new BookSectionsRenderResult
+        {
+            Columns = columns,
+            Sections = sections,
+            FooterRows = footerRows
         };
     }
 
@@ -105,26 +355,11 @@ public class BookRenderingService : IBookRenderingService
             FormulaValues = results
         };
 
-        // Extract key KPIs based on template type
-        switch (context.TemplateCode)
-        {
-            case "S1a":
-                summary.TotalRevenue = results.GetValueOrDefault("S1A_QUARTERLY_TOTAL");
-                break;
-            case "S2a":
-                summary.TotalRevenue = results.GetValueOrDefault("S2A_QUARTERLY_TOTAL");
-                summary.TotalTax = (results.GetValueOrDefault("S2A_VAT") + results.GetValueOrDefault("S2A_PIT"));
-                break;
-            case "S2b":
-                summary.TotalRevenue = results.GetValueOrDefault("S2B_QUARTERLY_TOTAL");
-                summary.TotalTax = results.GetValueOrDefault("S2B_VAT");
-                break;
-            case "S2c":
-                summary.TotalRevenue = results.GetValueOrDefault("S2C_TOTAL_REVENUE");
-                summary.TotalCost = results.GetValueOrDefault("S2C_TOTAL_COST");
-                summary.TotalTax = results.GetValueOrDefault("S2C_PIT");
-                break;
-        }
+        // Extract key KPIs using formula naming conventions (no template-specific switch)
+        var prefix = $"{context.TemplateCode.ToUpperInvariant()}_";
+        summary.TotalRevenue = FindFormulaValue(results, prefix, "_TOTAL_REVENUE", "_QUARTERLY_TOTAL");
+        summary.TotalCost = FindFormulaValue(results, prefix, "_TOTAL_COST");
+        summary.TotalTax = SumFormulaValues(results, prefix, "_VAT", "_PIT");
 
         // Count total rows (quick count)
         summary.TotalRows = await CountSourceRowsAsync(context);
@@ -206,12 +441,12 @@ public class BookRenderingService : IBookRenderingService
     {
         // All templates primarily query from revenues/orders
         // S2c also queries costs, S2e queries GL entries
-        return ctx.TemplateCode switch
+        return ctx.DataSourceType switch
         {
-            "S1a" or "S2a" or "S2b" => await QueryRevenueRowsAsync(ctx, cursor, batchSize),
-            "S2c" => await QueryRevenueCostRowsAsync(ctx, cursor, batchSize),
-            "S2d" => new SourceDataResult(), // Stock movements — Phase B.2
-            "S2e" => await QueryGLRowsAsync(ctx, cursor, batchSize),
+            "revenues" => await QueryRevenueRowsAsync(ctx, cursor, batchSize),
+            "revenue_cost" => await QueryRevenueCostRowsAsync(ctx, cursor, batchSize),
+            "stock_movements" => new SourceDataResult(), // Phase B.2
+            "gl_entries" => await QueryGLRowsAsync(ctx, cursor, batchSize),
             _ => new SourceDataResult()
         };
     }
@@ -358,10 +593,10 @@ public class BookRenderingService : IBookRenderingService
 
     private async Task<int> CountSourceRowsAsync(BookRenderContext ctx)
     {
-        return ctx.TemplateCode switch
+        return ctx.DataSourceType switch
         {
-            "S1a" or "S2a" or "S2b" => (await QueryRevenueRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
-            "S2e" => (await QueryGLRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
+            "revenues" => (await QueryRevenueRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
+            "gl_entries" => (await QueryGLRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
             _ => 0
         };
     }
@@ -454,6 +689,181 @@ public class BookRenderingService : IBookRenderingService
     private static string EncodeCursor(SourceRow lastRow, int currentOffset)
     {
         return $"{lastRow.Date:yyyy-MM-dd}_{lastRow.Id}_{currentOffset}";
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadBusinessTypeNamesAsync(IEnumerable<Guid> businessTypeIds)
+    {
+        var ids = businessTypeIds.ToHashSet();
+        var allBusinessTypes = await _uow.BusinessTypes.GetAllAsync();
+        return allBusinessTypes
+            .Where(x => ids.Contains(x.BusinessTypeId))
+            .ToDictionary(x => x.BusinessTypeId, x => x.Name);
+    }
+
+    private async Task<Dictionary<Guid, decimal>> LoadRevenueByBusinessTypeAsync(BookRenderContext context)
+    {
+        var query = new Application.DTOs.Revenue.RevenueQueryParams
+        {
+            BusinessLocationId = context.BusinessLocationId,
+            FromDate = context.PeriodStart,
+            ToDate = context.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue
+        };
+
+        var (items, _) = await _uow.Revenues.SearchAsync(query);
+        return items
+            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+            .GroupBy(r => r.BusinessTypeId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+    }
+
+    private static string ResolveRowLabel(string? label, int groupIndex, string groupName)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            return string.Empty;
+
+        return label
+            .Replace("{groupIndex}", groupIndex.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{businessTypeName}", groupName, StringComparison.OrdinalIgnoreCase)
+            .Replace("{groupName}", groupName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeTaxType(string? taxType)
+    {
+        if (string.IsNullOrWhiteSpace(taxType))
+            return string.Empty;
+
+        if (taxType.Contains("VAT", StringComparison.OrdinalIgnoreCase))
+            return RowDefinitionConstants.TaxType.Vat;
+        if (taxType.Contains("PIT", StringComparison.OrdinalIgnoreCase))
+            return RowDefinitionConstants.TaxType.Pit;
+
+        return taxType;
+    }
+
+    /// <summary>
+    /// Resolve group keys, names, amounts, and tax rates for per_group rendering.
+    /// Extension point: add new GroupByField values here when introducing new templates.
+    /// </summary>
+    private async Task<(List<string> GroupKeys, Dictionary<string, string> GroupNames,
+        Dictionary<string, decimal> GroupAmounts, Dictionary<(string, string), decimal> TaxRates)>
+        ResolveGroupDataAsync(BookRenderContext context, string? groupByField)
+    {
+        if (string.IsNullOrWhiteSpace(groupByField))
+        {
+            // No grouping — single flat section (e.g., S1a)
+            return (new List<string> { "" },
+                new Dictionary<string, string>(),
+                new Dictionary<string, decimal>(),
+                new Dictionary<(string, string), decimal>());
+        }
+
+        if (groupByField.Equals("BusinessTypeId", StringComparison.OrdinalIgnoreCase))
+        {
+            var names = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
+            var amounts = await LoadRevenueByBusinessTypeAsync(context);
+            var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
+                context.RulesetId, context.BusinessTypeIds);
+
+            var keys = context.BusinessTypeIds
+                .OrderBy(id => names.GetValueOrDefault(id) ?? id.ToString())
+                .Select(id => id.ToString())
+                .ToList();
+
+            return (keys,
+                names.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
+                amounts.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
+                taxRates
+                    .GroupBy(x => (x.BusinessTypeId.ToString(), NormalizeTaxType(x.TaxType)))
+                    .ToDictionary(g => g.Key, g => g.First().TaxRate));
+        }
+
+        // Future: "ProductId" → LoadAmountByProductAsync, etc.
+        _logger.LogWarning("Unsupported GroupByField: {GroupByField}", groupByField);
+        return (new List<string>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, decimal>(),
+            new Dictionary<(string, string), decimal>());
+    }
+
+    private static string ToCamelCase(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        return char.ToLowerInvariant(value[0]) + value[1..];
+    }
+
+    private static decimal? FindFormulaValue(
+        IReadOnlyDictionary<string, decimal> results, string prefix, params string[] suffixes)
+    {
+        foreach (var suffix in suffixes)
+        {
+            var match = results.FirstOrDefault(kv =>
+                kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                kv.Key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(match.Key))
+                return match.Value;
+        }
+        return null;
+    }
+
+    private static decimal SumFormulaValues(
+        IReadOnlyDictionary<string, decimal> results, string prefix, params string[] suffixes)
+    {
+        return results
+            .Where(kv => kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                         && suffixes.Any(s => kv.Key.EndsWith(s, StringComparison.OrdinalIgnoreCase)))
+            .Sum(kv => kv.Value);
+    }
+
+    /// <summary>
+    /// Resolve a formula value for a row definition that has a linked FormulaId.
+    /// Returns null if no formula is linked or the value is not found.
+    /// </summary>
+    private static decimal? ResolveFormulaValue(
+        TemplateRowDefinition rowDef,
+        IReadOnlyDictionary<long, decimal> formulaIdToValue)
+    {
+        if (!rowDef.FormulaId.HasValue)
+            return null;
+
+        return formulaIdToValue.TryGetValue(rowDef.FormulaId.Value, out var val) ? val : null;
+    }
+
+    /// <summary>
+    /// Split per_section definitions into logical sections delimited by section_header rows.
+    /// Each tuple is (header definition or null, body definitions).
+    /// </summary>
+    private static List<(TemplateRowDefinition? Header, List<TemplateRowDefinition> Body)> SplitDefinitionsByHeader(
+        List<TemplateRowDefinition> definitions)
+    {
+        var result = new List<(TemplateRowDefinition?, List<TemplateRowDefinition>)>();
+        TemplateRowDefinition? currentHeader = null;
+        var currentBody = new List<TemplateRowDefinition>();
+
+        foreach (var def in definitions)
+        {
+            if (def.RowType == RowDefinitionConstants.RowType.SectionHeader ||
+                def.RowType == RowDefinitionConstants.RowType.IndustryHeader)
+            {
+                // Save previous section if any body rows exist
+                if (currentHeader != null || currentBody.Count > 0)
+                    result.Add((currentHeader, currentBody));
+
+                currentHeader = def;
+                currentBody = new List<TemplateRowDefinition>();
+            }
+            else
+            {
+                currentBody.Add(def);
+            }
+        }
+
+        // Final section
+        if (currentHeader != null || currentBody.Count > 0)
+            result.Add((currentHeader, currentBody));
+
+        return result;
     }
 }
 
