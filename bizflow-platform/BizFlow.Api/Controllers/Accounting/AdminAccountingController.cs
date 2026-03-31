@@ -161,6 +161,144 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    // ── Reference ──
+
+    [HttpGet("reference")]
+    [SwaggerOperation(Summary = "Get reference data (valid RowTypes, Positions, FieldTypes, etc.)")]
+    public IActionResult GetReference()
+    {
+        EnsureAdminOrConsultant();
+        var result = _adminAccountingService.GetReference();
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    // ── MappableEntities ──
+
+    [HttpGet("mappable-entities")]
+    [SwaggerOperation(Summary = "List all mappable entities")]
+    public async Task<IActionResult> GetMappableEntities([FromQuery] bool? active)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GetMappableEntitiesAsync(active);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpGet("mappable-entities/{entityId:int}")]
+    [SwaggerOperation(Summary = "Get mappable entity detail with fields")]
+    public async Task<IActionResult> GetMappableEntityDetail(int entityId)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GetMappableEntityDetailAsync(entityId);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpPost("mappable-entities")]
+    [SwaggerOperation(Summary = "Create mappable entity (Admin only)")]
+    public async Task<IActionResult> CreateMappableEntity([FromBody] CreateMappableEntityRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateMappableEntityAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpPatch("mappable-entities/{entityId:int}")]
+    [SwaggerOperation(Summary = "Update mappable entity (Admin only)")]
+    public async Task<IActionResult> UpdateMappableEntity(int entityId, [FromBody] UpdateMappableEntityRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.UpdateMappableEntityAsync(entityId, request);
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
+    // ── MappableFields ──
+
+    [HttpPost("mappable-entities/{entityId:int}/fields")]
+    [SwaggerOperation(Summary = "Create mappable field (Admin only)")]
+    public async Task<IActionResult> CreateMappableField(int entityId, [FromBody] CreateMappableFieldRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateMappableFieldAsync(entityId, request);
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpPatch("mappable-fields/{fieldId:int}")]
+    [SwaggerOperation(Summary = "Update mappable field (Admin only)")]
+    public async Task<IActionResult> UpdateMappableField(int fieldId, [FromBody] UpdateMappableFieldRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.UpdateMappableFieldAsync(fieldId, request);
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
+    // ── RowDefinitions ──
+
+    [HttpGet("template-versions/{templateVersionId:int}/row-definitions")]
+    [SwaggerOperation(Summary = "List row definitions for a template version")]
+    public async Task<IActionResult> GetRowDefinitions(int templateVersionId)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GetRowDefinitionsAsync(templateVersionId);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpPost("template-versions/{templateVersionId:int}/row-definitions")]
+    [SwaggerOperation(Summary = "Create row definition")]
+    public async Task<IActionResult> CreateRowDefinition(int templateVersionId, [FromBody] CreateRowDefinitionRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.CreateRowDefinitionAsync(templateVersionId, request);
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpPatch("row-definitions/{rowDefId:int}")]
+    [SwaggerOperation(Summary = "Update row definition")]
+    public async Task<IActionResult> UpdateRowDefinition(int rowDefId, [FromBody] UpdateRowDefinitionRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.UpdateRowDefinitionAsync(rowDefId, request);
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
+    [HttpDelete("row-definitions/{rowDefId:int}")]
+    [SwaggerOperation(Summary = "Delete row definition (Admin only)")]
+    public async Task<IActionResult> DeleteRowDefinition(int rowDefId)
+    {
+        EnsureAdminOnly();
+        await _adminAccountingService.DeleteRowDefinitionAsync(rowDefId);
+        return Ok(MessageKeys.DataDeletedSuccessfully);
+    }
+
+    // ── FieldMappings create/delete ──
+
+    [HttpPost("template-versions/{templateVersionId:int}/field-mappings")]
+    [SwaggerOperation(Summary = "Create field mapping")]
+    public async Task<IActionResult> CreateFieldMapping(int templateVersionId, [FromBody] CreateFieldMappingRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.CreateFieldMappingAsync(templateVersionId, request);
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpDelete("field-mappings/{mappingId:int}")]
+    [SwaggerOperation(Summary = "Delete field mapping (Admin only)")]
+    public async Task<IActionResult> DeleteFieldMapping(int mappingId)
+    {
+        EnsureAdminOnly();
+        await _adminAccountingService.DeleteFieldMappingAsync(mappingId);
+        return Ok(MessageKeys.DataDeletedSuccessfully);
+    }
+
+    // ── Full structure ──
+
+    [HttpGet("template-versions/{templateVersionId:int}/full-structure")]
+    [SwaggerOperation(Summary = "Get full template structure (columns + rows + render preview)")]
+    public async Task<IActionResult> GetFullStructure(int templateVersionId)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GetFullStructureAsync(templateVersionId);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
     private void EnsureAdminOnly()
     {
         if (!User.HasRole("admin"))

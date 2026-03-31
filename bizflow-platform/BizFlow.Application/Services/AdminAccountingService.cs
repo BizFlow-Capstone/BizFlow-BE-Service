@@ -4,6 +4,7 @@ using BizFlow.Application.DTOs.Admin;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Services;
@@ -155,6 +156,22 @@ public class AdminAccountingService : IAdminAccountingService
                     ExportColumn = m.ExportColumn,
                     SortOrder = m.SortOrder,
                     IsRequired = m.IsRequired
+                }).ToList(),
+            RowDefinitions = source.RowDefinitions
+                .OrderBy(r => r.SortOrder)
+                .Select(r => new TemplateRowDefinition
+                {
+                    RowType = r.RowType,
+                    RowLabel = r.RowLabel,
+                    Position = r.Position,
+                    SortOrder = r.SortOrder,
+                    GroupByField = r.GroupByField,
+                    SectionType = r.SectionType,
+                    SectionFilterValue = r.SectionFilterValue,
+                    VisibleFieldCodes = r.VisibleFieldCodes,
+                    FormulaId = r.FormulaId,
+                    TaxType = r.TaxType,
+                    CreatedAt = DateTime.UtcNow
                 }).ToList()
         };
 
@@ -495,6 +512,456 @@ public class AdminAccountingService : IAdminAccountingService
                 TotalEstimated = rows.TotalEstimated
             }
         };
+    }
+
+    // ══════════════════════════════════════════════
+    // Reference API
+    // ══════════════════════════════════════════════
+
+    public AdminReferenceDto GetReference()
+    {
+        return new AdminReferenceDto
+        {
+            RowTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.RowType.IndustryHeader, Label = "Tiêu đề ngành nghề" },
+                new() { Value = RowDefinitionConstants.RowType.DataPlaceholder, Label = "Vùng dữ liệu" },
+                new() { Value = RowDefinitionConstants.RowType.Subtotal, Label = "Cộng nhóm" },
+                new() { Value = RowDefinitionConstants.RowType.TaxLine, Label = "Dòng thuế" },
+                new() { Value = RowDefinitionConstants.RowType.GrandTotal, Label = "Tổng cộng" },
+                new() { Value = RowDefinitionConstants.RowType.SectionHeader, Label = "Tiêu đề phần" },
+                new() { Value = RowDefinitionConstants.RowType.SectionSubtotal, Label = "Cộng phần" },
+                new() { Value = RowDefinitionConstants.RowType.BalanceRow, Label = "Dòng số dư" },
+                new() { Value = RowDefinitionConstants.RowType.MonthlyTotal, Label = "Cộng tháng" },
+                new() { Value = RowDefinitionConstants.RowType.QuarterlyTotal, Label = "Cộng quý" },
+                new() { Value = RowDefinitionConstants.RowType.ProfitRow, Label = "Chênh lệch DT-CP" }
+            },
+            Positions = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.Position.PerGroup, Label = "Mỗi nhóm" },
+                new() { Value = RowDefinitionConstants.Position.PerSection, Label = "Mỗi phần" },
+                new() { Value = RowDefinitionConstants.Position.StartOfBook, Label = "Đầu sổ" },
+                new() { Value = RowDefinitionConstants.Position.EndOfBook, Label = "Cuối sổ" }
+            },
+            SectionTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.SectionType.IndustryGroup, Label = "Nhóm ngành nghề" },
+                new() { Value = RowDefinitionConstants.SectionType.RevenueCost, Label = "Doanh thu / Chi phí" },
+                new() { Value = RowDefinitionConstants.SectionType.CashBank, Label = "Tiền mặt / Ngân hàng" },
+                new() { Value = RowDefinitionConstants.SectionType.PerProduct, Label = "Theo sản phẩm" }
+            },
+            FieldTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "auto_increment", Label = "STT tự tăng" },
+                new() { Value = "date", Label = "Ngày tháng" },
+                new() { Value = "text", Label = "Văn bản" },
+                new() { Value = "decimal", Label = "Số thập phân" },
+                new() { Value = "computed", Label = "Tính toán" }
+            },
+            SourceTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "query", Label = "Truy vấn từ DB" },
+                new() { Value = "formula", Label = "Công thức" },
+                new() { Value = "static", Label = "Giá trị cố định" },
+                new() { Value = "auto", Label = "Tự động" }
+            },
+            TaxTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.TaxType.Vat, Label = "Thuế GTGT" },
+                new() { Value = RowDefinitionConstants.TaxType.Pit, Label = "Thuế TNCN" }
+            }
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // MappableEntities CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<List<AdminMappableEntityDto>> GetMappableEntitiesAsync(bool? active)
+    {
+        var entities = await _uow.AccountingTemplates.GetAllMappableEntitiesAsync(active);
+        return entities.Select(MapMappableEntity).ToList();
+    }
+
+    public async Task<AdminMappableEntityDetailDto> GetMappableEntityDetailAsync(int entityId)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        return new AdminMappableEntityDetailDto
+        {
+            EntityId = entity.EntityId,
+            EntityCode = entity.EntityCode,
+            DisplayName = entity.DisplayName,
+            Description = entity.Description,
+            Category = entity.Category,
+            IsActive = entity.IsActive,
+            FieldCount = entity.Fields.Count,
+            Fields = entity.Fields.Select(MapMappableField).ToList()
+        };
+    }
+
+    public async Task<AdminMappableEntityDto> CreateMappableEntityAsync(CreateMappableEntityRequest request, Guid actorUserId)
+    {
+        var existing = await _uow.AccountingTemplates.GetMappableEntityByCodeAsync(request.EntityCode.Trim());
+        if (existing != null)
+            throw new BadRequestException(MessageKeys.BadRequest, $"EntityCode '{request.EntityCode}' already exists");
+
+        var entity = new MappableEntity
+        {
+            EntityCode = request.EntityCode.Trim(),
+            DisplayName = request.DisplayName.Trim(),
+            Description = request.Description,
+            Category = request.Category.Trim(),
+            IsActive = true,
+            CreatedByUserId = actorUserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddMappableEntityAsync(entity);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableEntity(entity);
+    }
+
+    public async Task<AdminMappableEntityDto> UpdateMappableEntityAsync(int entityId, UpdateMappableEntityRequest request)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.DisplayName != null)
+            entity.DisplayName = request.DisplayName.Trim();
+        if (request.Description != null)
+            entity.Description = request.Description;
+        if (request.IsActive.HasValue)
+            entity.IsActive = request.IsActive.Value;
+
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        _uow.AccountingTemplates.UpdateMappableEntity(entity);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableEntity(entity);
+    }
+
+    // ══════════════════════════════════════════════
+    // MappableFields CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminMappableFieldDto> CreateMappableFieldAsync(int entityId, CreateMappableFieldRequest request)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (entity.Fields.Any(f => f.FieldCode == request.FieldCode.Trim()))
+            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists on this entity");
+
+        var field = new MappableField
+        {
+            EntityId = entityId,
+            FieldCode = request.FieldCode.Trim(),
+            DisplayName = request.DisplayName.Trim(),
+            Description = request.Description,
+            DataType = request.DataType.Trim(),
+            AllowedAggregations = request.AllowedAggregations,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddMappableFieldAsync(field);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableField(field);
+    }
+
+    public async Task<AdminMappableFieldDto> UpdateMappableFieldAsync(int fieldId, UpdateMappableFieldRequest request)
+    {
+        var field = await _uow.AccountingTemplates.GetMappableFieldByIdAsync(fieldId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.DisplayName != null) field.DisplayName = request.DisplayName.Trim();
+        if (request.Description != null) field.Description = request.Description;
+        if (request.DataType != null) field.DataType = request.DataType.Trim();
+        if (request.AllowedAggregations != null) field.AllowedAggregations = request.AllowedAggregations;
+        if (request.IsActive.HasValue) field.IsActive = request.IsActive.Value;
+
+        field.UpdatedAt = DateTime.UtcNow;
+
+        _uow.AccountingTemplates.UpdateMappableField(field);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableField(field);
+    }
+
+    // ══════════════════════════════════════════════
+    // RowDefinitions CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<List<AdminRowDefinitionDto>> GetRowDefinitionsAsync(int templateVersionId)
+    {
+        var rows = await _uow.AccountingTemplates.GetRowDefinitionsAsync(templateVersionId);
+        return rows.Select(MapRowDefinition).ToList();
+    }
+
+    public async Task<AdminRowDefinitionDto> CreateRowDefinitionAsync(int templateVersionId, CreateRowDefinitionRequest request)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add rows to active version with books");
+
+        if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
+            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+
+        if (!RowDefinitionConstants.Position.All.Contains(request.Position))
+            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+
+        var rowDef = new TemplateRowDefinition
+        {
+            TemplateVersionId = templateVersionId,
+            RowType = request.RowType,
+            RowLabel = request.RowLabel,
+            Position = request.Position,
+            SortOrder = request.SortOrder,
+            GroupByField = request.GroupByField,
+            SectionType = request.SectionType,
+            SectionFilterValue = request.SectionFilterValue,
+            VisibleFieldCodes = request.VisibleFieldCodes,
+            FormulaId = request.FormulaId,
+            TaxType = request.TaxType,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddRowDefinitionAsync(rowDef);
+        await _uow.SaveChangesAsync();
+
+        return MapRowDefinition(rowDef);
+    }
+
+    public async Task<AdminRowDefinitionDto> UpdateRowDefinitionAsync(int rowDefId, UpdateRowDefinitionRequest request)
+    {
+        var rowDef = await _uow.AccountingTemplates.GetRowDefinitionByIdAsync(rowDefId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.RowType != null)
+        {
+            if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
+                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+            rowDef.RowType = request.RowType;
+        }
+        if (request.RowLabel != null) rowDef.RowLabel = request.RowLabel;
+        if (request.Position != null)
+        {
+            if (!RowDefinitionConstants.Position.All.Contains(request.Position))
+                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+            rowDef.Position = request.Position;
+        }
+        if (request.SortOrder.HasValue) rowDef.SortOrder = request.SortOrder.Value;
+        if (request.GroupByField != null) rowDef.GroupByField = request.GroupByField;
+        if (request.SectionType != null) rowDef.SectionType = request.SectionType;
+        if (request.SectionFilterValue != null) rowDef.SectionFilterValue = request.SectionFilterValue;
+        if (request.VisibleFieldCodes != null) rowDef.VisibleFieldCodes = request.VisibleFieldCodes;
+        if (request.FormulaId.HasValue) rowDef.FormulaId = request.FormulaId;
+        if (request.TaxType != null) rowDef.TaxType = request.TaxType;
+
+        _uow.AccountingTemplates.UpdateRowDefinition(rowDef);
+        await _uow.SaveChangesAsync();
+
+        return MapRowDefinition(rowDef);
+    }
+
+    public async Task DeleteRowDefinitionAsync(int rowDefId)
+    {
+        var rowDef = await _uow.AccountingTemplates.GetRowDefinitionByIdAsync(rowDefId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var version = rowDef.TemplateVersion;
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete rows from active version with books");
+
+        _uow.AccountingTemplates.RemoveRowDefinition(rowDef);
+        await _uow.SaveChangesAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    // FieldMappings create/delete
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminTemplateFieldMappingDto> CreateFieldMappingAsync(int templateVersionId, CreateFieldMappingRequest request)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add mappings to active version with books");
+
+        if (version.FieldMappings.Any(m => m.FieldCode == request.FieldCode.Trim()))
+            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists");
+
+        var mapping = new TemplateFieldMapping
+        {
+            TemplateVersionId = templateVersionId,
+            FieldCode = request.FieldCode.Trim(),
+            FieldLabel = request.FieldLabel.Trim(),
+            FieldType = request.FieldType,
+            SourceType = request.SourceType,
+            SourceEntityId = request.SourceEntityId,
+            SourceFieldId = request.SourceFieldId,
+            FilterJson = request.FilterJson,
+            AggregationType = request.AggregationType,
+            FormulaId = request.FormulaId,
+            FormulaExpression = request.FormulaExpression,
+            SortOrder = request.SortOrder,
+            IsRequired = request.IsRequired
+        };
+
+        await _uow.AccountingTemplates.AddMappingAsync(mapping);
+        await _uow.SaveChangesAsync();
+
+        return new AdminTemplateFieldMappingDto
+        {
+            MappingId = mapping.MappingId,
+            FieldCode = mapping.FieldCode,
+            FieldLabel = mapping.FieldLabel,
+            FieldType = mapping.FieldType,
+            SourceType = mapping.SourceType,
+            SourceEntityId = mapping.SourceEntityId,
+            SourceFieldId = mapping.SourceFieldId,
+            FilterJson = mapping.FilterJson,
+            AggregationType = mapping.AggregationType,
+            FormulaId = mapping.FormulaId,
+            FormulaExpression = mapping.FormulaExpression,
+            SortOrder = mapping.SortOrder
+        };
+    }
+
+    public async Task DeleteFieldMappingAsync(int mappingId)
+    {
+        var mapping = await _uow.AccountingTemplates.GetMappingByIdAsync(mappingId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var version = mapping.TemplateVersion;
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete mapping from active version with books");
+
+        _uow.AccountingTemplates.RemoveMapping(mapping);
+        await _uow.SaveChangesAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    // Full structure
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminFullStructureDto> GetFullStructureAsync(int templateVersionId)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var rows = await _uow.AccountingTemplates.GetRowDefinitionsAsync(templateVersionId);
+
+        return new AdminFullStructureDto
+        {
+            TemplateVersionId = version.TemplateVersionId,
+            TemplateCode = version.Template?.TemplateCode ?? string.Empty,
+            TemplateName = version.Template?.Name ?? string.Empty,
+            VersionLabel = version.VersionLabel,
+            IsActive = version.IsActive,
+            FieldMappings = version.FieldMappings
+                .OrderBy(m => m.SortOrder)
+                .Select(m => new AdminTemplateFieldMappingDto
+                {
+                    MappingId = m.MappingId,
+                    FieldCode = m.FieldCode,
+                    FieldLabel = m.FieldLabel,
+                    FieldType = m.FieldType,
+                    SourceType = m.SourceType,
+                    SourceEntityId = m.SourceEntityId,
+                    SourceFieldId = m.SourceFieldId,
+                    FilterJson = m.FilterJson,
+                    AggregationType = m.AggregationType,
+                    FormulaId = m.FormulaId,
+                    FormulaExpression = m.FormulaExpression,
+                    SortOrder = m.SortOrder
+                }).ToList(),
+            RowDefinitions = rows.Select(MapRowDefinition).ToList(),
+            RenderPreview = BuildRenderPreview(rows)
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Private mappers
+    // ══════════════════════════════════════════════
+
+    private static AdminMappableEntityDto MapMappableEntity(MappableEntity entity)
+    {
+        return new AdminMappableEntityDto
+        {
+            EntityId = entity.EntityId,
+            EntityCode = entity.EntityCode,
+            DisplayName = entity.DisplayName,
+            Description = entity.Description,
+            Category = entity.Category,
+            IsActive = entity.IsActive,
+            FieldCount = entity.Fields.Count
+        };
+    }
+
+    private static AdminMappableFieldDto MapMappableField(MappableField field)
+    {
+        return new AdminMappableFieldDto
+        {
+            FieldId = field.FieldId,
+            EntityId = field.EntityId,
+            FieldCode = field.FieldCode,
+            DisplayName = field.DisplayName,
+            Description = field.Description,
+            DataType = field.DataType,
+            AllowedAggregations = field.AllowedAggregations,
+            IsActive = field.IsActive
+        };
+    }
+
+    private static AdminRowDefinitionDto MapRowDefinition(TemplateRowDefinition r)
+    {
+        return new AdminRowDefinitionDto
+        {
+            RowDefId = r.RowDefId,
+            TemplateVersionId = r.TemplateVersionId,
+            RowType = r.RowType,
+            RowLabel = r.RowLabel,
+            Position = r.Position,
+            SortOrder = r.SortOrder,
+            GroupByField = r.GroupByField,
+            SectionType = r.SectionType,
+            SectionFilterValue = r.SectionFilterValue,
+            VisibleFieldCodes = r.VisibleFieldCodes,
+            FormulaId = r.FormulaId,
+            FormulaCode = r.Formula?.Code,
+            TaxType = r.TaxType
+        };
+    }
+
+    private static string BuildRenderPreview(List<TemplateRowDefinition> rows)
+    {
+        if (rows.Count == 0) return "(empty)";
+
+        var parts = new List<string>();
+        foreach (var r in rows.OrderBy(x => x.SortOrder))
+        {
+            var label = r.RowLabel ?? r.RowType;
+            parts.Add(r.RowType switch
+            {
+                "section_header" => $"\n[{label}]",
+                "data_placeholder" => "  → data rows...",
+                "balance_row" => $"  {label} (formula)",
+                "subtotal" => $"  Σ {label}",
+                "tax_line" => $"  税 {label} ({r.TaxType})",
+                "grand_total" => $"═══ {label}",
+                _ => $"  {label}"
+            });
+        }
+        return string.Join("\n", parts).Trim();
     }
 
     private static AdminTemplateVersionDto MapTemplateVersion(AccountingTemplateVersion version)

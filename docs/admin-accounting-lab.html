@@ -113,6 +113,134 @@
         <div id="versionDetail" class="log"></div>
     </div>
 
+    <!-- ── Reference Data ── -->
+    <div class="card">
+        <h2>Reference Data</h2>
+        <div class="actions"><button onclick="loadReference()">Load Reference</button></div>
+        <div id="refGrid" class="row" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- ── Mappable Entities & Fields ── -->
+    <div class="card">
+        <h2>Mappable Entities & Fields</h2>
+        <div class="actions">
+            <button onclick="loadEntities()">Load All</button>
+            <button onclick="loadEntities(true)">Active Only</button>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;">
+            <table><thead><tr><th>ID</th><th>Code</th><th>TableName</th><th>Active</th><th>Action</th></tr></thead>
+            <tbody id="entitiesBody"><tr><td colspan="5" class="muted">No data</td></tr></tbody></table>
+        </div>
+        <h3 style="margin-top:12px;">Entity Detail / Fields</h3>
+        <div id="entityFields" class="log" style="min-height:60px;"></div>
+        <h3 style="margin-top:12px;">Create / Update Entity</h3>
+        <div class="row">
+            <div class="col"><label>EntityId (for update, blank=create)</label><input id="meId" type="number" /></div>
+            <div class="col"><label>EntityCode</label><input id="meCode" /></div>
+            <div class="col"><label>TableName</label><input id="meTable" /></div>
+            <div class="col"><label>DisplayName</label><input id="meDisplay" /></div>
+            <div class="col"><label>IsActive</label><select id="meActive"><option value="true">true</option><option value="false">false</option></select></div>
+        </div>
+        <div class="actions"><button onclick="saveEntity()">Save Entity</button></div>
+        <h3 style="margin-top:12px;">Create / Update Field</h3>
+        <div class="row">
+            <div class="col"><label>EntityId (parent)</label><input id="mfEntityId" type="number" /></div>
+            <div class="col"><label>FieldId (for update, blank=create)</label><input id="mfId" type="number" /></div>
+            <div class="col"><label>FieldCode</label><input id="mfCode" /></div>
+            <div class="col"><label>ColumnName</label><input id="mfColumn" /></div>
+            <div class="col"><label>DataType</label><input id="mfDataType" placeholder="decimal|text|date" /></div>
+            <div class="col"><label>DisplayName</label><input id="mfDisplay" /></div>
+        </div>
+        <div class="actions"><button onclick="saveField()">Save Field</button></div>
+    </div>
+
+    <!-- ── Full Structure ── -->
+    <div class="card">
+        <h2>Full Structure</h2>
+        <div class="row">
+            <div class="col"><label>TemplateVersionId</label><input id="fsVersionId" type="number" /></div>
+        </div>
+        <div class="actions"><button onclick="loadFullStructure()">Load Full Structure</button></div>
+        <h3 style="margin-top:10px;">Render Preview</h3>
+        <pre id="fsPreview" class="log" style="min-height:60px;"></pre>
+        <div class="row" style="margin-top:10px;">
+            <div class="col">
+                <h3>Field Mappings</h3>
+                <div class="table-wrap">
+                    <table><thead><tr><th>ID</th><th>FieldCode</th><th>Label</th><th>SrcType</th><th>Entity</th><th>Field</th><th>Del</th></tr></thead>
+                    <tbody id="fsMappingsBody"><tr><td colspan="7" class="muted">No data</td></tr></tbody></table>
+                </div>
+            </div>
+            <div class="col">
+                <h3>Row Definitions</h3>
+                <div class="table-wrap">
+                    <table><thead><tr><th>ID</th><th>Row</th><th>Pos</th><th>Type</th><th>SecType</th><th>Filter</th><th>Formula</th><th>Del</th></tr></thead>
+                    <tbody id="fsRowDefsBody"><tr><td colspan="8" class="muted">No data</td></tr></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Row Definitions CRUD ── -->
+    <div class="card">
+        <h2>Row Definitions</h2>
+        <div class="row">
+            <div class="col"><label>TemplateVersionId</label><input id="rdVersionId" type="number" /></div>
+        </div>
+        <div class="actions"><button onclick="loadRowDefs()">Load Row Definitions</button></div>
+        <div class="table-wrap" style="margin-top:10px;">
+            <table><thead><tr><th>ID</th><th>RowType</th><th>Position</th><th>Label</th><th>SectionType</th><th>SectionFilter</th><th>FormulaId</th><th>VisibleFields</th><th>Action</th></tr></thead>
+            <tbody id="rowDefsBody"><tr><td colspan="9" class="muted">No data</td></tr></tbody></table>
+        </div>
+        <h3 style="margin-top:12px;">Create / Update Row Definition</h3>
+        <div class="row">
+            <div class="col"><label>RowDefId (for update, blank=create)</label><input id="rdId" type="number" /></div>
+            <div class="col"><label>RowType</label><select id="rdRowType"></select></div>
+            <div class="col"><label>Position</label><select id="rdPosition"></select></div>
+            <div class="col"><label>SectionType</label><select id="rdSectionType"><option value="">—</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>DisplayLabel</label><input id="rdLabel" /></div>
+            <div class="col"><label>SortOrder</label><input id="rdSort" type="number" /></div>
+            <div class="col"><label>FormulaId</label><input id="rdFormulaId" type="number" /></div>
+            <div class="col"><label>SectionFilterValue</label><input id="rdSectionFilter" /></div>
+        </div>
+        <label>VisibleFieldCodes (JSON array, e.g. ["so_tien","thu_vao"])</label>
+        <textarea id="rdVisibleFields" style="min-height:40px;">[]</textarea>
+        <div class="actions">
+            <button onclick="saveRowDef()">Save Row Definition</button>
+        </div>
+    </div>
+
+    <!-- ── Field Mappings Create / Delete ── -->
+    <div class="card">
+        <h2>Field Mappings (Create / Delete)</h2>
+        <div class="row">
+            <div class="col"><label>TemplateVersionId</label><input id="fmcVersionId" type="number" /></div>
+        </div>
+        <h3 style="margin-top:10px;">Create Field Mapping</h3>
+        <div class="row">
+            <div class="col"><label>FieldCode</label><input id="fmcFieldCode" /></div>
+            <div class="col"><label>FieldLabel</label><input id="fmcFieldLabel" /></div>
+            <div class="col"><label>FieldType</label><input id="fmcFieldType" placeholder="decimal|text|date|computed" /></div>
+            <div class="col"><label>SourceType</label><input id="fmcSourceType" placeholder="query|formula|static|auto" /></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>SourceEntityId</label><input id="fmcSourceEntityId" type="number" /></div>
+            <div class="col"><label>SourceFieldId</label><input id="fmcSourceFieldId" type="number" /></div>
+            <div class="col"><label>AggregationType</label><input id="fmcAggType" placeholder="sum|avg|none" /></div>
+            <div class="col"><label>FormulaId</label><input id="fmcFormulaId" type="number" /></div>
+        </div>
+        <label>FilterJson (optional)</label>
+        <textarea id="fmcFilter" style="min-height:40px;">{}</textarea>
+        <div class="actions"><button onclick="createFieldMapping()">Create Mapping</button></div>
+        <h3 style="margin-top:12px;">Delete Mapping</h3>
+        <div class="row">
+            <div class="col"><label>MappingId</label><input id="fmcDelId" type="number" /></div>
+            <div class="col" style="align-self:end;"><button class="warn" onclick="deleteFieldMapping()">Delete Mapping</button></div>
+        </div>
+    </div>
+
     <div class="card">
         <h2>Field Mapping Testing</h2>
         <div class="row">
@@ -534,6 +662,191 @@ async function preview() {
 
     const data = await call('POST', '/api/admin/accounting/testing/preview', body);
     json('previewBox', data);
+}
+
+// ══════════ Reference ══════════
+let refCache = null;
+async function loadReference() {
+    const data = await call('GET', '/api/admin/accounting/reference');
+    refCache = data;
+    const grid = document.getElementById('refGrid');
+    grid.innerHTML = '';
+    for (const [key, arr] of Object.entries(data || {})) {
+        const items = arr || [];
+        grid.innerHTML += `<div class="col"><h3>${key}</h3><div class="table-wrap"><table>
+            <thead><tr><th>Value</th><th>Description</th></tr></thead>
+            <tbody>${items.map(i => `<tr><td>${i.value}</td><td>${i.description || ''}</td></tr>`).join('')}</tbody>
+        </table></div></div>`;
+    }
+    populateRefDropdowns(data);
+}
+function populateRefDropdowns(ref) {
+    fillSelect('rdRowType', ref?.rowTypes || []);
+    fillSelect('rdPosition', ref?.positions || []);
+    const st = document.getElementById('rdSectionType');
+    st.innerHTML = '<option value="">—</option>' + (ref?.sectionTypes || []).map(i => `<option value="${i.value}">${i.value}</option>`).join('');
+}
+function fillSelect(id, items) {
+    const el = document.getElementById(id);
+    el.innerHTML = items.map(i => `<option value="${i.value}">${i.value}</option>`).join('');
+}
+
+// ══════════ Mappable Entities ══════════
+async function loadEntities(activeOnly) {
+    const q = activeOnly ? '?active=true' : '';
+    const data = await call('GET', `/api/admin/accounting/mappable-entities${q}`);
+    const list = data || [];
+    const tbody = document.getElementById('entitiesBody');
+    tbody.innerHTML = list.length
+        ? list.map(e => `<tr>
+            <td>${e.entityId}</td><td>${e.entityCode}</td><td>${e.tableName}</td>
+            <td>${e.isActive ? 'Yes' : 'No'}</td>
+            <td><button class="alt" onclick="loadEntityDetail(${e.entityId})">Detail</button></td></tr>`).join('')
+        : '<tr><td colspan="5" class="muted">No entities</td></tr>';
+}
+async function loadEntityDetail(entityId) {
+    const data = await call('GET', `/api/admin/accounting/mappable-entities/${entityId}`);
+    json('entityFields', data);
+    document.getElementById('mfEntityId').value = entityId;
+}
+async function saveEntity() {
+    const id = document.getElementById('meId').value;
+    const body = {
+        entityCode: document.getElementById('meCode').value || null,
+        tableName: document.getElementById('meTable').value || null,
+        displayName: document.getElementById('meDisplay').value || null,
+        isActive: document.getElementById('meActive').value === 'true'
+    };
+    if (id) {
+        await call('PATCH', `/api/admin/accounting/mappable-entities/${id}`, body);
+    } else {
+        await call('POST', '/api/admin/accounting/mappable-entities', body);
+    }
+    await loadEntities();
+}
+async function saveField() {
+    const fieldId = document.getElementById('mfId').value;
+    const entityId = document.getElementById('mfEntityId').value;
+    const body = {
+        fieldCode: document.getElementById('mfCode').value || null,
+        columnName: document.getElementById('mfColumn').value || null,
+        dataType: document.getElementById('mfDataType').value || null,
+        displayName: document.getElementById('mfDisplay').value || null
+    };
+    if (fieldId) {
+        await call('PATCH', `/api/admin/accounting/mappable-fields/${fieldId}`, body);
+    } else {
+        await call('POST', `/api/admin/accounting/mappable-entities/${entityId}/fields`, body);
+    }
+    if (entityId) await loadEntityDetail(Number(entityId));
+}
+
+// ══════════ Full Structure ══════════
+async function loadFullStructure() {
+    const id = document.getElementById('fsVersionId').value;
+    const data = await call('GET', `/api/admin/accounting/template-versions/${id}/full-structure`);
+    document.getElementById('fsPreview').textContent = data?.renderPreview || '';
+    // mappings table
+    const maps = data?.fieldMappings || [];
+    document.getElementById('fsMappingsBody').innerHTML = maps.length
+        ? maps.map(m => `<tr>
+            <td>${m.mappingId}</td><td>${m.fieldCode}</td><td>${m.fieldLabel || ''}</td>
+            <td>${m.sourceType || ''}</td><td>${m.sourceEntityCode || ''}</td><td>${m.sourceFieldCode || ''}</td>
+            <td><button class="warn" onclick="quickDeleteMapping(${m.mappingId})">×</button></td></tr>`).join('')
+        : '<tr><td colspan="7" class="muted">No mappings</td></tr>';
+    // row defs table
+    const rows = data?.rowDefinitions || [];
+    document.getElementById('fsRowDefsBody').innerHTML = rows.length
+        ? rows.map(r => `<tr>
+            <td>${r.rowDefinitionId}</td><td>${r.rowType}</td><td>${r.position}</td>
+            <td>${r.displayLabel || ''}</td><td>${r.sectionType || ''}</td><td>${r.sectionFilterValue || ''}</td>
+            <td>${r.formulaCode || ''}</td>
+            <td><button class="warn" onclick="quickDeleteRowDef(${r.rowDefinitionId})">×</button></td></tr>`).join('')
+        : '<tr><td colspan="8" class="muted">No row defs</td></tr>';
+}
+async function quickDeleteMapping(id) {
+    if (!confirm('Delete mapping #' + id + '?')) return;
+    await call('DELETE', `/api/admin/accounting/field-mappings/${id}`);
+    await loadFullStructure();
+}
+async function quickDeleteRowDef(id) {
+    if (!confirm('Delete row def #' + id + '?')) return;
+    await call('DELETE', `/api/admin/accounting/row-definitions/${id}`);
+    await loadFullStructure();
+}
+
+// ══════════ Row Definitions ══════════
+async function loadRowDefs() {
+    const id = document.getElementById('rdVersionId').value;
+    const data = await call('GET', `/api/admin/accounting/template-versions/${id}/row-definitions`);
+    const list = data || [];
+    document.getElementById('rowDefsBody').innerHTML = list.length
+        ? list.map(r => `<tr>
+            <td>${r.rowDefinitionId}</td><td>${r.rowType}</td><td>${r.position}</td>
+            <td>${r.displayLabel || ''}</td><td>${r.sectionType || ''}</td><td>${r.sectionFilterValue || ''}</td>
+            <td>${r.formulaId ?? ''}</td><td class="mini">${r.visibleFieldCodes || ''}</td>
+            <td><button class="alt" onclick="editRowDef(${r.rowDefinitionId},'${r.rowType}','${r.position}','${(r.displayLabel||'').replace(/'/g,"\\'")}',${r.sortOrder??0},'${r.sectionType||''}','${r.sectionFilterValue||''}',${r.formulaId??'null'},'${(r.visibleFieldCodes||'[]').replace(/'/g,"\\'")}')">Edit</button>
+            <button class="warn" onclick="deleteRowDef(${r.rowDefinitionId})">Del</button></td></tr>`).join('')
+        : '<tr><td colspan="9" class="muted">No data</td></tr>';
+    if (!refCache) await loadReference();
+}
+function editRowDef(id, rowType, position, label, sort, sectionType, sectionFilter, formulaId, visibleFields) {
+    document.getElementById('rdId').value = id;
+    document.getElementById('rdRowType').value = rowType;
+    document.getElementById('rdPosition').value = position;
+    document.getElementById('rdLabel').value = label;
+    document.getElementById('rdSort').value = sort;
+    document.getElementById('rdSectionType').value = sectionType;
+    document.getElementById('rdSectionFilter').value = sectionFilter;
+    document.getElementById('rdFormulaId').value = formulaId ?? '';
+    document.getElementById('rdVisibleFields').value = visibleFields;
+}
+async function saveRowDef() {
+    const id = document.getElementById('rdId').value;
+    const versionId = document.getElementById('rdVersionId').value;
+    const body = {
+        rowType: document.getElementById('rdRowType').value || null,
+        position: document.getElementById('rdPosition').value || null,
+        displayLabel: document.getElementById('rdLabel').value || null,
+        sortOrder: Number(document.getElementById('rdSort').value) || 0,
+        sectionType: document.getElementById('rdSectionType').value || null,
+        sectionFilterValue: document.getElementById('rdSectionFilter').value || null,
+        formulaId: Number(document.getElementById('rdFormulaId').value) || null,
+        visibleFieldCodes: document.getElementById('rdVisibleFields').value || null
+    };
+    if (id) {
+        await call('PATCH', `/api/admin/accounting/row-definitions/${id}`, body);
+    } else {
+        await call('POST', `/api/admin/accounting/template-versions/${versionId}/row-definitions`, body);
+    }
+    if (versionId) await loadRowDefs();
+}
+async function deleteRowDef(id) {
+    if (!confirm('Delete row definition #' + id + '?')) return;
+    await call('DELETE', `/api/admin/accounting/row-definitions/${id}`);
+    await loadRowDefs();
+}
+
+// ══════════ Field Mappings Create/Delete ══════════
+async function createFieldMapping() {
+    const versionId = document.getElementById('fmcVersionId').value;
+    const body = {
+        fieldCode: document.getElementById('fmcFieldCode').value || null,
+        fieldLabel: document.getElementById('fmcFieldLabel').value || null,
+        fieldType: document.getElementById('fmcFieldType').value || null,
+        sourceType: document.getElementById('fmcSourceType').value || null,
+        sourceEntityId: Number(document.getElementById('fmcSourceEntityId').value) || null,
+        sourceFieldId: Number(document.getElementById('fmcSourceFieldId').value) || null,
+        aggregationType: document.getElementById('fmcAggType').value || null,
+        formulaId: Number(document.getElementById('fmcFormulaId').value) || null,
+        filterJson: document.getElementById('fmcFilter').value || null
+    };
+    await call('POST', `/api/admin/accounting/template-versions/${versionId}/field-mappings`, body);
+}
+async function deleteFieldMapping() {
+    const id = document.getElementById('fmcDelId').value;
+    if (!id || !confirm('Delete mapping #' + id + '?')) return;
+    await call('DELETE', `/api/admin/accounting/field-mappings/${id}`);
 }
 </script>
 </body>

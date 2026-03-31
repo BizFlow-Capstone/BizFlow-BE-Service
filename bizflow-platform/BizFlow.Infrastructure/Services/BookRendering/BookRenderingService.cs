@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Constants;
@@ -70,6 +71,10 @@ public class BookRenderingService : IBookRenderingService
 
             // Attach business type identifier so client can group data rows by section.
             row["businessTypeId"] = sourceRow.Values.GetValueOrDefault("BusinessTypeId")?.ToString();
+
+            // Attach section for per_section templates (S2c, S2e) so client can filter by section.
+            if (sourceRow.Section != null)
+                row["section"] = sourceRow.Section;
 
             rows.Add(row);
         }
@@ -181,14 +186,14 @@ public class BookRenderingService : IBookRenderingService
 
                     if (rowDef.RowType == RowDefinitionConstants.RowType.Subtotal || rowDef.RowType == RowDefinitionConstants.RowType.SectionSubtotal)
                     {
-                        row["so_tien"] = ResolveFormulaValue(rowDef, formulaIdToValue) ?? subtotal;
+                        row[GetValueFieldCode(rowDef)] = ResolveFormulaValue(rowDef, formulaIdToValue) ?? subtotal;
                     }
                     else if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                     {
                         var taxType = NormalizeTaxType(rowDef.TaxType);
                         var taxRate = perGroupTaxRates.GetValueOrDefault((groupKey, taxType));
                         var taxAmount = subtotal * taxRate;
-                        row["so_tien"] = taxAmount;
+                        row[GetValueFieldCode(rowDef)] = taxAmount;
                         row["taxMetadata"] = new Dictionary<string, object?>
                         {
                             ["taxType"] = rowDef.TaxType,
@@ -225,6 +230,9 @@ public class BookRenderingService : IBookRenderingService
                 var sectionType = headerDef?.SectionType ?? perSectionDefs.First().SectionType ?? "section";
                 var sectionName = headerDef?.RowLabel ?? $"Section {groupIndex}";
 
+                // Resolve the filter value from DB (e.g. "cash"/"bank" for cash_bank sections)
+                string sectionFilterValue = headerDef?.SectionFilterValue ?? sectionName;
+
                 var sectionRows = new List<Dictionary<string, object?>>();
 
                 // Add header row
@@ -245,7 +253,8 @@ public class BookRenderingService : IBookRenderingService
                     {
                         row["dataFilter"] = new Dictionary<string, object?>
                         {
-                            ["section"] = sectionName
+                            ["businessTypeId"] = null,
+                            ["section"] = sectionFilterValue
                         };
                         sectionRows.Add(row);
                         continue;
@@ -254,17 +263,18 @@ public class BookRenderingService : IBookRenderingService
                     if (!string.IsNullOrWhiteSpace(rowDef.RowLabel))
                         row["dien_giai"] = rowDef.RowLabel;
 
-                    // Resolve value from linked formula, or fall back to 0
+                    // Resolve value from linked formula using the correct field code
+                    var valueField = GetValueFieldCode(rowDef);
                     var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
                     if (formulaVal.HasValue)
-                        row["so_tien"] = formulaVal.Value;
+                        row[valueField] = formulaVal.Value;
 
                     if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                     {
                         var taxType = NormalizeTaxType(rowDef.TaxType);
                         // Tax amount from formula if linked, else 0
                         var taxAmount = formulaVal ?? 0m;
-                        row["so_tien"] = taxAmount;
+                        row[valueField] = taxAmount;
                         row["taxMetadata"] = new Dictionary<string, object?>
                         {
                             ["taxType"] = rowDef.TaxType,
@@ -281,7 +291,7 @@ public class BookRenderingService : IBookRenderingService
                 sections.Add(new BookSectionDto
                 {
                     SectionType = sectionType,
-                    GroupKey = sectionName,
+                    GroupKey = sectionFilterValue,
                     GroupName = sectionName,
                     GroupIndex = groupIndex,
                     Rows = sectionRows
@@ -302,16 +312,17 @@ public class BookRenderingService : IBookRenderingService
                 row["dien_giai"] = rowDef.RowLabel;
 
             // Try formula value first (covers profit_row, grand_total, tax_line, etc.)
+            var footerValueField = GetValueFieldCode(rowDef);
             var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
             if (formulaVal.HasValue)
             {
-                row["so_tien"] = formulaVal.Value;
+                row[footerValueField] = formulaVal.Value;
             }
             else if (rowDef.RowType == RowDefinitionConstants.RowType.GrandTotal || rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
             {
                 // Fallback: sum from section-level grouped tax totals
                 var taxType = NormalizeTaxType(rowDef.TaxType);
-                row["so_tien"] = groupedTaxTotals.GetValueOrDefault(taxType);
+                row[footerValueField] = groupedTaxTotals.GetValueOrDefault(taxType);
             }
 
             if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine && !row.ContainsKey("taxMetadata"))
@@ -689,6 +700,26 @@ public class BookRenderingService : IBookRenderingService
     private static string EncodeCursor(SourceRow lastRow, int currentOffset)
     {
         return $"{lastRow.Date:yyyy-MM-dd}_{lastRow.Id}_{currentOffset}";
+    }
+
+
+    /// <summary>
+    /// Resolve the output field code for a formula value from VisibleFieldCodes.
+    /// Returns the first non-dien_giai field, or "so_tien" as fallback.
+    /// </summary>
+    private static string GetValueFieldCode(TemplateRowDefinition rowDef, string fallback = "so_tien")
+    {
+        if (string.IsNullOrWhiteSpace(rowDef.VisibleFieldCodes))
+            return fallback;
+        try
+        {
+            var fields = JsonSerializer.Deserialize<List<string>>(rowDef.VisibleFieldCodes);
+            return fields?.FirstOrDefault(f => !string.Equals(f, "dien_giai", StringComparison.OrdinalIgnoreCase)) ?? fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private async Task<Dictionary<Guid, string>> LoadBusinessTypeNamesAsync(IEnumerable<Guid> businessTypeIds)

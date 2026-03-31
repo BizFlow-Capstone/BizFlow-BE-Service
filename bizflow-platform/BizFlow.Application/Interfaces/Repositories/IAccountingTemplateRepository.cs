@@ -16,4 +16,24 @@ public interface IAccountingTemplateRepository
     void RemoveVersion(AccountingTemplateVersion version);
     Task<TemplateFieldMapping?> GetMappingByIdAsync(int mappingId);
     void UpdateMapping(TemplateFieldMapping mapping);
+    Task AddMappingAsync(TemplateFieldMapping mapping);
+    void RemoveMapping(TemplateFieldMapping mapping);
+
+    // ── RowDefinitions ──
+    Task<TemplateRowDefinition?> GetRowDefinitionByIdAsync(int rowDefId);
+    Task AddRowDefinitionAsync(TemplateRowDefinition rowDef);
+    void UpdateRowDefinition(TemplateRowDefinition rowDef);
+    void RemoveRowDefinition(TemplateRowDefinition rowDef);
+
+    // ── MappableEntities ──
+    Task<List<MappableEntity>> GetAllMappableEntitiesAsync(bool? active);
+    Task<MappableEntity?> GetMappableEntityWithFieldsAsync(int entityId);
+    Task<MappableEntity?> GetMappableEntityByCodeAsync(string entityCode);
+    Task AddMappableEntityAsync(MappableEntity entity);
+    void UpdateMappableEntity(MappableEntity entity);
+
+    // ── MappableFields ──
+    Task<MappableField?> GetMappableFieldByIdAsync(int fieldId);
+    Task AddMappableFieldAsync(MappableField field);
+    void UpdateMappableField(MappableField field);
 }

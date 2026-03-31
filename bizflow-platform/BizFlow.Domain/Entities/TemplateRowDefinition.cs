@@ -16,6 +16,7 @@ public class TemplateRowDefinition
     // Grouping
     public string? GroupByField { get; set; }
     public string? SectionType { get; set; }
+    public string? SectionFilterValue { get; set; }
 
     // Data binding
     public string? VisibleFieldCodes { get; set; }

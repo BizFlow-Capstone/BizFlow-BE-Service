@@ -1,3 +1,5 @@
+using BizFlow.Domain.Constants;
+
 namespace BizFlow.Application.DTOs.Admin;
 
 public class AdminAccountingOverviewDto
@@ -171,4 +173,164 @@ public class BookPreviewRowsDto
     public string? NextCursor { get; set; }
     public int LoadedCount { get; set; }
     public int? TotalEstimated { get; set; }
+}
+
+// ── Reference API ──
+
+public class AdminReferenceDto
+{
+    public List<AdminEnumValueDto> RowTypes { get; set; } = new();
+    public List<AdminEnumValueDto> Positions { get; set; } = new();
+    public List<AdminEnumValueDto> SectionTypes { get; set; } = new();
+    public List<AdminEnumValueDto> FieldTypes { get; set; } = new();
+    public List<AdminEnumValueDto> SourceTypes { get; set; } = new();
+    public List<AdminEnumValueDto> TaxTypes { get; set; } = new();
+}
+
+public class AdminEnumValueDto
+{
+    public string Value { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+}
+
+// ── MappableEntity / Field DTOs ──
+
+public class AdminMappableEntityDto
+{
+    public int EntityId { get; set; }
+    public string EntityCode { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int FieldCount { get; set; }
+}
+
+public class AdminMappableEntityDetailDto : AdminMappableEntityDto
+{
+    public List<AdminMappableFieldDto> Fields { get; set; } = new();
+}
+
+public class AdminMappableFieldDto
+{
+    public int FieldId { get; set; }
+    public int EntityId { get; set; }
+    public string FieldCode { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string DataType { get; set; } = string.Empty;
+    public string AllowedAggregations { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+}
+
+public class CreateMappableEntityRequest
+{
+    public string EntityCode { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Category { get; set; } = "revenue";
+}
+
+public class UpdateMappableEntityRequest
+{
+    public string? DisplayName { get; set; }
+    public string? Description { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+public class CreateMappableFieldRequest
+{
+    public string FieldCode { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string DataType { get; set; } = "decimal";
+    public string AllowedAggregations { get; set; } = "[\"sum\",\"none\"]";
+}
+
+public class UpdateMappableFieldRequest
+{
+    public string? DisplayName { get; set; }
+    public string? Description { get; set; }
+    public string? DataType { get; set; }
+    public string? AllowedAggregations { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+// ── RowDefinition DTOs ──
+
+public class AdminRowDefinitionDto
+{
+    public int RowDefId { get; set; }
+    public int TemplateVersionId { get; set; }
+    public string RowType { get; set; } = string.Empty;
+    public string? RowLabel { get; set; }
+    public string Position { get; set; } = "per_group";
+    public int SortOrder { get; set; }
+    public string? GroupByField { get; set; }
+    public string? SectionType { get; set; }
+    public string? SectionFilterValue { get; set; }
+    public string? VisibleFieldCodes { get; set; }
+    public long? FormulaId { get; set; }
+    public string? FormulaCode { get; set; }
+    public string? TaxType { get; set; }
+}
+
+public class CreateRowDefinitionRequest
+{
+    public string RowType { get; set; } = string.Empty;
+    public string? RowLabel { get; set; }
+    public string Position { get; set; } = "per_group";
+    public int SortOrder { get; set; }
+    public string? GroupByField { get; set; }
+    public string? SectionType { get; set; }
+    public string? SectionFilterValue { get; set; }
+    public string? VisibleFieldCodes { get; set; }
+    public long? FormulaId { get; set; }
+    public string? TaxType { get; set; }
+}
+
+public class UpdateRowDefinitionRequest
+{
+    public string? RowType { get; set; }
+    public string? RowLabel { get; set; }
+    public string? Position { get; set; }
+    public int? SortOrder { get; set; }
+    public string? GroupByField { get; set; }
+    public string? SectionType { get; set; }
+    public string? SectionFilterValue { get; set; }
+    public string? VisibleFieldCodes { get; set; }
+    public long? FormulaId { get; set; }
+    public string? TaxType { get; set; }
+}
+
+// ── FieldMapping create/delete ──
+
+public class CreateFieldMappingRequest
+{
+    public string FieldCode { get; set; } = string.Empty;
+    public string FieldLabel { get; set; } = string.Empty;
+    public string FieldType { get; set; } = "text";
+    public string? SourceType { get; set; }
+    public int? SourceEntityId { get; set; }
+    public int? SourceFieldId { get; set; }
+    public string? FilterJson { get; set; }
+    public string? AggregationType { get; set; }
+    public long? FormulaId { get; set; }
+    public string? FormulaExpression { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsRequired { get; set; }
+}
+
+// ── Full structure ──
+
+public class AdminFullStructureDto
+{
+    public int TemplateVersionId { get; set; }
+    public string TemplateCode { get; set; } = string.Empty;
+    public string TemplateName { get; set; } = string.Empty;
+    public string VersionLabel { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public List<AdminTemplateFieldMappingDto> FieldMappings { get; set; } = new();
+    public List<AdminRowDefinitionDto> RowDefinitions { get; set; } = new();
+    public string RenderPreview { get; set; } = string.Empty;
 }

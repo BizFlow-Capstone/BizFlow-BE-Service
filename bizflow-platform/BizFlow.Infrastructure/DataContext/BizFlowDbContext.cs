@@ -1690,6 +1690,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Position).HasMaxLength(20).HasDefaultValueSql("'per_group'");
             entity.Property(e => e.GroupByField).HasMaxLength(50);
             entity.Property(e => e.SectionType).HasMaxLength(30);
+            entity.Property(e => e.SectionFilterValue).HasMaxLength(50);
             entity.Property(e => e.VisibleFieldCodes).HasColumnType("json");
             entity.Property(e => e.TaxType).HasMaxLength(10);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
