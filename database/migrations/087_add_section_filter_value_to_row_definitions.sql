@@ -29,3 +29,10 @@ WHERE RowDefId = 27 AND RowType = 'section_header' AND SectionFilterValue IS NUL
 
 UPDATE TemplateRowDefinitions SET SectionFilterValue = 'bank'
 WHERE RowDefId = 31 AND RowType = 'section_header' AND SectionFilterValue IS NULL;
+
+-- =============================================
+-- Insert migration history
+-- =============================================
+INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('087_add_section_filter_value_to_row_definitions', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);

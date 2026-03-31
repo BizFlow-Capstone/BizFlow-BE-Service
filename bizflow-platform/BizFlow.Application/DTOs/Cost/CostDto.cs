@@ -4,6 +4,7 @@ namespace BizFlow.Application.DTOs.Cost
     {
         public long CostId { get; set; }
         public int BusinessLocationId { get; set; }
+        public Guid? BusinessTypeId { get; set; }
         public string CostType { get; set; } = null!;
         public string Description { get; set; } = null!;
         public decimal Amount { get; set; }

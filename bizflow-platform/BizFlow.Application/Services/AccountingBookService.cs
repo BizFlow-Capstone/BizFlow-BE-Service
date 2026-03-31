@@ -373,6 +373,8 @@ public class AccountingBookService : IAccountingBookService
         values.Remove("lineType");
         values.Remove("dataFilter");
         values.Remove("taxMetadata");
+        values.Remove("explanation");
+        values.Remove("taxBreakdown");
 
         DataFilterDto? dataFilter = null;
         if (raw.GetValueOrDefault("dataFilter") is Dictionary<string, object?> df)
@@ -395,12 +397,30 @@ public class AccountingBookService : IAccountingBookService
             };
         }
 
+        List<TaxBreakdownItemDto>? taxBreakdown = null;
+        if (raw.GetValueOrDefault("taxBreakdown") is List<Dictionary<string, object?>> tbList && tbList.Count > 0)
+        {
+            taxBreakdown = tbList.Select(tb => new TaxBreakdownItemDto
+            {
+                BusinessTypeId = Guid.TryParse(tb.GetValueOrDefault("businessTypeId")?.ToString(), out var bid) ? bid : Guid.Empty,
+                BusinessTypeName = tb.GetValueOrDefault("businessTypeName")?.ToString() ?? "",
+                Revenue = tb.GetValueOrDefault("revenue") is decimal rev ? rev : 0m,
+                Cost = tb.GetValueOrDefault("cost") is decimal cost ? cost : 0m,
+                Profit = tb.GetValueOrDefault("profit") is decimal prof ? prof : 0m,
+                TaxRate = tb.GetValueOrDefault("taxRate") is decimal tr ? tr : 0m,
+                TaxAmount = tb.GetValueOrDefault("taxAmount") is decimal ta ? ta : 0m,
+                Explanation = tb.GetValueOrDefault("explanation")?.ToString()
+            }).ToList();
+        }
+
         return new SectionRowDto
         {
             LineType = lineType,
             Values = values,
             DataFilter = dataFilter,
-            TaxMetadata = taxMeta
+            TaxMetadata = taxMeta,
+            Explanation = raw.GetValueOrDefault("explanation")?.ToString(),
+            TaxBreakdown = taxBreakdown
         };
     }
 

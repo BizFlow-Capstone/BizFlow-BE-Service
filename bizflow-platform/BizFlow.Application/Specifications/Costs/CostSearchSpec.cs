@@ -19,6 +19,12 @@ namespace BizFlow.Application.Specifications.Costs
                 }
             }
 
+            if (query.BusinessTypeId.HasValue)
+            {
+                var btId = query.BusinessTypeId.Value;
+                AddCriteria(c => c.BusinessTypeId == btId);
+            }
+
             if (!string.IsNullOrWhiteSpace(query.PaymentMethod))
             {
                 var paymentMethod = query.PaymentMethod.Trim().ToLower();

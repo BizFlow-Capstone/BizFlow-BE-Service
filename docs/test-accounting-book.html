@@ -1110,6 +1110,7 @@
         html += '<table class="data-table">';
         html += '<thead><tr><th style="min-width:40px">#</th><th style="min-width:180px">Loại dòng</th>';
         colLabels.forEach(l => { html += `<th>${l}</th>`; });
+        html += '<th style="min-width:200px">Giải thích</th>';
         html += '</tr></thead><tbody>';
 
         let rowIndex = 0;
@@ -1194,6 +1195,10 @@
             const isNum = typeof v === 'number';
             tr += `<td class="${isNum ? 'num' : ''}">${v != null ? (isNum ? fmtNum(v) : v) : ''}</td>`;
         });
+
+        // Explanation column
+        const explanation = row.explanation || '';
+        tr += `<td style="font-size:11px;color:var(--text-muted);max-width:300px;white-space:normal">${explanation}</td>`;
 
         tr += '</tr>';
         return tr;

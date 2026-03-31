@@ -328,6 +328,11 @@ public partial class BizFlowDbContext : DbContext
             entity.HasOne(d => d.Import).WithMany(p => p.Costs)
                 .HasForeignKey(d => d.ImportId)
                 .HasConstraintName("fk_cost_import");
+
+            entity.HasOne(d => d.BusinessType).WithMany()
+                .HasForeignKey(d => d.BusinessTypeId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_cost_business_type");
         });
 
         modelBuilder.Entity<Credential>(entity =>

@@ -133,6 +133,30 @@ public class SectionRowDto
     public Dictionary<string, object?> Values { get; set; } = new();
     public DataFilterDto? DataFilter { get; set; }
     public TaxMetadataDto? TaxMetadata { get; set; }
+
+    /// <summary>
+    /// Human-readable explanation of how this row's value was computed.
+    /// Includes formula breakdown, threshold info, and proration details.
+    /// </summary>
+    public string? Explanation { get; set; }
+
+    /// <summary>
+    /// Per-industry tax breakdown for multi-industry books.
+    /// Present only on tax_line rows where per-industry computation applies.
+    /// </summary>
+    public List<TaxBreakdownItemDto>? TaxBreakdown { get; set; }
+}
+
+public class TaxBreakdownItemDto
+{
+    public Guid BusinessTypeId { get; set; }
+    public string BusinessTypeName { get; set; } = null!;
+    public decimal Revenue { get; set; }
+    public decimal Cost { get; set; }
+    public decimal Profit { get; set; }
+    public decimal TaxRate { get; set; }
+    public decimal TaxAmount { get; set; }
+    public string? Explanation { get; set; }
 }
 
 public class DataFilterDto

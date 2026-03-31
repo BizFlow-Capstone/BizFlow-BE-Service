@@ -16,6 +16,11 @@ public partial class Cost
     public int BusinessLocationId { get; set; }
 
     /// <summary>
+    /// FK to BusinessTypes – ngành nghề liên quan đến khoản chi (nullable for legacy rows)
+    /// </summary>
+    public Guid? BusinessTypeId { get; set; }
+
+    /// <summary>
     /// import | salary | rent | utilities | transport | marketing | maintenance | other | manual
     /// </summary>
     public string CostType { get; set; } = null!;
@@ -80,6 +85,8 @@ public partial class Cost
     public DateTime? DeletedAt { get; set; }
 
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
+
+    public virtual BusinessType? BusinessType { get; set; }
 
     public virtual Import? Import { get; set; }
 }
