@@ -4,12 +4,16 @@ namespace BizFlow.Application.DTOs.Revenue
     {
         public long RevenueId { get; set; }
         public int BusinessLocationId { get; set; }
+        public Guid BusinessTypeId { get; set; }
+        public string? BusinessTypeName { get; set; }
         public long? OrderId { get; set; }
         public string RevenueType { get; set; } = null!;
         public decimal Amount { get; set; }
         public DateOnly RevenueDate { get; set; }
         public string Description { get; set; } = null!;
         public string? MoneyChannel { get; set; }
+        public string? DocumentNumber { get; set; }
+        public DateOnly? DocumentDate { get; set; }
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
     }

@@ -26,6 +26,11 @@ namespace BizFlow.Application.DTOs.Cost
         /// </summary>
         public string? PaymentMethod { get; set; }
 
+        [MaxLength(100)]
+        public string? DocumentNumber { get; set; }
+
+        public DateOnly? DocumentDate { get; set; }
+
         /// <summary>
         /// Set to true to remove the document image.
         /// </summary>

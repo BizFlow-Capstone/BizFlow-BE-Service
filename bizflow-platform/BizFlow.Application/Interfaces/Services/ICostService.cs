@@ -11,7 +11,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task<PaginatedResponse<CostDto>> ListAsync(Guid userId, CostQueryParams query);
         Task DeleteManualAsync(Guid userId, long costId);
 
-        Task<Cost> CreateImportCostAsync(Guid userId, Import import);
+        Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null);
         Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null);
     }
 }

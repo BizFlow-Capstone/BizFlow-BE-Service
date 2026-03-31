@@ -19,6 +19,16 @@ namespace BizFlow.Application.DTOs.Import
         public DateTime? ReceivedAt { get; set; }
 
         /// <summary>
+        /// Số hiệu chứng từ để ghi vào Cost tạo từ import (optional)
+        /// </summary>
+        public string? DocumentNumber { get; set; }
+
+        /// <summary>
+        /// Ngày chứng từ để ghi vào Cost tạo từ import (optional)
+        /// </summary>
+        public DateOnly? DocumentDate { get; set; }
+
+        /// <summary>
         /// If true → Status = DRAFT (stock NOT updated).
         /// If false (default) → Status = CONFIRMED immediately (stock updated).
         /// </summary>

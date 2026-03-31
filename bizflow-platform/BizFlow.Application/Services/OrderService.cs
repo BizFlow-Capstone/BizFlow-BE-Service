@@ -72,7 +72,7 @@ namespace BizFlow.Application.Services
                     BankAmount = request.BankAmount,
                     DebtAmount = request.DebtAmount,
                     Status = OrderStatus.Pending,
-                    BillMetadata = NormalizeBillMetadata(request.BillMetadata),
+                    BillMetadata = NormalizeBillMetadataWithDocumentInfo(request.BillMetadata, request.DocumentNumber, request.DocumentDate),
                     Note = request.Note?.Trim(),
                     CreatedBy = userId,
                     UpdatedBy = userId,
@@ -134,7 +134,7 @@ namespace BizFlow.Application.Services
                     order.CashAmount = request.CashAmount;
                     order.BankAmount = request.BankAmount;
                     order.DebtAmount = request.DebtAmount;
-                    order.BillMetadata = NormalizeBillMetadata(request.BillMetadata);
+                    order.BillMetadata = NormalizeBillMetadataWithDocumentInfo(request.BillMetadata, request.DocumentNumber, request.DocumentDate);
                     order.Note = request.Note?.Trim();
                     order.UpdatedBy = userId;
                     order.UpdatedAt = DateTime.UtcNow;
@@ -406,7 +406,7 @@ namespace BizFlow.Application.Services
                     BankAmount = request.BankAmount,
                     DebtAmount = request.DebtAmount,
                     Status = OrderStatus.Pending,
-                    BillMetadata = NormalizeBillMetadata(request.BillMetadata),
+                    BillMetadata = NormalizeBillMetadataWithDocumentInfo(request.BillMetadata, request.DocumentNumber, request.DocumentDate),
                     Note = request.Note?.Trim(),
                     CreatedBy = userId,
                     UpdatedBy = userId,
@@ -720,56 +720,134 @@ namespace BizFlow.Application.Services
         {
             var revenues = new List<Revenue>();
             var date = DateOnly.FromDateTime(order.CompletedAt ?? DateTime.UtcNow);
+            var (documentNumber, documentDate) = ExtractDocumentInfoFromBillMetadata(order.BillMetadata);
+            var businessTypeAllocations = BuildBusinessTypeAllocations(order);
 
-            if (order.CashAmount > 0)
-            {
-                revenues.Add(new Revenue
-                {
-                    BusinessLocationId = businessLocationId,
-                    OrderId = order.OrderId,
-                    RevenueType = RevenueType.Sale,
-                    Amount = order.CashAmount,
-                    RevenueDate = date,
-                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Cash),
-                    MoneyChannel = MoneyChannelType.Cash,
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+            revenues.AddRange(BuildRevenuesByChannel(
+                order.CashAmount,
+                MoneyChannelType.Cash,
+                businessTypeAllocations,
+                businessLocationId,
+                order.OrderId,
+                date,
+                documentNumber,
+                documentDate,
+                userId,
+                messageService,
+                order.OrderCode ?? order.OrderId.ToString()));
 
-            if (order.BankAmount > 0)
-            {
-                revenues.Add(new Revenue
-                {
-                    BusinessLocationId = businessLocationId,
-                    OrderId = order.OrderId,
-                    RevenueType = RevenueType.Sale,
-                    Amount = order.BankAmount,
-                    RevenueDate = date,
-                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Bank),
-                    MoneyChannel = MoneyChannelType.Bank,
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+            revenues.AddRange(BuildRevenuesByChannel(
+                order.BankAmount,
+                MoneyChannelType.Bank,
+                businessTypeAllocations,
+                businessLocationId,
+                order.OrderId,
+                date,
+                documentNumber,
+                documentDate,
+                userId,
+                messageService,
+                order.OrderCode ?? order.OrderId.ToString()));
 
-            if (order.DebtAmount > 0)
-            {
-                revenues.Add(new Revenue
-                {
-                    BusinessLocationId = businessLocationId,
-                    OrderId = order.OrderId,
-                    RevenueType = RevenueType.Sale,
-                    Amount = order.DebtAmount,
-                    RevenueDate = date,
-                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, order.OrderCode, MoneyChannelType.Debt),
-                    MoneyChannel = MoneyChannelType.Debt,
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+            revenues.AddRange(BuildRevenuesByChannel(
+                order.DebtAmount,
+                MoneyChannelType.Debt,
+                businessTypeAllocations,
+                businessLocationId,
+                order.OrderId,
+                date,
+                documentNumber,
+                documentDate,
+                userId,
+                messageService,
+                order.OrderCode ?? order.OrderId.ToString()));
 
             return revenues;
+        }
+
+        private static List<(Guid BusinessTypeId, decimal Weight)> BuildBusinessTypeAllocations(Order order)
+        {
+            var grouped = order.OrderDetails
+                .GroupBy(detail => detail.SaleItem.Product.BusinessTypeId)
+                .Select(group => (BusinessTypeId: group.Key, Total: group.Sum(detail => detail.Amount)))
+                .Where(x => x.Total > 0)
+                .OrderBy(x => x.BusinessTypeId)
+                .ToList();
+
+            if (grouped.Count == 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var total = grouped.Sum(x => x.Total);
+            if (total <= 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            return grouped.Select(x => (x.BusinessTypeId, x.Total / total)).ToList();
+        }
+
+        private static IEnumerable<Revenue> BuildRevenuesByChannel(
+            decimal channelAmount,
+            string moneyChannel,
+            List<(Guid BusinessTypeId, decimal Weight)> allocations,
+            int businessLocationId,
+            long orderId,
+            DateOnly revenueDate,
+            string? documentNumber,
+            DateOnly? documentDate,
+            Guid userId,
+            IMessageService messageService,
+            string orderCode)
+        {
+            if (channelAmount <= 0)
+                return Enumerable.Empty<Revenue>();
+
+            var splitAmounts = SplitAmountByWeights(channelAmount, allocations.Select(x => x.Weight).ToList());
+            var now = DateTime.UtcNow;
+            var result = new List<Revenue>(allocations.Count);
+
+            for (var i = 0; i < allocations.Count; i++)
+            {
+                if (splitAmounts[i] <= 0)
+                    continue;
+
+                result.Add(new Revenue
+                {
+                    BusinessLocationId = businessLocationId,
+                    BusinessTypeId = allocations[i].BusinessTypeId,
+                    OrderId = orderId,
+                    RevenueType = RevenueType.Sale,
+                    Amount = splitAmounts[i],
+                    RevenueDate = revenueDate,
+                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, orderCode, moneyChannel),
+                    MoneyChannel = moneyChannel,
+                    DocumentNumber = documentNumber,
+                    DocumentDate = documentDate,
+                    CreatedBy = userId,
+                    CreatedAt = now
+                });
+            }
+
+            return result;
+        }
+
+        private static List<decimal> SplitAmountByWeights(decimal amount, List<decimal> weights)
+        {
+            var results = new List<decimal>(weights.Count);
+            var allocated = 0m;
+
+            for (var i = 0; i < weights.Count; i++)
+            {
+                if (i == weights.Count - 1)
+                {
+                    results.Add(amount - allocated);
+                    break;
+                }
+
+                var part = Math.Round(amount * weights[i], 2, MidpointRounding.AwayFromZero);
+                results.Add(part);
+                allocated += part;
+            }
+
+            return results;
         }
 
         private static string? BuildEditCompletedIdempotencyMarker(string? idempotencyKey)
@@ -797,6 +875,69 @@ namespace BizFlow.Application.Services
                 // Treat non-JSON input as plain text and store it as JSON string.
                 return JsonSerializer.Serialize(trimmed);
             }
+        }
+
+        private static string? NormalizeBillMetadataWithDocumentInfo(string? billMetadata, string? documentNumber, DateOnly? documentDate)
+        {
+            var normalizedNumber = NormalizeDocumentNumber(documentNumber);
+            var normalizedMetadata = NormalizeBillMetadata(billMetadata);
+
+            if (normalizedMetadata == null && normalizedNumber == null && !documentDate.HasValue)
+                return null;
+
+            JsonNode? parsed = null;
+            if (!string.IsNullOrWhiteSpace(normalizedMetadata))
+            {
+                parsed = JsonNode.Parse(normalizedMetadata);
+            }
+
+            JsonObject obj = parsed as JsonObject ?? new JsonObject
+            {
+                ["metadata"] = parsed
+            };
+
+            if (normalizedNumber != null)
+                obj["documentNumber"] = normalizedNumber;
+            else
+                obj.Remove("documentNumber");
+
+            if (documentDate.HasValue)
+                obj["documentDate"] = documentDate.Value.ToString("yyyy-MM-dd");
+            else
+                obj.Remove("documentDate");
+
+            return obj.Count == 0 ? null : obj.ToJsonString();
+        }
+
+        private static (string? DocumentNumber, DateOnly? DocumentDate) ExtractDocumentInfoFromBillMetadata(string? billMetadata)
+        {
+            if (string.IsNullOrWhiteSpace(billMetadata))
+                return (null, null);
+
+            try
+            {
+                var node = JsonNode.Parse(billMetadata) as JsonObject;
+                if (node == null)
+                    return (null, null);
+
+                var number = NormalizeDocumentNumber(node["documentNumber"]?.GetValue<string>());
+                var dateRaw = node["documentDate"]?.GetValue<string>();
+                var hasDate = DateOnly.TryParse(dateRaw, out var parsedDate);
+
+                return (number, hasDate ? parsedDate : null);
+            }
+            catch
+            {
+                return (null, null);
+            }
+        }
+
+        private static string? NormalizeDocumentNumber(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return value.Trim();
         }
 
         private static string AddIdempotencyMarkerToBillMetadata(string? normalizedBillMetadata, string marker)
