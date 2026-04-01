@@ -22,6 +22,14 @@ public class FormulaDefinitionRepository : IFormulaDefinitionRepository
             .ToListAsync();
     }
 
+    public async Task<List<FormulaDefinition>> GetByIdsAsync(IEnumerable<long> ids)
+    {
+        var idList = ids.ToList();
+        return await _context.Set<FormulaDefinition>()
+            .Where(x => idList.Contains(x.FormulaId))
+            .ToListAsync();
+    }
+
     public async Task<List<FormulaDefinition>> GetActiveAsync()
     {
         return await _context.Set<FormulaDefinition>()

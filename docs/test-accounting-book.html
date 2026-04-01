@@ -435,6 +435,7 @@
             <button class="tab" data-tab="list" onclick="switchTab('list')">📋 Danh Sách</button>
             <button class="tab" data-tab="summary" onclick="switchTab('summary')">📊 Tổng Quan</button>
             <button class="tab" data-tab="rows" onclick="switchTab('rows')">📄 Dữ Liệu</button>
+            <button class="tab" data-tab="sections" onclick="switchTab('sections')">📑 Sections</button>
             <button class="tab" data-tab="log" onclick="switchTab('log')">🔍 API Log</button>
         </div>
 
@@ -611,6 +612,25 @@
             </div>
         </div>
 
+        <!-- TAB: Sections -->
+        <div class="tab-panel" id="panel-sections">
+            <div class="card">
+                <h3><span class="icon">📑</span> Sections — Hiển thị theo mẫu template</h3>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Gọi GET /sections để lấy cấu trúc sổ gồm header, data placeholder, subtotal, tax, grand total — nhóm theo ngành nghề.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Book ID</label>
+                        <input type="number" id="sectionsBookId" value="1" />
+                    </div>
+                    <div>
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" onclick="getBookSections()">📑 Tải Sections</button>
+                    </div>
+                </div>
+                <div id="sectionsResult"></div>
+            </div>
+        </div>
+
         <!-- TAB: Log -->
         <div class="tab-panel" id="panel-log">
             <div class="card">
@@ -625,7 +645,7 @@
     // ═══════════════════════════════════════════════════
     // CONFIG
     // ═══════════════════════════════════════════════════
-    const BASE_URL = 'http://localhost:7270';
+    const BASE_URL = 'http://localhost:8080';
     let nextCursor = null;
 
     function getConfig() {
@@ -784,6 +804,7 @@
                     <div class="book-actions">
                         <button class="btn btn-outline" onclick="event.stopPropagation();viewSummary(${b.bookId})">📊 Summary</button>
                         <button class="btn btn-outline" onclick="event.stopPropagation();viewRows(${b.bookId})">📄 Rows</button>
+                        <button class="btn btn-outline" onclick="event.stopPropagation();viewSections(${b.bookId})">📑 Sections</button>
                     </div>
                 </div>
             `).join('');
@@ -795,7 +816,14 @@
     function selectBook(bookId) {
         document.getElementById('summaryBookId').value = bookId;
         document.getElementById('rowsBookId').value = bookId;
+        document.getElementById('sectionsBookId').value = bookId;
         toast(`📌 Đã chọn Book #${bookId}`, 'success');
+    }
+
+    function viewSections(bookId) {
+        document.getElementById('sectionsBookId').value = bookId;
+        switchTab('sections');
+        getBookSections();
     }
 
     function viewSummary(bookId) {
@@ -1018,47 +1046,162 @@
 
     function buildRowExplanation(row, summaryMeta) {
         const fmt = n => Number(n || 0).toLocaleString('vi-VN');
+        const lineType = row.lineType || 'data';
+        const businessTypeId = row.businessTypeId || '';
         const date = row.ngay_thang || row.date || row.ngay || row.RevenueDate || row.CostDate || '';
         const desc = row.dien_giai || row.description || row.Description || '';
         const amountRaw = row.so_tien ?? row.revenue ?? row.Amount ?? 0;
         const amount = Number(amountRaw || 0);
 
-        const businessTypeTaxes = Array.isArray(summaryMeta?.businessTypeTaxes)
-            ? summaryMeta.businessTypeTaxes
-            : [];
-        const allRates = businessTypeTaxes.flatMap(bt => Array.isArray(bt.taxRates) ? bt.taxRates : []);
-
-        const vatRates = [...new Set(allRates
-            .filter(r => String(r.taxType || '').toUpperCase() === 'VAT')
-            .map(r => Number(r.taxRate)))];
-        const pitRates = [...new Set(allRates
-            .filter(r => String(r.taxType || '').toUpperCase().includes('PIT'))
-            .map(r => Number(r.taxRate)))];
-
-        const formulaBindings = Array.isArray(summaryMeta?.formulaBindings)
-            ? summaryMeta.formulaBindings
-            : [];
-        const hasFormulaColumns = formulaBindings.length > 0;
-
         const chunks = [];
+        const ltBadge = `<span style="background:rgba(99,102,241,0.15);color:var(--primary);padding:1px 6px;border-radius:4px;font-size:10px">${lineType}</span>`;
+        chunks.push(`<div>${ltBadge}${businessTypeId ? ` <span style="font-size:11px;color:var(--text-muted)">BizType: ${businessTypeId}</span>` : ''}</div>`);
         chunks.push(`<div><strong>Nghiệp vụ:</strong> ${desc || 'Khong co dien giai'}${date ? ` (${date})` : ''}</div>`);
         chunks.push(`<div><strong>Gia tri dong:</strong> ${fmt(amount)} đ</div>`);
 
-        if (vatRates.length > 0) {
-            const vatText = vatRates.map(r => `${(r * 100).toLocaleString('vi-VN')}%`).join(', ');
-            chunks.push(`<div><strong>VAT tham chieu:</strong> ${vatText}</div>`);
-        }
-
-        if (pitRates.length > 0) {
-            const pitText = pitRates.map(r => `${(r * 100).toLocaleString('vi-VN')}%`).join(', ');
-            chunks.push(`<div><strong>PIT tham chieu:</strong> ${pitText}</div>`);
-        }
-
-        if (hasFormulaColumns) {
-            chunks.push('<div style="color:var(--text-muted)">Cot cong thuc (Cong quy/Thue...) la chi tieu tong hop theo ky, khong tinh rieng tung dong.</div>');
-        }
-
         return chunks.join('');
+    }
+
+    // ═══════════════════════════════════════════════════
+    // BOOK SECTIONS
+    // ═══════════════════════════════════════════════════
+    async function getBookSections() {
+        const cfg = getConfig();
+        const bookId = document.getElementById('sectionsBookId').value;
+        const res = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`);
+        const panel = document.getElementById('sectionsResult');
+
+        if (res.status === 200) {
+            const d = res.data?.data || res.data || {};
+            panel.innerHTML = renderSectionsView(d);
+        } else {
+            panel.innerHTML = renderResponse(res.status, res.elapsed, res.data);
+        }
+    }
+
+    function renderSectionsView(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        const columns = d.columns || [];
+        const sections = d.sections || [];
+        const footerRows = d.footerRows || [];
+
+        let html = '';
+
+        // Header info
+        html += `<div style="margin-bottom:16px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">`;
+        html += `<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">`;
+        html += `<div><strong style="color:var(--accent-purple);font-size:18px">${d.templateCode || ''}</strong></div>`;
+        html += `<div style="font-size:14px;color:var(--text)">${d.templateName || ''}</div>`;
+        html += `<div style="font-size:11px;color:var(--text-muted)">Book #${d.bookId || ''}</div>`;
+        html += `<div style="font-size:11px;color:var(--text-muted)">Tính lúc: ${d.lastCalculatedAt ? new Date(d.lastCalculatedAt).toLocaleString('vi-VN') : '—'}</div>`;
+        html += `</div></div>`;
+
+        if (sections.length === 0 && footerRows.length === 0) {
+            html += '<div class="empty-state"><div class="icon">📭</div><p>Chưa có section nào — sổ có thể chưa có dữ liệu</p></div>';
+            return html;
+        }
+
+        // Column headers
+        const colCodes = columns.map(c => c.fieldCode);
+        const colLabels = columns.map(c => c.label);
+
+        // Build main table
+        html += '<div class="data-table-wrap" style="max-height:600px;overflow:auto">';
+        html += '<table class="data-table">';
+        html += '<thead><tr><th style="min-width:40px">#</th><th style="min-width:180px">Loại dòng</th>';
+        colLabels.forEach(l => { html += `<th>${l}</th>`; });
+        html += '<th style="min-width:200px">Giải thích</th>';
+        html += '</tr></thead><tbody>';
+
+        let rowIndex = 0;
+
+        sections.forEach((sec, si) => {
+            // Section separator
+            const secLabel = sec.businessTypeName
+                ? `${sec.groupIndex}. ${sec.businessTypeName}`
+                : (sec.sectionType || `Section ${si + 1}`);
+
+            sec.rows.forEach(row => {
+                rowIndex++;
+                html += renderSectionRow(row, rowIndex, colCodes, fmtNum, secLabel);
+            });
+        });
+
+        // Footer rows
+        if (footerRows.length > 0) {
+            footerRows.forEach(row => {
+                rowIndex++;
+                html += renderSectionRow(row, rowIndex, colCodes, fmtNum, 'FOOTER');
+            });
+        }
+
+        html += '</tbody></table></div>';
+
+        // Raw JSON toggle
+        html += `<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--text-muted)">🔍 Xem JSON gốc</summary>`;
+        html += `<div class="response-panel"><div class="response-body">${syntaxHighlight(JSON.stringify(d, null, 2))}</div></div></details>`;
+
+        return html;
+    }
+
+    function renderSectionRow(row, idx, colCodes, fmtNum, sectionLabel) {
+        const lt = row.lineType || '';
+        const vals = row.values || {};
+
+        // Styling based on lineType
+        let style = '';
+        let badge = '';
+        switch (lt) {
+            case 'industry_header': case 'section_header':
+                style = 'background:rgba(99,102,241,0.12);font-weight:700;color:var(--accent-purple)';
+                badge = `<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:4px;font-size:10px">${lt.replace('_',' ').toUpperCase()}</span>`;
+                break;
+            case 'data_placeholder':
+                style = '';
+                badge = `<span style="background:rgba(34,197,94,0.2);color:var(--success);padding:2px 8px;border-radius:4px;font-size:10px">DATA</span>`;
+                break;
+            case 'subtotal': case 'section_subtotal':
+                style = 'background:rgba(234,179,8,0.1);font-weight:600;color:var(--warning)';
+                badge = `<span style="background:rgba(234,179,8,0.2);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:10px">SUBTOTAL</span>`;
+                break;
+            case 'tax_line':
+                style = 'background:rgba(239,68,68,0.08);font-weight:600;color:var(--error)';
+                const taxMeta = row.taxMetadata;
+                const taxInfo = taxMeta ? ` ${taxMeta.taxType} ${(taxMeta.rate * 100).toFixed(1)}%` : '';
+                badge = `<span style="background:rgba(239,68,68,0.2);color:var(--error);padding:2px 8px;border-radius:4px;font-size:10px">TAX${taxInfo}</span>`;
+                break;
+            case 'grand_total':
+                style = 'background:rgba(99,102,241,0.15);font-weight:700;color:var(--primary);border-top:2px solid var(--primary)';
+                badge = `<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:4px;font-size:10px">GRAND TOTAL</span>`;
+                break;
+            case 'profit_row':
+                style = 'background:rgba(34,197,94,0.1);font-weight:700;color:var(--success)';
+                badge = `<span style="background:rgba(34,197,94,0.3);color:var(--success);padding:2px 8px;border-radius:4px;font-size:10px">PROFIT</span>`;
+                break;
+            case 'balance_row':
+                style = 'background:rgba(56,189,248,0.1);font-weight:600;color:var(--accent-cyan)';
+                badge = `<span style="background:rgba(56,189,248,0.2);color:var(--accent-cyan);padding:2px 8px;border-radius:4px;font-size:10px">BALANCE</span>`;
+                break;
+            default:
+                badge = `<span style="background:var(--surface2);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px">${lt || '?'}</span>`;
+        }
+
+        let tr = `<tr style="${style}">`;
+        tr += `<td>${idx}</td>`;
+        tr += `<td>${badge} <span style="font-size:11px;margin-left:4px">${sectionLabel}</span></td>`;
+
+        colCodes.forEach(code => {
+            const v = vals[code];
+            const isNum = typeof v === 'number';
+            tr += `<td class="${isNum ? 'num' : ''}">${v != null ? (isNum ? fmtNum(v) : v) : ''}</td>`;
+        });
+
+        // Explanation column
+        const explanation = row.explanation || '';
+        tr += `<td style="font-size:11px;color:var(--text-muted);max-width:300px;white-space:normal">${explanation}</td>`;
+
+        tr += '</tr>';
+        return tr;
     }
 
     // ═══════════════════════════════════════════════════
@@ -1224,7 +1367,17 @@
             appendStep('Bước 3: Summary', false, renderResponse(sumRes.status, sumRes.elapsed, sumRes.data));
         }
 
-        // STEP 4: Rows
+        // STEP 4: Sections
+        const secRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`);
+        const secOk = secRes.status === 200;
+        let secHtml = renderResponse(secRes.status, secRes.elapsed, secRes.data);
+        if (secOk) {
+            const secData = secRes.data?.data || secRes.data || {};
+            secHtml = renderSectionsView(secData) + secHtml;
+        }
+        appendStep(`Bước 4: Sections (Template View)`, secOk, secHtml);
+
+        // STEP 5: Rows
         const rowsRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/rows?batchSize=20`);
         const rowsOk = rowsRes.status === 200;
         const rows = rowsRes.data?.data?.rows || [];
@@ -1236,7 +1389,7 @@
                 <tbody>${rows.map(r=>'<tr>'+cols.map(c=>`<td>${r[c]??''}</td>`).join('')+'</tr>').join('')}</tbody>
             </table></div>` + rowsHtml;
         }
-        appendStep(`Bước 4: Rows (${rows.length} dòng đầu)`, rowsOk, rowsHtml);
+        appendStep(`Bước 5: Rows (${rows.length} dòng dữ liệu)`, rowsOk, rowsHtml);
 
         toast('🎉 Full flow hoàn thành!', 'success');
         finishFullFlow(btn);

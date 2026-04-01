@@ -10,6 +10,11 @@ namespace BizFlow.Application.DTOs.Cost
         public int BusinessLocationId { get; set; }
 
         /// <summary>
+        /// Filter by business type (industry)
+        /// </summary>
+        public Guid? BusinessTypeId { get; set; }
+
+        /// <summary>
         /// Filter by cost type (see CostType enum for valid values)
         /// </summary>
         public string? CostType { get; set; }

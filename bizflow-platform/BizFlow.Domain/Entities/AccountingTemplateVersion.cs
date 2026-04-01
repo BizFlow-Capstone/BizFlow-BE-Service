@@ -20,5 +20,6 @@ public partial class AccountingTemplateVersion
     // Navigation
     public virtual AccountingTemplate Template { get; set; } = null!;
     public virtual ICollection<TemplateFieldMapping> FieldMappings { get; set; } = new List<TemplateFieldMapping>();
+    public virtual ICollection<TemplateRowDefinition> RowDefinitions { get; set; } = new List<TemplateRowDefinition>();
     public virtual ICollection<AccountingBook> AccountingBooks { get; set; } = new List<AccountingBook>();
 }

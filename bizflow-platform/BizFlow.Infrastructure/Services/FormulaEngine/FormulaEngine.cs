@@ -161,11 +161,20 @@ public class FormulaEngine : IFormulaEngine
             PageSize = int.MaxValue
         };
 
-        if (filters.TryGetValue("RevenueType", out var rt))
-            query.RevenueType = rt.Split(',').First();
+        // RevenueType filter may contain multiple comma-separated values (e.g. "sale,manual").
+        // RevenueQueryParams only supports a single value, so we filter in-memory for multi-value.
+        var revenueTypes = filters.TryGetValue("RevenueType", out var rt)
+            ? rt.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : Array.Empty<string>();
+
+        if (revenueTypes.Length == 1)
+            query.RevenueType = revenueTypes[0];
 
         var (items, _) = await _uow.Revenues.SearchAsync(query);
         var list = items.Where(r => r.DeletedAt == null).ToList();
+
+        if (revenueTypes.Length > 1)
+            list = list.Where(r => revenueTypes.Contains(r.RevenueType, StringComparer.OrdinalIgnoreCase)).ToList();
 
         return aggType.ToUpper() switch
         {
@@ -329,6 +338,188 @@ public class FormulaEngine : IFormulaEngine
             "MIN" => args.Count > 0 ? args.Min() : 0m,
             "ABS" => args.Count > 0 ? Math.Abs(args[0]) : 0m,
             _ => 0m
+        };
+    }
+
+    // ────────────────────────────────────────────────────────
+    // TRACE: Evaluate with step-by-step debug info
+    // ────────────────────────────────────────────────────────
+    public async Task<FormulaTraceResult> TraceFormulaAsync(
+        FormulaEvaluationContext context,
+        FormulaDefinition formula)
+    {
+        var resolved = new Dictionary<string, decimal>(context.ResolvedValues);
+        var counter = new StepCounter();
+
+        var rootTrace = await TraceElementAsync(context, resolved, JsonDocument.Parse(formula.ExpressionJson).RootElement, counter);
+        var finalValue = ApplyRounding(rootTrace.ResolvedValue, formula);
+
+        return new FormulaTraceResult
+        {
+            FinalValue = finalValue,
+            Steps = new List<FormulaTraceNode> { rootTrace }
+        };
+    }
+
+    private class StepCounter { public int Value; public int Next() => ++Value; }
+
+    private async Task<FormulaTraceNode> TraceElementAsync(
+        FormulaEvaluationContext ctx,
+        Dictionary<string, decimal> resolved,
+        JsonElement node,
+        StepCounter counter)
+    {
+        var step = counter.Next();
+
+        // 1. Literal
+        if (node.TryGetProperty("literal", out var literal))
+        {
+            var val = literal.GetDecimal();
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "literal",
+                Description = $"Hằng số = {val}",
+                ResolvedValue = val, Source = "constant"
+            };
+        }
+
+        // 2. Ref
+        if (node.TryGetProperty("ref", out var refNode))
+        {
+            var refCode = refNode.GetString()!;
+            var found = resolved.TryGetValue(refCode, out var val);
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "ref",
+                Description = $"Tham chiếu → {refCode}",
+                ResolvedValue = val, Source = "formula_cache",
+                Debug = found ? null : $"Chưa tìm thấy '{refCode}' trong resolved values"
+            };
+        }
+
+        // 3. Aggregate
+        if (node.TryGetProperty("aggregate", out _))
+        {
+            var aggType = node.GetProperty("aggregate").GetString()!;
+            var source = node.GetProperty("source").GetString()!;
+            var field = node.GetProperty("field").GetString()!;
+            decimal val;
+            string? debug = null;
+            try
+            {
+                val = await EvaluateAggregateAsync(ctx, node);
+            }
+            catch (Exception ex)
+            {
+                val = 0m;
+                debug = $"Error: {ex.Message}";
+            }
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "aggregate",
+                Description = $"{aggType}({source}.{field})",
+                ResolvedValue = val, Source = $"DB query: {source}",
+                Debug = debug
+            };
+        }
+
+        // 4. Lookup
+        if (node.TryGetProperty("lookup", out var lookupNode))
+        {
+            var entity = lookupNode.GetProperty("entity").GetString()!;
+            var field = lookupNode.GetProperty("field").GetString()!;
+            decimal val;
+            string? debug = null;
+            try
+            {
+                val = await EvaluateLookupAsync(ctx, lookupNode);
+                if (val == 0m)
+                    debug = $"Lookup returned 0 — check if matching row exists for RulesetId={ctx.RulesetId}, BusinessTypeIds=[{string.Join(",", ctx.BusinessTypeIds.Take(3))}]";
+            }
+            catch (Exception ex)
+            {
+                val = 0m;
+                debug = $"Error: {ex.Message}";
+            }
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "lookup",
+                Description = $"Lookup({entity}.{field})",
+                ResolvedValue = val, Source = $"DB lookup: {entity}",
+                Debug = debug
+            };
+        }
+
+        // 5. Op
+        if (node.TryGetProperty("op", out var opNode))
+        {
+            var op = opNode.GetString()!;
+            var leftTrace = await TraceElementAsync(ctx, resolved, node.GetProperty("left"), counter);
+            var rightTrace = await TraceElementAsync(ctx, resolved, node.GetProperty("right"), counter);
+            var result = op.ToUpper() switch
+            {
+                "ADD" => leftTrace.ResolvedValue + rightTrace.ResolvedValue,
+                "SUBTRACT" => leftTrace.ResolvedValue - rightTrace.ResolvedValue,
+                "MULTIPLY" => leftTrace.ResolvedValue * rightTrace.ResolvedValue,
+                "DIVIDE" => rightTrace.ResolvedValue != 0 ? leftTrace.ResolvedValue / rightTrace.ResolvedValue : 0m,
+                _ => 0m
+            };
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "op",
+                Description = $"{op}(left, right)",
+                ResolvedValue = result, Source = "computed",
+                Children = new List<FormulaTraceNode> { leftTrace, rightTrace }
+            };
+        }
+
+        // 6. Function
+        if (node.TryGetProperty("fn", out var fnNode))
+        {
+            var fn = fnNode.GetString()!;
+            var children = new List<FormulaTraceNode>();
+            var argValues = new List<decimal>();
+            if (node.TryGetProperty("args", out var argsNode))
+            {
+                foreach (var arg in argsNode.EnumerateArray())
+                {
+                    var childTrace = await TraceElementAsync(ctx, resolved, arg, counter);
+                    children.Add(childTrace);
+                    argValues.Add(childTrace.ResolvedValue);
+                }
+            }
+            var result = fn.ToUpper() switch
+            {
+                "MAX" => argValues.Count > 0 ? argValues.Max() : 0m,
+                "MIN" => argValues.Count > 0 ? argValues.Min() : 0m,
+                "ABS" => argValues.Count > 0 ? Math.Abs(argValues[0]) : 0m,
+                _ => 0m
+            };
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "fn",
+                Description = $"{fn}({string.Join(", ", argValues)})",
+                ResolvedValue = result, Source = "computed",
+                Children = children
+            };
+        }
+
+        // 7. Context
+        if (node.TryGetProperty("context", out var ctxNode))
+        {
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "context",
+                Description = $"Context: {ctxNode.GetString()}",
+                ResolvedValue = 0m, Source = "runtime"
+            };
+        }
+
+        return new FormulaTraceNode
+        {
+            Step = step, NodeType = "unknown",
+            Description = "Unrecognized node",
+            ResolvedValue = 0m, Debug = node.GetRawText()
         };
     }
 

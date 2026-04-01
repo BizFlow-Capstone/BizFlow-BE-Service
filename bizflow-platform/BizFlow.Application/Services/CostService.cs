@@ -67,6 +67,7 @@ namespace BizFlow.Application.Services
             var entity = new Cost
             {
                 BusinessLocationId = request.BusinessLocationId,
+                BusinessTypeId = request.BusinessTypeId,
                 CostType = normalizedType,
                 Description = request.Description.Trim(),
                 Amount = request.Amount,
@@ -108,6 +109,7 @@ namespace BizFlow.Application.Services
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
 
+            cost.BusinessTypeId = request.BusinessTypeId;
             cost.Description = request.Description.Trim();
             cost.Amount = request.Amount;
             cost.CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);

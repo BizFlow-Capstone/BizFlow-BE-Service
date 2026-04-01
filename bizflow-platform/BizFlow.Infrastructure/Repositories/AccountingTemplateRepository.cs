@@ -56,6 +56,7 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
                 .ThenInclude(m => m.SourceField)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.SourceEntity)
+            .Include(x => x.RowDefinitions.OrderBy(r => r.Position).ThenBy(r => r.SortOrder))
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
     }
 
@@ -70,7 +71,18 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
                 .ThenInclude(m => m.SourceField)
             .Include(x => x.FieldMappings.OrderBy(m => m.SortOrder))
                 .ThenInclude(m => m.SourceEntity)
+            .Include(x => x.RowDefinitions.OrderBy(r => r.Position).ThenBy(r => r.SortOrder))
             .FirstOrDefaultAsync(x => x.TemplateVersionId == templateVersionId);
+    }
+
+    public async Task<List<TemplateRowDefinition>> GetRowDefinitionsAsync(int templateVersionId)
+    {
+        return await _context.Set<TemplateRowDefinition>()
+            .Include(x => x.Formula)
+            .Where(x => x.TemplateVersionId == templateVersionId)
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.SortOrder)
+            .ToListAsync();
     }
 
     public async Task<AccountingTemplateVersion> AddVersionAsync(AccountingTemplateVersion version)
@@ -100,5 +112,96 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
     public void UpdateMapping(TemplateFieldMapping mapping)
     {
         _context.Set<TemplateFieldMapping>().Update(mapping);
+    }
+
+    public async Task AddMappingAsync(TemplateFieldMapping mapping)
+    {
+        await _context.Set<TemplateFieldMapping>().AddAsync(mapping);
+    }
+
+    public void RemoveMapping(TemplateFieldMapping mapping)
+    {
+        _context.Set<TemplateFieldMapping>().Remove(mapping);
+    }
+
+    // ── RowDefinitions ──
+
+    public async Task<TemplateRowDefinition?> GetRowDefinitionByIdAsync(int rowDefId)
+    {
+        return await _context.Set<TemplateRowDefinition>()
+            .Include(x => x.Formula)
+            .Include(x => x.TemplateVersion).ThenInclude(v => v.Template)
+            .FirstOrDefaultAsync(x => x.RowDefId == rowDefId);
+    }
+
+    public async Task AddRowDefinitionAsync(TemplateRowDefinition rowDef)
+    {
+        await _context.Set<TemplateRowDefinition>().AddAsync(rowDef);
+    }
+
+    public void UpdateRowDefinition(TemplateRowDefinition rowDef)
+    {
+        _context.Set<TemplateRowDefinition>().Update(rowDef);
+    }
+
+    public void RemoveRowDefinition(TemplateRowDefinition rowDef)
+    {
+        _context.Set<TemplateRowDefinition>().Remove(rowDef);
+    }
+
+    // ── MappableEntities ──
+
+    public async Task<List<MappableEntity>> GetAllMappableEntitiesAsync(bool? active)
+    {
+        var query = _context.Set<MappableEntity>()
+            .Include(e => e.Fields)
+            .AsQueryable();
+
+        if (active.HasValue)
+            query = query.Where(e => e.IsActive == active.Value);
+
+        return await query.OrderBy(e => e.Category).ThenBy(e => e.EntityCode).ToListAsync();
+    }
+
+    public async Task<MappableEntity?> GetMappableEntityWithFieldsAsync(int entityId)
+    {
+        return await _context.Set<MappableEntity>()
+            .Include(e => e.Fields.OrderBy(f => f.FieldCode))
+            .FirstOrDefaultAsync(e => e.EntityId == entityId);
+    }
+
+    public async Task<MappableEntity?> GetMappableEntityByCodeAsync(string entityCode)
+    {
+        return await _context.Set<MappableEntity>()
+            .FirstOrDefaultAsync(e => e.EntityCode == entityCode);
+    }
+
+    public async Task AddMappableEntityAsync(MappableEntity entity)
+    {
+        await _context.Set<MappableEntity>().AddAsync(entity);
+    }
+
+    public void UpdateMappableEntity(MappableEntity entity)
+    {
+        _context.Set<MappableEntity>().Update(entity);
+    }
+
+    // ── MappableFields ──
+
+    public async Task<MappableField?> GetMappableFieldByIdAsync(int fieldId)
+    {
+        return await _context.Set<MappableField>()
+            .Include(f => f.Entity)
+            .FirstOrDefaultAsync(f => f.FieldId == fieldId);
+    }
+
+    public async Task AddMappableFieldAsync(MappableField field)
+    {
+        await _context.Set<MappableField>().AddAsync(field);
+    }
+
+    public void UpdateMappableField(MappableField field)
+    {
+        _context.Set<MappableField>().Update(field);
     }
 }

@@ -1,3 +1,4 @@
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.AccountingBook;
 using BizFlow.Application.Interfaces.Repositories;
@@ -48,7 +49,7 @@ public class AccountingBookServiceTests
     {
         // Arrange
         _periodRepo.Setup(r => r.GetByLocationAndIdAsync(LocationId, 1))
-            .ReturnsAsync(new AccountingPeriod { PeriodId = 1, Status = "finalized" });
+            .ReturnsAsync(new AccountingPeriod { PeriodId = 1, Status = AccountingPeriodConstants.PeriodStatuses.Finalized });
 
         var request = new CreateBooksRequest
         {
@@ -184,7 +185,7 @@ public class AccountingBookServiceTests
                 BusinessLocationId = LocationId,
                 GroupNumber = 2,
                 TaxMethod = "method_1",
-                Status = "active",
+                Status = AccountingBookConstants.BookStatuses.Active,
                 CreatedAt = DateTime.UtcNow,
                 TemplateVersion = new AccountingTemplateVersion
                 {

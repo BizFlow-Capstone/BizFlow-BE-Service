@@ -99,6 +99,7 @@ public partial class BizFlowDbContext : DbContext
     public virtual DbSet<TaxPayment> TaxPayments { get; set; }
     public virtual DbSet<FormulaDefinition> FormulaDefinitions { get; set; }
     public virtual DbSet<FormulaResult> FormulaResults { get; set; }
+    public virtual DbSet<TemplateRowDefinition> TemplateRowDefinitions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -327,6 +328,11 @@ public partial class BizFlowDbContext : DbContext
             entity.HasOne(d => d.Import).WithMany(p => p.Costs)
                 .HasForeignKey(d => d.ImportId)
                 .HasConstraintName("fk_cost_import");
+
+            entity.HasOne(d => d.BusinessType).WithMany()
+                .HasForeignKey(d => d.BusinessTypeId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_cost_business_type");
         });
 
         modelBuilder.Entity<Credential>(entity =>
@@ -1603,6 +1609,7 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Description).HasColumnType("text");
             entity.Property(e => e.ApplicableGroups).HasColumnType("json");
             entity.Property(e => e.ApplicableMethods).HasColumnType("json");
+            entity.Property(e => e.DataSourceType).HasMaxLength(30).HasDefaultValue("revenues");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
         });
 
@@ -1674,6 +1681,29 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.SourceFieldId).HasConstraintName("fk_tfm_source_field");
             entity.HasOne(d => d.Formula).WithMany(p => p.FieldMappings)
                 .HasForeignKey(d => d.FormulaId).HasConstraintName("fk_tfm_formula");
+        });
+
+        modelBuilder.Entity<TemplateRowDefinition>(entity =>
+        {
+            entity.HasKey(e => e.RowDefId).HasName("PRIMARY");
+            entity.UseCollation("utf8mb4_unicode_ci");
+            entity.ToTable("TemplateRowDefinitions");
+            entity.HasIndex(e => new { e.TemplateVersionId, e.Position, e.SortOrder }, "idx_rowdef_version_sort");
+            entity.HasIndex(e => e.FormulaId, "idx_rowdef_formula");
+            entity.Property(e => e.RowType).HasMaxLength(30);
+            entity.Property(e => e.RowLabel).HasMaxLength(200);
+            entity.Property(e => e.Position).HasMaxLength(20).HasDefaultValueSql("'per_group'");
+            entity.Property(e => e.GroupByField).HasMaxLength(50);
+            entity.Property(e => e.SectionType).HasMaxLength(30);
+            entity.Property(e => e.SectionFilterValue).HasMaxLength(50);
+            entity.Property(e => e.VisibleFieldCodes).HasColumnType("json");
+            entity.Property(e => e.TaxType).HasMaxLength(10);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
+
+            entity.HasOne(d => d.TemplateVersion).WithMany(p => p.RowDefinitions)
+                .HasForeignKey(d => d.TemplateVersionId).HasConstraintName("fk_rowdef_version");
+            entity.HasOne(d => d.Formula).WithMany()
+                .HasForeignKey(d => d.FormulaId).HasConstraintName("fk_rowdef_formula");
         });
 
         modelBuilder.Entity<AccountingBook>(entity =>

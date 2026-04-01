@@ -21,6 +21,11 @@ public partial class AccountingTemplate
     /// </summary>
     public string? ApplicableMethods { get; set; }
 
+    /// <summary>
+    /// Data source for rendering: revenues | revenue_cost | gl_entries | stock_movements
+    /// </summary>
+    public string DataSourceType { get; set; } = "revenues";
+
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
 

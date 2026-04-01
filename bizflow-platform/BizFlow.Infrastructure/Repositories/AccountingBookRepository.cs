@@ -1,3 +1,4 @@
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
@@ -35,7 +36,7 @@ public class AccountingBookRepository : IAccountingBookRepository
         return await _context.Set<AccountingBook>()
             .Include(x => x.TemplateVersion)
                 .ThenInclude(v => v.Template)
-            .Where(x => x.BusinessLocationId == locationId && x.PeriodId == periodId && x.Status == "active")
+            .Where(x => x.BusinessLocationId == locationId && x.PeriodId == periodId && x.Status == AccountingBookConstants.BookStatuses.Active)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync();
     }
@@ -46,7 +47,7 @@ public class AccountingBookRepository : IAccountingBookRepository
             .AnyAsync(x => x.BusinessLocationId == locationId
                 && x.PeriodId == periodId
                 && x.TemplateVersionId == templateVersionId
-                && x.Status == "active");
+                && x.Status == AccountingBookConstants.BookStatuses.Active);
     }
 
     public async Task AddAsync(AccountingBook book)

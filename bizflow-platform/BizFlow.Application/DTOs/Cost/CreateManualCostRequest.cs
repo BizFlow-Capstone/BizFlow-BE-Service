@@ -10,6 +10,11 @@ namespace BizFlow.Application.DTOs.Cost
         public int BusinessLocationId { get; set; }
 
         /// <summary>
+        /// FK to BusinessTypes – ngành nghề liên quan (optional)
+        /// </summary>
+        public Guid? BusinessTypeId { get; set; }
+
+        /// <summary>
         /// Cost type (see CostType enum). Default: manual. Cannot be 'import'.
         /// </summary>
         [Required, MaxLength(30)]

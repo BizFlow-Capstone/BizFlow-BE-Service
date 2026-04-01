@@ -5,6 +5,11 @@ namespace BizFlow.Application.DTOs.Cost
     public class UpdateManualCostRequest
     {
         /// <summary>
+        /// FK to BusinessTypes – ngành nghề liên quan (optional)
+        /// </summary>
+        public Guid? BusinessTypeId { get; set; }
+
+        /// <summary>
         /// Cost description.
         /// </summary>
         [Required, MaxLength(500)]

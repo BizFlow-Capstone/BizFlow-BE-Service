@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.AccountingBook;
 using BizFlow.Application.DTOs.Revenue;
@@ -39,7 +40,7 @@ public class AccountingBookService : IAccountingBookService
         // 1. Validate period exists and is NOT finalized
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, request.PeriodId)
             ?? throw new NotFoundException("PERIOD_NOT_FOUND");
-        if (period.Status == "finalized")
+        if (period.Status == AccountingPeriodConstants.PeriodStatuses.Finalized)
             throw new BadRequestException("PERIOD_FINALIZED");
 
         // 2. Validate active ruleset
@@ -113,7 +114,7 @@ public class AccountingBookService : IAccountingBookService
                     GroupNumber = request.GroupNumber,
                     TaxMethod = request.TaxMethod,
                     RulesetId = ruleset.RulesetId,
-                    Status = "active",
+                    Status = AccountingBookConstants.BookStatuses.Active,
                     CreatedByUserId = userId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -195,16 +196,29 @@ public class AccountingBookService : IAccountingBookService
         var allBusinessTypes = (await _uow.BusinessTypes.GetAllAsync())
             .ToDictionary(bt => bt.BusinessTypeId, bt => bt);
 
-        var allFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
         var mappedFormulaIds = mappings
             .Where(m => m.FormulaId != null)
             .Select(m => m.FormulaId!.Value)
             .ToHashSet();
         var templatePrefix = $"{(template?.TemplateCode ?? string.Empty).ToUpperInvariant()}_";
-        var templateFormulas = allFormulas
-            .Where(f => mappedFormulaIds.Contains(f.FormulaId)
-                        || (!string.IsNullOrWhiteSpace(templatePrefix)
-                            && f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)))
+
+        // Load explicitly-mapped formulas by ID (regardless of IsActive — supports draft/inactive formulas)
+        var explicitFormulas = mappedFormulaIds.Count > 0
+            ? await _uow.FormulaDefinitions.GetByIdsAsync(mappedFormulaIds)
+            : new List<FormulaDefinition>();
+
+        // Load active prefix-matched formulas for display (supporting refs/grand totals not explicitly mapped)
+        var allActiveFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
+        var explicitIds = explicitFormulas.Select(f => f.FormulaId).ToHashSet();
+        var prefixFormulas = !string.IsNullOrWhiteSpace(templatePrefix)
+            ? allActiveFormulas
+                .Where(f => !explicitIds.Contains(f.FormulaId)
+                            && f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : new List<FormulaDefinition>();
+
+        var templateFormulas = explicitFormulas
+            .Concat(prefixFormulas)
             .OrderBy(f => f.FormulaId)
             .ToList();
 
@@ -328,6 +342,102 @@ public class AccountingBookService : IAccountingBookService
     }
 
     // ────────────────────────────────────────────────────────
+    // GET BOOK SECTIONS (structure + formula values)
+    // ────────────────────────────────────────────────────────
+    public async Task<BookSectionsResponse> GetBookSectionsAsync(int locationId, Guid userId, long bookId)
+    {
+        await _locationService.ValidateOwnerAsync(userId, locationId);
+
+        var book = await _uow.AccountingBooks.GetByIdWithBusinessTypesAsync(bookId)
+            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+        if (book.BusinessLocationId != locationId)
+            throw new ForbiddenException("COMMON_FORBIDDEN");
+
+        var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, book.PeriodId);
+        var businessTypeIds = await GetBusinessTypeIdsForLocation(locationId);
+        var renderCtx = BuildRenderContext(book, period, businessTypeIds);
+
+        var renderResult = await _renderingService.RenderSectionsAsync(renderCtx);
+        var template = book.TemplateVersion?.Template;
+
+        return new BookSectionsResponse
+        {
+            BookId = book.BookId,
+            TemplateCode = template?.TemplateCode ?? "",
+            TemplateName = template?.Name ?? "",
+            LastCalculatedAt = DateTime.UtcNow,
+            Columns = renderResult.Columns,
+            Sections = renderResult.Sections.Select(s => new BookSectionResponseDto
+            {
+                SectionType = s.SectionType,
+                BusinessTypeId = s.GroupKey,
+                BusinessTypeName = s.GroupName,
+                GroupIndex = s.GroupIndex,
+                Rows = s.Rows.Select(r => MapToSectionRow(r)).ToList()
+            }).ToList(),
+            FooterRows = renderResult.FooterRows.Select(r => MapToSectionRow(r)).ToList()
+        };
+    }
+
+    private static SectionRowDto MapToSectionRow(Dictionary<string, object?> raw)
+    {
+        var lineType = raw.GetValueOrDefault("lineType")?.ToString() ?? "unknown";
+        var values = new Dictionary<string, object?>(raw);
+        values.Remove("lineType");
+        values.Remove("dataFilter");
+        values.Remove("taxMetadata");
+        values.Remove("explanation");
+        values.Remove("taxBreakdown");
+
+        DataFilterDto? dataFilter = null;
+        if (raw.GetValueOrDefault("dataFilter") is Dictionary<string, object?> df)
+        {
+            dataFilter = new DataFilterDto
+            {
+                BusinessTypeId = df.GetValueOrDefault("businessTypeId")?.ToString(),
+                Section = df.GetValueOrDefault("section")?.ToString()
+            };
+        }
+
+        TaxMetadataDto? taxMeta = null;
+        if (raw.GetValueOrDefault("taxMetadata") is Dictionary<string, object?> tm)
+        {
+            taxMeta = new TaxMetadataDto
+            {
+                TaxType = tm.GetValueOrDefault("taxType")?.ToString() ?? "",
+                Rate = tm.GetValueOrDefault("rate") is decimal r ? r : 0m,
+                Source = tm.GetValueOrDefault("source")?.ToString() ?? "DEFAULT"
+            };
+        }
+
+        List<TaxBreakdownItemDto>? taxBreakdown = null;
+        if (raw.GetValueOrDefault("taxBreakdown") is List<Dictionary<string, object?>> tbList && tbList.Count > 0)
+        {
+            taxBreakdown = tbList.Select(tb => new TaxBreakdownItemDto
+            {
+                BusinessTypeId = Guid.TryParse(tb.GetValueOrDefault("businessTypeId")?.ToString(), out var bid) ? bid : Guid.Empty,
+                BusinessTypeName = tb.GetValueOrDefault("businessTypeName")?.ToString() ?? "",
+                Revenue = tb.GetValueOrDefault("revenue") is decimal rev ? rev : 0m,
+                Cost = tb.GetValueOrDefault("cost") is decimal cost ? cost : 0m,
+                Profit = tb.GetValueOrDefault("profit") is decimal prof ? prof : 0m,
+                TaxRate = tb.GetValueOrDefault("taxRate") is decimal tr ? tr : 0m,
+                TaxAmount = tb.GetValueOrDefault("taxAmount") is decimal ta ? ta : 0m,
+                Explanation = tb.GetValueOrDefault("explanation")?.ToString()
+            }).ToList();
+        }
+
+        return new SectionRowDto
+        {
+            LineType = lineType,
+            Values = values,
+            DataFilter = dataFilter,
+            TaxMetadata = taxMeta,
+            Explanation = raw.GetValueOrDefault("explanation")?.ToString(),
+            TaxBreakdown = taxBreakdown
+        };
+    }
+
+    // ────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ────────────────────────────────────────────────────────
 
@@ -342,6 +452,7 @@ public class AccountingBookService : IAccountingBookService
             PeriodEnd = period?.EndDate ?? DateOnly.MaxValue,
             TemplateVersionId = book.TemplateVersionId,
             TemplateCode = book.TemplateVersion?.Template?.TemplateCode ?? "",
+            DataSourceType = book.TemplateVersion?.Template?.DataSourceType ?? "revenues",
             GroupNumber = book.GroupNumber,
             TaxMethod = book.TaxMethod,
             RulesetId = book.RulesetId,

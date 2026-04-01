@@ -4,6 +4,7 @@ using BizFlow.Application.DTOs.Admin;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Services;
@@ -14,11 +15,13 @@ public class AdminAccountingService : IAdminAccountingService
 
     private readonly IUnitOfWork _uow;
     private readonly IBookRenderingService _renderingService;
+    private readonly IFormulaEngine _formulaEngine;
 
-    public AdminAccountingService(IUnitOfWork uow, IBookRenderingService renderingService)
+    public AdminAccountingService(IUnitOfWork uow, IBookRenderingService renderingService, IFormulaEngine formulaEngine)
     {
         _uow = uow;
         _renderingService = renderingService;
+        _formulaEngine = formulaEngine;
     }
 
     public async Task<AdminAccountingOverviewDto> GetOverviewAsync()
@@ -155,6 +158,22 @@ public class AdminAccountingService : IAdminAccountingService
                     ExportColumn = m.ExportColumn,
                     SortOrder = m.SortOrder,
                     IsRequired = m.IsRequired
+                }).ToList(),
+            RowDefinitions = source.RowDefinitions
+                .OrderBy(r => r.SortOrder)
+                .Select(r => new TemplateRowDefinition
+                {
+                    RowType = r.RowType,
+                    RowLabel = r.RowLabel,
+                    Position = r.Position,
+                    SortOrder = r.SortOrder,
+                    GroupByField = r.GroupByField,
+                    SectionType = r.SectionType,
+                    SectionFilterValue = r.SectionFilterValue,
+                    VisibleFieldCodes = r.VisibleFieldCodes,
+                    FormulaId = r.FormulaId,
+                    TaxType = r.TaxType,
+                    CreatedAt = DateTime.UtcNow
                 }).ToList()
         };
 
@@ -277,7 +296,11 @@ public class AdminAccountingService : IAdminAccountingService
         if (request.AggregationType != null)
             mapping.AggregationType = request.AggregationType;
         if (request.FormulaId.HasValue)
+        {
             mapping.FormulaId = request.FormulaId;
+            // When formula ID changes, clear expression text so rendering uses formula ID instead
+            mapping.FormulaExpression = null;
+        }
         if (request.FormulaExpression != null)
             mapping.FormulaExpression = request.FormulaExpression;
         if (request.SortOrder.HasValue)
@@ -497,6 +520,707 @@ public class AdminAccountingService : IAdminAccountingService
         };
     }
 
+    // ══════════════════════════════════════════════
+    // Compare API
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request)
+    {
+        if (request.BusinessLocationId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+        if (request.PeriodId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+        if (request.DraftVersionId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "DraftVersionId must be > 0");
+        if (request.RulesetId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+
+        // Resolve active version if not provided
+        var activeVersionId = request.ActiveVersionId;
+        if (!activeVersionId.HasValue || activeVersionId.Value <= 0)
+        {
+            var draftVersion = await _uow.AccountingTemplates.GetVersionWithMappingsAsync(request.DraftVersionId)
+                ?? throw new NotFoundException(MessageKeys.NotFound, $"DraftVersionId={request.DraftVersionId}");
+
+            var templates = await _uow.AccountingTemplates.GetAllWithVersionsAsync();
+            var template = templates.FirstOrDefault(t => t.TemplateId == draftVersion.TemplateId);
+            activeVersionId = template?.Versions.FirstOrDefault(v => v.IsActive)?.TemplateVersionId;
+
+            if (!activeVersionId.HasValue)
+                throw new BadRequestException(MessageKeys.BadRequest, "No active version found for this template. Provide ActiveVersionId explicitly.");
+        }
+
+        // Run both previews
+        var activePreview = await RunPreviewForCompare(activeVersionId.Value, request);
+        var draftPreview = await RunPreviewForCompare(request.DraftVersionId, request);
+
+        // Compute diff
+        var diff = ComputeCompareDiff(activePreview, draftPreview);
+
+        return new AdminCompareResponse
+        {
+            Active = activePreview,
+            Draft = draftPreview,
+            Diff = diff
+        };
+    }
+
+    private async Task<AdminPreviewResponse> RunPreviewForCompare(int templateVersionId, AdminCompareRequest request)
+    {
+        var previewRequest = new AdminPreviewRequest
+        {
+            BusinessLocationId = request.BusinessLocationId,
+            PeriodId = request.PeriodId,
+            TemplateVersionId = templateVersionId,
+            GroupNumber = request.GroupNumber,
+            TaxMethod = request.TaxMethod,
+            RulesetId = request.RulesetId,
+            BusinessTypeIds = request.BusinessTypeIds,
+            BatchSize = request.BatchSize
+        };
+        return await PreviewAsync(previewRequest);
+    }
+
+    private static AdminCompareDiff ComputeCompareDiff(AdminPreviewResponse active, AdminPreviewResponse draft)
+    {
+        var changes = new List<FormulaValueChange>();
+        var changedFormulas = new List<string>();
+
+        var activeFormulas = active.Summary.FormulaValues ?? new Dictionary<string, decimal>();
+        var draftFormulas = draft.Summary.FormulaValues ?? new Dictionary<string, decimal>();
+        var allKeys = activeFormulas.Keys.Union(draftFormulas.Keys).Distinct();
+
+        foreach (var key in allKeys)
+        {
+            var before = activeFormulas.GetValueOrDefault(key, 0m);
+            var after = draftFormulas.GetValueOrDefault(key, 0m);
+            if (before != after)
+            {
+                changedFormulas.Add(key);
+                changes.Add(new FormulaValueChange { Code = key, Before = before, After = after });
+            }
+        }
+
+        return new AdminCompareDiff
+        {
+            ChangedFormulas = changedFormulas,
+            ValueChanges = changes
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Trace API
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminTraceResponse> TraceFormulaAsync(AdminTraceRequest request)
+    {
+        if (request.FormulaId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "FormulaId must be > 0");
+        if (request.BusinessLocationId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+        if (request.PeriodId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+        if (request.RulesetId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+
+        var formula = await _uow.FormulaDefinitions.GetByIdAsync(request.FormulaId)
+            ?? throw new NotFoundException(MessageKeys.NotFound, $"FormulaId={request.FormulaId}");
+
+        var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(request.BusinessLocationId, request.PeriodId)
+            ?? throw new NotFoundException(MessageKeys.PeriodNotFound);
+
+        var ctx = new FormulaEvaluationContext
+        {
+            BookId = 0,
+            BusinessLocationId = request.BusinessLocationId,
+            PeriodId = request.PeriodId,
+            PeriodStart = period.StartDate,
+            PeriodEnd = period.EndDate,
+            RulesetId = request.RulesetId,
+            BusinessTypeIds = request.BusinessTypeIds.Distinct().ToList()
+        };
+
+        var traceResult = await _formulaEngine.TraceFormulaAsync(ctx, formula);
+
+        return new AdminTraceResponse
+        {
+            FormulaCode = formula.Code,
+            FormulaName = formula.Name,
+            FinalValue = traceResult.FinalValue,
+            Trace = traceResult.Steps.Select(MapTraceNode).ToList()
+        };
+    }
+
+    private static FormulaTraceStep MapTraceNode(FormulaTraceNode node)
+    {
+        return new FormulaTraceStep
+        {
+            Step = node.Step,
+            NodeType = node.NodeType,
+            Description = node.Description,
+            ResolvedValue = node.ResolvedValue,
+            Source = node.Source,
+            Debug = node.Debug,
+            Children = node.Children?.Select(MapTraceNode).ToList()
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Reference API
+    // ══════════════════════════════════════════════
+
+    public AdminReferenceDto GetReference()
+    {
+        return new AdminReferenceDto
+        {
+            RowTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.RowType.IndustryHeader, Label = "Tiêu đề ngành nghề", Description = "Dòng tiêu đề nhóm ngành nghề kinh doanh, hiển thị tên ngành" },
+                new() { Value = RowDefinitionConstants.RowType.DataPlaceholder, Label = "Vùng dữ liệu", Description = "Vị trí chèn data rows từ query (revenues, costs, GL entries)" },
+                new() { Value = RowDefinitionConstants.RowType.Subtotal, Label = "Cộng nhóm", Description = "Tổng cộng theo nhóm ngành, thường linked với formula SUM" },
+                new() { Value = RowDefinitionConstants.RowType.TaxLine, Label = "Dòng thuế", Description = "Dòng hiển thị thuế (VAT/PIT), xuất hiện 1 lần cuối nhóm" },
+                new() { Value = RowDefinitionConstants.RowType.GrandTotal, Label = "Tổng cộng", Description = "Dòng tổng cộng cuối sổ, tổng hợp tất cả nhóm" },
+                new() { Value = RowDefinitionConstants.RowType.SectionHeader, Label = "Tiêu đề phần", Description = "Tiêu đề cho phần (revenue/cost/cash/bank)" },
+                new() { Value = RowDefinitionConstants.RowType.SectionSubtotal, Label = "Cộng phần", Description = "Tổng cộng theo từng phần (section)" },
+                new() { Value = RowDefinitionConstants.RowType.BalanceRow, Label = "Dòng số dư", Description = "Dòng hiển thị số dư (opening/closing balance), dùng formula lookup" },
+                new() { Value = RowDefinitionConstants.RowType.MonthlyTotal, Label = "Cộng tháng", Description = "Tổng phát sinh trong tháng" },
+                new() { Value = RowDefinitionConstants.RowType.QuarterlyTotal, Label = "Cộng quý", Description = "Tổng lũy kế trong quý" },
+                new() { Value = RowDefinitionConstants.RowType.ProfitRow, Label = "Chênh lệch DT-CP", Description = "Dòng chênh lệch doanh thu - chi phí" }
+            },
+            Positions = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.Position.PerGroup, Label = "Mỗi nhóm", Description = "Lặp lại cho mỗi nhóm ngành nghề" },
+                new() { Value = RowDefinitionConstants.Position.PerSection, Label = "Mỗi phần", Description = "Lặp lại cho mỗi section (revenue/cost)" },
+                new() { Value = RowDefinitionConstants.Position.StartOfBook, Label = "Đầu sổ", Description = "Xuất hiện 1 lần ở đầu sổ" },
+                new() { Value = RowDefinitionConstants.Position.EndOfBook, Label = "Cuối sổ", Description = "Xuất hiện 1 lần ở cuối sổ" }
+            },
+            SectionTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.SectionType.IndustryGroup, Label = "Nhóm ngành nghề", Description = "Phân nhóm theo ngành nghề kinh doanh (BusinessType)" },
+                new() { Value = RowDefinitionConstants.SectionType.RevenueCost, Label = "Doanh thu / Chi phí", Description = "Phân theo doanh thu và chi phí" },
+                new() { Value = RowDefinitionConstants.SectionType.CashBank, Label = "Tiền mặt / Ngân hàng", Description = "Phân theo kênh tiền (cash/bank)" },
+                new() { Value = RowDefinitionConstants.SectionType.PerProduct, Label = "Theo sản phẩm", Description = "Phân nhóm theo từng sản phẩm/dịch vụ" }
+            },
+            FieldTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "auto_increment", Label = "STT tự tăng", Description = "Số thứ tự tự động tăng dần" },
+                new() { Value = "date", Label = "Ngày tháng", Description = "Giá trị ngày tháng (yyyy-MM-dd)" },
+                new() { Value = "text", Label = "Văn bản", Description = "Chuỗi ký tự" },
+                new() { Value = "decimal", Label = "Số thập phân", Description = "Số thập phân (tiền, số lượng)" },
+                new() { Value = "computed", Label = "Tính toán", Description = "Giá trị được tính từ formula" }
+            },
+            SourceTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "query", Label = "Truy vấn từ DB", Description = "Lấy dữ liệu trực tiếp từ bảng (revenues, costs, gl_entries)" },
+                new() { Value = "formula", Label = "Công thức", Description = "Tính toán bằng formula engine (ExpressionJson)" },
+                new() { Value = "static", Label = "Giá trị cố định", Description = "Giá trị không đổi (ví dụ: label cột)" },
+                new() { Value = "auto", Label = "Tự động", Description = "Giá trị tự động sinh (STT, ngày hiện tại)" }
+            },
+            TaxTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = RowDefinitionConstants.TaxType.Vat, Label = "Thuế GTGT", Description = "Thuế giá trị gia tăng" },
+                new() { Value = RowDefinitionConstants.TaxType.Pit, Label = "Thuế TNCN", Description = "Thuế thu nhập cá nhân" }
+            },
+            FormulaNodeTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "literal", Label = "Giá trị cố định", Description = "Hằng số (số cụ thể)", Example = "{\"literal\": 500000000}" },
+                new() { Value = "ref", Label = "Tham chiếu formula", Description = "Lấy kết quả từ formula khác theo Code", Example = "{\"ref\": \"S2A_SUBTOTAL\"}" },
+                new() { Value = "aggregate", Label = "Tổng hợp dữ liệu", Description = "SUM/AVG/COUNT từ bảng dữ liệu (revenues, costs, gl_entries)", Example = "{\"aggregate\":\"SUM\",\"source\":\"revenues\",\"field\":\"Amount\"}" },
+                new() { Value = "lookup", Label = "Tra cứu ngoài", Description = "Tra cứu giá trị từ bảng khác (IndustryTaxRates, AccountingPeriods)", Example = "{\"lookup\":{\"entity\":\"IndustryTaxRates\",\"field\":\"TaxRate\",\"filter\":{\"TaxType\":\"VAT\"}}}" },
+                new() { Value = "op", Label = "Phép toán", Description = "Phép tính 2 vế: ADD/SUBTRACT/MULTIPLY/DIVIDE", Example = "{\"op\":\"MULTIPLY\",\"left\":{\"ref\":\"S2A_SUBTOTAL\"},\"right\":{\"literal\":0.05}}" },
+                new() { Value = "fn", Label = "Hàm", Description = "Hàm toán học: MAX/MIN/ABS", Example = "{\"fn\":\"MAX\",\"args\":[{\"literal\":0},{\"ref\":\"S2A_PROFIT\"}]}" },
+                new() { Value = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy (period_start, period_end)", Example = "{\"context\":\"period_start\"}" }
+            },
+            AggregateTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "SUM", Label = "Tổng cộng", Description = "Tổng tất cả giá trị matching" },
+                new() { Value = "AVG", Label = "Trung bình", Description = "Giá trị trung bình" },
+                new() { Value = "COUNT", Label = "Đếm", Description = "Đếm số bản ghi matching" }
+            },
+            OpTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "ADD", Label = "Cộng (+)", Description = "left + right" },
+                new() { Value = "SUBTRACT", Label = "Trừ (−)", Description = "left - right" },
+                new() { Value = "MULTIPLY", Label = "Nhân (×)", Description = "left × right" },
+                new() { Value = "DIVIDE", Label = "Chia (÷)", Description = "left ÷ right (trả 0 nếu right = 0)" }
+            },
+            FnTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "MAX", Label = "Giá trị lớn nhất", Description = "Lấy giá trị lớn nhất từ các args" },
+                new() { Value = "MIN", Label = "Giá trị nhỏ nhất", Description = "Lấy giá trị nhỏ nhất từ các args" },
+                new() { Value = "ABS", Label = "Giá trị tuyệt đối", Description = "Lấy giá trị tuyệt đối của arg đầu tiên" }
+            }
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Formula Node Schema
+    // ══════════════════════════════════════════════
+
+    public List<FormulaNodeSchemaDto> GetFormulaNodeSchemas()
+    {
+        return new List<FormulaNodeSchemaDto>
+        {
+            new()
+            {
+                NodeType = "literal", Label = "Giá trị cố định", Description = "Hằng số (số cụ thể)",
+                Example = "{\"literal\": 500000000}",
+                Fields = new() { new() { FieldName = "literal", FieldType = "number", Required = true, Description = "Giá trị số" } }
+            },
+            new()
+            {
+                NodeType = "ref", Label = "Tham chiếu formula", Description = "Lấy kết quả từ formula khác theo Code",
+                Example = "{\"ref\": \"S2A_SUBTOTAL\"}",
+                Fields = new() { new() { FieldName = "ref", FieldType = "string", Required = true, Description = "Code của formula được tham chiếu" } }
+            },
+            new()
+            {
+                NodeType = "aggregate", Label = "Tổng hợp dữ liệu", Description = "SUM/AVG/COUNT từ bảng dữ liệu",
+                Example = "{\"aggregate\":\"SUM\",\"source\":\"revenues\",\"field\":\"Amount\",\"filter\":{\"RevenueType\":\"sale\"}}",
+                Fields = new()
+                {
+                    new() { FieldName = "aggregate", FieldType = "enum", Required = true, Description = "Loại tổng hợp", AllowedValues = new() {"SUM","AVG","COUNT"} },
+                    new() { FieldName = "source", FieldType = "string", Required = true, Description = "Bảng nguồn (revenues, costs, gl_entries)" },
+                    new() { FieldName = "field", FieldType = "string", Required = true, Description = "Cột cần tổng hợp (Amount, DebitAmount, CreditAmount)" },
+                    new() { FieldName = "filter", FieldType = "object", Required = false, Description = "Điều kiện lọc (key-value pairs)" }
+                }
+            },
+            new()
+            {
+                NodeType = "lookup", Label = "Tra cứu ngoài", Description = "Tra cứu giá trị từ bảng khác",
+                Example = "{\"lookup\":{\"entity\":\"IndustryTaxRates\",\"field\":\"TaxRate\",\"filter\":{\"TaxType\":\"VAT\"}}}",
+                Fields = new()
+                {
+                    new() { FieldName = "lookup.entity", FieldType = "enum", Required = true, Description = "Bảng tra cứu", AllowedValues = new() {"IndustryTaxRates","AccountingPeriods"} },
+                    new() { FieldName = "lookup.field", FieldType = "string", Required = true, Description = "Cột cần lấy giá trị" },
+                    new() { FieldName = "lookup.filter", FieldType = "object", Required = false, Description = "Điều kiện lọc (ví dụ: TaxType=VAT)" }
+                }
+            },
+            new()
+            {
+                NodeType = "op", Label = "Phép toán", Description = "Phép tính 2 vế: ADD/SUBTRACT/MULTIPLY/DIVIDE",
+                Example = "{\"op\":\"MULTIPLY\",\"left\":{\"ref\":\"S2A_SUBTOTAL\"},\"right\":{\"literal\":0.05}}",
+                Fields = new()
+                {
+                    new() { FieldName = "op", FieldType = "enum", Required = true, Description = "Loại phép toán", AllowedValues = new() {"ADD","SUBTRACT","MULTIPLY","DIVIDE"} },
+                    new() { FieldName = "left", FieldType = "node", Required = true, Description = "Vế trái (node con)" },
+                    new() { FieldName = "right", FieldType = "node", Required = true, Description = "Vế phải (node con)" }
+                }
+            },
+            new()
+            {
+                NodeType = "fn", Label = "Hàm", Description = "Hàm toán học: MAX/MIN/ABS",
+                Example = "{\"fn\":\"MAX\",\"args\":[{\"literal\":0},{\"ref\":\"S2A_PROFIT\"}]}",
+                Fields = new()
+                {
+                    new() { FieldName = "fn", FieldType = "enum", Required = true, Description = "Tên hàm", AllowedValues = new() {"MAX","MIN","ABS"} },
+                    new() { FieldName = "args", FieldType = "node[]", Required = true, Description = "Danh sách tham số (mảng node con)" }
+                }
+            },
+            new()
+            {
+                NodeType = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy",
+                Example = "{\"context\":\"period_start\"}",
+                Fields = new()
+                {
+                    new() { FieldName = "context", FieldType = "enum", Required = true, Description = "Tên giá trị runtime",
+                        AllowedValues = new() {"period_start","period_end","business_type"} }
+                }
+            }
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // MappableEntities CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<List<AdminMappableEntityDto>> GetMappableEntitiesAsync(bool? active)
+    {
+        var entities = await _uow.AccountingTemplates.GetAllMappableEntitiesAsync(active);
+        return entities.Select(MapMappableEntity).ToList();
+    }
+
+    public async Task<AdminMappableEntityDetailDto> GetMappableEntityDetailAsync(int entityId)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        return new AdminMappableEntityDetailDto
+        {
+            EntityId = entity.EntityId,
+            EntityCode = entity.EntityCode,
+            DisplayName = entity.DisplayName,
+            Description = entity.Description,
+            Category = entity.Category,
+            IsActive = entity.IsActive,
+            FieldCount = entity.Fields.Count,
+            Fields = entity.Fields.Select(MapMappableField).ToList()
+        };
+    }
+
+    public async Task<AdminMappableEntityDto> CreateMappableEntityAsync(CreateMappableEntityRequest request, Guid actorUserId)
+    {
+        var existing = await _uow.AccountingTemplates.GetMappableEntityByCodeAsync(request.EntityCode.Trim());
+        if (existing != null)
+            throw new BadRequestException(MessageKeys.BadRequest, $"EntityCode '{request.EntityCode}' already exists");
+
+        var entity = new MappableEntity
+        {
+            EntityCode = request.EntityCode.Trim(),
+            DisplayName = request.DisplayName.Trim(),
+            Description = request.Description,
+            Category = request.Category.Trim(),
+            IsActive = true,
+            CreatedByUserId = actorUserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddMappableEntityAsync(entity);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableEntity(entity);
+    }
+
+    public async Task<AdminMappableEntityDto> UpdateMappableEntityAsync(int entityId, UpdateMappableEntityRequest request)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.DisplayName != null)
+            entity.DisplayName = request.DisplayName.Trim();
+        if (request.Description != null)
+            entity.Description = request.Description;
+        if (request.IsActive.HasValue)
+            entity.IsActive = request.IsActive.Value;
+
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        _uow.AccountingTemplates.UpdateMappableEntity(entity);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableEntity(entity);
+    }
+
+    // ══════════════════════════════════════════════
+    // MappableFields CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminMappableFieldDto> CreateMappableFieldAsync(int entityId, CreateMappableFieldRequest request)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (entity.Fields.Any(f => f.FieldCode == request.FieldCode.Trim()))
+            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists on this entity");
+
+        var field = new MappableField
+        {
+            EntityId = entityId,
+            FieldCode = request.FieldCode.Trim(),
+            DisplayName = request.DisplayName.Trim(),
+            Description = request.Description,
+            DataType = request.DataType.Trim(),
+            AllowedAggregations = request.AllowedAggregations,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddMappableFieldAsync(field);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableField(field);
+    }
+
+    public async Task<AdminMappableFieldDto> UpdateMappableFieldAsync(int fieldId, UpdateMappableFieldRequest request)
+    {
+        var field = await _uow.AccountingTemplates.GetMappableFieldByIdAsync(fieldId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.DisplayName != null) field.DisplayName = request.DisplayName.Trim();
+        if (request.Description != null) field.Description = request.Description;
+        if (request.DataType != null) field.DataType = request.DataType.Trim();
+        if (request.AllowedAggregations != null) field.AllowedAggregations = request.AllowedAggregations;
+        if (request.IsActive.HasValue) field.IsActive = request.IsActive.Value;
+
+        field.UpdatedAt = DateTime.UtcNow;
+
+        _uow.AccountingTemplates.UpdateMappableField(field);
+        await _uow.SaveChangesAsync();
+
+        return MapMappableField(field);
+    }
+
+    // ══════════════════════════════════════════════
+    // RowDefinitions CRUD
+    // ══════════════════════════════════════════════
+
+    public async Task<List<AdminRowDefinitionDto>> GetRowDefinitionsAsync(int templateVersionId)
+    {
+        var rows = await _uow.AccountingTemplates.GetRowDefinitionsAsync(templateVersionId);
+        return rows.Select(MapRowDefinition).ToList();
+    }
+
+    public async Task<AdminRowDefinitionDto> CreateRowDefinitionAsync(int templateVersionId, CreateRowDefinitionRequest request)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add rows to active version with books");
+
+        if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
+            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+
+        if (!RowDefinitionConstants.Position.All.Contains(request.Position))
+            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+
+        var rowDef = new TemplateRowDefinition
+        {
+            TemplateVersionId = templateVersionId,
+            RowType = request.RowType,
+            RowLabel = request.RowLabel,
+            Position = request.Position,
+            SortOrder = request.SortOrder,
+            GroupByField = request.GroupByField,
+            SectionType = request.SectionType,
+            SectionFilterValue = request.SectionFilterValue,
+            VisibleFieldCodes = request.VisibleFieldCodes,
+            FormulaId = request.FormulaId,
+            TaxType = request.TaxType,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddRowDefinitionAsync(rowDef);
+        await _uow.SaveChangesAsync();
+
+        return MapRowDefinition(rowDef);
+    }
+
+    public async Task<AdminRowDefinitionDto> UpdateRowDefinitionAsync(int rowDefId, UpdateRowDefinitionRequest request)
+    {
+        var rowDef = await _uow.AccountingTemplates.GetRowDefinitionByIdAsync(rowDefId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.RowType != null)
+        {
+            if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
+                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+            rowDef.RowType = request.RowType;
+        }
+        if (request.RowLabel != null) rowDef.RowLabel = request.RowLabel;
+        if (request.Position != null)
+        {
+            if (!RowDefinitionConstants.Position.All.Contains(request.Position))
+                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+            rowDef.Position = request.Position;
+        }
+        if (request.SortOrder.HasValue) rowDef.SortOrder = request.SortOrder.Value;
+        if (request.GroupByField != null) rowDef.GroupByField = request.GroupByField;
+        if (request.SectionType != null) rowDef.SectionType = request.SectionType;
+        if (request.SectionFilterValue != null) rowDef.SectionFilterValue = request.SectionFilterValue;
+        if (request.VisibleFieldCodes != null) rowDef.VisibleFieldCodes = request.VisibleFieldCodes;
+        if (request.FormulaId.HasValue) rowDef.FormulaId = request.FormulaId;
+        if (request.TaxType != null) rowDef.TaxType = request.TaxType;
+
+        _uow.AccountingTemplates.UpdateRowDefinition(rowDef);
+        await _uow.SaveChangesAsync();
+
+        return MapRowDefinition(rowDef);
+    }
+
+    public async Task DeleteRowDefinitionAsync(int rowDefId)
+    {
+        var rowDef = await _uow.AccountingTemplates.GetRowDefinitionByIdAsync(rowDefId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var version = rowDef.TemplateVersion;
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete rows from active version with books");
+
+        _uow.AccountingTemplates.RemoveRowDefinition(rowDef);
+        await _uow.SaveChangesAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    // FieldMappings create/delete
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminTemplateFieldMappingDto> CreateFieldMappingAsync(int templateVersionId, CreateFieldMappingRequest request)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add mappings to active version with books");
+
+        if (version.FieldMappings.Any(m => m.FieldCode == request.FieldCode.Trim()))
+            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists");
+
+        var mapping = new TemplateFieldMapping
+        {
+            TemplateVersionId = templateVersionId,
+            FieldCode = request.FieldCode.Trim(),
+            FieldLabel = request.FieldLabel.Trim(),
+            FieldType = request.FieldType,
+            SourceType = request.SourceType,
+            SourceEntityId = request.SourceEntityId,
+            SourceFieldId = request.SourceFieldId,
+            FilterJson = request.FilterJson,
+            AggregationType = request.AggregationType,
+            FormulaId = request.FormulaId,
+            FormulaExpression = request.FormulaExpression,
+            SortOrder = request.SortOrder,
+            IsRequired = request.IsRequired
+        };
+
+        await _uow.AccountingTemplates.AddMappingAsync(mapping);
+        await _uow.SaveChangesAsync();
+
+        return new AdminTemplateFieldMappingDto
+        {
+            MappingId = mapping.MappingId,
+            FieldCode = mapping.FieldCode,
+            FieldLabel = mapping.FieldLabel,
+            FieldType = mapping.FieldType,
+            SourceType = mapping.SourceType,
+            SourceEntityId = mapping.SourceEntityId,
+            SourceFieldId = mapping.SourceFieldId,
+            FilterJson = mapping.FilterJson,
+            AggregationType = mapping.AggregationType,
+            FormulaId = mapping.FormulaId,
+            FormulaExpression = mapping.FormulaExpression,
+            SortOrder = mapping.SortOrder
+        };
+    }
+
+    public async Task DeleteFieldMappingAsync(int mappingId)
+    {
+        var mapping = await _uow.AccountingTemplates.GetMappingByIdAsync(mappingId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var version = mapping.TemplateVersion;
+        if (version.IsActive && version.AccountingBooks.Any())
+            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete mapping from active version with books");
+
+        _uow.AccountingTemplates.RemoveMapping(mapping);
+        await _uow.SaveChangesAsync();
+    }
+
+    // ══════════════════════════════════════════════
+    // Full structure
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminFullStructureDto> GetFullStructureAsync(int templateVersionId)
+    {
+        var version = await _uow.AccountingTemplates.GetVersionWithMappingsAndBooksAsync(templateVersionId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var rows = await _uow.AccountingTemplates.GetRowDefinitionsAsync(templateVersionId);
+
+        return new AdminFullStructureDto
+        {
+            TemplateVersionId = version.TemplateVersionId,
+            TemplateCode = version.Template?.TemplateCode ?? string.Empty,
+            TemplateName = version.Template?.Name ?? string.Empty,
+            VersionLabel = version.VersionLabel,
+            IsActive = version.IsActive,
+            FieldMappings = version.FieldMappings
+                .OrderBy(m => m.SortOrder)
+                .Select(m => new AdminTemplateFieldMappingDto
+                {
+                    MappingId = m.MappingId,
+                    FieldCode = m.FieldCode,
+                    FieldLabel = m.FieldLabel,
+                    FieldType = m.FieldType,
+                    SourceType = m.SourceType,
+                    SourceEntityId = m.SourceEntityId,
+                    SourceFieldId = m.SourceFieldId,
+                    FilterJson = m.FilterJson,
+                    AggregationType = m.AggregationType,
+                    FormulaId = m.FormulaId,
+                    FormulaExpression = m.FormulaExpression,
+                    SortOrder = m.SortOrder
+                }).ToList(),
+            RowDefinitions = rows.Select(MapRowDefinition).ToList(),
+            RenderPreview = BuildRenderPreview(rows)
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Private mappers
+    // ══════════════════════════════════════════════
+
+    private static AdminMappableEntityDto MapMappableEntity(MappableEntity entity)
+    {
+        return new AdminMappableEntityDto
+        {
+            EntityId = entity.EntityId,
+            EntityCode = entity.EntityCode,
+            DisplayName = entity.DisplayName,
+            Description = entity.Description,
+            Category = entity.Category,
+            IsActive = entity.IsActive,
+            FieldCount = entity.Fields.Count
+        };
+    }
+
+    private static AdminMappableFieldDto MapMappableField(MappableField field)
+    {
+        return new AdminMappableFieldDto
+        {
+            FieldId = field.FieldId,
+            EntityId = field.EntityId,
+            FieldCode = field.FieldCode,
+            DisplayName = field.DisplayName,
+            Description = field.Description,
+            DataType = field.DataType,
+            AllowedAggregations = field.AllowedAggregations,
+            IsActive = field.IsActive
+        };
+    }
+
+    private static AdminRowDefinitionDto MapRowDefinition(TemplateRowDefinition r)
+    {
+        return new AdminRowDefinitionDto
+        {
+            RowDefId = r.RowDefId,
+            TemplateVersionId = r.TemplateVersionId,
+            RowType = r.RowType,
+            RowLabel = r.RowLabel,
+            Position = r.Position,
+            SortOrder = r.SortOrder,
+            GroupByField = r.GroupByField,
+            SectionType = r.SectionType,
+            SectionFilterValue = r.SectionFilterValue,
+            VisibleFieldCodes = r.VisibleFieldCodes,
+            FormulaId = r.FormulaId,
+            FormulaCode = r.Formula?.Code,
+            TaxType = r.TaxType
+        };
+    }
+
+    private static string BuildRenderPreview(List<TemplateRowDefinition> rows)
+    {
+        if (rows.Count == 0) return "(empty)";
+
+        var parts = new List<string>();
+        foreach (var r in rows.OrderBy(x => x.SortOrder))
+        {
+            var label = r.RowLabel ?? r.RowType;
+            parts.Add(r.RowType switch
+            {
+                "section_header" => $"\n[{label}]",
+                "data_placeholder" => "  → data rows...",
+                "balance_row" => $"  {label} (formula)",
+                "subtotal" => $"  Σ {label}",
+                "tax_line" => $"  税 {label} ({r.TaxType})",
+                "grand_total" => $"═══ {label}",
+                _ => $"  {label}"
+            });
+        }
+        return string.Join("\n", parts).Trim();
+    }
+
     private static AdminTemplateVersionDto MapTemplateVersion(AccountingTemplateVersion version)
     {
         return new AdminTemplateVersionDto
@@ -556,7 +1280,8 @@ public class AdminAccountingService : IAdminAccountingService
             IsActive = formula.IsActive,
             FormulaType = formula.FormulaType,
             ExpressionJson = formula.ExpressionJson,
-            Description = formula.Description
+            Description = formula.Description,
+            Explanation = FormulaExplainer.Explain(formula.ExpressionJson)
         };
     }
 }
