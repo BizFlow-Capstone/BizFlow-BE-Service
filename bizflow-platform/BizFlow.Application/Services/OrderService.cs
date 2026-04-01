@@ -174,7 +174,10 @@ namespace BizFlow.Application.Services
                 ?? throw new NotFoundException(MessageKeys.NotFound);
 
             var locationId = ResolveOrderLocationId(order, null);
-            await _locationService.ValidateOwnerAsync(userId, locationId);
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+            var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
+            if (!isOwner && order.CreatedBy != userId)
+                throw new ForbiddenException(MessageKeys.Forbidden);
 
             if (!order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);

@@ -35,7 +35,8 @@ namespace BizFlow.Infrastructure.Jobs
             var activeSubscriptions = await _unitOfWork.Subscriptions.GetAllActiveForSyncAsync();
 
             var t3Window = activeSubscriptions
-                .Where(s => s.EndDate >= now.AddDays(2.5)
+                .Where(s => s.SubscriptionPlan.DurationDays > 0
+                         && s.EndDate >= now.AddDays(2.5)
                          && s.EndDate < now.AddDays(3.5)
                          && (s.LastReminderSentAt == null || s.LastReminderSentAt < now.AddDays(-1)))
                 .ToList();
@@ -55,7 +56,8 @@ namespace BizFlow.Infrastructure.Jobs
             }
 
             var t1Window = activeSubscriptions
-                .Where(s => s.EndDate >= now.AddHours(12)
+                .Where(s => s.SubscriptionPlan.DurationDays > 0
+                         && s.EndDate >= now.AddHours(12)
                          && s.EndDate < now.AddDays(1.5)
                          && (s.LastReminderSentAt == null || s.LastReminderSentAt < now.AddHours(-12)))
                 .ToList();

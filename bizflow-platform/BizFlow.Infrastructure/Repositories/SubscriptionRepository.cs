@@ -51,9 +51,13 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return _context.Subscriptions
                 .Include(s => s.SubscriptionPlan)
+                    .ThenInclude(p => p.Prices)
                 .Include(s => s.FeatureUsages)
                     .ThenInclude(u => u.Feature)
-                .Where(s => s.Status == SubscriptionStatus.Active && s.EndDate < cutoffUtc)
+                .Where(s => s.Status == SubscriptionStatus.Active
+                    && s.EndDate < cutoffUtc
+                    && (s.SubscriptionPlan.DurationDays > 0
+                        || s.SubscriptionPlan.Prices.Any(p => p.IsActive && p.BasePrice == 0)))
                 .ToListAsync();
         }
 

@@ -4,64 +4,64 @@ using System.Collections.Generic;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Đơn hàng bán lẻ tại cửa hàng
+/// Retail sales order at a store
 /// </summary>
 public partial class Order
 {
     public long OrderId { get; set; }
 
     /// <summary>
-    /// Mã đơn hàng duy nhất, format: ORD-YYYYMMDD-NNN
+    /// Unique order code, format: ORD-YYYYMMDD-NNN
     /// </summary>
     public string OrderCode { get; set; } = null!;
 
     /// <summary>
-    /// FK tự tham chiếu: đơn gốc bị thay thế khi sửa đơn đã hoàn thành
+    /// Self-reference FK: original order replaced after editing a completed order
     /// </summary>
     public long? RefOrderId { get; set; }
 
     /// <summary>
-    /// FK to Debtors: khách nợ (nếu có)
+    /// FK to Debtors: debtor customer (if any)
     /// </summary>
     public long? DebtorId { get; set; }
 
     /// <summary>
-    /// Tên khách hàng vãng lai (không cần trong hệ thống)
+    /// Walk-in customer name (not required in debtor system)
     /// </summary>
     public string? CustomerName { get; set; }
 
     /// <summary>
-    /// SĐT khách hàng vãng lai
+    /// Walk-in customer phone
     /// </summary>
     public string? CustomerPhone { get; set; }
 
     /// <summary>
-    /// Tổng tiền hàng trước chiết khấu
+    /// Subtotal before discount
     /// </summary>
     public decimal SubTotal { get; set; }
 
     /// <summary>
-    /// Chiết khấu tổng đơn hàng
+    /// Order-level discount
     /// </summary>
     public decimal Discount { get; set; }
 
     /// <summary>
-    /// Tổng tiền phải thanh toán = SubTotal - Discount
+    /// Payable total = SubTotal - Discount
     /// </summary>
     public decimal TotalAmount { get; set; }
 
     /// <summary>
-    /// Số tiền thanh toán bằng tiền mặt
+    /// Cash paid amount
     /// </summary>
     public decimal CashAmount { get; set; }
 
     /// <summary>
-    /// Số tiền thanh toán qua ngân hàng/chuyển khoản
+    /// Bank transfer paid amount
     /// </summary>
     public decimal BankAmount { get; set; }
 
     /// <summary>
-    /// Số tiền ghi nợ = TotalAmount - CashAmount - BankAmount
+    /// Debt amount = TotalAmount - CashAmount - BankAmount
     /// </summary>
     public decimal DebtAmount { get; set; }
 
@@ -71,22 +71,22 @@ public partial class Order
     public string Status { get; set; } = null!;
 
     /// <summary>
-    /// Thông tin hóa đơn bổ sung (JSON tự do)
+    /// Additional invoice metadata (free-form JSON)
     /// </summary>
     public string? BillMetadata { get; set; }
 
     /// <summary>
-    /// Ghi chú của đơn hàng
+    /// Order note
     /// </summary>
     public string? Note { get; set; }
 
     /// <summary>
-    /// UserId người tạo đơn
+    /// UserId who created the order
     /// </summary>
     public Guid CreatedBy { get; set; }
 
     /// <summary>
-    /// UserId người cập nhật gần nhất
+    /// UserId of latest updater
     /// </summary>
     public Guid? UpdatedBy { get; set; }
 
@@ -95,27 +95,27 @@ public partial class Order
     public DateTime UpdatedAt { get; set; }
 
     /// <summary>
-    /// Thời điểm đơn hàng hoàn thành
+    /// Completion timestamp
     /// </summary>
     public DateTime? CompletedAt { get; set; }
 
     /// <summary>
-    /// UserId người hoàn thành đơn
+    /// UserId who completed the order
     /// </summary>
     public Guid? CompletedBy { get; set; }
 
     /// <summary>
-    /// Thời điểm đơn hàng bị huỷ
+    /// Cancellation timestamp
     /// </summary>
     public DateTime? CancelledAt { get; set; }
 
     /// <summary>
-    /// UserId người huỷ đơn
+    /// UserId who canceled the order
     /// </summary>
     public Guid? CancelledBy { get; set; }
 
     /// <summary>
-    /// Lý do huỷ chi tiết (free text)
+    /// Detailed cancellation reason (free text)
     /// </summary>
     public string? CancelReason { get; set; }
 

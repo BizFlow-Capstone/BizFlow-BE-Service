@@ -13,6 +13,7 @@ namespace BizFlow.Api.Common.Filters
         private readonly string _featureCode;
         private readonly bool _incrementUsage;
         private readonly string? _locationKey;
+        private readonly bool _useOwnerScope;
         private readonly ISubscriptionService _subscriptionService;
         private readonly IMessageService _messageService;
 
@@ -20,17 +21,23 @@ namespace BizFlow.Api.Common.Filters
             string featureCode,
             bool incrementUsage,
             string? locationKey,
+            bool useOwnerScope,
             ISubscriptionService subscriptionService,
-            IMessageService messageService)
+            IMessageService messageService
+        )
         {
             _featureCode = featureCode;
             _incrementUsage = incrementUsage;
             _locationKey = locationKey;
+            _useOwnerScope = useOwnerScope;
             _subscriptionService = subscriptionService;
             _messageService = messageService;
         }
 
-        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        public async Task OnActionExecutionAsync(
+            ActionExecutingContext context,
+            ActionExecutionDelegate next
+        )
         {
             Guid profileId;
             try
@@ -39,18 +46,66 @@ namespace BizFlow.Api.Common.Filters
             }
             catch
             {
-                context.Result = new UnauthorizedObjectResult(ApiResponse.ErrorResponse(
-                    MessageKeys.Unauthorized,
-                    _messageService.GetMessage(MessageKeys.Unauthorized)));
+                context.Result = new UnauthorizedObjectResult(
+                    ApiResponse.ErrorResponse(
+                        MessageKeys.Unauthorized,
+                        _messageService.GetMessage(MessageKeys.Unauthorized)
+                    )
+                );
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(_featureCode))
             {
-                context.Result = new BadRequestObjectResult(ApiResponse.ErrorResponse(
-                    MessageKeys.ValidationError,
-                    _messageService.GetMessage(MessageKeys.ValidationError),
-                    new { field = "featureCode", message = "featureCode is required" }));
+                context.Result = new BadRequestObjectResult(
+                    ApiResponse.ErrorResponse(
+                        MessageKeys.ValidationError,
+                        _messageService.GetMessage(MessageKeys.ValidationError),
+                        new { field = "featureCode", message = "featureCode is required" }
+                    )
+                );
+                return;
+            }
+
+            if (_useOwnerScope)
+            {
+                var evalOwner = await _subscriptionService.EvaluateFeatureAccessByOwnerAsync(
+                    profileId,
+                    _featureCode
+                );
+                if (!evalOwner.Allowed)
+                {
+                    var msgKey = ResolveDeniedMessageKey(evalOwner.DenialReason);
+                    context.Result = new ObjectResult(
+                        ApiResponse.ErrorResponse(msgKey, GetDeniedMessage(evalOwner))
+                    )
+                    {
+                        StatusCode = StatusCodes.Status403Forbidden,
+                    };
+                    return;
+                }
+
+                var executedOwner = await next();
+
+                if (!_incrementUsage)
+                {
+                    return;
+                }
+
+                var statusOwner =
+                    executedOwner.HttpContext.Response?.StatusCode ?? StatusCodes.Status200OK;
+                if (
+                    executedOwner.Exception == null
+                    && statusOwner < StatusCodes.Status400BadRequest
+                )
+                {
+                    await _subscriptionService.CheckFeatureAccessByOwnerAsync(
+                        profileId,
+                        _featureCode,
+                        incrementUsage: true
+                    );
+                }
+
                 return;
             }
 
@@ -58,32 +113,34 @@ namespace BizFlow.Api.Common.Filters
 
             if (!locationId.HasValue || locationId.Value <= 0)
             {
-                context.Result = new BadRequestObjectResult(ApiResponse.ErrorResponse(
-                    MessageKeys.ValidationError,
-                    _messageService.GetMessage(MessageKeys.ValidationError),
-                    new { field = "locationId", message = _messageService.GetMessage(MessageKeys.LocationIdRequired) }));
+                context.Result = new BadRequestObjectResult(
+                    ApiResponse.ErrorResponse(
+                        MessageKeys.ValidationError,
+                        _messageService.GetMessage(MessageKeys.ValidationError),
+                        new
+                        {
+                            field = "locationId",
+                            message = _messageService.GetMessage(MessageKeys.LocationIdRequired),
+                        }
+                    )
+                );
                 return;
             }
 
-            var hasAccess = await _subscriptionService.CheckFeatureAccessAsync(
+            var evalLoc = await _subscriptionService.EvaluateFeatureAccessAsync(
                 profileId,
                 locationId.Value,
-                _featureCode,
-                incrementUsage: false);
+                _featureCode
+            );
 
-            if (!hasAccess)
+            if (!evalLoc.Allowed)
             {
-                context.Result = new ObjectResult(ApiResponse.ErrorResponse(
-                    MessageKeys.Forbidden,
-                    _messageService.GetMessage(MessageKeys.Forbidden),
-                    new
-                    {
-                        featureCode = _featureCode,
-                        locationId = locationId.Value,
-                        reason = "Feature not available for this subscription or usage limit reached."
-                    }))
+                var msgKeyLoc = ResolveDeniedMessageKey(evalLoc.DenialReason);
+                context.Result = new ObjectResult(
+                    ApiResponse.ErrorResponse(msgKeyLoc, GetDeniedMessage(evalLoc))
+                )
                 {
-                    StatusCode = StatusCodes.Status403Forbidden
+                    StatusCode = StatusCodes.Status403Forbidden,
                 };
                 return;
             }
@@ -95,7 +152,8 @@ namespace BizFlow.Api.Common.Filters
                 return;
             }
 
-            var statusCode = executedContext.HttpContext.Response?.StatusCode ?? StatusCodes.Status200OK;
+            var statusCode =
+                executedContext.HttpContext.Response?.StatusCode ?? StatusCodes.Status200OK;
             if (executedContext.Exception == null && statusCode < StatusCodes.Status400BadRequest)
             {
                 // Increment usage only after successful action execution.
@@ -103,7 +161,8 @@ namespace BizFlow.Api.Common.Filters
                     profileId,
                     locationId.Value,
                     _featureCode,
-                    incrementUsage: true);
+                    incrementUsage: true
+                );
             }
         }
 
@@ -132,7 +191,8 @@ namespace BizFlow.Api.Common.Filters
 
                 var properties = value.GetType().GetProperties();
                 var matchingProperty = properties.FirstOrDefault(p =>
-                    candidateKeys.Contains(p.Name, StringComparer.OrdinalIgnoreCase));
+                    candidateKeys.Contains(p.Name, StringComparer.OrdinalIgnoreCase)
+                );
                 if (matchingProperty?.GetValue(value) is object propertyValue)
                 {
                     var parsed = TryParseInt(propertyValue);
@@ -154,7 +214,10 @@ namespace BizFlow.Api.Common.Filters
 
             foreach (var key in candidateKeys)
             {
-                if (context.RouteData.Values.TryGetValue(key, out var routeValue) && routeValue != null)
+                if (
+                    context.RouteData.Values.TryGetValue(key, out var routeValue)
+                    && routeValue != null
+                )
                 {
                     var parsed = TryParseInt(routeValue);
                     if (parsed.HasValue && parsed.Value > 0)
@@ -167,13 +230,38 @@ namespace BizFlow.Api.Common.Filters
             return null;
         }
 
+        private static string ResolveDeniedMessageKey(FeatureAccessDenialReason reason)
+        {
+            return reason == FeatureAccessDenialReason.UsageLimitReached
+                ? MessageKeys.SubscriptionFeatureUsageLimitReached
+                : MessageKeys.SubscriptionFeatureAccessDenied;
+        }
+
+        private string GetDeniedMessage(FeatureAccessEvaluationResult eval)
+        {
+            if (
+                eval.DenialReason == FeatureAccessDenialReason.UsageLimitReached
+                && eval.Used.HasValue
+                && eval.Limit.HasValue
+            )
+            {
+                return _messageService.GetMessage(
+                    MessageKeys.SubscriptionFeatureUsageLimitReached,
+                    eval.Used.Value,
+                    eval.Limit.Value
+                );
+            }
+
+            return _messageService.GetMessage(ResolveDeniedMessageKey(eval.DenialReason));
+        }
+
         private static int? TryParseInt(object value)
         {
             return value switch
             {
                 int intValue => intValue,
                 string s when int.TryParse(s, out var parsed) => parsed,
-                _ => null
+                _ => null,
             };
         }
 
@@ -184,7 +272,7 @@ namespace BizFlow.Api.Common.Filters
                 "locationId",
                 "businessLocationId",
                 "LocationId",
-                "BusinessLocationId"
+                "BusinessLocationId",
             };
 
             if (!string.IsNullOrWhiteSpace(locationKey))

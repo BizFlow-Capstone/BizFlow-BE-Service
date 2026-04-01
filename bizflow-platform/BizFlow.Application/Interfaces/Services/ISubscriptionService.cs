@@ -1,10 +1,16 @@
-using BizFlow.Application.DTOs.Subscription;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.DTOs.Subscription;
 
 namespace BizFlow.Application.Interfaces.Services
 {
     public interface ISubscriptionService
     {
+        Task EnsureFreePlanSetupAsync();
+        Task EnsureFreeSubscriptionAsync(Guid ownerProfileId);
+        /// <summary>Checks whether the signed-in user currently has an active subscription.</summary>
+        Task<bool> HasActiveSubscriptionAsync(Guid ownerProfileId);
+        /// <summary>Renews free-plan cycle: resets usage and extends EndDate to next cycle.</summary>
+        Task RenewFreeSubscriptionCycleAsync(Guid subscriptionId);
         Task<CurrentSubscriptionDto> GetCurrentSubscriptionAsync(Guid profileId);
         Task<CurrentSubscriptionDto> GetCurrentSubscriptionByLocationAsync(Guid profileId, int locationId);
         Task<CheckoutSessionResponseDto> CreateCheckoutSessionAsync(Guid profileId, int subscriptionPlanId, string platform = "web", int quantity = 1);
@@ -17,6 +23,11 @@ namespace BizFlow.Application.Interfaces.Services
         Task HandleChargeRefundedAsync(string paymentIntentId);
 
         Task<bool> CheckFeatureAccessAsync(Guid profileId, int locationId, string featureCode, bool incrementUsage = false);
+        Task<bool> CheckFeatureAccessByOwnerAsync(Guid ownerProfileId, string featureCode, bool incrementUsage = false);
+
+        Task<FeatureAccessEvaluationResult> EvaluateFeatureAccessAsync(Guid profileId, int locationId, string featureCode);
+
+        Task<FeatureAccessEvaluationResult> EvaluateFeatureAccessByOwnerAsync(Guid ownerProfileId, string featureCode);
         Task IncrementUsageSqlBackgroundAsync(Guid subscriptionId, string featureCode);
         Task<string> GetPaymentRedirectUrlAsync(string? sessionId, bool isSuccess);
     }

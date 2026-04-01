@@ -12,12 +12,12 @@ public partial class AccountingTemplate
     public string? Description { get; set; }
 
     /// <summary>
-    /// JSON: [1] hoặc [2,3,4]
+    /// JSON: [1] or [2,3,4]
     /// </summary>
     public string ApplicableGroups { get; set; } = null!;
 
     /// <summary>
-    /// JSON: ["method_1"] hoặc NULL=tất cả
+    /// JSON: ["method_1"] or NULL=all
     /// </summary>
     public string? ApplicableMethods { get; set; }
 

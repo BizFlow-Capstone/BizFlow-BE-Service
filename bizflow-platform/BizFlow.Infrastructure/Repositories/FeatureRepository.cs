@@ -21,6 +21,18 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public Task<Feature?> GetByCodeAsync(string featureCode)
+        {
+            var code = featureCode.Trim();
+            return _context.Features
+                .FirstOrDefaultAsync(f => f.FeatureCode.ToUpper() == code.ToUpper());
+        }
+
+        public async Task AddAsync(Feature feature)
+        {
+            await _context.Features.AddAsync(feature);
+        }
+
         public async Task<HashSet<int>> GetExistingIdsAsync(IEnumerable<int> featureIds)
         {
             var distinct = featureIds.Distinct().ToList();

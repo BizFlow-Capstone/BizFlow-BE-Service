@@ -15,6 +15,20 @@ namespace BizFlow.Application.Interfaces.Services
             string platform = "web",
             int quantity = 1);
 
+        /// <summary>
+        /// One-time checkout with a fixed total amount (VND, zero-decimal),
+        /// used when upgrade credit makes the amount different from Stripe catalog pricing.
+        /// </summary>
+        Task<Session> CreateCheckoutSessionForTotalAmountAsync(
+            string? stripeCustomerId,
+            long totalAmountVnd,
+            string productName,
+            Guid transactionId,
+            Guid profileId,
+            string idempotencyKey,
+            string platform = "web",
+            int quantity = 1);
+
         Task<Refund?> RefundPaymentIntentAsync(
             string paymentIntentId,
             string idempotencyKey,
@@ -30,7 +44,7 @@ namespace BizFlow.Application.Interfaces.Services
         // Product & Price catalog sync
         bool IsConfigured { get; }
         Task<Product> CreateProductAsync(string name, string? description, Dictionary<string, string>? metadata = null);
-        /// <param name="active">Nếu có — đồng bộ active/archived của Product trên Stripe (catalog).</param>
+        /// <param name="active">If set, sync Product active/archived status on Stripe catalog.</param>
         Task<Product> UpdateProductAsync(string productId, string name, string? description, bool? active = null);
         Task ArchiveProductAsync(string productId);
         Task<Price> CreatePriceAsync(string productId, long unitAmount, string currency = "vnd");

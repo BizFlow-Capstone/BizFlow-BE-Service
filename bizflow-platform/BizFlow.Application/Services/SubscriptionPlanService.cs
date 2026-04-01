@@ -163,7 +163,8 @@ namespace BizFlow.Application.Services
                 if (IsPriceChanged(currentPrice, request.Price))
                 {
                     await _unitOfWork.PlanPrices.DeactivateByPlanIdAsync(planId);
-                    // ExecuteUpdateAsync không cập nhật entity đang track — phải gán lại để SaveChanges không ghi đè DB
+                    // ExecuteUpdateAsync does not update tracked entities;
+                    // sync local state to avoid SaveChanges overwriting DB values.
                     foreach (var p in plan.Prices.Where(x => x.IsActive).ToList())
                     {
                         p.IsActive = false;
@@ -382,9 +383,10 @@ namespace BizFlow.Application.Services
         // ===================== Helpers =====================
 
         /// <summary>
-        /// Khi admin đổi <see cref="PlanFeature.UsageLimit"/> (hoặc danh sách feature), bản ghi
-        /// <see cref="FeatureUsage.AllocatedLimit"/> của subscriber vẫn là snapshot lúc mua — cần cập nhật để
-        /// GET /subscriptions/current và Firestore khớp template gói mới (giữ bội số quantity khi hạn mức cũ là số dương).
+        /// When admin updates <see cref="PlanFeature.UsageLimit"/> (or feature list),
+        /// subscriber <see cref="FeatureUsage.AllocatedLimit"/> values remain purchase-time snapshots.
+        /// This recalculates allocations so /subscriptions/current and Firestore match the new template
+        /// while preserving stacked quantity behavior when old limits were positive.
         /// </summary>
         private async Task ResyncActiveSubscriptionsFeatureAllocationsAsync(
             int planId,
@@ -447,9 +449,10 @@ namespace BizFlow.Application.Services
         }
 
         /// <summary>
-        /// Số &quot;gói&quot; đã cộng dồn: kỳ đăng ký được tạo với
-        /// <c>EndDate - StartDate ≈ DurationDays × quantity</c> (mỗi lần mua/renew cùng gói).
-        /// Dùng <paramref name="previousDurationDays"/> (trước khi admin sửa) để không lệch khi đổi duration trong cùng request.
+        /// Infers stacked quantity from subscription period:
+        /// <c>EndDate - StartDate ≈ DurationDays × quantity</c> for same-plan purchase/renew stacking.
+        /// Uses <paramref name="previousDurationDays"/> (before admin edits) to keep calculations stable
+        /// when duration is changed in the same update request.
         /// </summary>
         private static int InferStackedQuantityFromSubscriptionPeriod(Subscription sub, int previousDurationDays)
         {
@@ -549,7 +552,8 @@ namespace BizFlow.Application.Services
         }
 
         /// <summary>
-        /// Đồng bộ Stripe Price với giá hiệu dụng trên DB (archive + tạo mới khi đổi số tiền; reactivate khi trùng số tiền).
+        /// Syncs Stripe Price with DB effective price:
+        /// archive/create on amount change, reactivate when amount matches.
         /// </summary>
         private async Task EnsureStripePriceMatchesPlanAsync(SubscriptionPlan plan, SubscriptionPlanPrice activePrice)
         {
@@ -689,10 +693,7 @@ namespace BizFlow.Application.Services
         {
             return plan.PlanFeatures.Select(pf => new PlanFeatureDto
             {
-                FeatureId = pf.FeatureId,
-                FeatureCode = pf.Feature?.FeatureCode ?? string.Empty,
-                FeatureName = pf.Feature?.Name ?? string.Empty,
-                UsageLimit = pf.UsageLimit
+                FeatureDescription = pf.Feature.Description ?? string.Empty
             }).ToList();
         }
     }

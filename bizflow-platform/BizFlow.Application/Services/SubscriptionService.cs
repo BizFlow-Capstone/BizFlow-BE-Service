@@ -1,7 +1,9 @@
+using BizFlow.Application.Common.Configuration;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.Common.Utilities;
 using BizFlow.Application.DTOs.Subscription;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -22,6 +24,8 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationRepository _businessLocationRepository;
         private readonly IMessageService _messageService;
         private readonly StripeSettings _stripeSettings;
+        private readonly FreePlanOptions _freePlanOptions;
+        private readonly SubscriptionUpgradeOptions _upgradeOptions;
         private readonly ILogger<SubscriptionService> _logger;
 
         public SubscriptionService(
@@ -33,6 +37,8 @@ namespace BizFlow.Application.Services
             IBusinessLocationRepository businessLocationRepository,
             IMessageService messageService,
             IOptions<StripeSettings> stripeSettings,
+            IOptions<FreePlanOptions> freePlanOptions,
+            IOptions<SubscriptionUpgradeOptions> upgradeOptions,
             ILogger<SubscriptionService> logger)
         {
             _unitOfWork = unitOfWork;
@@ -43,10 +49,201 @@ namespace BizFlow.Application.Services
             _businessLocationRepository = businessLocationRepository;
             _messageService = messageService;
             _stripeSettings = stripeSettings.Value;
+            _freePlanOptions = freePlanOptions.Value;
+            _upgradeOptions = upgradeOptions.Value;
             _logger = logger;
         }
 
+        public async Task EnsureFreePlanSetupAsync()
+        {
+            var freePlan = await ResolveFreePlanAsync();
+            if (freePlan != null)
+                return;
 
+            var now = DateTime.UtcNow;
+            var configuredFeatures = _freePlanOptions.Features
+                .Where(x => !string.IsNullOrWhiteSpace(x.FeatureCode))
+                .GroupBy(x => x.FeatureCode.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new FreePlanFeatureOption
+                {
+                    FeatureCode = g.Key,
+                    UsageLimit = g.First().UsageLimit
+                })
+                .ToList();
+
+            if (configuredFeatures.Count == 0)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var planFeatures = new List<PlanFeature>();
+            foreach (var featureOption in configuredFeatures)
+            {
+                var feature = await EnsureFeatureExistsAsync(featureOption.FeatureCode);
+                planFeatures.Add(new PlanFeature
+                {
+                    FeatureId = feature.FeatureId,
+                    UsageLimit = featureOption.UsageLimit,
+                    CreatedAt = now
+                });
+            }
+
+            var plan = new SubscriptionPlan
+            {
+                Name = _freePlanOptions.PlanName,
+                Description = _freePlanOptions.PlanDescription,
+                DurationDays = _freePlanOptions.DurationDaysInDatabase,
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now,
+                PlanFeatures = planFeatures,
+                Prices = new List<SubscriptionPlanPrice>
+                {
+                    new()
+                    {
+                        BasePrice = 0,
+                        DiscountedPrice = null,
+                        DiscountStart = null,
+                        DiscountEnd = null,
+                        IsDiscountActive = false,
+                        IsActive = true,
+                        Currency = _freePlanOptions.Currency,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    }
+                }
+            };
+
+            await _unitOfWork.SubscriptionPlans.AddAsync(plan);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task EnsureFreeSubscriptionAsync(Guid ownerProfileId)
+        {
+            if (ownerProfileId == Guid.Empty)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
+            if (active != null)
+            {
+                return;
+            }
+
+            await EnsureFreePlanSetupAsync();
+
+            var freePlan = await ResolveFreePlanAsync()
+                ?? throw new NotFoundException(MessageKeys.SubscriptionPlanNotFound);
+
+            var now = DateTime.UtcNow;
+            var periodEndUtc = FreePlanBillingCalendar.GetNextMonthStartUtc(now, _freePlanOptions.BillingTimeZoneId);
+
+            var subscription = new Subscription
+            {
+                SubscriptionId = Guid.NewGuid(),
+                OwnerProfileId = ownerProfileId,
+                SubscriptionPlanId = freePlan.SubscriptionPlanId,
+                Status = SubscriptionStatus.Active,
+                IsAutoRenew = false,
+                StartDate = now,
+                EndDate = periodEndUtc,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            var usages = freePlan.PlanFeatures.Select(feature => new FeatureUsage
+            {
+                SubscriptionId = subscription.SubscriptionId,
+                FeatureId = feature.FeatureId,
+                UsedCount = 0,
+                AllocatedLimit = feature.UsageLimit,
+                PeriodStart = now,
+                PeriodEnd = periodEndUtc,
+                UpdatedAt = now
+            }).ToList();
+
+            await _unitOfWork.Subscriptions.AddAsync(subscription);
+            await _unitOfWork.FeatureUsages.AddRangeAsync(usages);
+            await _unitOfWork.SubscriptionAuditLogs.AddAsync(new SubscriptionAuditLog
+            {
+                SubscriptionId = subscription.SubscriptionId,
+                Action = SubscriptionAuditAction.Activated,
+                Details = "{\"source\":\"auto_free_on_register\"}",
+                CreatedAt = now
+            });
+            await _unitOfWork.SaveChangesAsync();
+
+            var persisted = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
+            if (persisted != null)
+            {
+                await TrySetUsageTrackingSafeAsync(
+                    ownerProfileId,
+                    persisted,
+                    persisted.SubscriptionPlan.PlanFeatures.ToList());
+            }
+        }
+
+        public async Task<bool> HasActiveSubscriptionAsync(Guid ownerProfileId)
+        {
+            if (ownerProfileId == Guid.Empty)
+                return false;
+
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
+            return active != null;
+        }
+
+        /// <summary>
+        /// Free plan (zero price): starts a new calendar-month cycle, resets
+        /// <see cref="FeatureUsage.UsedCount"/>, and syncs usage to Firestore.
+        /// </summary>
+        public async Task RenewFreeSubscriptionCycleAsync(Guid subscriptionId)
+        {
+            var sub = await _unitOfWork.Subscriptions.GetByIdWithUsagesAsync(subscriptionId);
+            if (sub == null || sub.Status != SubscriptionStatus.Active)
+                return;
+
+            var plan = await _unitOfWork.SubscriptionPlans.GetByIdWithFeaturesAndPriceAsync(sub.SubscriptionPlanId);
+            if (plan == null || !IsFreePlan(plan))
+                return;
+
+            var now = DateTime.UtcNow;
+            var periodStartUtc = FreePlanBillingCalendar.GetCurrentMonthStartUtc(now, _freePlanOptions.BillingTimeZoneId);
+            var periodEndUtc = FreePlanBillingCalendar.GetNextMonthStartUtc(now, _freePlanOptions.BillingTimeZoneId);
+
+            sub.EndDate = periodEndUtc;
+            sub.UpdatedAt = now;
+
+            var limits = plan.PlanFeatures
+                .Where(pf => pf.Feature != null)
+                .ToDictionary(pf => pf.FeatureId, pf => pf.UsageLimit);
+
+            foreach (var u in sub.FeatureUsages)
+            {
+                if (limits.TryGetValue(u.FeatureId, out var lim))
+                    u.AllocatedLimit = lim;
+
+                u.UsedCount = 0;
+                u.PeriodStart = periodStartUtc;
+                u.PeriodEnd = periodEndUtc;
+                u.UpdatedAt = now;
+            }
+
+            await _unitOfWork.SubscriptionAuditLogs.AddAsync(new SubscriptionAuditLog
+            {
+                SubscriptionId = sub.SubscriptionId,
+                Action = SubscriptionAuditAction.Renewed,
+                Details = "{\"source\":\"free_plan_cycle_reset\"}",
+                CreatedAt = now
+            });
+
+            await _unitOfWork.SaveChangesAsync();
+
+            var persisted = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(sub.OwnerProfileId);
+            if (persisted != null)
+            {
+                await TrySetUsageTrackingSafeAsync(
+                    sub.OwnerProfileId,
+                    persisted,
+                    persisted.SubscriptionPlan.PlanFeatures.ToList());
+            }
+        }
 
         public async Task<CurrentSubscriptionDto> GetCurrentSubscriptionAsync(Guid profileId)
         {
@@ -81,16 +278,20 @@ namespace BizFlow.Application.Services
                 };
             }
 
-            var latestPrice = active.SubscriptionPlan.Prices?.FirstOrDefault(p => p.IsActive);
+            var planEntity = active.SubscriptionPlan;
+            var latestPrice = planEntity.Prices?.FirstOrDefault(p => p.IsActive);
             var allocatedByFeatureId = active.FeatureUsages
                 .ToDictionary(u => u.FeatureId, u => u.AllocatedLimit);
+
+            var showEndDate = planEntity.DurationDays > 0
+                || (latestPrice != null && latestPrice.GetEffectivePrice() <= 0m);
 
             return new CurrentSubscriptionDto
             {
                 SubscriptionId = active.SubscriptionId,
                 Status = active.Status,
                 StartDate = active.StartDate,
-                EndDate = active.EndDate,
+                EndDate = showEndDate ? active.EndDate : null,
                 Plan = new SubscriptionPlanDto
                 {
                     SubscriptionPlanId = active.SubscriptionPlan.SubscriptionPlanId,
@@ -100,10 +301,7 @@ namespace BizFlow.Application.Services
                     CurrentPrice = latestPrice != null ? MapPriceToDto(latestPrice) : null,
                     Features = active.SubscriptionPlan.PlanFeatures.Select(pf => new PlanFeatureDto
                     {
-                        FeatureId = pf.FeatureId,
-                        FeatureCode = pf.Feature?.FeatureCode ?? string.Empty,
-                        FeatureName = pf.Feature?.Name ?? string.Empty,
-                        UsageLimit = allocatedByFeatureId.TryGetValue(pf.FeatureId, out var l) ? l : pf.UsageLimit
+                        FeatureDescription = pf.Feature?.Description,
                     }).ToList()
                 }
             };
@@ -116,13 +314,33 @@ namespace BizFlow.Application.Services
             if (quantity <= 0)
                 throw new BadRequestException(MessageKeys.SubscriptionCheckoutQuantityInvalid);
 
+            var plan = await _unitOfWork.SubscriptionPlans.GetByIdWithFeaturesAndPriceAsync(subscriptionPlanId)
+                ?? throw new NotFoundException(MessageKeys.SubscriptionPlanNotFound);
+
+            if (IsFreePlan(plan))
+                throw new BadRequestException(MessageKeys.SubscriptionFreePlanPaymentNotAllowed);
+
             var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(profileId);
+            decimal rawUpgradeCredit = 0m;
+
             if (active != null && active.SubscriptionPlanId != subscriptionPlanId)
             {
-                throw new ConflictException(MessageKeys.SubscriptionAlreadyActive);
+                var currentPlan = active.SubscriptionPlan;
+                if (!IsFreePlan(currentPlan))
+                {
+                    var currentPlanPrice = currentPlan.Prices?.FirstOrDefault(p => p.IsActive);
+                    rawUpgradeCredit = ComputePaidPlanUpgradeCredit(active, currentPlan, currentPlanPrice, _upgradeOptions);
+                }
             }
 
-            return await CreatePendingCheckoutSessionAsync(profileId, subscriptionPlanId, TransactionType.Purchase, 0m, null, platform, quantity);
+            return await CreatePendingCheckoutSessionAsync(
+                profileId,
+                subscriptionPlanId,
+                TransactionType.Purchase,
+                rawUpgradeCredit,
+                active?.SubscriptionId,
+                platform,
+                quantity);
         }
 
         public Task RevokeAccessGrantAsync(Guid ownerProfileId, Guid memberProfileId)
@@ -239,6 +457,21 @@ namespace BizFlow.Application.Services
                     await GrantAccessToAcceptedEmployeesSafeAsync(transaction.ProfileId);
 
                     return;
+                }
+
+                if (!stackSamePlan && active != null)
+                {
+                    active.Status = SubscriptionStatus.Expired;
+                    active.UpdatedAt = now;
+
+                    await _unitOfWork.SubscriptionAuditLogs.AddAsync(new SubscriptionAuditLog
+                    {
+                        SubscriptionId = active.SubscriptionId,
+                        Action = SubscriptionAuditAction.Expired,
+                        Details =
+                            $"{{\"reason\":\"replaced_by_checkout\",\"newPlanId\":{plan.SubscriptionPlanId},\"transactionId\":\"{transaction.TransactionId}\"}}",
+                        CreatedAt = now
+                    });
                 }
 
                 var newSubscription = new Subscription
@@ -444,33 +677,46 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
         }
 
-        public async Task<bool> CheckFeatureAccessAsync(Guid profileId, int locationId, string featureCode, bool incrementUsage = false)
+        public async Task<FeatureAccessEvaluationResult> EvaluateFeatureAccessAsync(Guid profileId, int locationId, string featureCode)
+        {
+            if (locationId <= 0)
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.InvalidRequest);
+
+            return await EvaluateFeatureAccessAsyncInternal(profileId, locationId, featureCode);
+        }
+
+        private async Task<FeatureAccessEvaluationResult> EvaluateFeatureAccessAsyncInternal(Guid profileId, int locationId, string featureCode)
         {
             var hasAccess = await _businessLocationRepository.HasAccessToLocationAsync(profileId, locationId);
             if (!hasAccess)
-            {
-                return false;
-            }
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.NoLocationAccess);
 
             var ownerId = await ResolveOwnerProfileIdAsync(profileId, locationId);
             if (ownerId == null)
-            {
-                return false;
-            }
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.OwnerNotResolved);
 
-            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerId.Value);
+            return await EvaluateFeatureForActiveOwnerAsync(ownerId.Value, featureCode);
+        }
+
+        public Task<FeatureAccessEvaluationResult> EvaluateFeatureAccessByOwnerAsync(Guid ownerProfileId, string featureCode)
+        {
+            return EvaluateFeatureForActiveOwnerAsync(ownerProfileId, featureCode);
+        }
+
+        private async Task<FeatureAccessEvaluationResult> EvaluateFeatureForActiveOwnerAsync(Guid ownerProfileId, string featureCode)
+        {
+            if (ownerProfileId == Guid.Empty || string.IsNullOrWhiteSpace(featureCode))
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.InvalidRequest);
+
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
             if (active == null)
-            {
-                return false;
-            }
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.NoActiveSubscription);
 
             var planFeature = active.SubscriptionPlan.PlanFeatures
                 .FirstOrDefault(pf => string.Equals(pf.Feature.FeatureCode, featureCode, StringComparison.OrdinalIgnoreCase));
 
             if (planFeature == null || planFeature.UsageLimit == 0)
-            {
-                return false;
-            }
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.FeatureNotInPlan);
 
             var allocatedLimit = active.FeatureUsages
                 .FirstOrDefault(u => u.FeatureId == planFeature.FeatureId)?.AllocatedLimit
@@ -478,12 +724,15 @@ namespace BizFlow.Application.Services
 
             if (allocatedLimit > 0)
             {
-                var usageSnapshot = await _firestoreService.GetUsageSnapshotAsync(ownerId.Value, featureCode);
+                var usageSnapshot = await _firestoreService.GetUsageSnapshotAsync(ownerProfileId, featureCode);
                 if (usageSnapshot != null)
                 {
                     if (usageSnapshot.Limit >= 0 && usageSnapshot.Used >= usageSnapshot.Limit)
                     {
-                        return false;
+                        return FeatureAccessEvaluationResult.Deny(
+                            FeatureAccessDenialReason.UsageLimitReached,
+                            usageSnapshot.Used,
+                            usageSnapshot.Limit);
                     }
                 }
                 else
@@ -495,21 +744,58 @@ namespace BizFlow.Application.Services
 
                     if (sqlUsed >= allocatedLimit)
                     {
-                        return false;
+                        return FeatureAccessEvaluationResult.Deny(
+                            FeatureAccessDenialReason.UsageLimitReached,
+                            sqlUsed,
+                            allocatedLimit);
                     }
                 }
             }
             else if (allocatedLimit == 0)
             {
+                return FeatureAccessEvaluationResult.Deny(FeatureAccessDenialReason.FeatureNotInPlan);
+            }
+
+            return FeatureAccessEvaluationResult.Ok();
+        }
+
+        public async Task<bool> CheckFeatureAccessAsync(Guid profileId, int locationId, string featureCode, bool incrementUsage = false)
+        {
+            var ev = await EvaluateFeatureAccessAsync(profileId, locationId, featureCode);
+            if (!ev.Allowed)
                 return false;
-            }
 
-            if (incrementUsage)
-            {
-                await _firestoreService.IncrementFeatureUsageAsync(ownerId.Value, featureCode);
-                _backgroundJobScheduler.EnqueueIncrementUsageSql(active.SubscriptionId, featureCode);
-            }
+            if (!incrementUsage)
+                return true;
 
+            var ownerId = await ResolveOwnerProfileIdAsync(profileId, locationId);
+            if (ownerId == null)
+                return false;
+
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerId.Value);
+            if (active == null)
+                return false;
+
+            await _firestoreService.IncrementFeatureUsageAsync(ownerId.Value, featureCode);
+            _backgroundJobScheduler.EnqueueIncrementUsageSql(active.SubscriptionId, featureCode);
+            return true;
+        }
+
+        public async Task<bool> CheckFeatureAccessByOwnerAsync(Guid ownerProfileId, string featureCode, bool incrementUsage = false)
+        {
+            var ev = await EvaluateFeatureAccessByOwnerAsync(ownerProfileId, featureCode);
+            if (!ev.Allowed)
+                return false;
+
+            if (!incrementUsage)
+                return true;
+
+            var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
+            if (active == null)
+                return false;
+
+            await _firestoreService.IncrementFeatureUsageAsync(ownerProfileId, featureCode);
+            _backgroundJobScheduler.EnqueueIncrementUsageSql(active.SubscriptionId, featureCode);
             return true;
         }
 
@@ -530,7 +816,7 @@ namespace BizFlow.Application.Services
             Guid profileId,
             int subscriptionPlanId,
             string transactionType,
-            decimal prorationCredit,
+            decimal rawProrationCredit,
             Guid? sourceSubscriptionId,
             string platform = "web",
             int quantity = 1)
@@ -549,7 +835,10 @@ namespace BizFlow.Application.Services
 
             var unitPrice = planPrice?.GetEffectivePrice() ?? 0m;
             var totalPlanPrice = unitPrice * safeQuantity;
-            var finalAmount = decimal.Round(Math.Max(0m, totalPlanPrice - prorationCredit), 2, MidpointRounding.AwayFromZero);
+            var afterCredit = decimal.Round(Math.Max(0m, totalPlanPrice - rawProrationCredit), 2, MidpointRounding.AwayFromZero);
+            var minDue = decimal.Round(totalPlanPrice * _upgradeOptions.MinimumFractionOfTargetPlan, 2, MidpointRounding.AwayFromZero);
+            var finalAmount = Math.Max(afterCredit, minDue);
+            var storedProrationCredit = decimal.Round(totalPlanPrice - finalAmount, 2, MidpointRounding.AwayFromZero);
 
             var now = DateTime.UtcNow;
             var transaction = new Transaction
@@ -561,7 +850,7 @@ namespace BizFlow.Application.Services
                 IdempotencyKey = Guid.NewGuid().ToString("N"),
                 TransactionType = transactionType,
                 PlanPrice = totalPlanPrice,
-                ProrationCredit = prorationCredit,
+                ProrationCredit = storedProrationCredit,
                 FinalAmount = finalAmount,
                 Currency = "VND",
                 Status = TransactionStatus.Pending,
@@ -575,14 +864,25 @@ namespace BizFlow.Application.Services
             var profile = await _unitOfWork.Profiles.GetByIdAsync(profileId)
                 ?? throw new NotFoundException(MessageKeys.UserNotFound);
 
-            var session = await _stripeService.CreateCheckoutSessionAsync(
-                profile.StripeCustomerId,
-                plan.StripePriceId,
-                transaction.TransactionId,
-                profileId,
-                transaction.IdempotencyKey,
-                platform,
-                safeQuantity);
+            var useCatalogPrice = Math.Abs(finalAmount - totalPlanPrice) < 0.01m;
+            var session = useCatalogPrice
+                ? await _stripeService.CreateCheckoutSessionAsync(
+                    profile.StripeCustomerId,
+                    plan.StripePriceId,
+                    transaction.TransactionId,
+                    profileId,
+                    transaction.IdempotencyKey,
+                    platform,
+                    safeQuantity)
+                : await _stripeService.CreateCheckoutSessionForTotalAmountAsync(
+                    profile.StripeCustomerId,
+                    Math.Max(1L, (long)Math.Round(finalAmount, MidpointRounding.AwayFromZero)),
+                    safeQuantity > 1 ? $"{plan.Name} (×{safeQuantity})" : plan.Name,
+                    transaction.TransactionId,
+                    profileId,
+                    transaction.IdempotencyKey,
+                    platform,
+                    safeQuantity);
 
             transaction.StripeCheckoutSessionId = session.Id;
             transaction.UpdatedAt = DateTime.UtcNow;
@@ -600,7 +900,7 @@ namespace BizFlow.Application.Services
                 TransactionId = transaction.TransactionId,
                 SessionUrl = session.Url ?? string.Empty,
                 PlanPrice = totalPlanPrice,
-                ProrationCredit = prorationCredit,
+                ProrationCredit = storedProrationCredit,
                 FinalAmount = finalAmount,
                 Currency = transaction.Currency,
                 TransactionType = transactionType
@@ -613,6 +913,9 @@ namespace BizFlow.Application.Services
         /// </summary>
         private async Task EnsureStripePriceForCheckoutAsync(SubscriptionPlan plan, SubscriptionPlanPrice? activePrice)
         {
+            if (IsFreePlan(plan))
+                return;
+
             if (!string.IsNullOrWhiteSpace(plan.StripePriceId))
             {
                 return;
@@ -699,6 +1002,72 @@ namespace BizFlow.Application.Services
             }
 
             return 1;
+        }
+
+        private static DateTime ResolveSubscriptionEndDate(DateTime startDateUtc, int durationDays)
+        {
+            return durationDays > 0
+                ? startDateUtc.AddDays(durationDays)
+                : startDateUtc;
+        }
+
+        /// <summary>
+        /// Upgrade credit from the current paid plan:
+        /// (remainingDays / periodDays) * percent * (unitPrice * stackedPeriods).
+        /// </summary>
+        private static decimal ComputePaidPlanUpgradeCredit(
+            Subscription active,
+            SubscriptionPlan currentPlan,
+            SubscriptionPlanPrice? currentPlanPrice,
+            SubscriptionUpgradeOptions options)
+        {
+            var unitOld = currentPlanPrice?.GetEffectivePrice() ?? 0m;
+            if (unitOld <= 0m)
+                return 0m;
+
+            var periodDays = Math.Max(1m, (decimal)(active.EndDate - active.StartDate).TotalDays);
+            var durationDays = currentPlan.DurationDays > 0
+                ? currentPlan.DurationDays
+                : Math.Max(1, (int)Math.Ceiling((double)periodDays));
+            var remainingDays = Math.Max(0m, (decimal)(active.EndDate - DateTime.UtcNow).TotalDays);
+
+            var blockValue = unitOld * (periodDays / Math.Max(1m, (decimal)durationDays));
+            var ratio = remainingDays / periodDays;
+            var credit = ratio * (options.RemainingCreditPercent / 100m) * blockValue;
+            return decimal.Round(credit, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private Task<SubscriptionPlan?> ResolveFreePlanAsync()
+        {
+            return _unitOfWork.SubscriptionPlans.GetActiveFreePlanAsync(_freePlanOptions.PlanName);
+        }
+
+        private static bool IsFreePlan(SubscriptionPlan plan)
+        {
+            var activePrice = plan.Prices?.FirstOrDefault(p => p.IsActive);
+            return activePrice != null && activePrice.GetEffectivePrice() <= 0m;
+        }
+
+        private async Task<Feature> EnsureFeatureExistsAsync(string featureCode)
+        {
+            var normalizedFeatureCode = featureCode.Trim();
+            var existing = await _unitOfWork.Features.GetByCodeAsync(normalizedFeatureCode);
+            if (existing != null)
+                return existing;
+
+            var now = DateTime.UtcNow;
+            var created = new Feature
+            {
+                FeatureCode = normalizedFeatureCode,
+                Name = normalizedFeatureCode,
+                Description = normalizedFeatureCode,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            await _unitOfWork.Features.AddAsync(created);
+            await _unitOfWork.SaveChangesAsync();
+            return created;
         }
 
         private async Task TrySetUsageTrackingSafeAsync(

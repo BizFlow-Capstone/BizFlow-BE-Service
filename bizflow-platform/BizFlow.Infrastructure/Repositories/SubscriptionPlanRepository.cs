@@ -29,6 +29,21 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public Task<SubscriptionPlan?> GetActiveFreePlanAsync(string planName)
+        {
+            return _context.SubscriptionPlans
+                .AsNoTracking()
+                .Include(p => p.PlanFeatures)
+                    .ThenInclude(pf => pf.Feature)
+                .Include(p => p.Prices)
+                .Where(p => p.IsActive == true
+                    && p.DeletedAt == null
+                    && p.Name == planName
+                    && p.Prices.Any(pr => pr.IsActive && pr.BasePrice == 0))
+                .OrderByDescending(p => p.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
         public Task<SubscriptionPlan?> GetByIdWithFeaturesAsync(int subscriptionPlanId)
         {
             return _context.SubscriptionPlans
