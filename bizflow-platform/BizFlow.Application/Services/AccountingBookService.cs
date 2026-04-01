@@ -196,16 +196,29 @@ public class AccountingBookService : IAccountingBookService
         var allBusinessTypes = (await _uow.BusinessTypes.GetAllAsync())
             .ToDictionary(bt => bt.BusinessTypeId, bt => bt);
 
-        var allFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
         var mappedFormulaIds = mappings
             .Where(m => m.FormulaId != null)
             .Select(m => m.FormulaId!.Value)
             .ToHashSet();
         var templatePrefix = $"{(template?.TemplateCode ?? string.Empty).ToUpperInvariant()}_";
-        var templateFormulas = allFormulas
-            .Where(f => mappedFormulaIds.Contains(f.FormulaId)
-                        || (!string.IsNullOrWhiteSpace(templatePrefix)
-                            && f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)))
+
+        // Load explicitly-mapped formulas by ID (regardless of IsActive — supports draft/inactive formulas)
+        var explicitFormulas = mappedFormulaIds.Count > 0
+            ? await _uow.FormulaDefinitions.GetByIdsAsync(mappedFormulaIds)
+            : new List<FormulaDefinition>();
+
+        // Load active prefix-matched formulas for display (supporting refs/grand totals not explicitly mapped)
+        var allActiveFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
+        var explicitIds = explicitFormulas.Select(f => f.FormulaId).ToHashSet();
+        var prefixFormulas = !string.IsNullOrWhiteSpace(templatePrefix)
+            ? allActiveFormulas
+                .Where(f => !explicitIds.Contains(f.FormulaId)
+                            && f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : new List<FormulaDefinition>();
+
+        var templateFormulas = explicitFormulas
+            .Concat(prefixFormulas)
             .OrderBy(f => f.FormulaId)
             .ToList();
 

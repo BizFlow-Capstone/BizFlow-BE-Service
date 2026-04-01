@@ -161,6 +161,24 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpPost("testing/compare")]
+    [SwaggerOperation(Summary = "Compare active vs draft version rendering results")]
+    public async Task<IActionResult> Compare([FromBody] AdminCompareRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.CompareAsync(request);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpPost("testing/trace")]
+    [SwaggerOperation(Summary = "Trace formula evaluation step-by-step for debugging")]
+    public async Task<IActionResult> TraceFormula([FromBody] AdminTraceRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.TraceFormulaAsync(request);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
     // ── Reference ──
 
     [HttpGet("reference")]
@@ -169,6 +187,15 @@ public class AdminAccountingController : BaseApiController
     {
         EnsureAdminOrConsultant();
         var result = _adminAccountingService.GetReference();
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpGet("reference/formula-node-schemas")]
+    [SwaggerOperation(Summary = "Get JSON schema for each formula node type (for guided form builder)")]
+    public IActionResult GetFormulaNodeSchemas()
+    {
+        EnsureAdminOrConsultant();
+        var result = _adminAccountingService.GetFormulaNodeSchemas();
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 

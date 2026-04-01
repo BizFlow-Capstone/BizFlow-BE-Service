@@ -25,8 +25,17 @@ public interface IAdminAccountingService
 
     Task<AdminPreviewResponse> PreviewAsync(AdminPreviewRequest request);
 
+    // ── Compare ──
+    Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request);
+
+    // ── Trace ──
+    Task<AdminTraceResponse> TraceFormulaAsync(AdminTraceRequest request);
+
     // ── Reference ──
     AdminReferenceDto GetReference();
+
+    // ── Node Schema ──
+    List<FormulaNodeSchemaDto> GetFormulaNodeSchemas();
 
     // ── MappableEntities CRUD ──
     Task<List<AdminMappableEntityDto>> GetMappableEntitiesAsync(bool? active);

@@ -93,6 +93,7 @@ public class AdminFormulaDto
     public string FormulaType { get; set; } = string.Empty;
     public string ExpressionJson { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? Explanation { get; set; }
 }
 
 public class AdminBusinessTypeDto
@@ -185,12 +186,18 @@ public class AdminReferenceDto
     public List<AdminEnumValueDto> FieldTypes { get; set; } = new();
     public List<AdminEnumValueDto> SourceTypes { get; set; } = new();
     public List<AdminEnumValueDto> TaxTypes { get; set; } = new();
+    public List<AdminEnumValueDto> FormulaNodeTypes { get; set; } = new();
+    public List<AdminEnumValueDto> AggregateTypes { get; set; } = new();
+    public List<AdminEnumValueDto> OpTypes { get; set; } = new();
+    public List<AdminEnumValueDto> FnTypes { get; set; } = new();
 }
 
 public class AdminEnumValueDto
 {
     public string Value { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Example { get; set; }
 }
 
 // ── MappableEntity / Field DTOs ──
@@ -333,4 +340,89 @@ public class AdminFullStructureDto
     public List<AdminTemplateFieldMappingDto> FieldMappings { get; set; } = new();
     public List<AdminRowDefinitionDto> RowDefinitions { get; set; } = new();
     public string RenderPreview { get; set; } = string.Empty;
+}
+
+// ── Compare API ──
+
+public class AdminCompareRequest
+{
+    public int BusinessLocationId { get; set; }
+    public long PeriodId { get; set; }
+    public int DraftVersionId { get; set; }
+    public int? ActiveVersionId { get; set; }
+    public int GroupNumber { get; set; }
+    public string? TaxMethod { get; set; }
+    public int RulesetId { get; set; }
+    public List<Guid> BusinessTypeIds { get; set; } = new();
+    public int BatchSize { get; set; } = 50;
+}
+
+public class AdminCompareResponse
+{
+    public AdminPreviewResponse Active { get; set; } = new();
+    public AdminPreviewResponse Draft { get; set; } = new();
+    public AdminCompareDiff Diff { get; set; } = new();
+}
+
+public class AdminCompareDiff
+{
+    public List<string> ChangedFormulas { get; set; } = new();
+    public List<FormulaValueChange> ValueChanges { get; set; } = new();
+}
+
+public class FormulaValueChange
+{
+    public string Code { get; set; } = string.Empty;
+    public decimal Before { get; set; }
+    public decimal After { get; set; }
+}
+
+// ── Trace API ──
+
+public class AdminTraceRequest
+{
+    public long FormulaId { get; set; }
+    public int BusinessLocationId { get; set; }
+    public long PeriodId { get; set; }
+    public int RulesetId { get; set; }
+    public List<Guid> BusinessTypeIds { get; set; } = new();
+}
+
+public class AdminTraceResponse
+{
+    public string FormulaCode { get; set; } = string.Empty;
+    public string FormulaName { get; set; } = string.Empty;
+    public decimal FinalValue { get; set; }
+    public List<FormulaTraceStep> Trace { get; set; } = new();
+}
+
+public class FormulaTraceStep
+{
+    public int Step { get; set; }
+    public string NodeType { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal ResolvedValue { get; set; }
+    public string? Source { get; set; }
+    public string? Debug { get; set; }
+    public List<FormulaTraceStep>? Children { get; set; }
+}
+
+// ── Node Schema ──
+
+public class FormulaNodeSchemaDto
+{
+    public string NodeType { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? Example { get; set; }
+    public List<FormulaNodeFieldSchema> Fields { get; set; } = new();
+}
+
+public class FormulaNodeFieldSchema
+{
+    public string FieldName { get; set; } = string.Empty;
+    public string FieldType { get; set; } = string.Empty;
+    public bool Required { get; set; }
+    public string? Description { get; set; }
+    public List<string>? AllowedValues { get; set; }
 }

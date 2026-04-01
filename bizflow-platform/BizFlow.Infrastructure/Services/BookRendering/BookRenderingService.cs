@@ -567,10 +567,21 @@ public class BookRenderingService : IBookRenderingService
             .ToHashSet();
 
         var templatePrefix = $"{context.TemplateCode.ToUpperInvariant()}_";
-        var allFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
-        var templateFormulas = allFormulas
-            .Where(f => formulaIds.Contains(f.FormulaId)
-                        || f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase))
+
+        // Load explicitly-referenced formulas by ID (regardless of IsActive — draft formulas must be testable)
+        var explicitFormulas = formulaIds.Count > 0
+            ? await _uow.FormulaDefinitions.GetByIdsAsync(formulaIds)
+            : new List<FormulaDefinition>();
+
+        // Load active prefix-matched formulas for dependency resolution (ref nodes, grand totals, etc.)
+        var allActiveFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
+        var prefixFormulas = allActiveFormulas
+            .Where(f => !formulaIds.Contains(f.FormulaId)
+                        && f.Code.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var templateFormulas = explicitFormulas
+            .Concat(prefixFormulas)
             .OrderBy(f => f.FormulaId)
             .ToList();
 

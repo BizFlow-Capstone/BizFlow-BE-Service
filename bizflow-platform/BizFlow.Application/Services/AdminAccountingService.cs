@@ -15,11 +15,13 @@ public class AdminAccountingService : IAdminAccountingService
 
     private readonly IUnitOfWork _uow;
     private readonly IBookRenderingService _renderingService;
+    private readonly IFormulaEngine _formulaEngine;
 
-    public AdminAccountingService(IUnitOfWork uow, IBookRenderingService renderingService)
+    public AdminAccountingService(IUnitOfWork uow, IBookRenderingService renderingService, IFormulaEngine formulaEngine)
     {
         _uow = uow;
         _renderingService = renderingService;
+        _formulaEngine = formulaEngine;
     }
 
     public async Task<AdminAccountingOverviewDto> GetOverviewAsync()
@@ -294,7 +296,11 @@ public class AdminAccountingService : IAdminAccountingService
         if (request.AggregationType != null)
             mapping.AggregationType = request.AggregationType;
         if (request.FormulaId.HasValue)
+        {
             mapping.FormulaId = request.FormulaId;
+            // When formula ID changes, clear expression text so rendering uses formula ID instead
+            mapping.FormulaExpression = null;
+        }
         if (request.FormulaExpression != null)
             mapping.FormulaExpression = request.FormulaExpression;
         if (request.SortOrder.HasValue)
@@ -515,6 +521,151 @@ public class AdminAccountingService : IAdminAccountingService
     }
 
     // ══════════════════════════════════════════════
+    // Compare API
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request)
+    {
+        if (request.BusinessLocationId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+        if (request.PeriodId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+        if (request.DraftVersionId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "DraftVersionId must be > 0");
+        if (request.RulesetId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+
+        // Resolve active version if not provided
+        var activeVersionId = request.ActiveVersionId;
+        if (!activeVersionId.HasValue || activeVersionId.Value <= 0)
+        {
+            var draftVersion = await _uow.AccountingTemplates.GetVersionWithMappingsAsync(request.DraftVersionId)
+                ?? throw new NotFoundException(MessageKeys.NotFound, $"DraftVersionId={request.DraftVersionId}");
+
+            var templates = await _uow.AccountingTemplates.GetAllWithVersionsAsync();
+            var template = templates.FirstOrDefault(t => t.TemplateId == draftVersion.TemplateId);
+            activeVersionId = template?.Versions.FirstOrDefault(v => v.IsActive)?.TemplateVersionId;
+
+            if (!activeVersionId.HasValue)
+                throw new BadRequestException(MessageKeys.BadRequest, "No active version found for this template. Provide ActiveVersionId explicitly.");
+        }
+
+        // Run both previews
+        var activePreview = await RunPreviewForCompare(activeVersionId.Value, request);
+        var draftPreview = await RunPreviewForCompare(request.DraftVersionId, request);
+
+        // Compute diff
+        var diff = ComputeCompareDiff(activePreview, draftPreview);
+
+        return new AdminCompareResponse
+        {
+            Active = activePreview,
+            Draft = draftPreview,
+            Diff = diff
+        };
+    }
+
+    private async Task<AdminPreviewResponse> RunPreviewForCompare(int templateVersionId, AdminCompareRequest request)
+    {
+        var previewRequest = new AdminPreviewRequest
+        {
+            BusinessLocationId = request.BusinessLocationId,
+            PeriodId = request.PeriodId,
+            TemplateVersionId = templateVersionId,
+            GroupNumber = request.GroupNumber,
+            TaxMethod = request.TaxMethod,
+            RulesetId = request.RulesetId,
+            BusinessTypeIds = request.BusinessTypeIds,
+            BatchSize = request.BatchSize
+        };
+        return await PreviewAsync(previewRequest);
+    }
+
+    private static AdminCompareDiff ComputeCompareDiff(AdminPreviewResponse active, AdminPreviewResponse draft)
+    {
+        var changes = new List<FormulaValueChange>();
+        var changedFormulas = new List<string>();
+
+        var activeFormulas = active.Summary.FormulaValues ?? new Dictionary<string, decimal>();
+        var draftFormulas = draft.Summary.FormulaValues ?? new Dictionary<string, decimal>();
+        var allKeys = activeFormulas.Keys.Union(draftFormulas.Keys).Distinct();
+
+        foreach (var key in allKeys)
+        {
+            var before = activeFormulas.GetValueOrDefault(key, 0m);
+            var after = draftFormulas.GetValueOrDefault(key, 0m);
+            if (before != after)
+            {
+                changedFormulas.Add(key);
+                changes.Add(new FormulaValueChange { Code = key, Before = before, After = after });
+            }
+        }
+
+        return new AdminCompareDiff
+        {
+            ChangedFormulas = changedFormulas,
+            ValueChanges = changes
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Trace API
+    // ══════════════════════════════════════════════
+
+    public async Task<AdminTraceResponse> TraceFormulaAsync(AdminTraceRequest request)
+    {
+        if (request.FormulaId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "FormulaId must be > 0");
+        if (request.BusinessLocationId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+        if (request.PeriodId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+        if (request.RulesetId <= 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+
+        var formula = await _uow.FormulaDefinitions.GetByIdAsync(request.FormulaId)
+            ?? throw new NotFoundException(MessageKeys.NotFound, $"FormulaId={request.FormulaId}");
+
+        var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(request.BusinessLocationId, request.PeriodId)
+            ?? throw new NotFoundException(MessageKeys.PeriodNotFound);
+
+        var ctx = new FormulaEvaluationContext
+        {
+            BookId = 0,
+            BusinessLocationId = request.BusinessLocationId,
+            PeriodId = request.PeriodId,
+            PeriodStart = period.StartDate,
+            PeriodEnd = period.EndDate,
+            RulesetId = request.RulesetId,
+            BusinessTypeIds = request.BusinessTypeIds.Distinct().ToList()
+        };
+
+        var traceResult = await _formulaEngine.TraceFormulaAsync(ctx, formula);
+
+        return new AdminTraceResponse
+        {
+            FormulaCode = formula.Code,
+            FormulaName = formula.Name,
+            FinalValue = traceResult.FinalValue,
+            Trace = traceResult.Steps.Select(MapTraceNode).ToList()
+        };
+    }
+
+    private static FormulaTraceStep MapTraceNode(FormulaTraceNode node)
+    {
+        return new FormulaTraceStep
+        {
+            Step = node.Step,
+            NodeType = node.NodeType,
+            Description = node.Description,
+            ResolvedValue = node.ResolvedValue,
+            Source = node.Source,
+            Debug = node.Debug,
+            Children = node.Children?.Select(MapTraceNode).ToList()
+        };
+    }
+
+    // ══════════════════════════════════════════════
     // Reference API
     // ══════════════════════════════════════════════
 
@@ -524,51 +675,157 @@ public class AdminAccountingService : IAdminAccountingService
         {
             RowTypes = new List<AdminEnumValueDto>
             {
-                new() { Value = RowDefinitionConstants.RowType.IndustryHeader, Label = "Tiêu đề ngành nghề" },
-                new() { Value = RowDefinitionConstants.RowType.DataPlaceholder, Label = "Vùng dữ liệu" },
-                new() { Value = RowDefinitionConstants.RowType.Subtotal, Label = "Cộng nhóm" },
-                new() { Value = RowDefinitionConstants.RowType.TaxLine, Label = "Dòng thuế" },
-                new() { Value = RowDefinitionConstants.RowType.GrandTotal, Label = "Tổng cộng" },
-                new() { Value = RowDefinitionConstants.RowType.SectionHeader, Label = "Tiêu đề phần" },
-                new() { Value = RowDefinitionConstants.RowType.SectionSubtotal, Label = "Cộng phần" },
-                new() { Value = RowDefinitionConstants.RowType.BalanceRow, Label = "Dòng số dư" },
-                new() { Value = RowDefinitionConstants.RowType.MonthlyTotal, Label = "Cộng tháng" },
-                new() { Value = RowDefinitionConstants.RowType.QuarterlyTotal, Label = "Cộng quý" },
-                new() { Value = RowDefinitionConstants.RowType.ProfitRow, Label = "Chênh lệch DT-CP" }
+                new() { Value = RowDefinitionConstants.RowType.IndustryHeader, Label = "Tiêu đề ngành nghề", Description = "Dòng tiêu đề nhóm ngành nghề kinh doanh, hiển thị tên ngành" },
+                new() { Value = RowDefinitionConstants.RowType.DataPlaceholder, Label = "Vùng dữ liệu", Description = "Vị trí chèn data rows từ query (revenues, costs, GL entries)" },
+                new() { Value = RowDefinitionConstants.RowType.Subtotal, Label = "Cộng nhóm", Description = "Tổng cộng theo nhóm ngành, thường linked với formula SUM" },
+                new() { Value = RowDefinitionConstants.RowType.TaxLine, Label = "Dòng thuế", Description = "Dòng hiển thị thuế (VAT/PIT), xuất hiện 1 lần cuối nhóm" },
+                new() { Value = RowDefinitionConstants.RowType.GrandTotal, Label = "Tổng cộng", Description = "Dòng tổng cộng cuối sổ, tổng hợp tất cả nhóm" },
+                new() { Value = RowDefinitionConstants.RowType.SectionHeader, Label = "Tiêu đề phần", Description = "Tiêu đề cho phần (revenue/cost/cash/bank)" },
+                new() { Value = RowDefinitionConstants.RowType.SectionSubtotal, Label = "Cộng phần", Description = "Tổng cộng theo từng phần (section)" },
+                new() { Value = RowDefinitionConstants.RowType.BalanceRow, Label = "Dòng số dư", Description = "Dòng hiển thị số dư (opening/closing balance), dùng formula lookup" },
+                new() { Value = RowDefinitionConstants.RowType.MonthlyTotal, Label = "Cộng tháng", Description = "Tổng phát sinh trong tháng" },
+                new() { Value = RowDefinitionConstants.RowType.QuarterlyTotal, Label = "Cộng quý", Description = "Tổng lũy kế trong quý" },
+                new() { Value = RowDefinitionConstants.RowType.ProfitRow, Label = "Chênh lệch DT-CP", Description = "Dòng chênh lệch doanh thu - chi phí" }
             },
             Positions = new List<AdminEnumValueDto>
             {
-                new() { Value = RowDefinitionConstants.Position.PerGroup, Label = "Mỗi nhóm" },
-                new() { Value = RowDefinitionConstants.Position.PerSection, Label = "Mỗi phần" },
-                new() { Value = RowDefinitionConstants.Position.StartOfBook, Label = "Đầu sổ" },
-                new() { Value = RowDefinitionConstants.Position.EndOfBook, Label = "Cuối sổ" }
+                new() { Value = RowDefinitionConstants.Position.PerGroup, Label = "Mỗi nhóm", Description = "Lặp lại cho mỗi nhóm ngành nghề" },
+                new() { Value = RowDefinitionConstants.Position.PerSection, Label = "Mỗi phần", Description = "Lặp lại cho mỗi section (revenue/cost)" },
+                new() { Value = RowDefinitionConstants.Position.StartOfBook, Label = "Đầu sổ", Description = "Xuất hiện 1 lần ở đầu sổ" },
+                new() { Value = RowDefinitionConstants.Position.EndOfBook, Label = "Cuối sổ", Description = "Xuất hiện 1 lần ở cuối sổ" }
             },
             SectionTypes = new List<AdminEnumValueDto>
             {
-                new() { Value = RowDefinitionConstants.SectionType.IndustryGroup, Label = "Nhóm ngành nghề" },
-                new() { Value = RowDefinitionConstants.SectionType.RevenueCost, Label = "Doanh thu / Chi phí" },
-                new() { Value = RowDefinitionConstants.SectionType.CashBank, Label = "Tiền mặt / Ngân hàng" },
-                new() { Value = RowDefinitionConstants.SectionType.PerProduct, Label = "Theo sản phẩm" }
+                new() { Value = RowDefinitionConstants.SectionType.IndustryGroup, Label = "Nhóm ngành nghề", Description = "Phân nhóm theo ngành nghề kinh doanh (BusinessType)" },
+                new() { Value = RowDefinitionConstants.SectionType.RevenueCost, Label = "Doanh thu / Chi phí", Description = "Phân theo doanh thu và chi phí" },
+                new() { Value = RowDefinitionConstants.SectionType.CashBank, Label = "Tiền mặt / Ngân hàng", Description = "Phân theo kênh tiền (cash/bank)" },
+                new() { Value = RowDefinitionConstants.SectionType.PerProduct, Label = "Theo sản phẩm", Description = "Phân nhóm theo từng sản phẩm/dịch vụ" }
             },
             FieldTypes = new List<AdminEnumValueDto>
             {
-                new() { Value = "auto_increment", Label = "STT tự tăng" },
-                new() { Value = "date", Label = "Ngày tháng" },
-                new() { Value = "text", Label = "Văn bản" },
-                new() { Value = "decimal", Label = "Số thập phân" },
-                new() { Value = "computed", Label = "Tính toán" }
+                new() { Value = "auto_increment", Label = "STT tự tăng", Description = "Số thứ tự tự động tăng dần" },
+                new() { Value = "date", Label = "Ngày tháng", Description = "Giá trị ngày tháng (yyyy-MM-dd)" },
+                new() { Value = "text", Label = "Văn bản", Description = "Chuỗi ký tự" },
+                new() { Value = "decimal", Label = "Số thập phân", Description = "Số thập phân (tiền, số lượng)" },
+                new() { Value = "computed", Label = "Tính toán", Description = "Giá trị được tính từ formula" }
             },
             SourceTypes = new List<AdminEnumValueDto>
             {
-                new() { Value = "query", Label = "Truy vấn từ DB" },
-                new() { Value = "formula", Label = "Công thức" },
-                new() { Value = "static", Label = "Giá trị cố định" },
-                new() { Value = "auto", Label = "Tự động" }
+                new() { Value = "query", Label = "Truy vấn từ DB", Description = "Lấy dữ liệu trực tiếp từ bảng (revenues, costs, gl_entries)" },
+                new() { Value = "formula", Label = "Công thức", Description = "Tính toán bằng formula engine (ExpressionJson)" },
+                new() { Value = "static", Label = "Giá trị cố định", Description = "Giá trị không đổi (ví dụ: label cột)" },
+                new() { Value = "auto", Label = "Tự động", Description = "Giá trị tự động sinh (STT, ngày hiện tại)" }
             },
             TaxTypes = new List<AdminEnumValueDto>
             {
-                new() { Value = RowDefinitionConstants.TaxType.Vat, Label = "Thuế GTGT" },
-                new() { Value = RowDefinitionConstants.TaxType.Pit, Label = "Thuế TNCN" }
+                new() { Value = RowDefinitionConstants.TaxType.Vat, Label = "Thuế GTGT", Description = "Thuế giá trị gia tăng" },
+                new() { Value = RowDefinitionConstants.TaxType.Pit, Label = "Thuế TNCN", Description = "Thuế thu nhập cá nhân" }
+            },
+            FormulaNodeTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "literal", Label = "Giá trị cố định", Description = "Hằng số (số cụ thể)", Example = "{\"literal\": 500000000}" },
+                new() { Value = "ref", Label = "Tham chiếu formula", Description = "Lấy kết quả từ formula khác theo Code", Example = "{\"ref\": \"S2A_SUBTOTAL\"}" },
+                new() { Value = "aggregate", Label = "Tổng hợp dữ liệu", Description = "SUM/AVG/COUNT từ bảng dữ liệu (revenues, costs, gl_entries)", Example = "{\"aggregate\":\"SUM\",\"source\":\"revenues\",\"field\":\"Amount\"}" },
+                new() { Value = "lookup", Label = "Tra cứu ngoài", Description = "Tra cứu giá trị từ bảng khác (IndustryTaxRates, AccountingPeriods)", Example = "{\"lookup\":{\"entity\":\"IndustryTaxRates\",\"field\":\"TaxRate\",\"filter\":{\"TaxType\":\"VAT\"}}}" },
+                new() { Value = "op", Label = "Phép toán", Description = "Phép tính 2 vế: ADD/SUBTRACT/MULTIPLY/DIVIDE", Example = "{\"op\":\"MULTIPLY\",\"left\":{\"ref\":\"S2A_SUBTOTAL\"},\"right\":{\"literal\":0.05}}" },
+                new() { Value = "fn", Label = "Hàm", Description = "Hàm toán học: MAX/MIN/ABS", Example = "{\"fn\":\"MAX\",\"args\":[{\"literal\":0},{\"ref\":\"S2A_PROFIT\"}]}" },
+                new() { Value = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy (period_start, period_end)", Example = "{\"context\":\"period_start\"}" }
+            },
+            AggregateTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "SUM", Label = "Tổng cộng", Description = "Tổng tất cả giá trị matching" },
+                new() { Value = "AVG", Label = "Trung bình", Description = "Giá trị trung bình" },
+                new() { Value = "COUNT", Label = "Đếm", Description = "Đếm số bản ghi matching" }
+            },
+            OpTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "ADD", Label = "Cộng (+)", Description = "left + right" },
+                new() { Value = "SUBTRACT", Label = "Trừ (−)", Description = "left - right" },
+                new() { Value = "MULTIPLY", Label = "Nhân (×)", Description = "left × right" },
+                new() { Value = "DIVIDE", Label = "Chia (÷)", Description = "left ÷ right (trả 0 nếu right = 0)" }
+            },
+            FnTypes = new List<AdminEnumValueDto>
+            {
+                new() { Value = "MAX", Label = "Giá trị lớn nhất", Description = "Lấy giá trị lớn nhất từ các args" },
+                new() { Value = "MIN", Label = "Giá trị nhỏ nhất", Description = "Lấy giá trị nhỏ nhất từ các args" },
+                new() { Value = "ABS", Label = "Giá trị tuyệt đối", Description = "Lấy giá trị tuyệt đối của arg đầu tiên" }
+            }
+        };
+    }
+
+    // ══════════════════════════════════════════════
+    // Formula Node Schema
+    // ══════════════════════════════════════════════
+
+    public List<FormulaNodeSchemaDto> GetFormulaNodeSchemas()
+    {
+        return new List<FormulaNodeSchemaDto>
+        {
+            new()
+            {
+                NodeType = "literal", Label = "Giá trị cố định", Description = "Hằng số (số cụ thể)",
+                Example = "{\"literal\": 500000000}",
+                Fields = new() { new() { FieldName = "literal", FieldType = "number", Required = true, Description = "Giá trị số" } }
+            },
+            new()
+            {
+                NodeType = "ref", Label = "Tham chiếu formula", Description = "Lấy kết quả từ formula khác theo Code",
+                Example = "{\"ref\": \"S2A_SUBTOTAL\"}",
+                Fields = new() { new() { FieldName = "ref", FieldType = "string", Required = true, Description = "Code của formula được tham chiếu" } }
+            },
+            new()
+            {
+                NodeType = "aggregate", Label = "Tổng hợp dữ liệu", Description = "SUM/AVG/COUNT từ bảng dữ liệu",
+                Example = "{\"aggregate\":\"SUM\",\"source\":\"revenues\",\"field\":\"Amount\",\"filter\":{\"RevenueType\":\"sale\"}}",
+                Fields = new()
+                {
+                    new() { FieldName = "aggregate", FieldType = "enum", Required = true, Description = "Loại tổng hợp", AllowedValues = new() {"SUM","AVG","COUNT"} },
+                    new() { FieldName = "source", FieldType = "string", Required = true, Description = "Bảng nguồn (revenues, costs, gl_entries)" },
+                    new() { FieldName = "field", FieldType = "string", Required = true, Description = "Cột cần tổng hợp (Amount, DebitAmount, CreditAmount)" },
+                    new() { FieldName = "filter", FieldType = "object", Required = false, Description = "Điều kiện lọc (key-value pairs)" }
+                }
+            },
+            new()
+            {
+                NodeType = "lookup", Label = "Tra cứu ngoài", Description = "Tra cứu giá trị từ bảng khác",
+                Example = "{\"lookup\":{\"entity\":\"IndustryTaxRates\",\"field\":\"TaxRate\",\"filter\":{\"TaxType\":\"VAT\"}}}",
+                Fields = new()
+                {
+                    new() { FieldName = "lookup.entity", FieldType = "enum", Required = true, Description = "Bảng tra cứu", AllowedValues = new() {"IndustryTaxRates","AccountingPeriods"} },
+                    new() { FieldName = "lookup.field", FieldType = "string", Required = true, Description = "Cột cần lấy giá trị" },
+                    new() { FieldName = "lookup.filter", FieldType = "object", Required = false, Description = "Điều kiện lọc (ví dụ: TaxType=VAT)" }
+                }
+            },
+            new()
+            {
+                NodeType = "op", Label = "Phép toán", Description = "Phép tính 2 vế: ADD/SUBTRACT/MULTIPLY/DIVIDE",
+                Example = "{\"op\":\"MULTIPLY\",\"left\":{\"ref\":\"S2A_SUBTOTAL\"},\"right\":{\"literal\":0.05}}",
+                Fields = new()
+                {
+                    new() { FieldName = "op", FieldType = "enum", Required = true, Description = "Loại phép toán", AllowedValues = new() {"ADD","SUBTRACT","MULTIPLY","DIVIDE"} },
+                    new() { FieldName = "left", FieldType = "node", Required = true, Description = "Vế trái (node con)" },
+                    new() { FieldName = "right", FieldType = "node", Required = true, Description = "Vế phải (node con)" }
+                }
+            },
+            new()
+            {
+                NodeType = "fn", Label = "Hàm", Description = "Hàm toán học: MAX/MIN/ABS",
+                Example = "{\"fn\":\"MAX\",\"args\":[{\"literal\":0},{\"ref\":\"S2A_PROFIT\"}]}",
+                Fields = new()
+                {
+                    new() { FieldName = "fn", FieldType = "enum", Required = true, Description = "Tên hàm", AllowedValues = new() {"MAX","MIN","ABS"} },
+                    new() { FieldName = "args", FieldType = "node[]", Required = true, Description = "Danh sách tham số (mảng node con)" }
+                }
+            },
+            new()
+            {
+                NodeType = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy",
+                Example = "{\"context\":\"period_start\"}",
+                Fields = new()
+                {
+                    new() { FieldName = "context", FieldType = "enum", Required = true, Description = "Tên giá trị runtime",
+                        AllowedValues = new() {"period_start","period_end","business_type"} }
+                }
             }
         };
     }
@@ -1023,7 +1280,8 @@ public class AdminAccountingService : IAdminAccountingService
             IsActive = formula.IsActive,
             FormulaType = formula.FormulaType,
             ExpressionJson = formula.ExpressionJson,
-            Description = formula.Description
+            Description = formula.Description,
+            Explanation = FormulaExplainer.Explain(formula.ExpressionJson)
         };
     }
 }
