@@ -7,9 +7,6 @@ namespace BizFlow.Application.Common.Constants
     public static class FeatureCodes
     {
         public const string Locations = "LOCATIONS";
-        public const string AiOrder = "AI_ORDER";
-        public const string ReportExport = "REPORT_EXPORT";
-        public const string AiVoice = "AI_VOICE";
-        public const string LocationLimit = "LOCATION_LIMIT";
+        public const string AiOrder = "AI";
     }
 }

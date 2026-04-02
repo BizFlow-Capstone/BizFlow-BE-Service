@@ -18,6 +18,7 @@ namespace BizFlow.Infrastructure.Services
     {
         private readonly BizFlowDbContext _db;
         private readonly IJwtService _jwtService;
+        private readonly ISubscriptionService _subscriptionService;
         private readonly GoogleAuthConfig _googleConfig;
         private readonly FirebaseAuthConfig _firebaseConfig;
         private readonly ILogger<AuthService> _logger;
@@ -27,12 +28,14 @@ namespace BizFlow.Infrastructure.Services
         public AuthService(
             BizFlowDbContext db,
             IJwtService jwtService,
+            ISubscriptionService subscriptionService,
             IOptions<GoogleAuthConfig> googleConfig,
             IOptions<FirebaseAuthConfig> firebaseConfig,
             ILogger<AuthService> logger)
         {
             _db = db;
             _jwtService = jwtService;
+            _subscriptionService = subscriptionService;
             _googleConfig = googleConfig.Value;
             _firebaseConfig = firebaseConfig.Value;
             _logger = logger;
@@ -126,6 +129,7 @@ namespace BizFlow.Infrastructure.Services
                     .Include(a => a.Credentials)
                     .FirstAsync(a => a.AccountId == account.AccountId);
 
+                await _subscriptionService.EnsureFreeSubscriptionAsync(account.Profile!.ProfileId);
                 isNewAccount = true;
             }
 
@@ -289,6 +293,8 @@ namespace BizFlow.Infrastructure.Services
                 .Include(a => a.Role)
                 .Include(a => a.Credentials)
                 .FirstAsync(a => a.AccountId == account.AccountId);
+
+            await _subscriptionService.EnsureFreeSubscriptionAsync(account.Profile!.ProfileId);
 
             var accessToken = _jwtService.GenerateAccessToken(account.AccountId, profile.ProfileId, account.Role.Name);
             var refreshToken = _jwtService.GenerateRefreshToken();

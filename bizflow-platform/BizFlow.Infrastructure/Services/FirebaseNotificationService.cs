@@ -769,7 +769,7 @@ namespace BizFlow.Infrastructure.Services
         {
             await _context.Database.ExecuteSqlRawAsync(@"
 DELETE FROM UserNotifications
-WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY);", cancellationToken);
+WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToken);
         }
 
         public async Task<PaginatedResponse<NotificationDispatchDto>> GetDispatchesAsync(NotificationDispatchQueryParams query)

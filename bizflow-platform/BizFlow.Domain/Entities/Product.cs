@@ -30,7 +30,7 @@ public partial class Product
     public decimal CostPrice { get; set; }
 
     /// <summary>
-    /// Giá bán theo base unit
+    /// Selling price in base unit
     /// </summary>
     public decimal SellingPrice { get; set; }
 

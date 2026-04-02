@@ -9,17 +9,20 @@ namespace BizFlow.Infrastructure.Jobs
     public class SubscriptionExpiryCheckJob
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISubscriptionService _subscriptionService;
         private readonly IFirestoreService _firestoreService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<SubscriptionExpiryCheckJob> _logger;
 
         public SubscriptionExpiryCheckJob(
             IUnitOfWork unitOfWork,
+            ISubscriptionService subscriptionService,
             IFirestoreService firestoreService,
             INotificationService notificationService,
             ILogger<SubscriptionExpiryCheckJob> logger)
         {
             _unitOfWork = unitOfWork;
+            _subscriptionService = subscriptionService;
             _firestoreService = firestoreService;
             _notificationService = notificationService;
             _logger = logger;
@@ -29,6 +32,7 @@ namespace BizFlow.Infrastructure.Jobs
         {
             var cutoffUtc = DateTime.UtcNow.AddMinutes(-30);
             var expiringSubscriptions = await _unitOfWork.Subscriptions.GetSubscriptionsToExpireAsync(cutoffUtc);
+            var expiredPaidOwnerIds = new HashSet<Guid>();
 
             if (expiringSubscriptions.Count == 0)
             {
@@ -37,6 +41,16 @@ namespace BizFlow.Infrastructure.Jobs
 
             foreach (var subscription in expiringSubscriptions)
             {
+                if (IsFreePlan(subscription.SubscriptionPlan))
+                {
+                    await _subscriptionService.RenewFreeSubscriptionCycleAsync(subscription.SubscriptionId);
+                    _logger.LogInformation(
+                        "Free subscription cycle renewed for owner {OwnerId}, subscription {SubscriptionId}",
+                        subscription.OwnerProfileId,
+                        subscription.SubscriptionId);
+                    continue;
+                }
+
                 subscription.Status = SubscriptionStatus.Expired;
                 subscription.UpdatedAt = DateTime.UtcNow;
 
@@ -50,10 +64,23 @@ namespace BizFlow.Infrastructure.Jobs
 
                 await _firestoreService.MarkUsageTrackingExpiredAsync(subscription.OwnerProfileId);
                 await _notificationService.NotifySubscriptionExpiredAsync(subscription.OwnerProfileId, subscription.SubscriptionPlan.Name);
+                expiredPaidOwnerIds.Add(subscription.OwnerProfileId);
             }
 
             await _unitOfWork.SaveChangesAsync();
-            _logger.LogInformation("SubscriptionExpiryCheckJob expired {Count} subscriptions", expiringSubscriptions.Count);
+
+            foreach (var ownerProfileId in expiredPaidOwnerIds)
+            {
+                await _subscriptionService.EnsureFreeSubscriptionAsync(ownerProfileId);
+            }
+
+            _logger.LogInformation("SubscriptionExpiryCheckJob processed {Count} expiring subscriptions", expiringSubscriptions.Count);
+        }
+
+        private static bool IsFreePlan(SubscriptionPlan plan)
+        {
+            var activePrice = plan.Prices?.FirstOrDefault(p => p.IsActive);
+            return activePrice != null && activePrice.GetEffectivePrice() <= 0m;
         }
     }
 }

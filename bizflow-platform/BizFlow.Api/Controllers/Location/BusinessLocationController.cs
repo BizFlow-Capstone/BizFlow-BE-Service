@@ -42,10 +42,11 @@ namespace BizFlow.Api.Controllers.Location
         }
 
         [HttpPost("create")]
-        [RequireFeature(FeatureCodes.Locations)]
+        [RequireFeature(FeatureCodes.Locations, useOwnerScope: true)]
         [SwaggerOperation(Summary = "Create location", Description = "Creates new location and assigns current user as owner.")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> CreateLocation([FromBody] CreateLocationRequest request)
         {
             var userId = GetCurrentUserId();

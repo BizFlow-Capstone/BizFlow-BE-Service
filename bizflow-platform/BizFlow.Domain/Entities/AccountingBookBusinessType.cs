@@ -3,8 +3,8 @@ using System;
 namespace BizFlow.Domain.Entities;
 
 /// <summary>
-/// Bảng trung gian: 1 book gộp nhiều ngành cùng tax rate.
-/// TaxProfileKey dạng readable: VAT_1.00|PIT_0.50|METHOD_method_1
+/// Bridge table: one book can map multiple business types with the same tax rate.
+/// TaxProfileKey readable format: VAT_1.00|PIT_0.50|METHOD_method_1
 /// </summary>
 public partial class AccountingBookBusinessType
 {

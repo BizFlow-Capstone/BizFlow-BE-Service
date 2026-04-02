@@ -51,9 +51,13 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return _context.Subscriptions
                 .Include(s => s.SubscriptionPlan)
+                    .ThenInclude(p => p.Prices)
                 .Include(s => s.FeatureUsages)
                     .ThenInclude(u => u.Feature)
-                .Where(s => s.Status == SubscriptionStatus.Active && s.EndDate < cutoffUtc)
+                .Where(s => s.Status == SubscriptionStatus.Active
+                    && s.EndDate < cutoffUtc
+                    && (s.SubscriptionPlan.DurationDays > 0
+                        || s.SubscriptionPlan.Prices.Any(p => p.IsActive && p.BasePrice == 0)))
                 .ToListAsync();
         }
 
@@ -71,6 +75,16 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public Task<List<Guid>> GetProfileIdsWithoutActiveSubscriptionAsync()
+        {
+            return _context.Profiles
+                .Where(p => !_context.Subscriptions.Any(s =>
+                    s.OwnerProfileId == p.ProfileId
+                    && s.Status == SubscriptionStatus.Active))
+                .Select(p => p.ProfileId)
+                .ToListAsync();
+        }
+
         public Task<bool> HasAnySubscriptionAsync(Guid ownerProfileId)
         {
             return _context.Subscriptions
@@ -80,6 +94,11 @@ namespace BizFlow.Infrastructure.Repositories
         public Task AddAsync(Subscription subscription)
         {
             return _context.Subscriptions.AddAsync(subscription).AsTask();
+        }
+
+        public Task AddRangeAsync(IEnumerable<Subscription> subscriptions)
+        {
+            return _context.Subscriptions.AddRangeAsync(subscriptions);
         }
     }
 }

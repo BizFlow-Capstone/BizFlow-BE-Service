@@ -1,13 +1,16 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using BizFlow.Api.Common.Filters;
 using BizFlow.Api.Common.Middleware;
 using BizFlow.Api.Hubs;
 using BizFlow.Api.Services;
 using BizFlow.Application;
+using BizFlow.Application.Common.Configuration;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure;
 using BizFlow.Infrastructure.Consumers;
 using BizFlow.Infrastructure.Jobs;
@@ -20,6 +23,7 @@ using System.Text;
 using System.Text.Json;
 using Hangfire;
 using Hangfire.MySql;
+using Hangfire.Dashboard;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
@@ -56,6 +60,7 @@ builder.Services.AddControllers(options =>
 {
     // Register custom model binder for handling JSON strings in form data
     options.ModelBinderProviders.Insert(0, new BizFlow.Api.Common.ModelBinders.FormDataJsonModelBinderProvider());
+    options.Filters.Add<RequireAuthenticatedFreeFeatureFilter>();
 })
 .AddJsonOptions(options =>
 {
@@ -160,6 +165,7 @@ builder.Services.Configure<GeneralLedgerSettings>(builder.Configuration.GetSecti
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
+builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -349,6 +355,19 @@ builder.Services.AddCors(options =>
 //===================================================================================
 var app = builder.Build();
 
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var subscriptionService = scope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+        await subscriptionService.EnsureFreePlanSetupAsync();
+    }
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "EnsureFreePlanSetupAsync failed; API may still run but free subscription provisioning can be incomplete.");
+}
+
 // Configure the HTTP request pipeline.
 
 app.UseGlobalExceptionMiddleware();
@@ -388,7 +407,12 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 if (isHangfireEnabled)
 {
     // Hangfire Dashboard
-    app.UseHangfireDashboard();
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = app.Environment.IsDevelopment()
+            ? [new AllowHangfireDashboardAuthorizationFilter()]
+            : [new LocalRequestsOnlyAuthorizationFilter()]
+    });
 
     // Schedule Recurring Job
     RecurringJob.AddOrUpdate<ImageCleanupJob>(
@@ -435,7 +459,7 @@ if (isHangfireEnabled)
         job => job.ExecuteAsync(),
         "7 */2 * * *");
 
-    // Giá hiệu dụng theo cửa sổ giảm giá + đồng bộ Stripe Price — mỗi ngày 01:00 UTC
+    // Reconcile effective price by discount window and sync Stripe Price daily at 01:00 UTC.
     RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
         "subscription-plan-stripe-catalog-sync",
         job => job.ExecuteAsync(),
@@ -461,6 +485,27 @@ if (isHangfireEnabled)
 else
 {
     app.Logger.LogWarning("Hangfire is disabled: {Reason}", hangfireDisableReason);
+}
+
+// One-time startup backfill: ensure all profiles have an active subscription (free if missing).
+using (var startupScope = app.Services.CreateScope())
+{
+    var startupSubscriptionService = startupScope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+    var startupLogger = startupScope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("StartupFreeSubscriptionBackfill");
+
+    try
+    {
+        var successCount = await startupSubscriptionService.EnsureFreeSubscriptionsForOwnersWithoutActiveAsync();
+        startupLogger.LogInformation(
+            "Startup free-subscription backfill completed. Success={SuccessCount}",
+            successCount);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "Startup free-subscription backfill failed");
+    }
 }
 
 app.Run();

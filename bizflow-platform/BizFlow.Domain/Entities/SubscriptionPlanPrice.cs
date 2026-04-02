@@ -30,8 +30,8 @@ public partial class SubscriptionPlanPrice
     public virtual SubscriptionPlan SubscriptionPlan { get; set; } = null!;
 
     /// <summary>
-    /// Giảm giá đang hiệu lực tại <paramref name="atUtc"/> khi có <see cref="DiscountedPrice"/>
-    /// và thời điểm nằm trong [DiscountStart, DiscountEnd] (null = không giới hạn phía đó).
+    /// Returns true when <see cref="DiscountedPrice"/> is set and <paramref name="atUtc"/>
+    /// falls within [DiscountStart, DiscountEnd] (null means open-ended).
     /// </summary>
     public bool IsDiscountPeriodActive(DateTime? atUtc = null)
     {
@@ -48,7 +48,8 @@ public partial class SubscriptionPlanPrice
     }
 
     /// <summary>
-    /// Giá thu thực tế: dùng giá giảm chỉ khi <see cref="IsDiscountPeriodActive"/> tại thời điểm đó.
+    /// Effective charge amount: discounted price is used only when
+    /// <see cref="IsDiscountPeriodActive"/> is true at that moment.
     /// </summary>
     public decimal GetEffectivePrice(DateTime? atTime = null)
     {
