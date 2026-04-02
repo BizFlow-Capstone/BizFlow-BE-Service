@@ -17,6 +17,7 @@ public interface IAdminAccountingService
     Task<AdminTemplateFieldMappingDto> UpdateTemplateFieldMappingForTestingAsync(int mappingId, UpdateTemplateFieldMappingRequest request);
 
     Task<AdminFormulaDto> GetFormulaDetailAsync(long formulaId);
+    Task<AdminFormulaDto> CreateFormulaAsync(CreateFormulaRequest request, Guid actorUserId);
     Task<AdminFormulaDto> UpdateFormulaForTestingAsync(long formulaId, UpdateFormulaForTestingRequest request);
     Task<AdminFormulaDto> CloneFormulaAsync(long formulaId, CloneFormulaRequest request);
 

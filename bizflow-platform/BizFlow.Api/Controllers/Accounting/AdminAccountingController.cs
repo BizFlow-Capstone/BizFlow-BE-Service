@@ -116,6 +116,15 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpPost("formulas")]
+    [SwaggerOperation(Summary = "Create a new formula definition")]
+    public async Task<IActionResult> CreateFormula([FromBody] CreateFormulaRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.CreateFormulaAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
     [HttpPatch("formulas/{formulaId:long}/testing")]
     [SwaggerOperation(Summary = "Update formula definition for testing")]
     public async Task<IActionResult> UpdateFormulaForTesting(long formulaId, [FromBody] UpdateFormulaForTestingRequest request)
