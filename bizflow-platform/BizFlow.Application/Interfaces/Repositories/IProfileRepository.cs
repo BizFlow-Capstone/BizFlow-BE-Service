@@ -6,5 +6,6 @@ namespace BizFlow.Application.Interfaces.Repositories
     {
         Task<Profile?> GetByIdAsync(Guid profileId);
         Task<Profile?> GetByAccountIdAsync(Guid accountId);
+        Task<List<Profile>> GetByIdsAsync(IEnumerable<Guid> profileIds);
     }
 }

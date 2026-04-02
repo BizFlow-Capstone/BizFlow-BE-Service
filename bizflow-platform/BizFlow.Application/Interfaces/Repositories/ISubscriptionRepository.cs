@@ -9,7 +9,9 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Subscription?> GetByIdWithUsagesAsync(Guid subscriptionId);
         Task<List<Subscription>> GetSubscriptionsToExpireAsync(DateTime cutoffUtc);
         Task<List<Subscription>> GetAllActiveForSyncAsync();
+        Task<List<Guid>> GetProfileIdsWithoutActiveSubscriptionAsync();
         Task<bool> HasAnySubscriptionAsync(Guid ownerProfileId);
         Task AddAsync(Subscription subscription);
+        Task AddRangeAsync(IEnumerable<Subscription> subscriptions);
     }
 }

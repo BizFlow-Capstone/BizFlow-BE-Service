@@ -7,6 +7,7 @@ namespace BizFlow.Application.Interfaces.Services
     {
         Task EnsureFreePlanSetupAsync();
         Task EnsureFreeSubscriptionAsync(Guid ownerProfileId);
+        Task<int> EnsureFreeSubscriptionsForOwnersWithoutActiveAsync();
         /// <summary>Checks whether the signed-in user currently has an active subscription.</summary>
         Task<bool> HasActiveSubscriptionAsync(Guid ownerProfileId);
         /// <summary>Renews free-plan cycle: resets usage and extends EndDate to next cycle.</summary>

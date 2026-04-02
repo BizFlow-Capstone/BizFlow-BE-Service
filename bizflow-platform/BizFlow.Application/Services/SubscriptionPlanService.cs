@@ -569,7 +569,8 @@ namespace BizFlow.Application.Services
 
             if (string.IsNullOrWhiteSpace(plan.StripePriceId))
             {
-                var created = await _stripeService.CreatePriceAsync(plan.StripeProductId, unitAmount);
+                var validProductId = await EnsureStripeProductExistsAsync(plan);
+                var created = await _stripeService.CreatePriceAsync(validProductId, unitAmount);
                 plan.StripePriceId = created.Id;
                 return;
             }
@@ -593,8 +594,44 @@ namespace BizFlow.Application.Services
             if (stripePrice.Active)
                 await _stripeService.ArchivePriceAsync(plan.StripePriceId);
 
-            var newStripePrice = await _stripeService.CreatePriceAsync(plan.StripeProductId, unitAmount);
+            var ensuredProductId = await EnsureStripeProductExistsAsync(plan);
+            var newStripePrice = await _stripeService.CreatePriceAsync(ensuredProductId, unitAmount);
             plan.StripePriceId = newStripePrice.Id;
+        }
+
+        /// <summary>
+        /// Heals stale StripeProductId references (e.g. product deleted manually on Stripe dashboard).
+        /// </summary>
+        private async Task<string> EnsureStripeProductExistsAsync(SubscriptionPlan plan)
+        {
+            if (string.IsNullOrWhiteSpace(plan.StripeProductId))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            try
+            {
+                await _stripeService.UpdateProductAsync(plan.StripeProductId, plan.Name, plan.Description, active: true);
+                return plan.StripeProductId;
+            }
+            catch (Stripe.StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.OrdinalIgnoreCase))
+            {
+                var product = await _stripeService.CreateProductAsync(
+                    plan.Name,
+                    plan.Description,
+                    new Dictionary<string, string>
+                    {
+                        ["source"] = "bizflow-heal",
+                        ["planId"] = plan.SubscriptionPlanId.ToString()
+                    });
+
+                plan.StripeProductId = product.Id;
+                plan.StripePriceId = null;
+                plan.UpdatedAt = DateTime.UtcNow;
+                _logger.LogWarning(
+                    "Recreated missing Stripe product for plan {PlanId}. NewProductId={ProductId}",
+                    plan.SubscriptionPlanId,
+                    plan.StripeProductId);
+                return product.Id;
+            }
         }
 
         // ===================== User Mapping =====================

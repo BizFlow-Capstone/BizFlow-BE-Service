@@ -92,7 +92,8 @@ namespace BizFlow.Application.Services
             });
 
             var created = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
-            return new OrderActionResultDto { Order = _mapper.Map<OrderDto>(created) };
+            var createdDto = await MapOrderWithCreatorAsync(created);
+            return new OrderActionResultDto { Order = createdDto };
         }
 
         public async Task<OrderActionResultDto> UpdateAsync(Guid userId, long orderId, UpdateOrderRequest request)
@@ -150,7 +151,8 @@ namespace BizFlow.Application.Services
                 });
 
                 var updatedPending = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
-                return new OrderActionResultDto { Order = _mapper.Map<OrderDto>(updatedPending) };
+                var updatedPendingDto = await MapOrderWithCreatorAsync(updatedPending);
+                return new OrderActionResultDto { Order = updatedPendingDto };
             }
 
             if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
@@ -159,10 +161,8 @@ namespace BizFlow.Application.Services
                 var replacement = await _uow.Orders.GetByIdWithDetailsAsync(editResult.NewOrderId)
                     ?? throw new NotFoundException(MessageKeys.NotFound);
 
-                return new OrderActionResultDto
-                {
-                    Order = _mapper.Map<OrderDto>(replacement)
-                };
+                var replacementDto = await MapOrderWithCreatorAsync(replacement);
+                return new OrderActionResultDto { Order = replacementDto };
             }
 
             throw new BadRequestException(MessageKeys.BadRequest);
@@ -243,7 +243,8 @@ namespace BizFlow.Application.Services
             });
 
             var completed = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
-            return new OrderActionResultDto { Order = _mapper.Map<OrderDto>(completed) };
+            var completedDto = await MapOrderWithCreatorAsync(completed);
+            return new OrderActionResultDto { Order = completedDto };
         }
 
         public async Task<OrderDto> CancelAsync(Guid userId, long orderId, CancelOrderRequest request)
@@ -330,7 +331,7 @@ namespace BizFlow.Application.Services
             });
 
             var cancelled = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
-            return _mapper.Map<OrderDto>(cancelled);
+            return await MapOrderWithCreatorAsync(cancelled);
         }
 
         public async Task<EditCompletedSaveResultDto> EditCompletedSaveAsync(Guid userId, long oldOrderId, UpdateOrderRequest request)
@@ -552,20 +553,25 @@ namespace BizFlow.Application.Services
             };
         }
 
-        public async Task<OrderDto> GetDetailAsync(Guid userId, long orderId)
+        public async Task<OrderDto> GetDetailAsync(Guid profileId, long orderId)
         {
             var order = await _uow.Orders.GetByIdWithDetailsAsync(orderId)
                 ?? throw new NotFoundException(MessageKeys.NotFound);
 
             var locationId = ResolveOrderLocationId(order, null);
-            await _locationService.ValidateOwnerAsync(userId, locationId);
+            await _locationService.ValidateLocationAccessAsync(profileId, locationId);
 
-            return _mapper.Map<OrderDto>(order);
+            var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(profileId, locationId);
+            if (!isOwner && order.CreatedBy != profileId)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            return await MapOrderWithCreatorAsync(order);
         }
 
-        public async Task<PaginatedResponse<OrderDto>> ListAsync(Guid userId, OrderQueryParams query)
+        public async Task<PaginatedResponse<OrderDto>> ListAsync(Guid profileId, OrderQueryParams query)
         {
-            await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);
+            await _locationService.ValidateLocationAccessAsync(profileId, query.BusinessLocationId);
+            var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(profileId, query.BusinessLocationId);
 
             if (!string.IsNullOrWhiteSpace(query.Status)
                 && !OrderStatus.IsValid(query.Status.Trim()))
@@ -574,8 +580,11 @@ namespace BizFlow.Application.Services
             if (!string.IsNullOrWhiteSpace(query.Status))
                 query.Status = query.Status.Trim().ToLowerInvariant();
 
+            if (!isOwner)
+                query.CreatedByProfileId = profileId;
+
             var (items, totalCount) = await _uow.Orders.SearchAsync(query);
-            var dtos = _mapper.Map<List<OrderDto>>(items);
+            var dtos = await MapOrdersWithCreatorAsync(items);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
@@ -584,6 +593,34 @@ namespace BizFlow.Application.Services
 
         private static string GenerateOrderCode()
             => $"ORD-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+
+        private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
+        {
+            var dto = _mapper.Map<OrderDto>(order);
+            var profile = await _uow.Profiles.GetByIdAsync(order.CreatedBy);
+            dto.CreatedByProfileFullName = profile?.FullName;
+            return dto;
+        }
+
+        private async Task<List<OrderDto>> MapOrdersWithCreatorAsync(IEnumerable<Order> orders)
+        {
+            var orderList = orders.ToList();
+            var dtos = _mapper.Map<List<OrderDto>>(orderList);
+            if (dtos.Count == 0)
+                return dtos;
+
+            var creatorIds = orderList.Select(o => o.CreatedBy).Distinct().ToList();
+            var profiles = await _uow.Profiles.GetByIdsAsync(creatorIds);
+            var fullNameByProfileId = profiles.ToDictionary(p => p.ProfileId, p => p.FullName);
+
+            foreach (var dto in dtos)
+            {
+                if (fullNameByProfileId.TryGetValue(dto.CreatedByProfileId, out var fullName))
+                    dto.CreatedByProfileFullName = fullName;
+            }
+
+            return dtos;
+        }
 
         private int ResolveOrderLocationId(Order order, int? preferredLocationId)
         {

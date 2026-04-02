@@ -32,6 +32,7 @@ namespace BizFlow.Infrastructure.Jobs
         {
             var cutoffUtc = DateTime.UtcNow.AddMinutes(-30);
             var expiringSubscriptions = await _unitOfWork.Subscriptions.GetSubscriptionsToExpireAsync(cutoffUtc);
+            var expiredPaidOwnerIds = new HashSet<Guid>();
 
             if (expiringSubscriptions.Count == 0)
             {
@@ -63,9 +64,16 @@ namespace BizFlow.Infrastructure.Jobs
 
                 await _firestoreService.MarkUsageTrackingExpiredAsync(subscription.OwnerProfileId);
                 await _notificationService.NotifySubscriptionExpiredAsync(subscription.OwnerProfileId, subscription.SubscriptionPlan.Name);
+                expiredPaidOwnerIds.Add(subscription.OwnerProfileId);
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            foreach (var ownerProfileId in expiredPaidOwnerIds)
+            {
+                await _subscriptionService.EnsureFreeSubscriptionAsync(ownerProfileId);
+            }
+
             _logger.LogInformation("SubscriptionExpiryCheckJob processed {Count} expiring subscriptions", expiringSubscriptions.Count);
         }
 

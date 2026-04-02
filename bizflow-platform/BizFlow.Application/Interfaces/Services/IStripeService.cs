@@ -15,20 +15,6 @@ namespace BizFlow.Application.Interfaces.Services
             string platform = "web",
             int quantity = 1);
 
-        /// <summary>
-        /// One-time checkout with a fixed total amount (VND, zero-decimal),
-        /// used when upgrade credit makes the amount different from Stripe catalog pricing.
-        /// </summary>
-        Task<Session> CreateCheckoutSessionForTotalAmountAsync(
-            string? stripeCustomerId,
-            long totalAmountVnd,
-            string productName,
-            Guid transactionId,
-            Guid profileId,
-            string idempotencyKey,
-            string platform = "web",
-            int quantity = 1);
-
         Task<Refund?> RefundPaymentIntentAsync(
             string paymentIntentId,
             string idempotencyKey,

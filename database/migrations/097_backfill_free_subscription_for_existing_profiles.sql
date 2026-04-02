@@ -299,5 +299,5 @@ FROM tmp_free_subscription_backfill t;
 DROP TEMPORARY TABLE IF EXISTS tmp_free_subscription_backfill;
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('089_backfill_free_subscription_for_existing_profiles', '1.0.0')
+VALUES ('097_backfill_free_subscription_for_existing_profiles', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';

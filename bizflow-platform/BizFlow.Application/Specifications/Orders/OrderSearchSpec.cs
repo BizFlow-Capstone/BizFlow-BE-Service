@@ -34,6 +34,12 @@ namespace BizFlow.Application.Specifications.Orders
                     || (o.CustomerPhone != null && o.CustomerPhone.Contains(s)));
             }
 
+            if (query.CreatedByProfileId.HasValue)
+            {
+                var createdByProfileId = query.CreatedByProfileId.Value;
+                AddCriteria(o => o.CreatedBy == createdByProfileId);
+            }
+
             if (!filterOnly)
             {
                 // Typically you don't add includes in count spec, but filterOnly explicit guard is good

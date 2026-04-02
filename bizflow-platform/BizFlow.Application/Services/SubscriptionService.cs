@@ -25,7 +25,6 @@ namespace BizFlow.Application.Services
         private readonly IMessageService _messageService;
         private readonly StripeSettings _stripeSettings;
         private readonly FreePlanOptions _freePlanOptions;
-        private readonly SubscriptionUpgradeOptions _upgradeOptions;
         private readonly ILogger<SubscriptionService> _logger;
 
         public SubscriptionService(
@@ -38,7 +37,6 @@ namespace BizFlow.Application.Services
             IMessageService messageService,
             IOptions<StripeSettings> stripeSettings,
             IOptions<FreePlanOptions> freePlanOptions,
-            IOptions<SubscriptionUpgradeOptions> upgradeOptions,
             ILogger<SubscriptionService> logger)
         {
             _unitOfWork = unitOfWork;
@@ -50,7 +48,6 @@ namespace BizFlow.Application.Services
             _messageService = messageService;
             _stripeSettings = stripeSettings.Value;
             _freePlanOptions = freePlanOptions.Value;
-            _upgradeOptions = upgradeOptions.Value;
             _logger = logger;
         }
 
@@ -178,6 +175,76 @@ namespace BizFlow.Application.Services
                     persisted,
                     persisted.SubscriptionPlan.PlanFeatures.ToList());
             }
+        }
+
+        public async Task<int> EnsureFreeSubscriptionsForOwnersWithoutActiveAsync()
+        {
+            await EnsureFreePlanSetupAsync();
+            var freePlan = await ResolveFreePlanAsync()
+                ?? throw new NotFoundException(MessageKeys.SubscriptionPlanNotFound);
+
+            var ownerProfileIds = await _unitOfWork.Subscriptions.GetProfileIdsWithoutActiveSubscriptionAsync();
+            if (ownerProfileIds.Count == 0)
+                return 0;
+
+            var now = DateTime.UtcNow;
+            var periodEndUtc = FreePlanBillingCalendar.GetNextMonthStartUtc(now, _freePlanOptions.BillingTimeZoneId);
+            var subscriptions = new List<Subscription>(ownerProfileIds.Count);
+            var usages = new List<FeatureUsage>(ownerProfileIds.Count * Math.Max(1, freePlan.PlanFeatures.Count));
+            var auditLogs = new List<SubscriptionAuditLog>(ownerProfileIds.Count);
+
+            foreach (var ownerProfileId in ownerProfileIds)
+            {
+                var subscription = new Subscription
+                {
+                    SubscriptionId = Guid.NewGuid(),
+                    OwnerProfileId = ownerProfileId,
+                    SubscriptionPlanId = freePlan.SubscriptionPlanId,
+                    Status = SubscriptionStatus.Active,
+                    IsAutoRenew = false,
+                    StartDate = now,
+                    EndDate = periodEndUtc,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                subscriptions.Add(subscription);
+                usages.AddRange(freePlan.PlanFeatures.Select(feature => new FeatureUsage
+                {
+                    SubscriptionId = subscription.SubscriptionId,
+                    FeatureId = feature.FeatureId,
+                    UsedCount = 0,
+                    AllocatedLimit = feature.UsageLimit,
+                    PeriodStart = now,
+                    PeriodEnd = periodEndUtc,
+                    UpdatedAt = now
+                }));
+
+                auditLogs.Add(new SubscriptionAuditLog
+                {
+                    SubscriptionId = subscription.SubscriptionId,
+                    Action = SubscriptionAuditAction.Activated,
+                    Details = "{\"source\":\"startup_backfill_free\"}",
+                    CreatedAt = now
+                });
+            }
+
+            await _unitOfWork.Subscriptions.AddRangeAsync(subscriptions);
+            await _unitOfWork.FeatureUsages.AddRangeAsync(usages);
+            foreach (var log in auditLogs)
+                await _unitOfWork.SubscriptionAuditLogs.AddAsync(log);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            foreach (var subscription in subscriptions)
+            {
+                await TrySetUsageTrackingSafeAsync(
+                    subscription.OwnerProfileId,
+                    subscription,
+                    freePlan.PlanFeatures.ToList());
+            }
+
+            return subscriptions.Count;
         }
 
         public async Task<bool> HasActiveSubscriptionAsync(Guid ownerProfileId)
@@ -321,23 +388,11 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.SubscriptionFreePlanPaymentNotAllowed);
 
             var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(profileId);
-            decimal rawUpgradeCredit = 0m;
-
-            if (active != null && active.SubscriptionPlanId != subscriptionPlanId)
-            {
-                var currentPlan = active.SubscriptionPlan;
-                if (!IsFreePlan(currentPlan))
-                {
-                    var currentPlanPrice = currentPlan.Prices?.FirstOrDefault(p => p.IsActive);
-                    rawUpgradeCredit = ComputePaidPlanUpgradeCredit(active, currentPlan, currentPlanPrice, _upgradeOptions);
-                }
-            }
 
             return await CreatePendingCheckoutSessionAsync(
                 profileId,
                 subscriptionPlanId,
                 TransactionType.Purchase,
-                rawUpgradeCredit,
                 active?.SubscriptionId,
                 platform,
                 quantity);
@@ -816,7 +871,6 @@ namespace BizFlow.Application.Services
             Guid profileId,
             int subscriptionPlanId,
             string transactionType,
-            decimal rawProrationCredit,
             Guid? sourceSubscriptionId,
             string platform = "web",
             int quantity = 1)
@@ -835,10 +889,7 @@ namespace BizFlow.Application.Services
 
             var unitPrice = planPrice?.GetEffectivePrice() ?? 0m;
             var totalPlanPrice = unitPrice * safeQuantity;
-            var afterCredit = decimal.Round(Math.Max(0m, totalPlanPrice - rawProrationCredit), 2, MidpointRounding.AwayFromZero);
-            var minDue = decimal.Round(totalPlanPrice * _upgradeOptions.MinimumFractionOfTargetPlan, 2, MidpointRounding.AwayFromZero);
-            var finalAmount = Math.Max(afterCredit, minDue);
-            var storedProrationCredit = decimal.Round(totalPlanPrice - finalAmount, 2, MidpointRounding.AwayFromZero);
+            var finalAmount = totalPlanPrice;
 
             var now = DateTime.UtcNow;
             var transaction = new Transaction
@@ -850,7 +901,7 @@ namespace BizFlow.Application.Services
                 IdempotencyKey = Guid.NewGuid().ToString("N"),
                 TransactionType = transactionType,
                 PlanPrice = totalPlanPrice,
-                ProrationCredit = storedProrationCredit,
+                ProrationCredit = 0m,
                 FinalAmount = finalAmount,
                 Currency = "VND",
                 Status = TransactionStatus.Pending,
@@ -864,25 +915,14 @@ namespace BizFlow.Application.Services
             var profile = await _unitOfWork.Profiles.GetByIdAsync(profileId)
                 ?? throw new NotFoundException(MessageKeys.UserNotFound);
 
-            var useCatalogPrice = Math.Abs(finalAmount - totalPlanPrice) < 0.01m;
-            var session = useCatalogPrice
-                ? await _stripeService.CreateCheckoutSessionAsync(
-                    profile.StripeCustomerId,
-                    plan.StripePriceId,
-                    transaction.TransactionId,
-                    profileId,
-                    transaction.IdempotencyKey,
-                    platform,
-                    safeQuantity)
-                : await _stripeService.CreateCheckoutSessionForTotalAmountAsync(
-                    profile.StripeCustomerId,
-                    Math.Max(1L, (long)Math.Round(finalAmount, MidpointRounding.AwayFromZero)),
-                    safeQuantity > 1 ? $"{plan.Name} (×{safeQuantity})" : plan.Name,
-                    transaction.TransactionId,
-                    profileId,
-                    transaction.IdempotencyKey,
-                    platform,
-                    safeQuantity);
+            var session = await _stripeService.CreateCheckoutSessionAsync(
+                profile.StripeCustomerId,
+                plan.StripePriceId,
+                transaction.TransactionId,
+                profileId,
+                transaction.IdempotencyKey,
+                platform,
+                safeQuantity);
 
             transaction.StripeCheckoutSessionId = session.Id;
             transaction.UpdatedAt = DateTime.UtcNow;
@@ -900,7 +940,7 @@ namespace BizFlow.Application.Services
                 TransactionId = transaction.TransactionId,
                 SessionUrl = session.Url ?? string.Empty,
                 PlanPrice = totalPlanPrice,
-                ProrationCredit = storedProrationCredit,
+                ProrationCredit = 0m,
                 FinalAmount = finalAmount,
                 Currency = transaction.Currency,
                 TransactionType = transactionType
@@ -982,6 +1022,35 @@ namespace BizFlow.Application.Services
                     plan.SubscriptionPlanId,
                     plan.StripePriceId);
             }
+            catch (Stripe.StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Stripe product {StripeProductId} missing for plan {PlanId}. Recreating product and price.",
+                    plan.StripeProductId,
+                    plan.SubscriptionPlanId);
+
+                var recreatedProduct = await _stripeService.CreateProductAsync(
+                    plan.Name,
+                    plan.Description,
+                    new Dictionary<string, string>
+                    {
+                        ["subscriptionPlanId"] = plan.SubscriptionPlanId.ToString(),
+                        ["source"] = "checkout-autoprovision-heal"
+                    });
+
+                plan.StripeProductId = recreatedProduct.Id;
+                var recreatedPrice = await _stripeService.CreatePriceAsync(plan.StripeProductId, unitAmount);
+                plan.StripePriceId = recreatedPrice.Id;
+                plan.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Recreated Stripe catalog for plan {PlanId}: product={ProductId}, price={PriceId}",
+                    plan.SubscriptionPlanId,
+                    plan.StripeProductId,
+                    plan.StripePriceId);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(
@@ -1009,32 +1078,6 @@ namespace BizFlow.Application.Services
             return durationDays > 0
                 ? startDateUtc.AddDays(durationDays)
                 : startDateUtc;
-        }
-
-        /// <summary>
-        /// Upgrade credit from the current paid plan:
-        /// (remainingDays / periodDays) * percent * (unitPrice * stackedPeriods).
-        /// </summary>
-        private static decimal ComputePaidPlanUpgradeCredit(
-            Subscription active,
-            SubscriptionPlan currentPlan,
-            SubscriptionPlanPrice? currentPlanPrice,
-            SubscriptionUpgradeOptions options)
-        {
-            var unitOld = currentPlanPrice?.GetEffectivePrice() ?? 0m;
-            if (unitOld <= 0m)
-                return 0m;
-
-            var periodDays = Math.Max(1m, (decimal)(active.EndDate - active.StartDate).TotalDays);
-            var durationDays = currentPlan.DurationDays > 0
-                ? currentPlan.DurationDays
-                : Math.Max(1, (int)Math.Ceiling((double)periodDays));
-            var remainingDays = Math.Max(0m, (decimal)(active.EndDate - DateTime.UtcNow).TotalDays);
-
-            var blockValue = unitOld * (periodDays / Math.Max(1m, (decimal)durationDays));
-            var ratio = remainingDays / periodDays;
-            var credit = ratio * (options.RemainingCreditPercent / 100m) * blockValue;
-            return decimal.Round(credit, 2, MidpointRounding.AwayFromZero);
         }
 
         private Task<SubscriptionPlan?> ResolveFreePlanAsync()

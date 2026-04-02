@@ -75,6 +75,16 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public Task<List<Guid>> GetProfileIdsWithoutActiveSubscriptionAsync()
+        {
+            return _context.Profiles
+                .Where(p => !_context.Subscriptions.Any(s =>
+                    s.OwnerProfileId == p.ProfileId
+                    && s.Status == SubscriptionStatus.Active))
+                .Select(p => p.ProfileId)
+                .ToListAsync();
+        }
+
         public Task<bool> HasAnySubscriptionAsync(Guid ownerProfileId)
         {
             return _context.Subscriptions
@@ -84,6 +94,11 @@ namespace BizFlow.Infrastructure.Repositories
         public Task AddAsync(Subscription subscription)
         {
             return _context.Subscriptions.AddAsync(subscription).AsTask();
+        }
+
+        public Task AddRangeAsync(IEnumerable<Subscription> subscriptions)
+        {
+            return _context.Subscriptions.AddRangeAsync(subscriptions);
         }
     }
 }

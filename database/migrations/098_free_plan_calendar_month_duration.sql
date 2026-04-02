@@ -13,5 +13,5 @@ WHERE sp.IsActive = 1
   AND sp.Name = 'Miễn phí';
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('090_free_plan_calendar_month_duration', '1.0.0')
+VALUES ('098_free_plan_calendar_month_duration', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = '1.0.0';

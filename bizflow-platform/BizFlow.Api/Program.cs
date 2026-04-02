@@ -10,6 +10,7 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Interfaces.Services;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure;
 using BizFlow.Infrastructure.Consumers;
 using BizFlow.Infrastructure.Jobs;
@@ -165,7 +166,6 @@ builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(Image
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
 builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
-builder.Services.Configure<SubscriptionUpgradeOptions>(builder.Configuration.GetSection(SubscriptionUpgradeOptions.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -485,6 +485,27 @@ if (isHangfireEnabled)
 else
 {
     app.Logger.LogWarning("Hangfire is disabled: {Reason}", hangfireDisableReason);
+}
+
+// One-time startup backfill: ensure all profiles have an active subscription (free if missing).
+using (var startupScope = app.Services.CreateScope())
+{
+    var startupSubscriptionService = startupScope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+    var startupLogger = startupScope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("StartupFreeSubscriptionBackfill");
+
+    try
+    {
+        var successCount = await startupSubscriptionService.EnsureFreeSubscriptionsForOwnersWithoutActiveAsync();
+        startupLogger.LogInformation(
+            "Startup free-subscription backfill completed. Success={SuccessCount}",
+            successCount);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "Startup free-subscription backfill failed");
+    }
 }
 
 app.Run();
