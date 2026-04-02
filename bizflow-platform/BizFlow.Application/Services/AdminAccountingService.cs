@@ -861,7 +861,7 @@ public class AdminAccountingService : IAdminAccountingService
                 Fields = new()
                 {
                     new() { FieldName = "context", FieldType = "enum", Required = true, Description = "Tên giá trị runtime",
-                        AllowedValues = new() {"period_start","period_end","business_type","group_amount","group_cost","total_amount"} }
+                        AllowedValues = new() {"period_start","period_end","business_type","group_amount","group_cost","group_deduction","total_amount"} }
                 }
             },
             new()
@@ -873,7 +873,8 @@ public class AdminAccountingService : IAdminAccountingService
                     new() { FieldName = "foreach", FieldType = "enum", Required = true, Description = "Loại lặp", AllowedValues = new() {"industry"} },
                     new() { FieldName = "apply", FieldType = "node", Required = true, Description = "Biểu thức tính cho mỗi nhóm (có thể dùng context node)" },
                     new() { FieldName = "reduce", FieldType = "enum", Required = false, Description = "Phép gộp kết quả (mặc định SUM)", AllowedValues = new() {"SUM","MAX","MIN"} },
-                    new() { FieldName = "threshold", FieldType = "node", Required = false, Description = "Ngưỡng: nếu total_amount ≤ ngưỡng thì kết quả = 0 (dùng cho PIT Cách 1)" }
+                    new() { FieldName = "threshold", FieldType = "node", Required = false, Description = "Ngưỡng: nếu total_amount ≤ ngưỡng thì kết quả = 0 (legacy)" },
+                    new() { FieldName = "deduction", FieldType = "node", Required = false, Description = "Giảm trừ: {amount, target:'highest_revenue'} — trừ vào doanh thu ngành cao nhất (dùng cho PIT Cách 1)" }
                 }
             }
         };

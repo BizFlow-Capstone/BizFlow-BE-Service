@@ -155,7 +155,7 @@ public class FormulaEngine : IFormulaEngine
             "revenues" => await AggregateRevenuesAsync(ctx, aggType, field, filters),
             "costs" => await AggregateCostsAsync(ctx, aggType, field, filters),
             "gl_entries" => await AggregateGLAsync(ctx, aggType, field, filters),
-            "stock_movements" => 0m, // Phase B.2 — stock movements not yet available
+            "stock_movements" => await AggregateStockMovementsAsync(ctx, aggType, field, filters, periodFilter, sign),
             _ => 0m
         };
     }
@@ -250,6 +250,50 @@ public class FormulaEngine : IFormulaEngine
         {
             "SUM" => list.Sum(e => GetGLFieldValue(e, field)),
             "AVG" => list.Count > 0 ? list.Average(e => GetGLFieldValue(e, field)) : 0m,
+            "COUNT" => list.Count,
+            _ => 0m
+        };
+    }
+
+    private async Task<decimal> AggregateStockMovementsAsync(
+        FormulaEvaluationContext ctx,
+        string aggType, string field,
+        Dictionary<string, string> filters,
+        string? periodFilter, string? sign)
+    {
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+
+        // Apply periodFilter
+        IEnumerable<StockMovement> filtered = periodFilter switch
+        {
+            "before" => allMovements.Where(sm =>
+                DateOnly.FromDateTime(sm.CreatedAt) < ctx.PeriodStart),
+            "current" => allMovements.Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
+            }),
+            _ => allMovements
+        };
+
+        // Apply sign filter
+        filtered = sign switch
+        {
+            "positive" => filtered.Where(sm => sm.Quantity > 0),
+            "negative" => filtered.Where(sm => sm.Quantity < 0),
+            _ => filtered
+        };
+
+        // Apply ProductId filter if present (for per-product scope via context)
+        if (filters.TryGetValue("ProductId", out var pid) && long.TryParse(pid, out var productId))
+            filtered = filtered.Where(sm => sm.ProductId == productId);
+
+        var list = filtered.ToList();
+
+        return aggType.ToUpper() switch
+        {
+            "SUM" => list.Sum(sm => GetStockFieldValue(sm, field)),
+            "AVG" => list.Count > 0 ? list.Average(sm => GetStockFieldValue(sm, field)) : 0m,
             "COUNT" => list.Count,
             _ => 0m
         };
@@ -600,6 +644,14 @@ public class FormulaEngine : IFormulaEngine
             _ => 0m
         };
 
+    private static decimal GetStockFieldValue(StockMovement sm, string field) =>
+        field switch
+        {
+            "QuantityDelta" or "Quantity" => sm.Quantity,
+            "TotalValue" => Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m),
+            _ => 0m
+        };
+
     // ────────────────────────────────────────────────────────
     // FOREACH: Iterate per industry/group, apply expression, reduce
     // ────────────────────────────────────────────────────────
@@ -627,7 +679,7 @@ public class FormulaEngine : IFormulaEngine
 
         var totalAmount = revenueByGroup.Values.Sum();
 
-        // Optional threshold check
+        // Optional threshold check (legacy — kept for backward compatibility)
         if (node.TryGetProperty("threshold", out var thresholdNode))
         {
             var minValue = thresholdNode.GetProperty("min").GetDecimal();
@@ -641,6 +693,21 @@ public class FormulaEngine : IFormulaEngine
             }
         }
 
+        // Optional deduction: subtract a fixed amount from the highest-revenue group
+        // The apply expression uses {context: "group_deduction"} to access this value.
+        var deductionAmount = 0m;
+        string? deductionTargetGroupKey = null;
+        if (node.TryGetProperty("deduction", out var deductionNode))
+        {
+            deductionAmount = deductionNode.GetProperty("amount").GetDecimal();
+            var target = deductionNode.TryGetProperty("target", out var t) ? t.GetString() : "highest_revenue";
+
+            if (target == "highest_revenue" && revenueByGroup.Count > 0)
+            {
+                deductionTargetGroupKey = revenueByGroup.MaxBy(kv => kv.Value).Key;
+            }
+        }
+
         // Iterate each group
         var breakdown = new Dictionary<string, decimal>();
         var groupValues = new List<decimal>();
@@ -649,6 +716,7 @@ public class FormulaEngine : IFormulaEngine
         var origBtId = ctx.CurrentBusinessTypeId;
         var origGroupAmount = ctx.GroupAmount;
         var origGroupCost = ctx.GroupCost;
+        var origGroupDeduction = ctx.GroupDeduction;
         var origTotalAmount = ctx.TotalAmount;
 
         try
@@ -660,6 +728,7 @@ public class FormulaEngine : IFormulaEngine
                 ctx.CurrentBusinessTypeId = Guid.TryParse(groupKey, out var gid) ? gid : null;
                 ctx.GroupAmount = groupAmount;
                 ctx.GroupCost = costByGroup?.GetValueOrDefault(groupKey) ?? 0m;
+                ctx.GroupDeduction = groupKey == deductionTargetGroupKey ? deductionAmount : 0m;
 
                 var groupResult = await EvaluateElementAsync(ctx, resolved, applyNode);
                 breakdown[groupKey] = groupResult;
@@ -672,6 +741,7 @@ public class FormulaEngine : IFormulaEngine
             ctx.CurrentBusinessTypeId = origBtId;
             ctx.GroupAmount = origGroupAmount;
             ctx.GroupCost = origGroupCost;
+            ctx.GroupDeduction = origGroupDeduction;
             ctx.TotalAmount = origTotalAmount;
         }
 
@@ -745,6 +815,7 @@ public class FormulaEngine : IFormulaEngine
         {
             "group_amount" => ctx.GroupAmount ?? 0m,
             "group_cost" => ctx.GroupCost ?? 0m,
+            "group_deduction" => ctx.GroupDeduction ?? 0m,
             "total_amount" => ctx.TotalAmount ?? 0m,
             _ => 0m
         };

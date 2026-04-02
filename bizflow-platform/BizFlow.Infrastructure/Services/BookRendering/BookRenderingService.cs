@@ -547,7 +547,7 @@ public class BookRenderingService : IBookRenderingService
         {
             "revenues" => await QueryRevenueRowsAsync(ctx, cursor, batchSize),
             "revenue_cost" => await QueryRevenueCostRowsAsync(ctx, cursor, batchSize),
-            "stock_movements" => new SourceDataResult(), // Phase B.2
+            "stock_movements" => await QueryStockMovementRowsAsync(ctx, cursor, batchSize),
             "gl_entries" => await QueryGLRowsAsync(ctx, cursor, batchSize),
             _ => new SourceDataResult()
         };
@@ -693,12 +693,69 @@ public class BookRenderingService : IBookRenderingService
         };
     }
 
+    private async Task<SourceDataResult> QueryStockMovementRowsAsync(
+        BookRenderContext ctx, string? cursor, int batchSize)
+    {
+        var safeBatchSize = SanitizeBatchSize(batchSize);
+
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+
+        // Filter to current period
+        var list = allMovements
+            .Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
+            })
+            .OrderBy(sm => sm.CreatedAt)
+            .ThenBy(sm => sm.StockMovementId)
+            .ToList();
+
+        var totalCount = list.Count;
+        var hasMore = list.Count > safeBatchSize;
+        if (hasMore) list = list.Take(safeBatchSize).ToList();
+
+        return new SourceDataResult
+        {
+            Items = list.Select(sm => new SourceRow
+            {
+                Date = DateOnly.FromDateTime(sm.CreatedAt),
+                Id = sm.StockMovementId,
+                Section = sm.ProductId.ToString(),  // group by ProductId
+                Values = new Dictionary<string, object?>
+                {
+                    ["StockMovementId"] = sm.StockMovementId,
+                    ["ProductId"] = sm.ProductId,
+                    ["ProductName"] = sm.Product?.ProductName,
+                    ["MovementDate"] = DateOnly.FromDateTime(sm.CreatedAt),
+                    ["MovementType"] = sm.MovementType,
+                    ["Description"] = sm.Memo ?? $"{sm.MovementType} — {sm.ReferenceType} #{sm.ReferenceId}",
+                    ["Unit"] = sm.Product?.Unit,
+                    ["CostPrice"] = sm.Product?.CostPrice ?? 0m,
+                    ["Quantity"] = sm.Quantity,
+                    ["QuantityAbs"] = Math.Abs(sm.Quantity),
+                    ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (int?)null,
+                    ["ImportValue"] = sm.Quantity > 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
+                    ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (int?)null,
+                    ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
+                    ["BalanceAfter"] = sm.BalanceAfter,
+                    ["BalanceValue"] = sm.BalanceAfter * (sm.Product?.CostPrice ?? 0m),
+                    ["ReferenceType"] = sm.ReferenceType,
+                    ["ReferenceId"] = sm.ReferenceId
+                }
+            }).ToList(),
+            HasMore = hasMore,
+            TotalEstimated = totalCount
+        };
+    }
+
     private async Task<int> CountSourceRowsAsync(BookRenderContext ctx)
     {
         return ctx.DataSourceType switch
         {
             "revenues" => (await QueryRevenueRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
             "gl_entries" => (await QueryGLRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
+            "stock_movements" => (await QueryStockMovementRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
             _ => 0
         };
     }
@@ -724,6 +781,7 @@ public class BookRenderingService : IBookRenderingService
             "description" or "dien_giai" => row.Values.GetValueOrDefault("Description"),
             "so_hieu" => row.Values.GetValueOrDefault("OrderId")?.ToString()
                 ?? row.Values.GetValueOrDefault("EntryId")?.ToString()
+                ?? row.Values.GetValueOrDefault("StockMovementId")?.ToString()
                 ?? row.Values.GetValueOrDefault("CostId")?.ToString(),
 
             // Revenue/Order
@@ -733,7 +791,17 @@ public class BookRenderingService : IBookRenderingService
             "thu_vao" => row.Values.GetValueOrDefault("DebitAmount"),
             "chi_ra" => row.Values.GetValueOrDefault("CreditAmount"),
 
-            // Section (S2c, S2e)
+            // Stock Movements (S2d)
+            "dvt" => row.Values.GetValueOrDefault("Unit"),
+            "don_gia" => row.Values.GetValueOrDefault("CostPrice"),
+            "sl_nhap" => row.Values.GetValueOrDefault("ImportQty"),
+            "tien_nhap" => row.Values.GetValueOrDefault("ImportValue"),
+            "sl_xuat" => row.Values.GetValueOrDefault("ExportQty"),
+            "tien_xuat" => row.Values.GetValueOrDefault("ExportValue"),
+            "sl_ton" => row.Values.GetValueOrDefault("BalanceAfter"),
+            "tien_ton" => row.Values.GetValueOrDefault("BalanceValue"),
+
+            // Section (S2c, S2e, S2d per product)
             "section" => row.Section,
 
             // Fallback: try direct match
@@ -765,6 +833,21 @@ public class BookRenderingService : IBookRenderingService
             "CreditAmount" => row.Values.GetValueOrDefault("CreditAmount"),
             "TransactionType" => row.Values.GetValueOrDefault("TransactionType"),
             "MoneyChannel" => row.Values.GetValueOrDefault("MoneyChannel"),
+
+            // Stock Movements
+            "StockMovementId" => row.Values.GetValueOrDefault("StockMovementId"),
+            "ProductId" => row.Values.GetValueOrDefault("ProductId"),
+            "ProductName" => row.Values.GetValueOrDefault("ProductName"),
+            "MovementType" => row.Values.GetValueOrDefault("MovementType"),
+            "Unit" => row.Values.GetValueOrDefault("Unit"),
+            "CostPrice" => row.Values.GetValueOrDefault("CostPrice"),
+            "Quantity" or "QuantityDelta" => row.Values.GetValueOrDefault("Quantity"),
+            "ImportQty" => row.Values.GetValueOrDefault("ImportQty"),
+            "ImportValue" => row.Values.GetValueOrDefault("ImportValue"),
+            "ExportQty" => row.Values.GetValueOrDefault("ExportQty"),
+            "ExportValue" => row.Values.GetValueOrDefault("ExportValue"),
+            "BalanceAfter" => row.Values.GetValueOrDefault("BalanceAfter"),
+            "BalanceValue" => row.Values.GetValueOrDefault("BalanceValue"),
 
             // Fallback direct lookup by metadata field code
             _ => row.Values.GetValueOrDefault(sourceFieldCode)
@@ -901,7 +984,32 @@ public class BookRenderingService : IBookRenderingService
                     .ToDictionary(g => g.Key, g => g.First().TaxRate));
         }
 
-        // Future: "ProductId" → LoadAmountByProductAsync, etc.
+        if (groupByField.Equals("ProductId", StringComparison.OrdinalIgnoreCase))
+        {
+            var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
+            var periodMovements = allMovements.Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= context.PeriodStart && d <= context.PeriodEnd;
+            }).ToList();
+
+            // Discover distinct products that have movements in this period
+            var productGroups = periodMovements
+                .GroupBy(sm => sm.ProductId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var keys = productGroups.Keys.OrderBy(k => k).Select(k => k.ToString()).ToList();
+            var names = productGroups.ToDictionary(
+                kv => kv.Key.ToString(),
+                kv => kv.Value.First().Product?.ProductName ?? $"Product #{kv.Key}");
+            var amounts = productGroups.ToDictionary(
+                kv => kv.Key.ToString(),
+                kv => kv.Value.Where(sm => sm.Quantity > 0).Sum(sm => Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m)));
+
+            return (keys, names, amounts, new Dictionary<(string, string), decimal>());
+        }
+
+        // Future: add new GroupByField values here when introducing new templates.
         _logger.LogWarning("Unsupported GroupByField: {GroupByField}", groupByField);
         return (new List<string>(),
             new Dictionary<string, string>(),

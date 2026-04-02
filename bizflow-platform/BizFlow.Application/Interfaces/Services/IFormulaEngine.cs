@@ -73,6 +73,9 @@ public class FormulaEvaluationContext
     /// <summary>Cost of the current group within a foreach iteration.</summary>
     public decimal? GroupCost { get; set; }
 
+    /// <summary>Deduction applied to the current group (e.g. 500M for highest-revenue industry in PIT).</summary>
+    public decimal? GroupDeduction { get; set; }
+
     /// <summary>Total amount across all groups (for threshold checks).</summary>
     public decimal? TotalAmount { get; set; }
 }
