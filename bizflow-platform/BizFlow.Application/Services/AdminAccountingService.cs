@@ -358,6 +358,43 @@ public class AdminAccountingService : IAdminAccountingService
         return MapFormula(formula);
     }
 
+    public async Task<AdminFormulaDto> CreateFormulaAsync(CreateFormulaRequest request, Guid actorUserId)
+    {
+        if (string.IsNullOrWhiteSpace(request.Code))
+            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+        if (string.IsNullOrWhiteSpace(request.ExpressionJson))
+            throw new BadRequestException(MessageKeys.BadRequest, "ExpressionJson is required");
+
+        // Validate JSON
+        try { System.Text.Json.JsonDocument.Parse(request.ExpressionJson); }
+        catch { throw new BadRequestException(MessageKeys.BadRequest, "ExpressionJson is not valid JSON"); }
+
+        var existing = (await _uow.FormulaDefinitions.GetActiveAsync())
+            .FirstOrDefault(f => string.Equals(f.Code, request.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            throw new BadRequestException(MessageKeys.BadRequest, $"Formula code '{request.Code}' already exists");
+
+        var formula = new FormulaDefinition
+        {
+            Code = request.Code.Trim(),
+            Name = request.Name.Trim(),
+            Description = request.Description,
+            FormulaType = request.FormulaType ?? "computed",
+            ExpressionJson = request.ExpressionJson,
+            ResultDataType = request.ResultDataType ?? "decimal",
+            RoundingMode = request.RoundingMode,
+            RoundingPrecision = request.RoundingPrecision ?? 0,
+            IsActive = true,
+            CreatedByUserId = actorUserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.FormulaDefinitions.AddAsync(formula);
+        await _uow.SaveChangesAsync();
+
+        return MapFormula(formula);
+    }
+
     public async Task<AdminFormulaDto> CloneFormulaAsync(long formulaId, CloneFormulaRequest request)
     {
         var source = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
@@ -819,12 +856,25 @@ public class AdminAccountingService : IAdminAccountingService
             },
             new()
             {
-                NodeType = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy",
-                Example = "{\"context\":\"period_start\"}",
+                NodeType = "context", Label = "Giá trị runtime", Description = "Giá trị từ context chạy (dùng trong foreach hoặc độc lập)",
+                Example = "{\"context\":\"group_amount\"}",
                 Fields = new()
                 {
                     new() { FieldName = "context", FieldType = "enum", Required = true, Description = "Tên giá trị runtime",
-                        AllowedValues = new() {"period_start","period_end","business_type"} }
+                        AllowedValues = new() {"period_start","period_end","business_type","group_amount","group_cost","group_deduction","total_amount"} }
+                }
+            },
+            new()
+            {
+                NodeType = "foreach", Label = "Lặp theo ngành", Description = "Lặp qua từng ngành nghề, tính biểu thức con cho mỗi nhóm, rồi reduce (SUM/MAX/MIN)",
+                Example = "{\"foreach\":\"industry\",\"apply\":{\"op\":\"MULTIPLY\",\"left\":{\"context\":\"group_amount\"},\"right\":{\"lookup\":{\"entity\":\"IndustryTaxRates\",\"field\":\"TaxRate\",\"filter\":{\"TaxType\":\"VAT\"}}}},\"reduce\":\"SUM\"}",
+                Fields = new()
+                {
+                    new() { FieldName = "foreach", FieldType = "enum", Required = true, Description = "Loại lặp", AllowedValues = new() {"industry"} },
+                    new() { FieldName = "apply", FieldType = "node", Required = true, Description = "Biểu thức tính cho mỗi nhóm (có thể dùng context node)" },
+                    new() { FieldName = "reduce", FieldType = "enum", Required = false, Description = "Phép gộp kết quả (mặc định SUM)", AllowedValues = new() {"SUM","MAX","MIN"} },
+                    new() { FieldName = "threshold", FieldType = "node", Required = false, Description = "Ngưỡng: nếu total_amount ≤ ngưỡng thì kết quả = 0 (legacy)" },
+                    new() { FieldName = "deduction", FieldType = "node", Required = false, Description = "Giảm trừ: {amount, target:'highest_revenue'} — trừ vào doanh thu ngành cao nhất (dùng cho PIT Cách 1)" }
                 }
             }
         };

@@ -111,17 +111,21 @@ public class BookRenderingService : IBookRenderingService
             })
             .ToList();
 
-        var (formulaValues, _) = await EvaluateTemplateFormulasAsync(context, version);
+        var (formulaValues, _, formulaBreakdowns) = await EvaluateTemplateFormulasAsync(context, version);
 
         // Build formula lookup: FormulaId → computed value
         var formulaIdToValue = new Dictionary<long, decimal>();
+        // Build formula breakdown lookup: FormulaId → (groupKey → value)
+        var formulaIdToBreakdown = new Dictionary<long, Dictionary<string, decimal>>();
         foreach (var rd in rowDefinitions.Where(r => r.FormulaId.HasValue && r.Formula != null))
         {
             if (formulaValues.TryGetValue(rd.Formula!.Code, out var val))
                 formulaIdToValue[rd.FormulaId!.Value] = val;
+            if (formulaBreakdowns.TryGetValue(rd.Formula!.Code, out var bd))
+                formulaIdToBreakdown[rd.FormulaId!.Value] = bd;
         }
 
-        // Load tax rates once — used by both per_group sections and footer
+        // Load tax rates once — used for taxMetadata display
         var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(context.RulesetId, context.BusinessTypeIds);
         var taxRateLookup = taxRates
             .GroupBy(x => NormalizeTaxType(x.TaxType))
@@ -146,15 +150,6 @@ public class BookRenderingService : IBookRenderingService
         var groupedTaxTotals = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var groupIndex = 0;
 
-        // ── Tax rates per business type (for per-group tax computation) ──
-        var perBtTaxRates = taxRates
-            .GroupBy(x => (x.BusinessTypeId.ToString(), NormalizeTaxType(x.TaxType)))
-            .ToDictionary(g => g.Key, g => g.First().TaxRate);
-
-        // ── PIT threshold: Method 1 (S2a) requires total location revenue > 500M ──
-        // Compute per-group PIT for both methods without relying on formula definitions.
-        var isPitMethod1 = string.Equals(context.TaxMethod, "method_1", StringComparison.OrdinalIgnoreCase);
-
         // ── Path A: per_group — repeat definitions per group key (data-driven) ──
         if (perGroupDefs.Count > 0)
         {
@@ -165,11 +160,8 @@ public class BookRenderingService : IBookRenderingService
                 .Select(d => d.SectionType)
                 .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "group";
 
-            var (groupKeys, groupNames, groupAmounts, perGroupTaxRates) =
+            var (groupKeys, groupNames, groupAmounts, _) =
                 await ResolveGroupDataAsync(context, groupByField);
-
-            // Compute total revenue across all groups (for PIT proration)
-            var totalAllGroupsRevenue = groupKeys.Sum(k => groupAmounts.GetValueOrDefault(k));
 
             foreach (var groupKey in groupKeys)
             {
@@ -205,37 +197,39 @@ public class BookRenderingService : IBookRenderingService
                     else if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                     {
                         var taxType = NormalizeTaxType(rowDef.TaxType);
-                        var taxRate = perGroupTaxRates.GetValueOrDefault((groupKey, taxType));
-                        var taxAmount = subtotal * taxRate;
 
-                        // PIT Method 1 (S2a): threshold = 500M VND on total location revenue.
-                        // If below threshold, PIT = 0 for all groups.
-                        // If above threshold, PIT = group_revenue × PIT_rate (normal calculation).
-                        const decimal PIT_THRESHOLD = 500_000_000m;
-                        if (taxType == RowDefinitionConstants.TaxType.Pit && isPitMethod1
-                            && totalAllGroupsRevenue <= PIT_THRESHOLD)
+                        // Use formula breakdown for per-group tax value
+                        decimal taxAmount = 0m;
+                        decimal? taxRate = null;
+                        if (rowDef.FormulaId.HasValue
+                            && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown)
+                            && breakdown.TryGetValue(groupKey, out var groupTaxValue))
                         {
-                            taxAmount = 0m;
+                            taxAmount = groupTaxValue;
                         }
+                        else
+                        {
+                            // Fallback: use total formula value if no breakdown
+                            taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
+                        }
+
+                        // Try to get rate for metadata display
+                        var rateEntry = taxRates.FirstOrDefault(r =>
+                            r.BusinessTypeId.ToString() == groupKey
+                            && string.Equals(NormalizeTaxType(r.TaxType), taxType, StringComparison.OrdinalIgnoreCase));
+                        taxRate = rateEntry?.TaxRate;
 
                         row[GetValueFieldCode(rowDef)] = taxAmount;
                         row["taxMetadata"] = new Dictionary<string, object?>
                         {
                             ["taxType"] = rowDef.TaxType,
                             ["rate"] = taxRate,
-                            ["source"] = "RENDERER"
+                            ["source"] = "FORMULA"
                         };
 
-                        // Build explanation for tax calculation
-                        if (taxType == RowDefinitionConstants.TaxType.Pit && isPitMethod1
-                            && totalAllGroupsRevenue <= PIT_THRESHOLD)
-                        {
-                            row["explanation"] = $"Tong DT toan location ({totalAllGroupsRevenue:#,0} VND) chua vuot nguong {PIT_THRESHOLD:#,0} → Thue TNCN = 0";
-                        }
-                        else
-                        {
-                            row["explanation"] = $"{subtotal:#,0} x {taxRate:P4} = {taxAmount:#,0}";
-                        }
+                        row["explanation"] = taxRate.HasValue
+                            ? $"{subtotal:#,0} x {taxRate.Value:P4} = {taxAmount:#,0}"
+                            : $"Formula = {taxAmount:#,0}";
 
                         if (!string.IsNullOrWhiteSpace(taxType))
                             groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
@@ -255,25 +249,9 @@ public class BookRenderingService : IBookRenderingService
             }
         }
 
-        // ── Preload revenue/cost by business type if ANY section/footer has TaxLine ──
-        // Needed by both Path B (per_section) and Footer (end_of_book) for per-industry tax.
-        Dictionary<Guid, decimal>? revenueByBt = null;
-        Dictionary<Guid, decimal>? costByBt = null;
-        decimal totalRevenueSec = 0m;
-        var hasTaxLineAnywhere = perSectionDefs.Any(d => d.RowType == RowDefinitionConstants.RowType.TaxLine)
-                              || footerDefinitions.Any(d => d.RowType == RowDefinitionConstants.RowType.TaxLine);
-        if (hasTaxLineAnywhere)
-        {
-            revenueByBt = await LoadRevenueByBusinessTypeAsync(context);
-            costByBt = await LoadCostByBusinessTypeAsync(context);
-            totalRevenueSec = revenueByBt.Values.Sum();
-        }
-
         // ── Path B: per_section (S2c, S2e) — definitions define sections sequentially ──
         if (perSectionDefs.Count > 0)
         {
-
-            var templatePrefix = context.TemplateCode.ToUpperInvariant() + "_";
             var logicalSections = SplitDefinitionsByHeader(perSectionDefs);
 
             foreach (var (headerDef, bodyDefs) in logicalSections)
@@ -324,39 +302,10 @@ public class BookRenderingService : IBookRenderingService
                     if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                     {
                         var taxType = NormalizeTaxType(rowDef.TaxType);
-                        decimal taxAmount;
-                        string explanation;
 
-                        // Renderer computes tax per-industry (no formula dependency).
-                        if (taxType == RowDefinitionConstants.TaxType.Pit)
-                        {
-                            // PIT Cách 2: Σ MAX(0, revenue_i - cost_i) × PIT_rate_i
-                            // Uses actual cost-per-industry when available, falls back to proration.
-                            var profitKey = formulaValues.Keys
-                                .FirstOrDefault(k => k.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)
-                                                  && k.Contains("PROFIT", StringComparison.OrdinalIgnoreCase));
-                            var profit = profitKey != null ? formulaValues[profitKey] : 0m;
-                            var totalCost = totalRevenueSec - profit;
-
-                            taxAmount = ComputePerIndustryPitMethod2(totalRevenueSec, totalCost, revenueByBt, perBtTaxRates, costByBt);
-                            var taggedCost = costByBt?.Values.Sum() ?? 0m;
-                            var hasTagged = taggedCost > 0m;
-                            explanation = hasTagged
-                                ? $"SUM per nganh: MAX(0, DT_i - CP_i) x PIT_rate_i = {taxAmount:#,0} (CP thuc te theo nganh)"
-                                : $"SUM per nganh: MAX(0, DT_i - CP_i) x PIT_rate_i = {taxAmount:#,0} (CP phan bo theo ty trong DT)";
-                        }
-                        else if (taxType == RowDefinitionConstants.TaxType.Vat)
-                        {
-                            // VAT: Σ(revenue_i × VAT_rate_i)
-                            taxAmount = ComputePerIndustryVat(revenueByBt, perBtTaxRates);
-                            explanation = $"SUM per nganh: DT_i x VAT_rate_i = {taxAmount:#,0}";
-                        }
-                        else
-                        {
-                            // Fallback for unknown tax types: use formula if still linked
-                            taxAmount = formulaVal ?? 0m;
-                            explanation = $"Formula value = {taxAmount:#,0}";
-                        }
+                        // Use formula value (foreach formulas compute per-industry tax)
+                        var taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? formulaVal ?? 0m;
+                        var explanation = $"Formula = {taxAmount:#,0}";
 
                         row[valueField] = taxAmount;
                         row["explanation"] = explanation;
@@ -364,7 +313,7 @@ public class BookRenderingService : IBookRenderingService
                         {
                             ["taxType"] = rowDef.TaxType,
                             ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
-                            ["source"] = "RENDERER"
+                            ["source"] = "FORMULA"
                         };
                         if (!string.IsNullOrWhiteSpace(taxType))
                             groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
@@ -386,7 +335,6 @@ public class BookRenderingService : IBookRenderingService
 
         // ── Footer rows (end_of_book) ──
         var footerRows = new List<Dictionary<string, object?>>();
-        Dictionary<Guid, string>? btNames = null; // lazy-loaded for taxBreakdown
 
         foreach (var rowDef in footerDefinitions)
         {
@@ -401,53 +349,13 @@ public class BookRenderingService : IBookRenderingService
             var footerValueField = GetValueFieldCode(rowDef);
             var taxType = NormalizeTaxType(rowDef.TaxType);
 
-            // ── tax_line in footer: compute per-industry tax (S2c PIT lives here) ──
+            // ── tax_line in footer: use formula value ──
             if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine
                 && !string.IsNullOrWhiteSpace(taxType)
                 && !groupedTaxTotals.ContainsKey(taxType))
             {
-                var templatePrefix = context.TemplateCode.ToUpperInvariant() + "_";
-                decimal taxAmount;
-                string explanation;
-                List<TaxBreakdownDetail>? breakdownDetails = null;
-
-                if (taxType == RowDefinitionConstants.TaxType.Pit)
-                {
-                    if (isPitMethod1)
-                    {
-                        taxAmount = ComputePerIndustryPitMethod1(totalRevenueSec, revenueByBt, perBtTaxRates);
-                        explanation = totalRevenueSec <= 500_000_000m
-                            ? $"Tong DT ({totalRevenueSec:#,0}) chua vuot 500,000,000 → Thue TNCN = 0"
-                            : $"SUM per nganh: DT_i x PIT_rate_i = {taxAmount:#,0}";
-                    }
-                    else
-                    {
-                        // PIT Method 2 (S2c): Σ MAX(0, revenue_i - cost_i) × PIT_rate_i
-                        var profitKey = formulaValues.Keys
-                            .FirstOrDefault(k => k.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)
-                                              && k.Contains("PROFIT", StringComparison.OrdinalIgnoreCase));
-                        var profit = profitKey != null ? formulaValues[profitKey] : 0m;
-                        var totalCost = totalRevenueSec - profit;
-
-                        (taxAmount, breakdownDetails) = ComputePerIndustryPitMethod2WithBreakdown(
-                            totalRevenueSec, totalCost, revenueByBt, perBtTaxRates, costByBt);
-
-                        var taggedCost = costByBt?.Values.Sum() ?? 0m;
-                        explanation = taggedCost > 0m
-                            ? $"SUM per nganh: MAX(0, DT_i - CP_i) x PIT_rate_i = {taxAmount:#,0} (CP thuc te theo nganh)"
-                            : $"SUM per nganh: MAX(0, DT_i - CP_i) x PIT_rate_i = {taxAmount:#,0} (CP phan bo theo ty trong DT)";
-                    }
-                }
-                else if (taxType == RowDefinitionConstants.TaxType.Vat)
-                {
-                    taxAmount = ComputePerIndustryVat(revenueByBt, perBtTaxRates);
-                    explanation = $"SUM per nganh: DT_i x VAT_rate_i = {taxAmount:#,0}";
-                }
-                else
-                {
-                    taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
-                    explanation = $"Formula value = {taxAmount:#,0}";
-                }
+                var taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
+                var explanation = $"Formula = {taxAmount:#,0}";
 
                 row[footerValueField] = taxAmount;
                 row["explanation"] = explanation;
@@ -455,49 +363,43 @@ public class BookRenderingService : IBookRenderingService
                 {
                     ["taxType"] = rowDef.TaxType,
                     ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
-                    ["source"] = "RENDERER"
+                    ["source"] = "FORMULA"
                 };
 
-                // Build taxBreakdown array for per-industry detail
-                if (breakdownDetails != null && breakdownDetails.Count > 0)
+                // Build taxBreakdown from formula breakdown if available
+                if (rowDef.FormulaId.HasValue
+                    && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown)
+                    && breakdown.Count > 0)
                 {
-                    btNames ??= await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
-                    row["taxBreakdown"] = breakdownDetails.Select(d => new Dictionary<string, object?>
+                    var btNames = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
+                    row["taxBreakdown"] = breakdown.Select(kv => new Dictionary<string, object?>
                     {
-                        ["businessTypeId"] = d.BusinessTypeId.ToString(),
-                        ["businessTypeName"] = btNames.GetValueOrDefault(d.BusinessTypeId) ?? "N/A",
-                        ["revenue"] = d.Revenue,
-                        ["cost"] = d.Cost,
-                        ["profit"] = d.Profit,
-                        ["taxRate"] = d.TaxRate,
-                        ["taxAmount"] = d.TaxAmount,
-                        ["explanation"] = d.Explanation
+                        ["businessTypeId"] = kv.Key,
+                        ["businessTypeName"] = Guid.TryParse(kv.Key, out var gid)
+                            ? btNames.GetValueOrDefault(gid) ?? "N/A" : kv.Key,
+                        ["taxAmount"] = kv.Value
                     }).ToList();
                 }
 
                 if (!string.IsNullOrWhiteSpace(taxType))
                     groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
             }
-            // ── grand_total with tax type: use accumulated per-group totals ──
+            // ── grand_total with tax type: use formula value directly, or fallback to accumulated ──
             else if (rowDef.RowType == RowDefinitionConstants.RowType.GrandTotal
-                && !string.IsNullOrWhiteSpace(taxType)
-                && groupedTaxTotals.ContainsKey(taxType))
+                && !string.IsNullOrWhiteSpace(taxType))
             {
-                var groupedValue = groupedTaxTotals[taxType];
-                row[footerValueField] = groupedValue;
-                row["explanation"] = $"Tong cong tu cac nhom nganh = {groupedValue:#,0} VND";
+                var grandTotalValue = ResolveFormulaValue(rowDef, formulaIdToValue)
+                    ?? groupedTaxTotals.GetValueOrDefault(taxType);
+                row[footerValueField] = grandTotalValue;
+                row["explanation"] = $"Tong cong = {grandTotalValue:#,0} VND";
             }
             else
             {
-                // For non-tax rows: use formula value or fallback
+                // For non-tax rows: use formula value
                 var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
                 if (formulaVal.HasValue)
                 {
                     row[footerValueField] = formulaVal.Value;
-                }
-                else if (rowDef.RowType == RowDefinitionConstants.RowType.GrandTotal)
-                {
-                    row[footerValueField] = groupedTaxTotals.GetValueOrDefault(taxType);
                 }
             }
 
@@ -533,8 +435,8 @@ public class BookRenderingService : IBookRenderingService
         if (version == null)
             return new BookFormulaSummary();
 
-        // 2. Evaluate formulas for this template
-        var (results, _) = await EvaluateTemplateFormulasAsync(context, version);
+        // 2. Evaluate formulas for this template (including foreach tax formulas)
+        var (results, _, _) = await EvaluateTemplateFormulasAsync(context, version);
 
         // 3. Build summary
         var summary = new BookFormulaSummary
@@ -547,9 +449,8 @@ public class BookRenderingService : IBookRenderingService
         summary.TotalRevenue = FindFormulaValue(results, prefix, "_TOTAL_REVENUE", "_QUARTERLY_TOTAL");
         summary.TotalCost = FindFormulaValue(results, prefix, "_TOTAL_COST");
 
-        // Compute totalTax from per-group tax rates (not from formula, which uses a single rate).
-        // This is consistent with how RenderSectionsAsync computes footer grand totals.
-        summary.TotalTax = await ComputeTotalTaxFromGroupsAsync(context, results, prefix);
+        // Tax is now computed by foreach formulas — sum VAT + PIT formula values
+        summary.TotalTax = SumFormulaValues(results, prefix, "_VAT", "_PIT");
 
         // Count total rows (quick count)
         summary.TotalRows = await CountSourceRowsAsync(context);
@@ -557,7 +458,7 @@ public class BookRenderingService : IBookRenderingService
         return summary;
     }
 
-    private async Task<(Dictionary<string, decimal> FormulaValues, Dictionary<long, string> FormulaIdToCode)>
+    private async Task<(Dictionary<string, decimal> FormulaValues, Dictionary<long, string> FormulaIdToCode, Dictionary<string, Dictionary<string, decimal>> FormulaBreakdowns)>
         EvaluateTemplateFormulasAsync(BookRenderContext context, AccountingTemplateVersion version)
     {
         var formulaIds = version.FieldMappings
@@ -586,7 +487,7 @@ public class BookRenderingService : IBookRenderingService
             .ToList();
 
         if (templateFormulas.Count == 0)
-            return (new Dictionary<string, decimal>(), new Dictionary<long, string>());
+            return (new Dictionary<string, decimal>(), new Dictionary<long, string>(), new Dictionary<string, Dictionary<string, decimal>>());
 
         var formulaCtx = new FormulaEvaluationContext
         {
@@ -599,9 +500,9 @@ public class BookRenderingService : IBookRenderingService
             BusinessTypeIds = context.BusinessTypeIds
         };
 
-        var formulaValues = await _formulaEngine.EvaluateFormulasAsync(formulaCtx, templateFormulas);
+        var evalResults = await _formulaEngine.EvaluateFormulasWithBreakdownAsync(formulaCtx, templateFormulas);
         var formulaIdToCode = templateFormulas.ToDictionary(f => f.FormulaId, f => f.Code);
-        return (formulaValues, formulaIdToCode);
+        return (evalResults.Values, formulaIdToCode, evalResults.Breakdowns);
     }
 
     private static Dictionary<string, decimal?> BuildFormulaFieldValues(
@@ -646,7 +547,7 @@ public class BookRenderingService : IBookRenderingService
         {
             "revenues" => await QueryRevenueRowsAsync(ctx, cursor, batchSize),
             "revenue_cost" => await QueryRevenueCostRowsAsync(ctx, cursor, batchSize),
-            "stock_movements" => new SourceDataResult(), // Phase B.2
+            "stock_movements" => await QueryStockMovementRowsAsync(ctx, cursor, batchSize),
             "gl_entries" => await QueryGLRowsAsync(ctx, cursor, batchSize),
             _ => new SourceDataResult()
         };
@@ -792,189 +693,71 @@ public class BookRenderingService : IBookRenderingService
         };
     }
 
+    private async Task<SourceDataResult> QueryStockMovementRowsAsync(
+        BookRenderContext ctx, string? cursor, int batchSize)
+    {
+        var safeBatchSize = SanitizeBatchSize(batchSize);
+
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+
+        // Filter to current period
+        var list = allMovements
+            .Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
+            })
+            .OrderBy(sm => sm.CreatedAt)
+            .ThenBy(sm => sm.StockMovementId)
+            .ToList();
+
+        var totalCount = list.Count;
+        var hasMore = list.Count > safeBatchSize;
+        if (hasMore) list = list.Take(safeBatchSize).ToList();
+
+        return new SourceDataResult
+        {
+            Items = list.Select(sm => new SourceRow
+            {
+                Date = DateOnly.FromDateTime(sm.CreatedAt),
+                Id = sm.StockMovementId,
+                Section = sm.ProductId.ToString(),  // group by ProductId
+                Values = new Dictionary<string, object?>
+                {
+                    ["StockMovementId"] = sm.StockMovementId,
+                    ["ProductId"] = sm.ProductId,
+                    ["ProductName"] = sm.Product?.ProductName,
+                    ["MovementDate"] = DateOnly.FromDateTime(sm.CreatedAt),
+                    ["MovementType"] = sm.MovementType,
+                    ["Description"] = sm.Memo ?? $"{sm.MovementType} — {sm.ReferenceType} #{sm.ReferenceId}",
+                    ["Unit"] = sm.Product?.Unit,
+                    ["CostPrice"] = sm.Product?.CostPrice ?? 0m,
+                    ["Quantity"] = sm.Quantity,
+                    ["QuantityAbs"] = Math.Abs(sm.Quantity),
+                    ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (int?)null,
+                    ["ImportValue"] = sm.Quantity > 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
+                    ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (int?)null,
+                    ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
+                    ["BalanceAfter"] = sm.BalanceAfter,
+                    ["BalanceValue"] = sm.BalanceAfter * (sm.Product?.CostPrice ?? 0m),
+                    ["ReferenceType"] = sm.ReferenceType,
+                    ["ReferenceId"] = sm.ReferenceId
+                }
+            }).ToList(),
+            HasMore = hasMore,
+            TotalEstimated = totalCount
+        };
+    }
+
     private async Task<int> CountSourceRowsAsync(BookRenderContext ctx)
     {
         return ctx.DataSourceType switch
         {
             "revenues" => (await QueryRevenueRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
             "gl_entries" => (await QueryGLRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
+            "stock_movements" => (await QueryStockMovementRowsAsync(ctx, null, 1)).TotalEstimated ?? 0,
             _ => 0
         };
-    }
-
-    /// <summary>
-    /// Compute total tax by summing per-group (per-industry) tax amounts.
-    /// This correctly handles multi-industry books where each industry has different tax rates.
-    /// PIT uses threshold logic for Method 1, weighted profit rate for Method 2.
-    /// </summary>
-    private async Task<decimal> ComputeTotalTaxFromGroupsAsync(
-        BookRenderContext context,
-        IReadOnlyDictionary<string, decimal> formulaValues,
-        string templatePrefix)
-    {
-        var amounts = await LoadRevenueByBusinessTypeAsync(context);
-        var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
-            context.RulesetId, context.BusinessTypeIds);
-
-        var taxRatesByBt = taxRates
-            .GroupBy(x => (x.BusinessTypeId.ToString(), NormalizeTaxType(x.TaxType)))
-            .ToDictionary(g => g.Key, g => g.First().TaxRate);
-
-        var totalRevenue = amounts.Values.Sum();
-
-        // VAT: Σ(revenue_i × VAT_rate_i)
-        decimal totalVat = ComputePerIndustryVat(amounts, taxRatesByBt);
-
-        // PIT: depends on method
-        decimal totalPit;
-        var isPitMethod1 = string.Equals(context.TaxMethod, "method_1", StringComparison.OrdinalIgnoreCase);
-
-        if (isPitMethod1)
-        {
-            // Method 1 (S2a): revenue × PIT_rate, only if total > 500M
-            totalPit = ComputePerIndustryPitMethod1(totalRevenue, amounts, taxRatesByBt);
-        }
-        else
-        {
-            // Method 2 (S2c): Σ MAX(0, revenue_i - cost_i) × PIT_rate_i
-            var profitKey = formulaValues.Keys
-                .FirstOrDefault(k => k.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)
-                                  && k.Contains("PROFIT", StringComparison.OrdinalIgnoreCase));
-            var profit = profitKey != null ? formulaValues[profitKey] : 0m;
-            var totalCost = totalRevenue - profit;
-            var costByBt = await LoadCostByBusinessTypeAsync(context);
-            totalPit = ComputePerIndustryPitMethod2(totalRevenue, totalCost, amounts, taxRatesByBt, costByBt);
-        }
-
-        return totalVat + totalPit;
-    }
-
-    /// <summary>
-    /// Compute VAT per-industry: Σ(revenue_i × VAT_rate_i).
-    /// </summary>
-    private static decimal ComputePerIndustryVat(
-        IReadOnlyDictionary<Guid, decimal>? revenueByBt,
-        IReadOnlyDictionary<(string, string), decimal> perBtTaxRates)
-    {
-        if (revenueByBt == null) return 0m;
-
-        decimal total = 0m;
-        foreach (var (btId, revenue) in revenueByBt)
-        {
-            var rate = perBtTaxRates.GetValueOrDefault((btId.ToString(), RowDefinitionConstants.TaxType.Vat));
-            total += revenue * rate;
-        }
-        return Math.Round(total, 0);
-    }
-
-    /// <summary>
-    /// Compute PIT per-industry for Cách 2 (S2c):
-    ///   Σ MAX(0, revenue_i - cost_i) × PIT_rate_i
-    /// Uses actual cost-per-industry when costs have BusinessTypeId.
-    /// Falls back to prorating total cost by revenue share for legacy rows without BusinessTypeId.
-    /// </summary>
-    private static decimal ComputePerIndustryPitMethod2(
-        decimal totalRevenue,
-        decimal totalCost,
-        IReadOnlyDictionary<Guid, decimal>? revenueByBt,
-        IReadOnlyDictionary<(string, string), decimal> perBtTaxRates,
-        IReadOnlyDictionary<Guid, decimal>? costByBt = null)
-    {
-        if (revenueByBt == null || totalRevenue <= 0m) return 0m;
-
-        // Costs that have BusinessTypeId (actual per-industry)
-        var taggedCost = costByBt?.Values.Sum() ?? 0m;
-        // Costs without BusinessTypeId (need proration)
-        var untaggedCost = Math.Max(0m, totalCost - taggedCost);
-
-        decimal total = 0m;
-        foreach (var (btId, revenue) in revenueByBt)
-        {
-            // Actual cost for this industry + prorated share of untagged costs
-            var actualCostForBt = costByBt?.GetValueOrDefault(btId) ?? 0m;
-            var proratedUntaggedCost = totalRevenue > 0m ? untaggedCost * (revenue / totalRevenue) : 0m;
-            var costForBt = actualCostForBt + proratedUntaggedCost;
-
-            var profitPerIndustry = Math.Max(0m, revenue - costForBt);
-            var rate = perBtTaxRates.GetValueOrDefault((btId.ToString(), RowDefinitionConstants.TaxType.Pit));
-            total += profitPerIndustry * rate;
-        }
-        return Math.Round(total, 0);
-    }
-
-    /// <summary>
-    /// Same as ComputePerIndustryPitMethod2 but also returns a per-industry breakdown list.
-    /// </summary>
-    private static (decimal Total, List<TaxBreakdownDetail> Breakdown) ComputePerIndustryPitMethod2WithBreakdown(
-        decimal totalRevenue,
-        decimal totalCost,
-        IReadOnlyDictionary<Guid, decimal>? revenueByBt,
-        IReadOnlyDictionary<(string, string), decimal> perBtTaxRates,
-        IReadOnlyDictionary<Guid, decimal>? costByBt = null)
-    {
-        var breakdown = new List<TaxBreakdownDetail>();
-        if (revenueByBt == null || totalRevenue <= 0m)
-            return (0m, breakdown);
-
-        var taggedCost = costByBt?.Values.Sum() ?? 0m;
-        var untaggedCost = Math.Max(0m, totalCost - taggedCost);
-
-        decimal total = 0m;
-        foreach (var (btId, revenue) in revenueByBt)
-        {
-            var actualCostForBt = costByBt?.GetValueOrDefault(btId) ?? 0m;
-            var proratedUntaggedCost = totalRevenue > 0m ? untaggedCost * (revenue / totalRevenue) : 0m;
-            var costForBt = actualCostForBt + proratedUntaggedCost;
-
-            var profitPerIndustry = Math.Max(0m, revenue - costForBt);
-            var rate = perBtTaxRates.GetValueOrDefault((btId.ToString(), RowDefinitionConstants.TaxType.Pit));
-            var taxAmount = profitPerIndustry * rate;
-            total += taxAmount;
-
-            breakdown.Add(new TaxBreakdownDetail
-            {
-                BusinessTypeId = btId,
-                Revenue = revenue,
-                Cost = Math.Round(costForBt, 0),
-                Profit = profitPerIndustry,
-                TaxRate = rate,
-                TaxAmount = Math.Round(taxAmount, 0),
-                Explanation = $"{revenue:#,0} - {costForBt:#,0} = {profitPerIndustry:#,0} x {rate:P4} = {Math.Round(taxAmount, 0):#,0}"
-            });
-        }
-        return (Math.Round(total, 0), breakdown);
-    }
-
-    private record TaxBreakdownDetail
-    {
-        public Guid BusinessTypeId { get; init; }
-        public decimal Revenue { get; init; }
-        public decimal Cost { get; init; }
-        public decimal Profit { get; init; }
-        public decimal TaxRate { get; init; }
-        public decimal TaxAmount { get; init; }
-        public string? Explanation { get; init; }
-    }
-
-    /// <summary>
-    /// Compute PIT per-industry for Cách 1 (S2a):
-    ///   Σ revenue_i × PIT_rate_i, but ONLY if totalRevenue > 500M threshold.
-    /// </summary>
-    private static decimal ComputePerIndustryPitMethod1(
-        decimal totalRevenue,
-        IReadOnlyDictionary<Guid, decimal>? revenueByBt,
-        IReadOnlyDictionary<(string, string), decimal> perBtTaxRates)
-    {
-        const decimal PIT_THRESHOLD = 500_000_000m;
-        if (revenueByBt == null || totalRevenue <= PIT_THRESHOLD) return 0m;
-
-        decimal total = 0m;
-        foreach (var (btId, revenue) in revenueByBt)
-        {
-            var rate = perBtTaxRates.GetValueOrDefault((btId.ToString(), RowDefinitionConstants.TaxType.Pit));
-            total += revenue * rate;
-        }
-        return Math.Round(total, 0);
     }
 
     // ────────────────────────────────────────────────────────
@@ -998,6 +781,7 @@ public class BookRenderingService : IBookRenderingService
             "description" or "dien_giai" => row.Values.GetValueOrDefault("Description"),
             "so_hieu" => row.Values.GetValueOrDefault("OrderId")?.ToString()
                 ?? row.Values.GetValueOrDefault("EntryId")?.ToString()
+                ?? row.Values.GetValueOrDefault("StockMovementId")?.ToString()
                 ?? row.Values.GetValueOrDefault("CostId")?.ToString(),
 
             // Revenue/Order
@@ -1007,7 +791,17 @@ public class BookRenderingService : IBookRenderingService
             "thu_vao" => row.Values.GetValueOrDefault("DebitAmount"),
             "chi_ra" => row.Values.GetValueOrDefault("CreditAmount"),
 
-            // Section (S2c, S2e)
+            // Stock Movements (S2d)
+            "dvt" => row.Values.GetValueOrDefault("Unit"),
+            "don_gia" => row.Values.GetValueOrDefault("CostPrice"),
+            "sl_nhap" => row.Values.GetValueOrDefault("ImportQty"),
+            "tien_nhap" => row.Values.GetValueOrDefault("ImportValue"),
+            "sl_xuat" => row.Values.GetValueOrDefault("ExportQty"),
+            "tien_xuat" => row.Values.GetValueOrDefault("ExportValue"),
+            "sl_ton" => row.Values.GetValueOrDefault("BalanceAfter"),
+            "tien_ton" => row.Values.GetValueOrDefault("BalanceValue"),
+
+            // Section (S2c, S2e, S2d per product)
             "section" => row.Section,
 
             // Fallback: try direct match
@@ -1039,6 +833,21 @@ public class BookRenderingService : IBookRenderingService
             "CreditAmount" => row.Values.GetValueOrDefault("CreditAmount"),
             "TransactionType" => row.Values.GetValueOrDefault("TransactionType"),
             "MoneyChannel" => row.Values.GetValueOrDefault("MoneyChannel"),
+
+            // Stock Movements
+            "StockMovementId" => row.Values.GetValueOrDefault("StockMovementId"),
+            "ProductId" => row.Values.GetValueOrDefault("ProductId"),
+            "ProductName" => row.Values.GetValueOrDefault("ProductName"),
+            "MovementType" => row.Values.GetValueOrDefault("MovementType"),
+            "Unit" => row.Values.GetValueOrDefault("Unit"),
+            "CostPrice" => row.Values.GetValueOrDefault("CostPrice"),
+            "Quantity" or "QuantityDelta" => row.Values.GetValueOrDefault("Quantity"),
+            "ImportQty" => row.Values.GetValueOrDefault("ImportQty"),
+            "ImportValue" => row.Values.GetValueOrDefault("ImportValue"),
+            "ExportQty" => row.Values.GetValueOrDefault("ExportQty"),
+            "ExportValue" => row.Values.GetValueOrDefault("ExportValue"),
+            "BalanceAfter" => row.Values.GetValueOrDefault("BalanceAfter"),
+            "BalanceValue" => row.Values.GetValueOrDefault("BalanceValue"),
 
             // Fallback direct lookup by metadata field code
             _ => row.Values.GetValueOrDefault(sourceFieldCode)
@@ -1114,24 +923,6 @@ public class BookRenderingService : IBookRenderingService
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
     }
 
-    private async Task<Dictionary<Guid, decimal>> LoadCostByBusinessTypeAsync(BookRenderContext context)
-    {
-        var query = new Application.DTOs.Cost.CostQueryParams
-        {
-            BusinessLocationId = context.BusinessLocationId,
-            FromDate = context.PeriodStart,
-            ToDate = context.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
-
-        var (items, _) = await _uow.Costs.SearchAsync(query);
-        return items
-            .Where(c => c.DeletedAt == null && c.BusinessTypeId.HasValue)
-            .GroupBy(c => c.BusinessTypeId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-    }
-
     private static string ResolveRowLabel(string? label, int groupIndex, string groupName)
     {
         if (string.IsNullOrWhiteSpace(label))
@@ -1193,7 +984,32 @@ public class BookRenderingService : IBookRenderingService
                     .ToDictionary(g => g.Key, g => g.First().TaxRate));
         }
 
-        // Future: "ProductId" → LoadAmountByProductAsync, etc.
+        if (groupByField.Equals("ProductId", StringComparison.OrdinalIgnoreCase))
+        {
+            var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
+            var periodMovements = allMovements.Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= context.PeriodStart && d <= context.PeriodEnd;
+            }).ToList();
+
+            // Discover distinct products that have movements in this period
+            var productGroups = periodMovements
+                .GroupBy(sm => sm.ProductId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var keys = productGroups.Keys.OrderBy(k => k).Select(k => k.ToString()).ToList();
+            var names = productGroups.ToDictionary(
+                kv => kv.Key.ToString(),
+                kv => kv.Value.First().Product?.ProductName ?? $"Product #{kv.Key}");
+            var amounts = productGroups.ToDictionary(
+                kv => kv.Key.ToString(),
+                kv => kv.Value.Where(sm => sm.Quantity > 0).Sum(sm => Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m)));
+
+            return (keys, names, amounts, new Dictionary<(string, string), decimal>());
+        }
+
+        // Future: add new GroupByField values here when introducing new templates.
         _logger.LogWarning("Unsupported GroupByField: {GroupByField}", groupByField);
         return (new List<string>(),
             new Dictionary<string, string>(),

@@ -104,6 +104,19 @@ public class FormulaEngine : IFormulaEngine
             return await EvaluateFnAsync(ctx, resolved, node, fn.GetString()!);
         }
 
+        // 7. foreach — iterate per industry/group, apply expression, reduce
+        if (node.TryGetProperty("foreach", out _))
+        {
+            var (total, _) = await EvaluateForeachAsync(ctx, resolved, node);
+            return total;
+        }
+
+        // 8. context — runtime values during foreach iteration
+        if (node.TryGetProperty("context", out var ctxProp))
+        {
+            return ResolveContextValue(ctx, ctxProp.GetString());
+        }
+
         _logger.LogWarning("Unknown AST node structure: {Node}", node.GetRawText());
         return 0m;
     }
@@ -142,7 +155,7 @@ public class FormulaEngine : IFormulaEngine
             "revenues" => await AggregateRevenuesAsync(ctx, aggType, field, filters),
             "costs" => await AggregateCostsAsync(ctx, aggType, field, filters),
             "gl_entries" => await AggregateGLAsync(ctx, aggType, field, filters),
-            "stock_movements" => 0m, // Phase B.2 — stock movements not yet available
+            "stock_movements" => await AggregateStockMovementsAsync(ctx, aggType, field, filters, periodFilter, sign),
             _ => 0m
         };
     }
@@ -242,6 +255,50 @@ public class FormulaEngine : IFormulaEngine
         };
     }
 
+    private async Task<decimal> AggregateStockMovementsAsync(
+        FormulaEvaluationContext ctx,
+        string aggType, string field,
+        Dictionary<string, string> filters,
+        string? periodFilter, string? sign)
+    {
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+
+        // Apply periodFilter
+        IEnumerable<StockMovement> filtered = periodFilter switch
+        {
+            "before" => allMovements.Where(sm =>
+                DateOnly.FromDateTime(sm.CreatedAt) < ctx.PeriodStart),
+            "current" => allMovements.Where(sm =>
+            {
+                var d = DateOnly.FromDateTime(sm.CreatedAt);
+                return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
+            }),
+            _ => allMovements
+        };
+
+        // Apply sign filter
+        filtered = sign switch
+        {
+            "positive" => filtered.Where(sm => sm.Quantity > 0),
+            "negative" => filtered.Where(sm => sm.Quantity < 0),
+            _ => filtered
+        };
+
+        // Apply ProductId filter if present (for per-product scope via context)
+        if (filters.TryGetValue("ProductId", out var pid) && long.TryParse(pid, out var productId))
+            filtered = filtered.Where(sm => sm.ProductId == productId);
+
+        var list = filtered.ToList();
+
+        return aggType.ToUpper() switch
+        {
+            "SUM" => list.Sum(sm => GetStockFieldValue(sm, field)),
+            "AVG" => list.Count > 0 ? list.Average(sm => GetStockFieldValue(sm, field)) : 0m,
+            "COUNT" => list.Count,
+            _ => 0m
+        };
+    }
+
     // ────────────────────────────────────────────────────────
     // LOOKUP: External data (AccountingPeriods, IndustryTaxRates)
     // ────────────────────────────────────────────────────────
@@ -274,9 +331,20 @@ public class FormulaEngine : IFormulaEngine
                 var rates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
                     ctx.RulesetId, ctx.BusinessTypeIds);
 
-                // Strict string match by design: TaxType token in formula must match DB token exactly.
-                var rate = rates.FirstOrDefault(r =>
-                    string.Equals(r.TaxType, taxType, StringComparison.Ordinal));
+                // When inside a foreach iteration, filter by the current business type
+                IndustryTaxRate? rate;
+                if (ctx.CurrentBusinessTypeId.HasValue)
+                {
+                    rate = rates.FirstOrDefault(r =>
+                        r.BusinessTypeId == ctx.CurrentBusinessTypeId.Value
+                        && string.Equals(r.TaxType, taxType, StringComparison.Ordinal));
+                }
+                else
+                {
+                    // Strict string match by design: TaxType token in formula must match DB token exactly.
+                    rate = rates.FirstOrDefault(r =>
+                        string.Equals(r.TaxType, taxType, StringComparison.Ordinal));
+                }
 
                 if (rate == null)
                 {
@@ -507,11 +575,39 @@ public class FormulaEngine : IFormulaEngine
         // 7. Context
         if (node.TryGetProperty("context", out var ctxNode))
         {
+            var ctxKey = ctxNode.GetString();
+            var ctxVal = ResolveContextValue(ctx, ctxKey);
             return new FormulaTraceNode
             {
                 Step = step, NodeType = "context",
-                Description = $"Context: {ctxNode.GetString()}",
-                ResolvedValue = 0m, Source = "runtime"
+                Description = $"Context: {ctxKey}",
+                ResolvedValue = ctxVal, Source = "runtime"
+            };
+        }
+
+        // 8. foreach
+        if (node.TryGetProperty("foreach", out _))
+        {
+            var (total, breakdown) = await EvaluateForeachAsync(ctx, resolved, node);
+            var children = new List<FormulaTraceNode>();
+            var childStep = 0;
+            foreach (var (groupKey, groupVal) in breakdown)
+            {
+                childStep++;
+                children.Add(new FormulaTraceNode
+                {
+                    Step = counter.Next(), NodeType = "foreach_group",
+                    Description = $"Group {groupKey}",
+                    ResolvedValue = groupVal, Source = $"BusinessTypeId={groupKey}"
+                });
+            }
+            return new FormulaTraceNode
+            {
+                Step = step, NodeType = "foreach",
+                Description = $"foreach({node.GetProperty("foreach").GetString()}) → {(node.TryGetProperty("reduce", out var red) ? red.GetString() : "SUM")}",
+                ResolvedValue = total, Source = "iteration",
+                Children = children.Count > 0 ? children : null,
+                Debug = breakdown.Count == 0 ? "No groups found" : null
             };
         }
 
@@ -547,6 +643,227 @@ public class FormulaEngine : IFormulaEngine
             "CreditAmount" => e.CreditAmount,
             _ => 0m
         };
+
+    private static decimal GetStockFieldValue(StockMovement sm, string field) =>
+        field switch
+        {
+            "QuantityDelta" or "Quantity" => sm.Quantity,
+            "TotalValue" => Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m),
+            _ => 0m
+        };
+
+    // ────────────────────────────────────────────────────────
+    // FOREACH: Iterate per industry/group, apply expression, reduce
+    // ────────────────────────────────────────────────────────
+    private async Task<(decimal Total, Dictionary<string, decimal> Breakdown)> EvaluateForeachAsync(
+        FormulaEvaluationContext ctx,
+        Dictionary<string, decimal> resolved,
+        JsonElement node)
+    {
+        var dimension = node.GetProperty("foreach").GetString()!; // "industry"
+        var source = node.GetProperty("source").GetString()!;     // "revenues", "costs"
+        var field = node.GetProperty("field").GetString()!;       // "Amount"
+        var reduce = node.TryGetProperty("reduce", out var r) ? r.GetString()! : "SUM";
+        var applyNode = node.GetProperty("apply");
+
+        // Optional cost source for profit-based formulas
+        var hasCostSource = node.TryGetProperty("costSource", out var costSrcProp);
+        var costSource = hasCostSource ? costSrcProp.GetString() : null;
+        var costField = node.TryGetProperty("costField", out var cf) ? cf.GetString()! : "Amount";
+
+        // Load grouped amounts
+        var revenueByGroup = await LoadGroupedAmountsAsync(ctx, source, field);
+        var costByGroup = hasCostSource && !string.IsNullOrEmpty(costSource)
+            ? await LoadGroupedAmountsAsync(ctx, costSource, costField)
+            : null;
+
+        var totalAmount = revenueByGroup.Values.Sum();
+
+        // Optional threshold check (legacy — kept for backward compatibility)
+        if (node.TryGetProperty("threshold", out var thresholdNode))
+        {
+            var minValue = thresholdNode.GetProperty("min").GetDecimal();
+            var elseValue = thresholdNode.TryGetProperty("elseValue", out var ev) ? ev.GetDecimal() : 0m;
+
+            if (totalAmount <= minValue)
+            {
+                _logger.LogDebug("foreach threshold not met: {Total} <= {Min}, returning {ElseValue}",
+                    totalAmount, minValue, elseValue);
+                return (elseValue, new Dictionary<string, decimal>());
+            }
+        }
+
+        // Optional deduction: subtract a fixed amount from the highest-revenue group
+        // The apply expression uses {context: "group_deduction"} to access this value.
+        var deductionAmount = 0m;
+        string? deductionTargetGroupKey = null;
+        if (node.TryGetProperty("deduction", out var deductionNode))
+        {
+            deductionAmount = deductionNode.GetProperty("amount").GetDecimal();
+            var target = deductionNode.TryGetProperty("target", out var t) ? t.GetString() : "highest_revenue";
+
+            if (target == "highest_revenue" && revenueByGroup.Count > 0)
+            {
+                deductionTargetGroupKey = revenueByGroup.MaxBy(kv => kv.Value).Key;
+            }
+        }
+
+        // Iterate each group
+        var breakdown = new Dictionary<string, decimal>();
+        var groupValues = new List<decimal>();
+
+        // Save original context values to restore after iteration
+        var origBtId = ctx.CurrentBusinessTypeId;
+        var origGroupAmount = ctx.GroupAmount;
+        var origGroupCost = ctx.GroupCost;
+        var origGroupDeduction = ctx.GroupDeduction;
+        var origTotalAmount = ctx.TotalAmount;
+
+        try
+        {
+            ctx.TotalAmount = totalAmount;
+
+            foreach (var (groupKey, groupAmount) in revenueByGroup)
+            {
+                ctx.CurrentBusinessTypeId = Guid.TryParse(groupKey, out var gid) ? gid : null;
+                ctx.GroupAmount = groupAmount;
+                ctx.GroupCost = costByGroup?.GetValueOrDefault(groupKey) ?? 0m;
+                ctx.GroupDeduction = groupKey == deductionTargetGroupKey ? deductionAmount : 0m;
+
+                var groupResult = await EvaluateElementAsync(ctx, resolved, applyNode);
+                breakdown[groupKey] = groupResult;
+                groupValues.Add(groupResult);
+            }
+        }
+        finally
+        {
+            // Restore context
+            ctx.CurrentBusinessTypeId = origBtId;
+            ctx.GroupAmount = origGroupAmount;
+            ctx.GroupCost = origGroupCost;
+            ctx.GroupDeduction = origGroupDeduction;
+            ctx.TotalAmount = origTotalAmount;
+        }
+
+        // Reduce
+        var total = reduce.ToUpper() switch
+        {
+            "SUM" => groupValues.Sum(),
+            "MAX" => groupValues.Count > 0 ? groupValues.Max() : 0m,
+            "MIN" => groupValues.Count > 0 ? groupValues.Min() : 0m,
+            _ => groupValues.Sum()
+        };
+
+        return (total, breakdown);
+    }
+
+    private async Task<Dictionary<string, decimal>> LoadGroupedAmountsAsync(
+        FormulaEvaluationContext ctx, string source, string field)
+    {
+        return source switch
+        {
+            "revenues" => await LoadRevenueGroupedByBusinessTypeAsync(ctx, field),
+            "costs" => await LoadCostGroupedByBusinessTypeAsync(ctx, field),
+            _ => new Dictionary<string, decimal>()
+        };
+    }
+
+    private async Task<Dictionary<string, decimal>> LoadRevenueGroupedByBusinessTypeAsync(
+        FormulaEvaluationContext ctx, string field)
+    {
+        var query = new Application.DTOs.Revenue.RevenueQueryParams
+        {
+            BusinessLocationId = ctx.BusinessLocationId,
+            FromDate = ctx.PeriodStart,
+            ToDate = ctx.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue
+        };
+
+        var (items, _) = await _uow.Revenues.SearchAsync(query);
+        return items
+            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+            .GroupBy(r => r.BusinessTypeId!.Value.ToString())
+            .ToDictionary(g => g.Key, g => g.Sum(x => GetRevenueFieldValue(x, field)));
+    }
+
+    private async Task<Dictionary<string, decimal>> LoadCostGroupedByBusinessTypeAsync(
+        FormulaEvaluationContext ctx, string field)
+    {
+        var query = new Application.DTOs.Cost.CostQueryParams
+        {
+            BusinessLocationId = ctx.BusinessLocationId,
+            FromDate = ctx.PeriodStart,
+            ToDate = ctx.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue
+        };
+
+        var (items, _) = await _uow.Costs.SearchAsync(query);
+        return items
+            .Where(c => c.DeletedAt == null && c.BusinessTypeId.HasValue)
+            .GroupBy(c => c.BusinessTypeId!.Value.ToString())
+            .ToDictionary(g => g.Key, g => g.Sum(x => GetCostFieldValue(x, field)));
+    }
+
+    // ────────────────────────────────────────────────────────
+    // CONTEXT: Runtime values (used inside foreach)
+    // ────────────────────────────────────────────────────────
+    private static decimal ResolveContextValue(FormulaEvaluationContext ctx, string? key)
+    {
+        return key switch
+        {
+            "group_amount" => ctx.GroupAmount ?? 0m,
+            "group_cost" => ctx.GroupCost ?? 0m,
+            "group_deduction" => ctx.GroupDeduction ?? 0m,
+            "total_amount" => ctx.TotalAmount ?? 0m,
+            _ => 0m
+        };
+    }
+
+    // ────────────────────────────────────────────────────────
+    // EVALUATE WITH BREAKDOWN (foreach-aware)
+    // ────────────────────────────────────────────────────────
+    public async Task<FormulaEvaluationResults> EvaluateFormulasWithBreakdownAsync(
+        FormulaEvaluationContext context,
+        IEnumerable<FormulaDefinition> formulas)
+    {
+        var results = new FormulaEvaluationResults();
+        results.Values = new Dictionary<string, decimal>(context.ResolvedValues);
+
+        foreach (var formula in formulas)
+        {
+            try
+            {
+                var json = JsonDocument.Parse(formula.ExpressionJson);
+                var root = json.RootElement;
+
+                // Check if root node is a foreach — if so, capture breakdown
+                if (root.TryGetProperty("foreach", out _))
+                {
+                    var (total, breakdown) = await EvaluateForeachAsync(context, results.Values, root);
+                    total = ApplyRounding(total, formula);
+                    results.Values[formula.Code] = total;
+                    results.Breakdowns[formula.Code] = breakdown;
+                }
+                else
+                {
+                    var value = await EvaluateElementAsync(context, results.Values, root);
+                    value = ApplyRounding(value, formula);
+                    results.Values[formula.Code] = value;
+                }
+
+                _logger.LogDebug("Formula {Code} = {Value}", formula.Code, results.Values[formula.Code]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to evaluate formula {Code}, defaulting to 0", formula.Code);
+                results.Values[formula.Code] = 0m;
+            }
+        }
+
+        return results;
+    }
 
     // ────────────────────────────────────────────────────────
     // ROUNDING

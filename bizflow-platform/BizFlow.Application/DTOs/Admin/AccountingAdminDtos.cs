@@ -134,6 +134,18 @@ public class UpdateFormulaForTestingRequest
     public bool? IsActive { get; set; }
 }
 
+public class CreateFormulaRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string FormulaType { get; set; } = "computed";
+    public string ExpressionJson { get; set; } = "{}";
+    public string? ResultDataType { get; set; }
+    public string? RoundingMode { get; set; }
+    public int? RoundingPrecision { get; set; }
+}
+
 public class CloneFormulaRequest
 {
     public string? NewCode { get; set; }

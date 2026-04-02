@@ -15,6 +15,14 @@ public interface IFormulaEngine
         IEnumerable<Domain.Entities.FormulaDefinition> formulas);
 
     /// <summary>
+    /// Evaluate formulas and return both scalar totals and per-group breakdowns.
+    /// Breakdowns are populated for formulas that use foreach nodes.
+    /// </summary>
+    Task<FormulaEvaluationResults> EvaluateFormulasWithBreakdownAsync(
+        FormulaEvaluationContext context,
+        IEnumerable<Domain.Entities.FormulaDefinition> formulas);
+
+    /// <summary>
     /// Evaluate a single formula with full execution trace for debugging.
     /// </summary>
     Task<FormulaTraceResult> TraceFormulaAsync(
@@ -53,4 +61,33 @@ public class FormulaEvaluationContext
     /// Pre-computed intermediate values (e.g., formula refs → results).
     /// </summary>
     public Dictionary<string, decimal> ResolvedValues { get; set; } = new();
+
+    // ── foreach iteration context (set by engine during per-group evaluation) ──
+
+    /// <summary>Current BusinessTypeId when iterating inside a foreach node.</summary>
+    public Guid? CurrentBusinessTypeId { get; set; }
+
+    /// <summary>Revenue/amount of the current group within a foreach iteration.</summary>
+    public decimal? GroupAmount { get; set; }
+
+    /// <summary>Cost of the current group within a foreach iteration.</summary>
+    public decimal? GroupCost { get; set; }
+
+    /// <summary>Deduction applied to the current group (e.g. 500M for highest-revenue industry in PIT).</summary>
+    public decimal? GroupDeduction { get; set; }
+
+    /// <summary>Total amount across all groups (for threshold checks).</summary>
+    public decimal? TotalAmount { get; set; }
+}
+
+/// <summary>
+/// Extended evaluation results that include per-group breakdowns from foreach formulas.
+/// </summary>
+public class FormulaEvaluationResults
+{
+    /// <summary>Formula Code → scalar total value.</summary>
+    public Dictionary<string, decimal> Values { get; set; } = new();
+
+    /// <summary>Formula Code → (GroupKey → value). Populated only for formulas using foreach nodes.</summary>
+    public Dictionary<string, Dictionary<string, decimal>> Breakdowns { get; set; } = new();
 }
