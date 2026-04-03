@@ -1197,6 +1197,134 @@ public class AdminAccountingService : IAdminAccountingService
     }
 
     // ══════════════════════════════════════════════
+    // BusinessTypes + IndustryTaxRates Admin
+    // ══════════════════════════════════════════════
+
+    public async Task<List<AdminBusinessTypesWithRatesDto>> GetBusinessTypesWithRatesAsync(int rulesetId)
+    {
+        var ruleset = await _uow.TaxRulesets.GetByIdWithRulesAsync(rulesetId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+        var businessTypes = await _uow.BusinessTypes.GetAllAsync();
+
+        return businessTypes
+            .OrderBy(bt => bt.Code)
+            .Select(bt => new AdminBusinessTypesWithRatesDto
+            {
+                BusinessTypeId = bt.BusinessTypeId,
+                Code = bt.Code,
+                Name = bt.Name,
+                Description = bt.Description,
+                Status = bt.Status,
+                TaxRates = ruleset.IndustryTaxRates
+                    .Where(r => r.BusinessTypeId == bt.BusinessTypeId)
+                    .OrderBy(r => r.TaxType)
+                    .Select(MapIndustryTaxRate)
+                    .ToList()
+            }).ToList();
+    }
+
+    public async Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(
+        Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId)
+    {
+        var bt = await _uow.BusinessTypes.GetByIdAsync(businessTypeId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.Name != null)
+        {
+            var name = request.Name.Trim();
+            if (string.IsNullOrEmpty(name))
+                throw new BadRequestException(MessageKeys.BadRequest, "Name cannot be empty");
+            bt.Name = name;
+        }
+
+        if (request.Description != null)
+            bt.Description = request.Description;
+
+        if (request.Status != null)
+        {
+            if (!BusinessTypeConstants.AllowedStatuses.Contains(request.Status))
+                throw new BadRequestException(MessageKeys.BadRequest,
+                    $"Status must be one of: {string.Join(", ", BusinessTypeConstants.AllowedStatuses)}");
+            bt.Status = request.Status.ToLowerInvariant();
+        }
+
+        bt.ModifiedBy = actorUserId;
+        bt.LastModifiedAt = DateTime.UtcNow;
+        _uow.BusinessTypes.Update(bt);
+        await _uow.SaveChangesAsync();
+
+        return new AdminBusinessTypeDetailDto
+        {
+            BusinessTypeId = bt.BusinessTypeId,
+            Code = bt.Code,
+            Name = bt.Name,
+            Description = bt.Description,
+            Status = bt.Status
+        };
+    }
+
+    public async Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(
+        int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request)
+    {
+        _ = await _uow.TaxRulesets.GetByIdWithRulesAsync(rulesetId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+        _ = await _uow.BusinessTypes.GetByIdAsync(businessTypeId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var invalidTypes = request.Rates
+            .Where(r => !IndustryTaxRateConstants.AllowedTaxTypes.Contains(r.TaxType))
+            .Select(r => r.TaxType)
+            .Distinct()
+            .ToList();
+        if (invalidTypes.Count > 0)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"Invalid TaxType(s): {string.Join(", ", invalidTypes)}. Allowed: {string.Join(", ", IndustryTaxRateConstants.AllowedTaxTypes)}");
+
+        var duplicates = request.Rates
+            .GroupBy(r => r.TaxType, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        if (duplicates.Count > 0)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"Duplicate TaxType(s) in request: {string.Join(", ", duplicates)}");
+
+        var outOfRange = request.Rates
+            .Where(r => r.TaxRate < IndustryTaxRateConstants.MinRate || r.TaxRate > IndustryTaxRateConstants.MaxRate)
+            .ToList();
+        if (outOfRange.Count > 0)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"TaxRate must be between {IndustryTaxRateConstants.MinRate} and {IndustryTaxRateConstants.MaxRate} (e.g. 0.10 for 10%)");
+
+        await _uow.BeginTransactionAsync();
+        try
+        {
+            var existing = await _uow.TaxRulesets.GetRatesByBusinessTypeAsync(rulesetId, businessTypeId);
+            _uow.TaxRulesets.RemoveRates(existing);
+
+            var newRates = request.Rates.Select(item => new IndustryTaxRate
+            {
+                RulesetId = rulesetId,
+                BusinessTypeId = businessTypeId,
+                TaxType = item.TaxType,
+                TaxRate = item.TaxRate,
+                Description = item.Description
+            }).ToList();
+
+            foreach (var rate in newRates)
+                _uow.TaxRulesets.AddRate(rate);
+
+            await _uow.CommitTransactionAsync();
+            return newRates.OrderBy(r => r.TaxType).Select(MapIndustryTaxRate).ToList();
+        }
+        catch
+        {
+            await _uow.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    // ══════════════════════════════════════════════
     // Private mappers
     // ══════════════════════════════════════════════
 
@@ -1317,6 +1445,17 @@ public class AdminAccountingService : IAdminAccountingService
             GroupRuleCount = ruleset.GroupRules.Count,
             IndustryRateCount = ruleset.IndustryTaxRates.Count,
             BookCount = ruleset.AccountingBooks.Count
+        };
+    }
+
+    private static AdminIndustryTaxRateDto MapIndustryTaxRate(IndustryTaxRate rate)
+    {
+        return new AdminIndustryTaxRateDto
+        {
+            RateId = rate.RateId,
+            TaxType = rate.TaxType,
+            TaxRate = rate.TaxRate,
+            Description = rate.Description
         };
     }
 

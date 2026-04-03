@@ -335,6 +335,35 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    // ── BusinessTypes + IndustryTaxRates Admin ──
+
+    [HttpGet("business-types")]
+    [SwaggerOperation(Summary = "List all business types with their tax rates for a given ruleset")]
+    public async Task<IActionResult> GetBusinessTypesWithRates([FromQuery] int rulesetId)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GetBusinessTypesWithRatesAsync(rulesetId);
+        return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+    }
+
+    [HttpPatch("business-types/{businessTypeId:guid}")]
+    [SwaggerOperation(Summary = "Update business type metadata (name, description, status)")]
+    public async Task<IActionResult> UpdateBusinessType(Guid businessTypeId, [FromBody] UpdateBusinessTypeRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.UpdateBusinessTypeAsync(businessTypeId, request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
+    [HttpPut("rulesets/{rulesetId:int}/business-types/{businessTypeId:guid}/tax-rates")]
+    [SwaggerOperation(Summary = "Full replace of IndustryTaxRates for a business type within a ruleset")]
+    public async Task<IActionResult> UpsertIndustryTaxRates(int rulesetId, Guid businessTypeId, [FromBody] UpsertIndustryTaxRatesRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.UpsertIndustryTaxRatesAsync(rulesetId, businessTypeId, request);
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
     private void EnsureAdminOnly()
     {
         if (!User.HasRole("admin"))

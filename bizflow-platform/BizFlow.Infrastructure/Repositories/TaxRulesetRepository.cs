@@ -71,4 +71,22 @@ public class TaxRulesetRepository : ITaxRulesetRepository
     {
         _context.Set<TaxRuleset>().Remove(ruleset);
     }
+
+    public async Task<List<IndustryTaxRate>> GetRatesByBusinessTypeAsync(int rulesetId, Guid businessTypeId)
+    {
+        return await _context.Set<IndustryTaxRate>()
+            .Where(r => r.RulesetId == rulesetId && r.BusinessTypeId == businessTypeId)
+            .OrderBy(r => r.TaxType)
+            .ToListAsync();
+    }
+
+    public void AddRate(IndustryTaxRate rate)
+    {
+        _context.Set<IndustryTaxRate>().Add(rate);
+    }
+
+    public void RemoveRates(IEnumerable<IndustryTaxRate> rates)
+    {
+        _context.Set<IndustryTaxRate>().RemoveRange(rates);
+    }
 }

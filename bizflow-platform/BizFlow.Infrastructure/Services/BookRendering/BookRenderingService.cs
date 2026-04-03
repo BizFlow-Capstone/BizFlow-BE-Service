@@ -202,14 +202,15 @@ public class BookRenderingService : IBookRenderingService
                         decimal taxAmount = 0m;
                         decimal? taxRate = null;
                         if (rowDef.FormulaId.HasValue
-                            && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown)
-                            && breakdown.TryGetValue(groupKey, out var groupTaxValue))
+                            && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown))
                         {
-                            taxAmount = groupTaxValue;
+                            // Breakdown exists: this is a per-group formula.
+                            // If groupKey is absent in breakdown, the group had no revenue → taxAmount stays 0.
+                            breakdown.TryGetValue(groupKey, out taxAmount);
                         }
                         else
                         {
-                            // Fallback: use total formula value if no breakdown
+                            // No breakdown at all: formula is not per-group, fall back to total formula value.
                             taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
                         }
 
@@ -227,9 +228,21 @@ public class BookRenderingService : IBookRenderingService
                             ["source"] = "FORMULA"
                         };
 
-                        row["explanation"] = taxRate.HasValue
-                            ? $"{subtotal:#,0} x {taxRate.Value:P4} = {taxAmount:#,0}"
-                            : $"Formula = {taxAmount:#,0}";
+                        // Build explanation — detect deduction case when taxAmount != subtotal × rate
+                        string explanation;
+                        if (taxRate.HasValue)
+                        {
+                            var expectedTax = Math.Round(subtotal * taxRate.Value, 0, MidpointRounding.AwayFromZero);
+                            if (expectedTax != Math.Round(taxAmount, 0, MidpointRounding.AwayFromZero))
+                                explanation = $"{subtotal:#,0} x {taxRate.Value:P4} → {taxAmount:#,0} (sau giam tru)";
+                            else
+                                explanation = $"{subtotal:#,0} x {taxRate.Value:P4} = {taxAmount:#,0}";
+                        }
+                        else
+                        {
+                            explanation = $"Formula = {taxAmount:#,0}";
+                        }
+                        row["explanation"] = explanation;
 
                         if (!string.IsNullOrWhiteSpace(taxType))
                             groupedTaxTotals[taxType] = groupedTaxTotals.GetValueOrDefault(taxType) + taxAmount;
@@ -968,10 +981,16 @@ public class BookRenderingService : IBookRenderingService
         {
             var names = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
             var amounts = await LoadRevenueByBusinessTypeAsync(context);
-            var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
-                context.RulesetId, context.BusinessTypeIds);
 
-            var keys = context.BusinessTypeIds
+            // Only include business types that have revenue in the current period
+            var activeIds = context.BusinessTypeIds
+                .Where(id => amounts.ContainsKey(id) && amounts[id] != 0m)
+                .ToList();
+
+            var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
+                context.RulesetId, activeIds);
+
+            var keys = activeIds
                 .OrderBy(id => names.GetValueOrDefault(id) ?? id.ToString())
                 .Select(id => id.ToString())
                 .ToList();

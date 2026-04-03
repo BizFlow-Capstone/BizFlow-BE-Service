@@ -26,8 +26,6 @@ public partial class BusinessType
 
     public DateTime LastModifiedAt { get; set; }
 
-    public virtual ICollection<BusinessTypeTax> BusinessTypeTaxes { get; set; } = new List<BusinessTypeTax>();
-
     public virtual Profile? CreatedByNavigation { get; set; }
 
     public virtual Profile? ModifiedByNavigation { get; set; }
