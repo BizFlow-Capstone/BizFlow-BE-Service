@@ -312,6 +312,26 @@ public class BookRenderingService : IBookRenderingService
                     if (formulaVal.HasValue)
                         row[valueField] = formulaVal.Value;
 
+                    // For subtotal rows in revenue sections, attach per-industry revenue breakdown
+                    if (rowDef.RowType == RowDefinitionConstants.RowType.SectionSubtotal
+                        && sectionFilterValue.Equals("revenue", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var revenueByBt = await LoadRevenueByBusinessTypeAsync(context);
+                        if (revenueByBt.Count > 0)
+                        {
+                            var btNames = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
+                            row["revenueBreakdown"] = revenueByBt
+                                .OrderByDescending(kv => kv.Value)
+                                .Select(kv => new Dictionary<string, object?>
+                                {
+                                    ["businessTypeId"] = kv.Key,
+                                    ["businessTypeName"] = btNames.GetValueOrDefault(kv.Key) ?? kv.Key.ToString(),
+                                    ["amount"] = kv.Value
+                                })
+                                .ToList();
+                        }
+                    }
+
                     if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                     {
                         var taxType = NormalizeTaxType(rowDef.TaxType);
@@ -385,12 +405,46 @@ public class BookRenderingService : IBookRenderingService
                     && breakdown.Count > 0)
                 {
                     var btNames = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
-                    row["taxBreakdown"] = breakdown.Select(kv => new Dictionary<string, object?>
+                    var revenueByBt = await LoadRevenueByBusinessTypeAsync(context);
+                    var costByBt = await LoadCostByBusinessTypeAsync(context);
+
+                    row["taxBreakdown"] = breakdown.Select(kv =>
                     {
-                        ["businessTypeId"] = kv.Key,
-                        ["businessTypeName"] = Guid.TryParse(kv.Key, out var gid)
-                            ? btNames.GetValueOrDefault(gid) ?? "N/A" : kv.Key,
-                        ["taxAmount"] = kv.Value
+                        var groupKey = kv.Key;
+                        var taxAmt = kv.Value;
+                        var revenue = Guid.TryParse(groupKey, out var btId) ? revenueByBt.GetValueOrDefault(btId) : 0m;
+                        var cost = Guid.TryParse(groupKey, out var btId2) ? costByBt.GetValueOrDefault(btId2) : 0m;
+                        var profit = Math.Max(0m, revenue - cost);
+
+                        var rateEntry = Guid.TryParse(groupKey, out var rateGid)
+                            ? taxRates.FirstOrDefault(r =>
+                                r.BusinessTypeId == rateGid
+                                && string.Equals(NormalizeTaxType(r.TaxType), taxType, StringComparison.OrdinalIgnoreCase))
+                            : null;
+                        var rate = rateEntry?.TaxRate;
+
+                        // Explanation built entirely from data — no hardcoding
+                        string? itemExplanation = null;
+                        if (rate.HasValue)
+                        {
+                            var hasCost = cost != 0m;
+                            var baseLabel = hasCost
+                                ? $"({revenue:#,0} - {cost:#,0} = {profit:#,0})"
+                                : $"{revenue:#,0}";
+                            itemExplanation = $"{baseLabel} x {rate.Value:P4} = {taxAmt:#,0}";
+                        }
+
+                        return new Dictionary<string, object?>
+                        {
+                            ["businessTypeId"] = groupKey,
+                            ["businessTypeName"] = btNames.GetValueOrDefault(Guid.TryParse(groupKey, out var ng) ? ng : Guid.Empty) ?? groupKey,
+                            ["revenue"] = revenue,
+                            ["cost"] = cost,
+                            ["profit"] = profit,
+                            ["taxRate"] = rate ?? 0m,
+                            ["taxAmount"] = taxAmt,
+                            ["explanation"] = itemExplanation
+                        };
                     }).ToList();
                 }
 
@@ -933,6 +987,24 @@ public class BookRenderingService : IBookRenderingService
         return items
             .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
             .GroupBy(r => r.BusinessTypeId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+    }
+
+    private async Task<Dictionary<Guid, decimal>> LoadCostByBusinessTypeAsync(BookRenderContext context)
+    {
+        var query = new Application.DTOs.Cost.CostQueryParams
+        {
+            BusinessLocationId = context.BusinessLocationId,
+            FromDate = context.PeriodStart,
+            ToDate = context.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue
+        };
+
+        var (items, _) = await _uow.Costs.SearchAsync(query);
+        return items
+            .Where(c => c.DeletedAt == null && c.BusinessTypeId.HasValue)
+            .GroupBy(c => c.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
     }
 

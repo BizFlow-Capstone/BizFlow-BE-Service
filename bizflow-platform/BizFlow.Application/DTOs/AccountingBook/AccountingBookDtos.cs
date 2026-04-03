@@ -145,6 +145,12 @@ public class SectionRowDto
     /// Present only on tax_line rows where per-industry computation applies.
     /// </summary>
     public List<TaxBreakdownItemDto>? TaxBreakdown { get; set; }
+
+    /// <summary>
+    /// Per-industry revenue breakdown for section_subtotal rows in revenue sections.
+    /// Present only on section_subtotal rows of templates that group data by industry (e.g. S2c).
+    /// </summary>
+    public List<RevenueBreakdownItemDto>? RevenueBreakdown { get; set; }
 }
 
 public class TaxBreakdownItemDto
@@ -157,6 +163,13 @@ public class TaxBreakdownItemDto
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
     public string? Explanation { get; set; }
+}
+
+public class RevenueBreakdownItemDto
+{
+    public Guid BusinessTypeId { get; set; }
+    public string BusinessTypeName { get; set; } = null!;
+    public decimal Amount { get; set; }
 }
 
 public class DataFilterDto
