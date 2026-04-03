@@ -36,6 +36,26 @@ namespace BizFlow.Application.Interfaces.Services
         Task SetPasswordAsync(Guid accountId, string password);
 
         /// <summary>
+        /// Change password for an account that already has a password. Revokes all refresh tokens.
+        /// </summary>
+        Task ChangePasswordAsync(Guid accountId, string currentPassword, string newPassword);
+
+        /// <summary>
+        /// Get the signed-in user's profile from storage.
+        /// </summary>
+        Task<UserProfileDto> GetProfileAsync(Guid profileId);
+
+        /// <summary>
+        /// Update the signed-in user's profile (name, tax code).
+        /// </summary>
+        Task<UserProfileDto> UpdateProfileInfoAsync(Guid profileId, UpdateProfileInfoRequest request);
+
+        /// <summary>
+        /// Update the signed-in user's avatar (upload avatar or remove).
+        /// </summary>
+        Task<UserProfileDto> UpdateAvatarAsync(Guid profileId, UpdateAvatarRequest request);
+
+        /// <summary>
         /// Refresh access token using a valid refresh token.
         /// </summary>
         Task<AuthResponse> RefreshTokenAsync(string refreshToken, string? deviceInfo);

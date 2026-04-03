@@ -6,6 +6,7 @@ namespace BizFlow.Application.Common.Constants
 		public const string ProductsPresetKey = "Products";
 		public const string ImportsPresetKey = "Imports";
 		public const string CostsPresetKey = "Costs";
+		public const string UsersPresetKey = "Users";
 
 		public static string GetPresetKey(ImageUploadTarget target)
 		{
@@ -15,6 +16,7 @@ namespace BizFlow.Application.Common.Constants
 				// Import and Cost now share the same Cloudinary preset.
 				ImageUploadTarget.Imports => CostsPresetKey,
 				ImageUploadTarget.Costs => CostsPresetKey,
+				ImageUploadTarget.Avatars => UsersPresetKey,
 				_ => throw new ArgumentOutOfRangeException(nameof(target), target, null)
 			};
 		}
@@ -24,6 +26,7 @@ namespace BizFlow.Application.Common.Constants
 	{
 		Products,
 		Imports,
-		Costs
+		Costs,
+		Avatars
 	}
 }

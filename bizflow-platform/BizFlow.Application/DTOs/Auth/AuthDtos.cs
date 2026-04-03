@@ -1,6 +1,12 @@
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("BizFlow.Infrastructure")]
+[assembly: InternalsVisibleTo("BizFlow.Api")]
+
 namespace BizFlow.Application.DTOs.Auth
 {
     using System.ComponentModel.DataAnnotations;
+    using System.Text.Json;
 
     public class GoogleLoginRequest
     {
@@ -18,6 +24,51 @@ namespace BizFlow.Application.DTOs.Auth
         [MinLength(6)]
         [MaxLength(128)]
         public string Password { get; set; } = null!;
+    }
+
+    public class ChangePasswordRequest
+    {
+        [Required]
+        [MinLength(6)]
+        [MaxLength(128)]
+        public string CurrentPassword { get; set; } = null!;
+
+        [Required]
+        [MinLength(6)]
+        [MaxLength(128)]
+        public string NewPassword { get; set; } = null!;
+    }
+
+    public class UpdateProfileInfoRequest
+    {
+        /// <summary>
+        /// Dùng <see cref="JsonElement"/> để phân biệt: "không gửi fullName" vs "gửi fullName: null".
+        /// </summary>
+        public JsonElement FullName { get; set; }
+
+        /// <summary>
+        /// Dùng <see cref="JsonElement"/> để phân biệt: "không gửi taxCode" vs "gửi taxCode: null".
+        /// </summary>
+        public JsonElement TaxCode { get; set; }
+    }
+
+    public class UpdateAvatarRequest
+    {
+        /// <summary>Xóa ảnh đại diện (không gửi file avatar).</summary>
+        public bool RemoveAvatar { get; set; }
+
+        /// <summary>Gán từ form file <c>avatar</c> trong API; upload qua Cloudinary.</summary>
+        internal Stream? AvatarStream { get; set; }
+
+        internal string? AvatarFileName { get; set; }
+    }
+
+    public class UserProfileDto
+    {
+        public Guid ProfileId { get; set; }
+        public string FullName { get; set; } = null!;
+        public string? AvatarUrl { get; set; }
+        public string? TaxCode { get; set; }
     }
 
     public class LoginWithEmailRequest

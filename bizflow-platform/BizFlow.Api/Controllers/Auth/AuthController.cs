@@ -1,10 +1,12 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Auth;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -224,6 +226,136 @@ namespace BizFlow.Api.Controllers.Auth
             catch (ArgumentException)
             {
                 return BadRequest(MessageKeys.PasswordInvalidFormat);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { message = "Current password and new password are required" });
+                }
+
+                var accountId = GetCurrentAccountId();
+                await _authService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword);
+                Logger.LogInformation("Change password success. AccountId={AccountId}", accountId);
+                return Ok(MessageKeys.PasswordChanged);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.AccountNotFound);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "NO_PASSWORD_TO_CHANGE")
+            {
+                return BadRequest(MessageKeys.NoPasswordToChange);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "NEW_PASSWORD_SAME_AS_CURRENT")
+            {
+                return BadRequest(MessageKeys.NewPasswordSameAsCurrent);
+            }
+            catch (UnauthorizedAccessException ex) when (ex.Message == "CURRENT_PASSWORD_INCORRECT")
+            {
+                Logger.LogWarning("Change password failed due to incorrect current password");
+                return Unauthorized(MessageKeys.CurrentPasswordIncorrect);
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest(MessageKeys.PasswordInvalidFormat);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetProfile()
+        {
+            try
+            {
+                var profileId = User.GetRequiredUserId();
+                var result = await _authService.GetProfileAsync(profileId);
+                Logger.LogInformation("Get profile success. ProfileId={ProfileId}", profileId);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.NotFound);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        /// <summary>
+        /// Update profile info using JSON body only (fullName, taxCode).
+        /// </summary>
+        [HttpPut("profile")]
+        [Authorize]
+        [Consumes("application/json")]
+        public async Task<IActionResult> UpdateProfileInfoJson([FromBody] UpdateProfileInfoRequest request)
+        {
+            try
+            {
+                var profileId = User.GetRequiredUserId();
+                var result = await _authService.UpdateProfileInfoAsync(profileId, request);
+                Logger.LogInformation("Update profile info success. ProfileId={ProfileId}", profileId);
+                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.NotFound);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (BadRequestException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        /// <summary>
+        /// Update avatar using JSON body only (removeAvatar).
+        /// </summary>
+        [HttpPut("profile/avatar")]
+        [Authorize]
+        [Consumes("application/json")]
+        public async Task<IActionResult> UpdateAvatarJson([FromBody] UpdateAvatarRequest request)
+        {
+            try
+            {
+                var profileId = User.GetRequiredUserId();
+                var result = await _authService.UpdateAvatarAsync(profileId, request);
+                Logger.LogInformation("Update avatar success. ProfileId={ProfileId}", profileId);
+                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.NotFound);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (BadRequestException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

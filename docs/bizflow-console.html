@@ -183,6 +183,44 @@
           <button type="button" class="btn btn-ok" id="btnLoginPhone">Login Phone</button>
         </div>
       </div>
+      <div class="card">
+        <h2>Tài khoản (JWT)</h2>
+        <p class="hint"><span class="kbd">GET /api/auth/profile</span> — profile của user đang đăng nhập (claim <span class="kbd">profileId</span>). <span class="kbd">POST /api/auth/change-password</span> — thu hồi toàn bộ refresh token; cần đăng nhập lại trên thiết bị khác. <span class="kbd">PUT /api/auth/profile</span> — <span class="kbd">application/json</span> (fullName, taxCode). <span class="kbd">PUT /api/auth/profile/avatar</span> — <span class="kbd">application/json</span> (removeAvatar).</p>
+        <div class="row" style="margin-top:10px;">
+          <button type="button" class="btn btn-ok" id="btnGetProfile">GET /api/auth/profile</button>
+          <span class="hint" style="margin:0;">Cần JWT — đăng nhập ở trên hoặc dán token.</span>
+        </div>
+        <div class="grid g2" style="margin-top:16px;">
+          <div class="field"><label>Mật khẩu hiện tại</label><input id="authCurrentPwd" type="password" autocomplete="current-password" /></div>
+          <div class="field"><label>Mật khẩu mới</label><input id="authNewPwd" type="password" autocomplete="new-password" /></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button type="button" class="btn btn-primary" id="btnChangePassword">Đổi mật khẩu</button>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:16px 0;" />
+        <div class="grid g3">
+          <div class="field"><label>Họ tên (fullName)</label><input id="profileFullName" placeholder="Bỏ trống nếu không đổi" /></div>
+          <div class="field">
+            <label>Mã số thuế (taxCode)</label>
+            <input id="profileTaxCode" placeholder="Tùy chọn" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Ảnh đại diện từ máy (không hỗ trợ upload ở endpoint này)</label>
+          <input type="file" id="profileAvatarFile" accept="image/jpeg,image/png,image/webp,image/gif" />
+          <p class="hint" style="margin-top:6px;">Endpoint avatar chỉ nhận JSON `removeAvatar`.</p>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label class="row" style="font-weight:500;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" id="profileRemoveAvatar" style="width:auto;margin-right:8px;" /> Xóa avatar (<span class="kbd">removeAvatar</span>, không kèm file)
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button type="button" class="btn btn-primary" id="btnUpdateProfile">Cập nhật profile</button>
+        </div>
+        <div class="statusline" id="connAuthStatus"></div>
+        <div class="out" id="connAuthOut" style="max-height:200px;margin-top:8px;"></div>
+      </div>
     </section>
 
     <!-- API -->
@@ -213,6 +251,11 @@
           <span class="pill">Sub</span>
           <button type="button" class="btn btn-ghost quick" data-key="sub-current-self">Current</button>
           <button type="button" class="btn btn-ghost quick" data-key="sub-plans">Plans (public)</button>
+          <span class="pill">Auth</span>
+          <button type="button" class="btn btn-ghost quick" data-key="auth-get-profile">Get profile</button>
+          <button type="button" class="btn btn-ghost quick" data-key="auth-change-password">Change password</button>
+          <button type="button" class="btn btn-ghost quick" data-key="auth-update-profile">Update profile info</button>
+          <button type="button" class="btn btn-ghost quick" data-key="auth-update-avatar">Update avatar</button>
         </div>
       </div>
       <div class="card">
@@ -428,7 +471,26 @@
       "imp-list": { m: "GET", p: "/api/my-business/accounting/imports?businessLocationId={locationId}&pageNumber=1&pageSize=20", mode: "none" },
       "imp-create": { m: "POST", p: "/api/my-business/accounting/import", mode: "form", f: { ImportType: "INVOICE", BusinessLocationId: "1", Supplier: "NCC A", Note: "Test", ReceivedAt: "2026-03-31T10:00:00Z", DocumentNumber: "PN-001", DocumentDate: "2026-03-31", SaveAsDraft: "false", Items: '[{"productId":1,"quantity":10,"costPrice":10000}]' } },
       "sub-current-self": { m: "GET", p: "/api/subscriptions/current", mode: "none" },
-      "sub-plans": { m: "GET", p: "/api/subscription-plans", mode: "none" }
+      "sub-plans": { m: "GET", p: "/api/subscription-plans", mode: "none" },
+      "auth-get-profile": { m: "GET", p: "/api/auth/profile", mode: "none" },
+      "auth-change-password": {
+        m: "POST",
+        p: "/api/auth/change-password",
+        mode: "json",
+        b: { currentPassword: "old-password-here", newPassword: "new-password-here" }
+      },
+      "auth-update-profile": {
+        m: "PUT",
+        p: "/api/auth/profile",
+        mode: "json",
+        b: { fullName: "Tên hiển thị mới" }
+      },
+      "auth-update-avatar": {
+        m: "PUT",
+        p: "/api/auth/profile/avatar",
+        mode: "json",
+        b: { removeAvatar: true }
+      }
     };
 
     const $ = (id) => document.getElementById(id);
@@ -801,6 +863,75 @@
     }
     $("btnLoginEmail").addEventListener("click", () => login("email"));
     $("btnLoginPhone").addEventListener("click", () => login("phone"));
+
+    $("btnGetProfile").addEventListener("click", async () => {
+      if (!$("token").value.trim()) {
+        $("connAuthStatus").textContent = "Cần JWT — đăng nhập trước hoặc dán token.";
+        return;
+      }
+      $("connAuthStatus").textContent = "Đang gọi GET /api/auth/profile…";
+      const res = await api("/api/auth/profile", "GET", null);
+      dump($("connAuthOut"), res.data);
+      $("connAuthStatus").textContent = res.ok
+        ? "GET profile OK — dữ liệu user hiện tại (xem ô dưới)."
+        : "HTTP " + res.status + " — xem body.";
+    });
+
+    $("btnChangePassword").addEventListener("click", async () => {
+      const currentPassword = $("authCurrentPwd").value;
+      const newPassword = $("authNewPwd").value;
+      if (!currentPassword || !newPassword) {
+        $("connAuthStatus").textContent = "Nhập đủ mật khẩu hiện tại và mật khẩu mới.";
+        return;
+      }
+      if (!$("token").value.trim()) {
+        $("connAuthStatus").textContent = "Cần JWT — đăng nhập trước.";
+        return;
+      }
+      $("connAuthStatus").textContent = "Đang gửi…";
+      const res = await api("/api/auth/change-password", "POST", { currentPassword, newPassword });
+      dump($("connAuthOut"), res.data);
+      $("connAuthStatus").textContent = res.ok
+        ? "Đổi mật khẩu OK — refresh token đã bị thu hồi; đăng nhập lại nếu cần."
+        : "HTTP " + res.status + " — xem body.";
+    });
+
+    $("btnUpdateProfile").addEventListener("click", async () => {
+      if (!$("token").value.trim()) {
+        $("connAuthStatus").textContent = "Cần JWT — đăng nhập trước.";
+        return;
+      }
+      const fn = $("profileFullName").value.trim();
+      const file = $("profileAvatarFile").files && $("profileAvatarFile").files[0];
+      if (file) {
+        $("connAuthStatus").textContent = "Endpoint avatar chỉ nhận JSON (removeAvatar). Đang bỏ qua file ảnh.";
+      }
+      const bodyInfo = {};
+      if (fn) bodyInfo.fullName = fn;
+      // Gửi taxCode theo đúng ô nhập UI: trống => "" => BE sẽ set null (xóa).
+      const tx = $("profileTaxCode").value.trim();
+      bodyInfo.taxCode = tx;
+      const doAvatar = $("profileRemoveAvatar").checked;
+      const doInfo = Object.keys(bodyInfo).length > 0;
+      if (!doInfo && !doAvatar) {
+        $("connAuthStatus").textContent = "Nhập họ tên, tick tax hoặc chọn removeAvatar / chọn file ảnh.";
+        return;
+      }
+      let lastOk = true;
+      if (doInfo) {
+        $("connAuthStatus").textContent = "Đang gửi JSON (profile info)…";
+        const res = await api("/api/auth/profile", "PUT", bodyInfo);
+        dump($("connAuthOut"), res.data);
+        lastOk = res.ok;
+      }
+      if (doAvatar) {
+        $("connAuthStatus").textContent = "Đang gửi JSON (avatar)…";
+        const res = await api("/api/auth/profile/avatar", "PUT", { removeAvatar: true });
+        dump($("connAuthOut"), res.data);
+        lastOk = res.ok && lastOk;
+      }
+      $("connAuthStatus").textContent = lastOk ? "Cập nhật OK." : "Có lỗi — xem body.";
+    });
 
     // --- Location create ---
     async function submitCreateLocation(source) {

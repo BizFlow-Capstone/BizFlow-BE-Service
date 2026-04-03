@@ -61,6 +61,10 @@ namespace BizFlow.Application.Common.Constants
         public const string PasswordSet = "AUTH_PASSWORD_SET";
         public const string PasswordAlreadySet = "AUTH_PASSWORD_ALREADY_SET";
         public const string PasswordInvalidFormat = "AUTH_PASSWORD_INVALID_FORMAT";
+        public const string PasswordChanged = "AUTH_PASSWORD_CHANGED";
+        public const string NoPasswordToChange = "AUTH_NO_PASSWORD_TO_CHANGE";
+        public const string CurrentPasswordIncorrect = "AUTH_CURRENT_PASSWORD_INCORRECT";
+        public const string NewPasswordSameAsCurrent = "AUTH_NEW_PASSWORD_SAME_AS_CURRENT";
         public const string TokenRefreshed = "AUTH_TOKEN_REFRESHED";
         public const string InvalidGoogleToken = "AUTH_INVALID_GOOGLE_TOKEN";
         public const string InvalidFirebaseToken = "AUTH_INVALID_FIREBASE_TOKEN";
@@ -71,6 +75,14 @@ namespace BizFlow.Application.Common.Constants
         public const string PhoneLinkSuccess = "AUTH_PHONE_LINK_SUCCESS";
         public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
         public const string LogoutAllSuccess = "AUTH_LOGOUT_ALL_SUCCESS";
+
+        /// <summary>Validation errors for profile info (fullName, taxCode, ...).</summary>
+        public const string ProfileFullNameRequired = "AUTH_PROFILE_FULLNAME_REQUIRED";
+        public const string ProfileFullNameTooLong = "AUTH_PROFILE_FULLNAME_TOO_LONG";
+        public const string ProfileFullNameInvalidType = "AUTH_PROFILE_FULLNAME_INVALID_TYPE";
+        public const string ProfileTaxCodeTooLong = "AUTH_PROFILE_TAXCODE_TOO_LONG";
+        public const string ProfileTaxCodeInvalidType = "AUTH_PROFILE_TAXCODE_INVALID_TYPE";
+        public const string ProfileAtLeastOneFieldRequired = "AUTH_PROFILE_AT_LEAST_ONE_FIELD_REQUIRED";
 
         // ============ ROLE ============
         public const string RoleNotFound = "ROLE_NOT_FOUND";

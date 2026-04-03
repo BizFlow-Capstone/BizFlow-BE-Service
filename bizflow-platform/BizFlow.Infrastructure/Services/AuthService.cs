@@ -1,5 +1,7 @@
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.Common.Utilities;
 using BizFlow.Application.DTOs.Auth;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
@@ -11,6 +13,7 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace BizFlow.Infrastructure.Services
 {
@@ -21,6 +24,7 @@ namespace BizFlow.Infrastructure.Services
         private readonly ISubscriptionService _subscriptionService;
         private readonly GoogleAuthConfig _googleConfig;
         private readonly FirebaseAuthConfig _firebaseConfig;
+        private readonly IImageService _imageService;
         private readonly ILogger<AuthService> _logger;
 
         private const string DefaultRoleName = "user";
@@ -31,6 +35,7 @@ namespace BizFlow.Infrastructure.Services
             ISubscriptionService subscriptionService,
             IOptions<GoogleAuthConfig> googleConfig,
             IOptions<FirebaseAuthConfig> firebaseConfig,
+            IImageService imageService,
             ILogger<AuthService> logger)
         {
             _db = db;
@@ -38,6 +43,7 @@ namespace BizFlow.Infrastructure.Services
             _subscriptionService = subscriptionService;
             _googleConfig = googleConfig.Value;
             _firebaseConfig = firebaseConfig.Value;
+            _imageService = imageService;
             _logger = logger;
         }
 
@@ -384,7 +390,7 @@ namespace BizFlow.Infrastructure.Services
             return credentials.Select(c => new CredentialInfo
             {
                 Type = c.Type,
-                Identifier = MaskIdentifier(c.Type, c.Identifier),
+                Identifier = CredentialMasking.MaskIdentifier(c.Type, c.Identifier),
                 EmailVerified = c.Type == "email" ? c.EmailVerified : null
             }).ToList();
         }
@@ -433,6 +439,207 @@ namespace BizFlow.Infrastructure.Services
 
             await _db.SaveChangesAsync();
             _logger.LogInformation("Password set for account. AccountId={AccountId}", accountId);
+        }
+
+        public async Task ChangePasswordAsync(Guid accountId, string currentPassword, string newPassword)
+        {
+            if (string.IsNullOrWhiteSpace(currentPassword))
+            {
+                throw new ArgumentException("Current password is required", nameof(currentPassword));
+            }
+
+            ValidatePasswordOrThrow(newPassword);
+
+            var account = await _db.Accounts
+                .FirstOrDefaultAsync(a => a.AccountId == accountId)
+                ?? throw new KeyNotFoundException("Account not found");
+
+            if (string.IsNullOrWhiteSpace(account.PasswordHash))
+            {
+                _logger.LogWarning("Change password rejected: account has no password. AccountId={AccountId}", accountId);
+                throw new InvalidOperationException("NO_PASSWORD_TO_CHANGE");
+            }
+
+            if (!_jwtService.VerifyPassword(currentPassword, account.PasswordHash))
+            {
+                _logger.LogWarning("Change password failed: incorrect current password. AccountId={AccountId}", accountId);
+                throw new UnauthorizedAccessException("CURRENT_PASSWORD_INCORRECT");
+            }
+
+            if (_jwtService.VerifyPassword(newPassword, account.PasswordHash))
+            {
+                throw new InvalidOperationException("NEW_PASSWORD_SAME_AS_CURRENT");
+            }
+
+            account.PasswordHash = _jwtService.HashPassword(newPassword);
+            account.UpdatedAt = DateTime.UtcNow;
+
+            await RevokeAllRefreshTokensAsync(accountId);
+
+            _logger.LogInformation("Password changed. AccountId={AccountId}", accountId);
+        }
+
+        public async Task<UserProfileDto> GetProfileAsync(Guid profileId)
+        {
+            var profile = await _db.Profiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.ProfileId == profileId)
+                ?? throw new KeyNotFoundException("Profile not found");
+
+            _logger.LogInformation("Profile retrieved. ProfileId={ProfileId}", profileId);
+
+            return new UserProfileDto
+            {
+                ProfileId = profile.ProfileId,
+                FullName = profile.FullName,
+                AvatarUrl = profile.AvatarUrl,
+                TaxCode = profile.TaxCode
+            };
+        }
+
+        public async Task<UserProfileDto> UpdateProfileInfoAsync(Guid profileId, UpdateProfileInfoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            // Distinguish: "not provided" vs "provided as null"
+            var hasFullName = request.FullName.ValueKind != JsonValueKind.Undefined;
+            var hasTaxCode = request.TaxCode.ValueKind != JsonValueKind.Undefined;
+
+            if (!hasFullName && !hasTaxCode)
+            {
+                throw new ArgumentException(MessageKeys.ProfileAtLeastOneFieldRequired, nameof(request));
+            }
+
+            var profile = await _db.Profiles
+                .FirstOrDefaultAsync(p => p.ProfileId == profileId)
+                ?? throw new KeyNotFoundException("Profile not found");
+
+            if (hasFullName)
+            {
+                if (request.FullName.ValueKind == JsonValueKind.Null)
+                {
+                    profile.FullName = string.Empty;
+                }
+                else if (request.FullName.ValueKind == JsonValueKind.String)
+                {
+                    var rawName = request.FullName.GetString();
+                    if (string.IsNullOrEmpty(rawName))
+                    {
+                        throw new ArgumentException(MessageKeys.ProfileFullNameRequired, nameof(request.FullName));
+                    }
+
+                    var trimmedName = rawName.Trim();
+                    if (string.IsNullOrEmpty(trimmedName))
+                    {
+                        throw new ArgumentException(MessageKeys.ProfileFullNameRequired, nameof(request.FullName));
+                    }
+
+                    if (trimmedName.Length > 200)
+                    {
+                        throw new ArgumentException(MessageKeys.ProfileFullNameTooLong, nameof(request.FullName));
+                    }
+
+                    profile.FullName = trimmedName;
+                }
+                else
+                {
+                    throw new ArgumentException(MessageKeys.ProfileFullNameInvalidType, nameof(request.FullName));
+                }
+            }
+
+            if (hasTaxCode)
+            {
+                if (request.TaxCode.ValueKind == JsonValueKind.Null)
+                {
+                    profile.TaxCode = null;
+                }
+                else if (request.TaxCode.ValueKind == JsonValueKind.String)
+                {
+                    var rawTax = request.TaxCode.GetString();
+                    if (string.IsNullOrEmpty(rawTax))
+                    {
+                        profile.TaxCode = null;
+                    }
+                    else
+                    {
+                        var trimmedTax = rawTax.Trim();
+                        if (trimmedTax.Length > 50)
+                        {
+                            throw new ArgumentException(MessageKeys.ProfileTaxCodeTooLong, nameof(request.TaxCode));
+                        }
+                        profile.TaxCode = trimmedTax;
+                    }
+                }
+                else
+                {
+                    throw new ArgumentException(MessageKeys.ProfileTaxCodeInvalidType, nameof(request.TaxCode));
+                }
+            }
+
+            profile.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Profile info updated. ProfileId={ProfileId}", profileId);
+
+            return new UserProfileDto
+            {
+                ProfileId = profile.ProfileId,
+                FullName = profile.FullName,
+                AvatarUrl = profile.AvatarUrl,
+                TaxCode = profile.TaxCode
+            };
+        }
+
+        public async Task<UserProfileDto> UpdateAvatarAsync(Guid profileId, UpdateAvatarRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            var hasAvatarUpload = request.AvatarStream != null;
+            var hasRemoveAvatar = request.RemoveAvatar;
+
+            if (!hasAvatarUpload && !hasRemoveAvatar)
+            {
+                throw new ArgumentException(MessageKeys.ProfileAtLeastOneFieldRequired, nameof(request));
+            }
+
+            var profile = await _db.Profiles
+                .FirstOrDefaultAsync(p => p.ProfileId == profileId)
+                ?? throw new KeyNotFoundException("Profile not found");
+
+            if (hasAvatarUpload)
+            {
+                await using (var stream = request.AvatarStream!)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        stream,
+                        request.AvatarFileName,
+                        ImageUploadTarget.Avatars);
+                    profile.AvatarUrl = imageInfo.Url;
+                }
+            }
+            else if (hasRemoveAvatar)
+            {
+                profile.AvatarUrl = null;
+            }
+
+            profile.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Avatar updated. ProfileId={ProfileId}", profileId);
+
+            return new UserProfileDto
+            {
+                ProfileId = profile.ProfileId,
+                FullName = profile.FullName,
+                AvatarUrl = profile.AvatarUrl,
+                TaxCode = profile.TaxCode
+            };
         }
 
         public async Task<AuthResponse> RefreshTokenAsync(string refreshToken, string? deviceInfo)
@@ -555,7 +762,7 @@ namespace BizFlow.Infrastructure.Services
             return credentials.Select(c => new CredentialInfo
             {
                 Type = c.Type,
-                Identifier = MaskIdentifier(c.Type, c.Identifier),
+                Identifier = CredentialMasking.MaskIdentifier(c.Type, c.Identifier),
                 EmailVerified = c.Type == "email" ? c.EmailVerified : null
             }).ToList();
         }
@@ -655,38 +862,10 @@ namespace BizFlow.Infrastructure.Services
                 Credentials = account.Credentials.Select(c => new CredentialInfo
                 {
                     Type = c.Type,
-                    Identifier = MaskIdentifier(c.Type, c.Identifier),
+                    Identifier = CredentialMasking.MaskIdentifier(c.Type, c.Identifier),
                     EmailVerified = c.Type == "email" ? c.EmailVerified : null
                 }).ToList()
             };
-        }
-
-        private static string MaskIdentifier(string type, string identifier)
-        {
-            return type switch
-            {
-                "email" => MaskEmail(identifier),
-                "phone" => MaskPhone(identifier),
-                "google" => "Connected",
-                _ => "***"
-            };
-        }
-
-        private static string MaskEmail(string email)
-        {
-            var parts = email.Split('@');
-            if (parts.Length != 2) return "***@***";
-            var name = parts[0];
-            var masked = name.Length <= 2
-                ? name + "***"
-                : name[..2] + new string('*', name.Length - 2);
-            return masked + "@" + parts[1];
-        }
-
-        private static string MaskPhone(string phone)
-        {
-            if (phone.Length <= 4) return "***";
-            return phone[..4] + new string('*', phone.Length - 7) + phone[^3..];
         }
 
         private static void ValidatePasswordOrThrow(string password)
