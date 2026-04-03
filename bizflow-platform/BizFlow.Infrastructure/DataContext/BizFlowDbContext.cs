@@ -16,8 +16,6 @@ public partial class BizFlowDbContext : DbContext
 
     public virtual DbSet<BusinessLocation> BusinessLocations { get; set; }
 
-    public virtual DbSet<BusinessTypeTax> BusinessTypeTaxes { get; set; }
-
     public virtual DbSet<BusinessType> BusinessTypes { get; set; }
 
     public virtual DbSet<Cost> Costs { get; set; }
@@ -191,44 +189,6 @@ public partial class BizFlowDbContext : DbContext
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
-        });
-
-        modelBuilder.Entity<BusinessTypeTax>(entity =>
-        {
-            entity.HasKey(e => e.BusinessTypeTaxId).HasName("PRIMARY");
-
-            entity.UseCollation("utf8mb4_unicode_ci");
-
-            entity.HasIndex(e => e.CreatedBy, "fk_business_type_tax_created_by");
-
-            entity.HasIndex(e => e.BusinessTypeId, "idx_business_type_tax_business_type");
-
-            entity.HasIndex(e => new { e.EffectiveFrom, e.EffectiveTo }, "idx_business_type_tax_effective");
-
-            entity.HasIndex(e => e.TaxType, "idx_business_type_tax_type");
-
-            entity.Property(e => e.CalculationBase)
-                .HasMaxLength(50)
-                .HasDefaultValueSql("'price'")
-                .HasComment("Calculation base: price, revenue");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime");
-            entity.Property(e => e.TaxRate)
-                .HasPrecision(5, 2)
-                .HasComment("Tax rate percentage");
-            entity.Property(e => e.TaxType)
-                .HasMaxLength(50)
-                .HasComment("VAT, PIT");
-
-            entity.HasOne(d => d.BusinessType).WithMany(p => p.BusinessTypeTaxes)
-                .HasForeignKey(d => d.BusinessTypeId)
-                .HasConstraintName("fk_business_type_tax_business_type");
-
-            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.BusinessTypeTaxes)
-                .HasForeignKey(d => d.CreatedBy)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_business_type_tax_created_by");
         });
 
         modelBuilder.Entity<BusinessType>(entity =>

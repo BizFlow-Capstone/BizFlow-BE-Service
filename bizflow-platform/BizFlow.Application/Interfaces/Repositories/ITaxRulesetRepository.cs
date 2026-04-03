@@ -12,4 +12,9 @@ public interface ITaxRulesetRepository
     Task<TaxRuleset> AddAsync(TaxRuleset ruleset);
     void Update(TaxRuleset ruleset);
     void Remove(TaxRuleset ruleset);
+
+    // ── IndustryTaxRate granular access ──
+    Task<List<IndustryTaxRate>> GetRatesByBusinessTypeAsync(int rulesetId, Guid businessTypeId);
+    void AddRate(IndustryTaxRate rate);
+    void RemoveRates(IEnumerable<IndustryTaxRate> rates);
 }

@@ -60,4 +60,9 @@ public interface IAdminAccountingService
 
     // ── Full structure ──
     Task<AdminFullStructureDto> GetFullStructureAsync(int templateVersionId);
+
+    // ── BusinessTypes + IndustryTaxRates Admin ──
+    Task<List<AdminBusinessTypesWithRatesDto>> GetBusinessTypesWithRatesAsync(int rulesetId);
+    Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId);
+    Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request);
 }

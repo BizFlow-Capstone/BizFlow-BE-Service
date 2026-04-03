@@ -20,5 +20,16 @@ namespace BizFlow.Infrastructure.Repositories
                 .OrderBy(bt => bt.Name)
                 .ToListAsync();
         }
+
+        public async Task<BusinessType?> GetByIdAsync(Guid id)
+        {
+            return await _context.BusinessTypes
+                .FirstOrDefaultAsync(bt => bt.BusinessTypeId == id);
+        }
+
+        public void Update(BusinessType businessType)
+        {
+            _context.BusinessTypes.Update(businessType);
+        }
     }
 }

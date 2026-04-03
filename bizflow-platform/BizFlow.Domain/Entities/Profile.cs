@@ -36,8 +36,6 @@ public partial class Profile
 
     public virtual Account Account { get; set; } = null!;
 
-    public virtual ICollection<BusinessTypeTax> BusinessTypeTaxes { get; set; } = new List<BusinessTypeTax>();
-
     public virtual ICollection<BusinessType> BusinessTypesCreatedByNavigation { get; set; } = new List<BusinessType>();
 
     public virtual ICollection<BusinessType> BusinessTypesModifiedByNavigation { get; set; } = new List<BusinessType>();

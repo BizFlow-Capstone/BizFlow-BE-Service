@@ -515,6 +515,15 @@
         <div class="tab-panel active" id="panel-create">
             <div class="card">
                 <h3><span class="icon">➕</span> Tạo Sổ Kế Toán</h3>
+                <div style="background:rgba(99,102,241,0.08);border-left:3px solid var(--primary);padding:12px 16px;border-radius:6px;margin-bottom:16px;font-size:13px;line-height:1.6">
+                    <strong>💡 S2c là gì?</strong>
+                    <ul style="margin-top:8px;margin-left:18px;padding:0">
+                        <li><strong>Tên:</strong> Sổ chi tiết doanh thu, chi phí (Cách 2)</li>
+                        <li><strong>Dùng cho:</strong> Nhóm 2–4, tính thuế Cách 2 (DT - CP)</li>
+                        <li><strong>Đặc điểm:</strong> Ghi riêng từng ngành, hiển thị DT, CP, Lợi nhuận để tính PIT dựa lợi nhuận</li>
+                        <li><strong>Ví dụ:</strong> Beauty (DT 100M, CP 20M → LN 80M) vs Grocery (DT 200M, CP 150M → LN 50M) → thuế khác nhau</li>
+                    </ul>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Nhóm HKD</label>
@@ -545,6 +554,35 @@
                         <label><input type="checkbox" value="S2e"> S2e — Tiền</label>
                     </div>
                 </div>
+                <details style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:12px;margin-bottom:16px">
+                    <summary style="cursor:pointer;font-weight:600;color:var(--primary);font-size:13px">📖 Hướng dẫn các mẫu sổ</summary>
+                    <div style="margin-top:12px;font-size:12px;color:var(--text)">
+                        <div style="margin-bottom:10px">
+                            <strong>S1a — Chi tiết bán hàng</strong><br/>
+                            <span style="color:var(--text-muted)">📊 Dùng cho nhóm 1 (miễn thuế hoặc không nộp GTGT). Chỉ ghi doanh thu. Formula: Tổng DT.</span>
+                        </div>
+                        <div style="margin-bottom:10px">
+                            <strong>S2a — Doanh thu Cách 1 (%DT)</strong><br/>
+                            <span style="color:var(--text-muted)">📊 Nhóm 2 tính thuế theo % doanh thu. Mỗi ngành khác % khác. Deduction 500M áp chỉ ngành DT cao nhất. Formula: DT theo ngành → Thuế GTGT/TNCN.</span>
+                        </div>
+                        <div style="margin-bottom:10px">
+                            <strong>S2b — Doanh thu Cách 2 (DT-CP)</strong><br/>
+                            <span style="color:var(--text-muted)">📊 Nhóm 2 nhưng có ghi chi phí chi tiết. Thuế tính tương tự S2a nhưng kèm CP. Formula: DT - CP = Lợi nhuận, rồi thuế.</span>
+                        </div>
+                        <div style="margin-bottom:10px">
+                            <strong>S2c — Doanh thu + Chi phí (Cách 2 đầy đủ)</strong><br/>
+                            <span style="color:var(--text-muted)">📊 Nhóm 2 đầy đủ nhất. Ghi chi phí/lợi nhuận chi tiết. Thuế PIT tính trên lợi nhuận, không %DT. Formula: DT - CP = LN, Thuế tính từ LN.</span>
+                        </div>
+                        <div style="margin-bottom:10px">
+                            <strong>S2d — Kho (Xem xét ngoài tài sản)</strong><br/>
+                            <span style="color:var(--text-muted)">📦 Theo dõi tồn kho đầu/cuối kỳ. Formula: TK cuối = TK đầu + Nhập - Xuất.</span>
+                        </div>
+                        <div>
+                            <strong>S2e — Tiền (Quỹ tiền mặt/Ngân hàng)</strong><br/>
+                            <span style="color:var(--text-muted)">💰 Theo dõi dòng tiền mặt và ngân hàng riêng. Phân chia vào/ra để không làm loạn Sổ quỹ. Formula: TM cuối = TM đầu + Thu - Chi.</span>
+                        </div>
+                    </div>
+                </details>
                 <div class="actions">
                     <button class="btn btn-primary" onclick="createBooks()" id="btnCreate">🚀 Tạo Sổ</button>
                 </div>
@@ -1063,27 +1101,41 @@
     }
 
     // ═══════════════════════════════════════════════════
-    // BOOK SECTIONS
+    // BOOK SECTIONS (with reconciliation)
     // ═══════════════════════════════════════════════════
+    let sectionsFullContext = {}; // Store for reconciliation
+
     async function getBookSections() {
         const cfg = getConfig();
         const bookId = document.getElementById('sectionsBookId').value;
-        const res = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`);
         const panel = document.getElementById('sectionsResult');
+        panel.innerHTML = '<div class="loading-text"><span class="spinner"></span> Đang tải sections, summary, và rows...</div>';
 
-        if (res.status === 200) {
-            const d = res.data?.data || res.data || {};
-            panel.innerHTML = renderSectionsView(d);
+        // Fetch all 3 in parallel
+        const [secRes, sumRes, rowRes] = await Promise.all([
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`),
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/summary`),
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/rows?batchSize=500`)
+        ]);
+
+        if (secRes.status === 200) {
+            const secData = secRes.data?.data || secRes.data || {};
+            const sumData = sumRes.data?.data || sumRes.data || {};
+            const rowData = rowRes.data?.data?.rows || [];
+            
+            sectionsFullContext = { sections: secData, summary: sumData, rows: rowData };
+            panel.innerHTML = renderSectionsView(secData, sumData, rowData);
         } else {
-            panel.innerHTML = renderResponse(res.status, res.elapsed, res.data);
+            panel.innerHTML = renderResponse(secRes.status, secRes.elapsed, secRes.data);
         }
     }
 
-    function renderSectionsView(d) {
+    function renderSectionsView(d, summary, rows) {
         const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
         const columns = d.columns || [];
         const sections = d.sections || [];
         const footerRows = d.footerRows || [];
+        const templateCode = d.templateCode || '';
 
         let html = '';
 
@@ -1095,6 +1147,32 @@
         html += `<div style="font-size:11px;color:var(--text-muted)">Book #${d.bookId || ''}</div>`;
         html += `<div style="font-size:11px;color:var(--text-muted)">Tính lúc: ${d.lastCalculatedAt ? new Date(d.lastCalculatedAt).toLocaleString('vi-VN') : '—'}</div>`;
         html += `</div></div>`;
+
+        // Data reconciliation table (compare rows calc vs formula)
+        if (summary && Object.keys(summary).length > 0 && rows && rows.length > 0) {
+            html += renderDataReconciliation(templateCode, summary, rows, d);
+        }
+
+        // Template-specific summaries
+        if (templateCode === 'S2a' && d.sections?.length > 0) {
+            html += renderS2aIndustrySummary(d);
+        }
+
+        if (templateCode === 'S2b' && d.sections?.length > 0) {
+            html += renderS2bIndustrySummary(d);
+        }
+
+        if (templateCode === 'S2c' && d.sections?.length > 0) {
+            html += renderS2cIndustrySummary(d);
+        }
+
+        if (templateCode === 'S2d' && d.sections?.length > 0) {
+            html += renderS2dSummary(d);
+        }
+
+        if (templateCode === 'S2e' && d.sections?.length > 0) {
+            html += renderS2eSummary(d);
+        }
 
         if (sections.length === 0 && footerRows.length === 0) {
             html += '<div class="empty-state"><div class="icon">📭</div><p>Chưa có section nào — sổ có thể chưa có dữ liệu</p></div>';
@@ -1196,12 +1274,264 @@
             tr += `<td class="${isNum ? 'num' : ''}">${v != null ? (isNum ? fmtNum(v) : v) : ''}</td>`;
         });
 
-        // Explanation column
-        const explanation = row.explanation || '';
-        tr += `<td style="font-size:11px;color:var(--text-muted);max-width:300px;white-space:normal">${explanation}</td>`;
+        // Enhanced explanation column
+        let explanation = row.explanation || '';
+        if (lt === 'profit_row') {
+            const dt = vals.doanh_thu ?? vals.revenue ?? 0;
+            const cp = vals.chi_phi ?? vals.cost ?? 0;
+            explanation = `<strong>Lợi nhuận = Doanh thu - Chi phí</strong><br/>${fmtNum(dt)}đ - ${fmtNum(cp)}đ = <strong>${fmtNum(dt - cp)}đ</strong>`;
+        } else if (lt === 'tax_line' && row.taxMetadata?.source === 'FORMULA') {
+            const taxMeta = row.taxMetadata;
+            const rate = (taxMeta.rate * 100).toFixed(2);
+            const amount = vals.so_tien ?? 0;
+            explanation = `<strong>Tính thuế ${taxMeta.taxType}:</strong><br/>${explanation}<br/><em style="color:var(--text-muted);font-size:10px">Loại thuế: ${taxMeta.taxType} | Suất: ${rate}%</em>`;
+        }
+        tr += `<td style="font-size:11px;color:var(--text-muted);max-width:350px;white-space:normal;line-height:1.5">${explanation}</td>`;
 
         tr += '</tr>';
         return tr;
+    }
+
+    function renderDataReconciliation(templateCode, summary, rows, sections) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        const fmtDiff = (a, b) => {
+            if (a == null || b == null) return '—';
+            const diff = Math.abs(a - b);
+            const pct = a !== 0 ? ((diff / Math.abs(a)) * 100).toFixed(2) : '?';
+            const match = diff === 0;
+            return `<span style="color:${match ? 'var(--success)' : 'var(--error)'}">${match ? '✓ Khớp' : `⚠️ ±${fmtNum(diff)} (${pct}%)`}</span>`;
+        };
+
+        let html = '<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--primary)">🔍 Đối chiếu kết quả tính toán</h4>';
+        html += '<p style="margin-bottom:12px;font-size:11px;color:var(--text-muted)">So sánh giá trị tính từ dữ liệu rows với kết quả formula từ API summary</p>';
+        html += '<div class="data-table-wrap" style="max-height:300px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        html += '<th>Chỉ số</th><th>Tính từ Rows</th><th>Kết quả Formula</th><th>Khớp?</th></tr></thead><tbody>';
+
+        // S1a: Simple revenue total
+        if (templateCode === 'S1a') {
+            const rowsTotal = rows.reduce((sum, r) => sum + (r.so_tien ?? r.revenue ?? 0), 0);
+            const formulaTotal = summary.formulaValues?.S1A_QUARTERLY_TOTAL ?? 0;
+            html += `<tr><td><strong>Tổng Doanh Thu</strong></td><td class="num">${fmtNum(rowsTotal)}</td><td class="num">${fmtNum(formulaTotal)}</td><td>${fmtDiff(rowsTotal, formulaTotal)}</td></tr>`;
+        }
+
+        // S2a: Revenue + VAT + PIT
+        if (templateCode === 'S2a') {
+            const rowsTotal = rows.reduce((sum, r) => sum + (r.so_tien ?? r.revenue ?? 0), 0);
+            const formulaTotal = summary.formulaValues?.S2A_QUARTERLY_TOTAL ?? 0;
+            html += `<tr><td><strong>Tổng Doanh Thu</strong></td><td class="num">${fmtNum(rowsTotal)}</td><td class="num">${fmtNum(formulaTotal)}</td><td>${fmtDiff(rowsTotal, formulaTotal)}</td></tr>`;
+            const vat = summary.formulaValues?.S2A_VAT_V2 ?? 0;
+            const pit = summary.formulaValues?.S2A_PIT_V2 ?? 0;
+            html += `<tr><td><strong>Thuế GTGT (V2)</strong></td><td class="num">—</td><td class="num">${fmtNum(vat)}</td><td>Formula</td></tr>`;
+            html += `<tr><td><strong>Thuế TNCN (V2)</strong></td><td class="num">—</td><td class="num">${fmtNum(pit)}</td><td>Formula</td></tr>`;
+        }
+
+        // S2b: Revenue + Costs + VAT + PIT
+        if (templateCode === 'S2b') {
+            const rowsTotal = rows.reduce((sum, r) => sum + (r.so_tien ?? r.revenue ?? 0), 0);
+            const rowsCosts = rows.reduce((sum, r) => sum + (r.chi_phi ?? r.cost ?? r.so_chi ?? 0), 0);
+            const formulaTotal = summary.formulaValues?.S2B_QUARTERLY_TOTAL ?? 0;
+            const formulaCosts = summary.formulaValues?.S2B_COST_TOTAL ?? 0;
+            html += `<tr><td><strong>Tổng Doanh Thu</strong></td><td class="num">${fmtNum(rowsTotal)}</td><td class="num">${fmtNum(formulaTotal)}</td><td>${fmtDiff(rowsTotal, formulaTotal)}</td></tr>`;
+            html += `<tr><td><strong>Tổng Chi Phí</strong></td><td class="num">${fmtNum(rowsCosts)}</td><td class="num">${fmtNum(formulaCosts)}</td><td>${fmtDiff(rowsCosts, formulaCosts)}</td></tr>`;
+            const vat = summary.formulaValues?.S2B_VAT_V2 ?? 0;
+            const pit = summary.formulaValues?.S2B_PIT_V2 ?? 0;
+            html += `<tr><td><strong>Thuế GTGT (V2)</strong></td><td class="num">—</td><td class="num">${fmtNum(vat)}</td><td>Formula</td></tr>`;
+            html += `<tr><td><strong>Thuế TNCN (V2)</strong></td><td class="num">—</td><td class="num">${fmtNum(pit)}</td><td>Formula</td></tr>`;
+        }
+
+        // S2c: Revenue + Costs + Profit + PIT
+        if (templateCode === 'S2c') {
+            const rowsTotal = rows.reduce((sum, r) => sum + (r.so_tien ?? r.doanh_thu ?? r.revenue ?? 0), 0);
+            const rowsCosts = rows.reduce((sum, r) => sum + (r.chi_phi ?? r.cost ?? r.so_chi ?? 0), 0);
+            const rowsProfit = rowsTotal - rowsCosts;
+            const formulaTotal = summary.formulaValues?.S2C_QUARTERLY_TOTAL ?? 0;
+            const formulaProfit = summary.formulaValues?.S2C_PROFIT_TOTAL ?? 0;
+            html += `<tr><td><strong>Tổng Doanh Thu (S2c)</strong></td><td class="num">${fmtNum(rowsTotal)}</td><td class="num">${fmtNum(formulaTotal)}</td><td>${fmtDiff(rowsTotal, formulaTotal)}</td></tr>`;
+            html += `<tr><td><strong>Tổng Chi Phí</strong></td><td class="num">${fmtNum(rowsCosts)}</td><td class="num">—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Lợi Nhuận</strong></td><td class="num">${fmtNum(rowsProfit)}</td><td class="num">${fmtNum(formulaProfit)}</td><td>${fmtDiff(rowsProfit, formulaProfit)}</td></tr>`;
+            const pit = summary.formulaValues?.S2C_PIT_V2 ?? 0;
+            html += `<tr><td><strong>Thuế TNCN (S2c)</strong></td><td class="num">—</td><td class="num">${fmtNum(pit)}</td><td>Formula (profit-based)</td></tr>`;
+        }
+
+        // S2d: Inventory
+        if (templateCode === 'S2d') {
+            const allRows = sections.sections?.flatMap(s => s.rows || []) || [];
+            const openingInv = allRows.find(r => r.lineType === 'opening_inventory')?.values?.so_tien ?? 0;
+            const inbound = allRows.find(r => r.lineType === 'inventory_inbound')?.values?.so_tien ?? 0;
+            const outbound = allRows.find(r => r.lineType === 'inventory_outbound')?.values?.so_tien ?? 0;
+            const closingInv = allRows.find(r => r.lineType === 'closing_inventory')?.values?.so_tien ?? 0;
+            html += `<tr><td><strong>Tồn kho đầu kỳ</strong></td><td class="num">${fmtNum(openingInv)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Nhập hàng</strong></td><td class="num">${fmtNum(inbound)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Xuất hàng</strong></td><td class="num">${fmtNum(outbound)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Tồn kho cuối kỳ</strong></td><td class="num">${fmtNum(closingInv)}</td><td>—</td><td>—</td></tr>`;
+        }
+
+        // S2e: Money flow
+        if (templateCode === 'S2e') {
+            const cashIn = rows.filter(r => r.moneyChannel === 'cash' && (r.debitAmount ?? 0) > 0).reduce((sum, r) => sum + (r.debitAmount ?? 0), 0);
+            const cashOut = rows.filter(r => r.moneyChannel === 'cash' && (r.creditAmount ?? 0) > 0).reduce((sum, r) => sum + (r.creditAmount ?? 0), 0);
+            const bankIn = rows.filter(r => r.moneyChannel === 'bank' && (r.debitAmount ?? 0) > 0).reduce((sum, r) => sum + (r.debitAmount ?? 0), 0);
+            const bankOut = rows.filter(r => r.moneyChannel === 'bank' && (r.creditAmount ?? 0) > 0).reduce((sum, r) => sum + (r.creditAmount ?? 0), 0);
+            html += `<tr><td><strong>Tiền mặt - Thu</strong></td><td class="num">${fmtNum(cashIn)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Tiền mặt - Chi</strong></td><td class="num">${fmtNum(cashOut)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Tiền NH - Thu</strong></td><td class="num">${fmtNum(bankIn)}</td><td>—</td><td>—</td></tr>`;
+            html += `<tr><td><strong>Tiền NH - Chi</strong></td><td class="num">${fmtNum(bankOut)}</td><td>—</td><td>—</td></tr>`;
+        }
+
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:10px;color:var(--text-muted)">💡 Nếu không khớp, có thể do data chưa đủ hoặc filter không chính xác. Kiểm tra lại dữ liệu từ API rows.</p>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderS2aIndustrySummary(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        let html = '<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--primary)">📊 Tóm tắt theo ngành (S2a)</h4>';
+        html += '<p style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Doanh thu theo ngành và mức thuế GTGT/TNCN áp dụng</p>';
+        html += '<div class="data-table-wrap" style="max-height:250px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        html += '<th>Ngành</th><th>Doanh thu</th><th>Thuế GTGT %</th><th>Thuế TNCN %</th></tr></thead><tbody>';
+
+        d.sections.forEach(sec => {
+            if (sec.sectionType !== 'industry_group') return;
+            let dt = 0, vatRate = 0, pitRate = 0;
+            (sec.rows || []).forEach(r => {
+                if (r.lineType === 'subtotal' || r.lineType === 'section_subtotal') {
+                    dt = r.values.so_tien ?? 0;
+                } else if (r.lineType === 'tax_line' && r.taxMetadata?.taxType === 'VAT') {
+                    vatRate = (r.taxMetadata?.rate ?? 0) * 100;
+                } else if (r.lineType === 'tax_line' && r.taxMetadata?.taxType === 'PIT') {
+                    pitRate = (r.taxMetadata?.rate ?? 0) * 100;
+                }
+            });
+            html += `<tr><td style="font-weight:600;color:var(--primary)">${sec.businessTypeName || ''}</td>`;
+            html += `<td class="num">${fmtNum(dt)}</td>`;
+            html += `<td class="num">${vatRate.toFixed(2)}%</td>`;
+            html += `<td class="num">${pitRate.toFixed(2)}%</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:10px;color:var(--text-muted)">💡 S2a tính thuế theo % doanh thu. Mỗi ngành có suất thuế khác nhau. Deduction 500M chỉ áp vào ngành DT cao nhất.</p>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderS2cIndustrySummary(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        let html = '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--success)">📊 Tóm tắt theo ngành (S2c)</h4>';
+        html += '<div class="data-table-wrap" style="max-height:250px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        html += '<th>Ngành</th><th>Doanh thu</th><th>Chi phí</th><th>Lợi nhuận</th><th>Margin %</th></tr></thead><tbody>';
+
+        d.sections.forEach(sec => {
+            if (sec.sectionType !== 'industry_group') return;
+            const secRows = sec.rows || [];
+            let dt = 0, cp = 0, ln = 0;
+            secRows.forEach(r => {
+                if (r.lineType === 'subtotal' || r.lineType === 'section_subtotal') {
+                    dt = r.values.doanh_thu ?? r.values.revenue ?? r.values.so_tien ?? 0;
+                } else if (r.lineType === 'profit_row') {
+                    ln = r.values.so_tien ?? r.values.profit ?? 0;
+                }
+            });
+            cp = dt - ln;
+            const margin = dt > 0 ? ((ln / dt) * 100).toFixed(1) : 0;
+            html += `<tr><td style="font-weight:600;color:var(--accent-purple)">${sec.businessTypeName || ''}</td>`;
+            html += `<td class="num">${fmtNum(dt)}</td>`;
+            html += `<td class="num">${fmtNum(cp)}</td>`;
+            html += `<td class="num" style="color:var(--success);font-weight:600">${fmtNum(ln)}</td>`;
+            html += `<td class="num"><span style="background:rgba(34,197,94,0.2);padding:2px 6px;border-radius:3px">${margin}%</span></td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:11px;color:var(--text-muted)">💡 S2c tính PIT dựa vào lợi nhuận, không phải doanh thu. Mỗi ngành có tỷ lệ % khác nhau.</p>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderS2bIndustrySummary(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        let html = '<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--primary)">📊 Tóm tắt theo ngành (S2b)</h4>';
+        html += '<p style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Doanh thu theo ngành và tổng chi phí có liên quan</p>';
+        html += '<div class="data-table-wrap" style="max-height:250px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        html += '<th>Ngành</th><th>Doanh thu</th><th>Chi phí</th><th>Lợi nhuận</th></tr></thead><tbody>';
+
+        d.sections.forEach(sec => {
+            if (sec.sectionType !== 'industry_group') return;
+            let dt = 0, cp = 0, ln = 0;
+            (sec.rows || []).forEach(r => {
+                if (r.lineType === 'subtotal' || r.lineType === 'section_subtotal') {
+                    dt = r.values.doanh_thu ?? r.values.revenue ?? r.values.so_tien ?? 0;
+                } else if (r.lineType === 'cost_subtotal') {
+                    cp = r.values.so_tien ?? 0;
+                } else if (r.lineType === 'profit_row') {
+                    ln = r.values.so_tien ?? r.values.profit ?? 0;
+                }
+            });
+            html += `<tr><td style="font-weight:600;color:var(--primary)">${sec.businessTypeName || ''}</td>`;
+            html += `<td class="num">${fmtNum(dt)}</td>`;
+            html += `<td class="num">${fmtNum(cp)}</td>`;
+            html += `<td class="num" style="color:var(--success)">${fmtNum(ln)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:10px;color:var(--text-muted)">💡 S2b tương tự S2a nhưng kèm chi phí chi tiết. Dùng cho nhóm kinh doanh 2 (khác K/D nộp GTGT theo TV).</p>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderS2dSummary(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        let html = '<div style="background:rgba(165,142,251,0.08);border:1px solid rgba(165,142,251,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--accent-purple)">📦 Tóm tắt kho (S2d)</h4>';
+        html += '<p style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Tồn kho đầu kỳ, nhập, xuất, tồn cuối kỳ</p>';
+        html += '<div class="data-table-wrap" style="max-height:250px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        html += '<th>Nội dung</th><th>Số tiền</th></tr></thead><tbody>';
+
+        const rows = d.sections.flatMap(s => s.rows || []);
+        const lineTypes = ['opening_inventory', 'inventory_inbound', 'inventory_outbound', 'closing_inventory'];
+        const lineNames = { opening_inventory: 'Tồn kho đầu kỳ', inventory_inbound: 'Nhập hàng', inventory_outbound: 'Xuất hàng', closing_inventory: 'Tồn kho cuối kỳ' };
+
+        lineTypes.forEach(lt => {
+            const val = rows.find(r => r.lineType === lt)?.values?.so_tien ?? 0;
+            html += `<tr><td style="font-weight:500">${lineNames[lt]}</td><td class="num">${fmtNum(val)}</td></tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:10px;color:var(--text-muted)">💡 S2d tính hàng tồn kho. Công thức: TK cuối = TK đầu + Nhập - Xuất</p>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderS2eSummary(d) {
+        const fmtNum = n => n != null ? Number(n).toLocaleString('vi-VN') : '—';
+        let html = '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">';
+        html += '<h4 style="margin:0 0 10px;font-size:13px;color:var(--success)">💰 Tóm tắt tiền mặt/NH (S2e)</h4>';
+        html += '<p style="margin-bottom:10px;font-size:11px;color:var(--text-muted)">Dòng tiền vào/ra theo loại (mặt/ngân hàng)</p>';
+        html += '<div class="data-table-wrap" style="max-height:250px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        html += '<th>Chi tiết</th><th>Tính từ Rows</th><th>Tính từ Sections</th></tr></thead><tbody>';
+
+        const rows = d.sections.flatMap(s => s.rows || []);
+        const lineTypes = ['cash_opening', 'bank_opening', 'cash_inbound', 'bank_inbound', 'cash_outbound', 'bank_outbound', 'cash_closing', 'bank_closing'];
+        const lineNames = {
+            cash_opening: 'TM đầu kỳ',
+            bank_opening: 'NH đầu kỳ',
+            cash_inbound: 'TM thu vào',
+            bank_inbound: 'NH tiền vào',
+            cash_outbound: 'TM chi ra',
+            bank_outbound: 'NH chi ra',
+            cash_closing: 'TM cuối kỳ',
+            bank_closing: 'NH cuối kỳ'
+        };
+
+        lineTypes.forEach(lt => {
+            const val = rows.find(r => r.lineType === lt)?.values?.so_tien ?? 0;
+            html += `<tr><td style="font-weight:500">${lineNames[lt]}</td><td class="num">${fmtNum(val)}</td><td class="num">—</td></tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        html += '<p style="margin:8px 0 0;font-size:10px;color:var(--text-muted)">💡 S2e theo dõi tiền mặt và ngân hàng. Phân tách dòng tiền theo từng kênh để không làm loạn Sổ quỹ.</p>';
+        html += '</div>';
+        return html;
     }
 
     // ═══════════════════════════════════════════════════
@@ -1350,8 +1680,14 @@
         const listRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books?periodId=${cfg.periodId}`);
         appendStep('Bước 2: Danh sách sổ trong kỳ', listRes.status === 200, renderResponse(listRes.status, listRes.elapsed, listRes.data));
 
+        // STEP 3-5: Summary + Sections + Rows (parallel)
+        const [sumRes, secRes, rowsRes] = await Promise.all([
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/summary`),
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`),
+            apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/rows?batchSize=20`)
+        ]);
+
         // STEP 3: Summary + KPI
-        const sumRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/summary`);
         const sumOk = sumRes.status === 200;
         if (sumOk) {
             const d = sumRes.data?.data || sumRes.data || {};
@@ -1367,18 +1703,18 @@
             appendStep('Bước 3: Summary', false, renderResponse(sumRes.status, sumRes.elapsed, sumRes.data));
         }
 
-        // STEP 4: Sections
-        const secRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/sections`);
+        // STEP 4: Sections (with reconciliation)
         const secOk = secRes.status === 200;
         let secHtml = renderResponse(secRes.status, secRes.elapsed, secRes.data);
         if (secOk) {
             const secData = secRes.data?.data || secRes.data || {};
-            secHtml = renderSectionsView(secData) + secHtml;
+            const sumData = sumRes.data?.data || sumRes.data || {};
+            const rowData = rowsRes.data?.data?.rows || [];
+            secHtml = renderSectionsView(secData, sumData, rowData) + secHtml;
         }
-        appendStep(`Bước 4: Sections (Template View)`, secOk, secHtml);
+        appendStep(`Bước 4: Sections (Template View + Reconciliation)`, secOk, secHtml);
 
         // STEP 5: Rows
-        const rowsRes = await apiCall('GET', `/api/locations/${cfg.locationId}/accounting/books/${bookId}/rows?batchSize=20`);
         const rowsOk = rowsRes.status === 200;
         const rows = rowsRes.data?.data?.rows || [];
         let rowsHtml = renderResponse(rowsRes.status, rowsRes.elapsed, rowsRes.data);
@@ -1386,7 +1722,7 @@
             const cols = Object.keys(rows[0]);
             rowsHtml = `<div class="data-table-wrap" style="max-height:300px;overflow:auto"><table class="data-table">
                 <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-                <tbody>${rows.map(r=>'<tr>'+cols.map(c=>`<td>${r[c]??''}</td>`).join('')+'</tr>').join('')}</tbody>
+                <tbody>${rows.map(r=>'<tr>'+cols.map(c=>'<td>'+(r[c]??'')+'</td>').join('')+'</tr>').join('')}</tbody>
             </table></div>` + rowsHtml;
         }
         appendStep(`Bước 5: Rows (${rows.length} dòng dữ liệu)`, rowsOk, rowsHtml);

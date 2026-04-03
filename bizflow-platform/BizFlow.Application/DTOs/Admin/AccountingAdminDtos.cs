@@ -322,6 +322,54 @@ public class UpdateRowDefinitionRequest
     public string? TaxType { get; set; }
 }
 
+// ── BusinessType + IndustryTaxRate admin DTOs ──
+
+public class AdminBusinessTypeDetailDto
+{
+    public Guid BusinessTypeId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Status { get; set; } = string.Empty;
+}
+
+public class AdminBusinessTypesWithRatesDto
+{
+    public Guid BusinessTypeId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public List<AdminIndustryTaxRateDto> TaxRates { get; set; } = new();
+}
+
+public class AdminIndustryTaxRateDto
+{
+    public int RateId { get; set; }
+    public string TaxType { get; set; } = string.Empty;
+    public decimal TaxRate { get; set; }
+    public string? Description { get; set; }
+}
+
+public class UpdateBusinessTypeRequest
+{
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public string? Status { get; set; }
+}
+
+public class UpsertIndustryTaxRateItem
+{
+    public string TaxType { get; set; } = string.Empty;
+    public decimal TaxRate { get; set; }
+    public string? Description { get; set; }
+}
+
+public class UpsertIndustryTaxRatesRequest
+{
+    public List<UpsertIndustryTaxRateItem> Rates { get; set; } = new();
+}
+
 // ── FieldMapping create/delete ──
 
 public class CreateFieldMappingRequest
