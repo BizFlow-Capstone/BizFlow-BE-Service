@@ -76,11 +76,11 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 return Unauthorized(MessageKeys.InvalidFirebaseToken);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_EXISTS")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.PhoneAlreadyExists)
             {
                 return Conflict(MessageKeys.PhoneAlreadyExists);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "PHONE_VERIFICATION_MISMATCH")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.PhoneVerificationMismatch)
             {
                 return BadRequest(MessageKeys.PhoneVerificationMismatch);
             }
@@ -117,15 +117,15 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 return NotFound(MessageKeys.AccountNotFound);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_LINKED")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.PhoneAlreadyLinked)
             {
                 return Conflict(MessageKeys.PhoneAlreadyLinked);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "PHONE_ALREADY_EXISTS")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.PhoneAlreadyExists)
             {
                 return Conflict(MessageKeys.PhoneAlreadyExists);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "PHONE_VERIFICATION_MISMATCH")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.PhoneVerificationMismatch)
             {
                 return BadRequest(MessageKeys.PhoneVerificationMismatch);
             }
@@ -207,7 +207,7 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 if (string.IsNullOrWhiteSpace(request.Password))
                 {
-                    return BadRequest(MessageKeys.ValidationError, new { field = "password", message = "Password is required" });
+                    return BadRequest(MessageKeys.ValidationError, new { field = "password", message = MessageKeys.PasswordRequired });
                 }
 
                 var accountId = GetCurrentAccountId();
@@ -253,22 +253,26 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 return NotFound(MessageKeys.AccountNotFound);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "NO_PASSWORD_TO_CHANGE")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.NoPasswordToChange)
             {
                 return BadRequest(MessageKeys.NoPasswordToChange);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "NEW_PASSWORD_SAME_AS_CURRENT")
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.NewPasswordSameAsCurrent)
             {
                 return BadRequest(MessageKeys.NewPasswordSameAsCurrent);
             }
-            catch (UnauthorizedAccessException ex) when (ex.Message == "CURRENT_PASSWORD_INCORRECT")
+            catch (UnauthorizedAccessException ex) when (ex.Message == MessageKeys.CurrentPasswordIncorrect)
             {
                 Logger.LogWarning("Change password failed due to incorrect current password");
                 return Unauthorized(MessageKeys.CurrentPasswordIncorrect);
             }
-            catch (ArgumentException)
+            catch (ArgumentException ex) when (ex.Message == MessageKeys.PasswordInvalidFormat)
             {
                 return BadRequest(MessageKeys.PasswordInvalidFormat);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -432,6 +436,49 @@ namespace BizFlow.Api.Controllers.Auth
                 await _authService.RevokeAllRefreshTokensAsync(accountId);
                 Logger.LogInformation("Logout all success. AccountId={AccountId}", accountId);
                 return Ok(MessageKeys.LogoutAllSuccess);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost("delete-account")]
+        [Authorize]
+        public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.Password))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "password", message = MessageKeys.PasswordRequired });
+                }
+
+                var accountId = GetCurrentAccountId();
+                await _authService.DeleteAccountAsync(accountId, request.Password);
+                Logger.LogInformation("Delete account success. AccountId={AccountId}", accountId);
+                return Ok(MessageKeys.DataDeletedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.AccountNotFound);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.NoPasswordToDelete)
+            {
+                return BadRequest(MessageKeys.NoPasswordToDelete);
+            }
+            catch (UnauthorizedAccessException ex) when (ex.Message == MessageKeys.CurrentPasswordIncorrect)
+            {
+                Logger.LogWarning("Delete account failed due to incorrect password");
+                return Unauthorized(MessageKeys.CurrentPasswordIncorrect);
+            }
+            catch (UnauthorizedAccessException ex) when (ex.Message == MessageKeys.AccountInactiveOrDeleted)
+            {
+                return Unauthorized(MessageKeys.AccountInactiveOrDeleted);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.Unauthorized);
             }
             catch (Exception ex)
             {

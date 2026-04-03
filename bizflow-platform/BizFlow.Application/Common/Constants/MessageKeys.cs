@@ -74,6 +74,32 @@ namespace BizFlow.Application.Common.Constants
         public const string PhoneRegisterSuccess = "AUTH_PHONE_REGISTER_SUCCESS";
         public const string PhoneLinkSuccess = "AUTH_PHONE_LINK_SUCCESS";
         public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
+        public const string AccountInactiveOrDeleted = "AUTH_ACCOUNT_INACTIVE_OR_DELETED";
+        /// <summary>Không thể xóa tài khoản vì chưa đặt mật khẩu (chỉ đăng nhập OAuth).</summary>
+        public const string NoPasswordToDelete = "AUTH_NO_PASSWORD_TO_DELETE";
+
+        public const string IdTokenRequired = "AUTH_ID_TOKEN_REQUIRED";
+        public const string EmailRequired = "AUTH_EMAIL_REQUIRED";
+        public const string PasswordRequired = "AUTH_PASSWORD_REQUIRED";
+        public const string PhoneRequired = "AUTH_PHONE_REQUIRED";
+        public const string FirebaseIdTokenRequired = "AUTH_FIREBASE_ID_TOKEN_REQUIRED";
+        public const string RefreshTokenRequired = "AUTH_REFRESH_TOKEN_REQUIRED";
+        public const string CurrentPasswordRequired = "AUTH_CURRENT_PASSWORD_REQUIRED";
+        public const string PasswordRequiredWhenNoPassword = "AUTH_PASSWORD_REQUIRED_WHEN_NO_PASSWORD";
+        public const string DefaultRoleNotFound = "AUTH_DEFAULT_ROLE_NOT_FOUND";
+        public const string AccountHasNoProfile = "AUTH_ACCOUNT_HAS_NO_PROFILE";
+        public const string RefreshTokenInvalidOrExpired = "AUTH_REFRESH_TOKEN_INVALID_OR_EXPIRED";
+        public const string RefreshTokenReuseDetected = "AUTH_REFRESH_TOKEN_REUSE_DETECTED";
+        public const string InvalidRefreshToken = "AUTH_INVALID_REFRESH_TOKEN";
+        public const string GoogleAuthClientIdsNotConfigured = "AUTH_GOOGLE_AUTH_CLIENT_IDS_NOT_CONFIGURED";
+        public const string FirebaseProjectIdNotConfigured = "AUTH_FIREBASE_PROJECT_ID_NOT_CONFIGURED";
+        public const string FirebaseAppNotInitialized = "AUTH_FIREBASE_APP_NOT_INITIALIZED";
+        public const string FirebaseServiceAccountFileNotFound = "AUTH_FIREBASE_SERVICE_ACCOUNT_FILE_NOT_FOUND";
+        public const string FirebaseTokenPayloadInvalid = "AUTH_FIREBASE_TOKEN_PAYLOAD_INVALID";
+        public const string FirebaseTokenNoPhoneNumber = "AUTH_FIREBASE_TOKEN_NO_PHONE_NUMBER";
+        public const string FirebasePhoneNumberEmpty = "AUTH_FIREBASE_PHONE_NUMBER_EMPTY";
+        public const string PhoneInvalidFormat = "AUTH_PHONE_INVALID_FORMAT";
+
         public const string LogoutAllSuccess = "AUTH_LOGOUT_ALL_SUCCESS";
         public const string AdminRevokeAllRefreshTokensSuccess = "AUTH_ADMIN_REVOKE_ALL_REFRESH_TOKENS_SUCCESS";
         public const string AdminCannotManageAdminAccount = "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT";

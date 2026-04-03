@@ -13,6 +13,7 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Text.Json;
 
 namespace BizFlow.Infrastructure.Services
@@ -51,7 +52,7 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(idToken))
             {
-                throw new ArgumentException("Id token is required", nameof(idToken));
+                throw new ArgumentException(MessageKeys.IdTokenRequired, nameof(idToken));
             }
 
             // 1. Verify Google ID token
@@ -79,7 +80,7 @@ namespace BizFlow.Infrastructure.Services
                 if (account.IsActive == false || account.DeletedAt != null)
                 {
                     _logger.LogWarning("Google login rejected for inactive/deleted account. AccountId={AccountId}", account.AccountId);
-                    throw new UnauthorizedAccessException("Account is inactive or deleted");
+                    throw new UnauthorizedAccessException(MessageKeys.AccountInactiveOrDeleted);
                 }
 
                 // Update last login
@@ -90,7 +91,8 @@ namespace BizFlow.Infrastructure.Services
             {
                 // New account — register
                 var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == DefaultRoleName)
-                    ?? throw new InvalidOperationException($"Default role '{DefaultRoleName}' not found");
+                    ?? throw new InvalidOperationException(
+                        string.Format(CultureInfo.InvariantCulture, MessageKeys.DefaultRoleNotFound, DefaultRoleName));
 
                 account = new Account
                 {
@@ -141,7 +143,7 @@ namespace BizFlow.Infrastructure.Services
 
             // 3. Issue tokens
             var profile2 = account.Profile
-                ?? throw new InvalidOperationException("Account has no profile");
+                ?? throw new InvalidOperationException(MessageKeys.AccountHasNoProfile);
 
             var accessToken = _jwtService.GenerateAccessToken(
                 account.AccountId, profile2.ProfileId, account.Role.Name);
@@ -169,12 +171,12 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(email))
             {
-                throw new ArgumentException("Email is required", nameof(email));
+                throw new ArgumentException(MessageKeys.EmailRequired, nameof(email));
             }
 
             if (string.IsNullOrWhiteSpace(password))
             {
-                throw new ArgumentException("Password is required", nameof(password));
+                throw new ArgumentException(MessageKeys.PasswordRequired, nameof(password));
             }
 
             var normalizedEmail = email.Trim().ToLowerInvariant();
@@ -190,7 +192,7 @@ namespace BizFlow.Infrastructure.Services
             if (credential == null)
             {
                 _logger.LogWarning("Email login failed. Email credential not found: {Email}", normalizedEmail);
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidCredentials);
             }
 
             return await LoginWithCredentialAsync(credential, password, deviceInfo, "email", normalizedEmail);
@@ -200,12 +202,12 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(phone))
             {
-                throw new ArgumentException("Phone is required", nameof(phone));
+                throw new ArgumentException(MessageKeys.PhoneRequired, nameof(phone));
             }
 
             if (string.IsNullOrWhiteSpace(password))
             {
-                throw new ArgumentException("Password is required", nameof(password));
+                throw new ArgumentException(MessageKeys.PasswordRequired, nameof(password));
             }
 
             var normalizedPhone = NormalizeVietnamPhone(phone);
@@ -221,7 +223,7 @@ namespace BizFlow.Infrastructure.Services
             if (credential == null)
             {
                 _logger.LogWarning("Phone login failed. Phone credential not found: {Phone}", normalizedPhone);
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidCredentials);
             }
 
             return await LoginWithCredentialAsync(credential, password, deviceInfo, "phone", normalizedPhone);
@@ -231,12 +233,12 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(phone))
             {
-                throw new ArgumentException("Phone is required", nameof(phone));
+                throw new ArgumentException(MessageKeys.PhoneRequired, nameof(phone));
             }
 
             if (string.IsNullOrWhiteSpace(firebaseIdToken))
             {
-                throw new ArgumentException("Firebase token is required", nameof(firebaseIdToken));
+                throw new ArgumentException(MessageKeys.FirebaseIdTokenRequired, nameof(firebaseIdToken));
             }
 
             ValidatePasswordOrThrow(password);
@@ -247,18 +249,19 @@ namespace BizFlow.Infrastructure.Services
             if (!string.Equals(normalizedPhone, verifiedPhone, StringComparison.Ordinal))
             {
                 _logger.LogWarning("Phone registration mismatch. RequestPhone={RequestPhone}, FirebasePhone={FirebasePhone}", normalizedPhone, verifiedPhone);
-                throw new InvalidOperationException("PHONE_VERIFICATION_MISMATCH");
+                throw new InvalidOperationException(MessageKeys.PhoneVerificationMismatch);
             }
 
             var phoneExists = await _db.Credentials.AnyAsync(c => c.Type == "phone" && c.Identifier == normalizedPhone);
             if (phoneExists)
             {
                 _logger.LogWarning("Phone registration failed. Phone already exists: {Phone}", normalizedPhone);
-                throw new InvalidOperationException("PHONE_ALREADY_EXISTS");
+                throw new InvalidOperationException(MessageKeys.PhoneAlreadyExists);
             }
 
             var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == DefaultRoleName)
-                ?? throw new InvalidOperationException($"Default role '{DefaultRoleName}' not found");
+                ?? throw new InvalidOperationException(
+                    string.Format(CultureInfo.InvariantCulture, MessageKeys.DefaultRoleNotFound, DefaultRoleName));
 
             var account = new Account
             {
@@ -322,23 +325,23 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(phone))
             {
-                throw new ArgumentException("Phone is required", nameof(phone));
+                throw new ArgumentException(MessageKeys.PhoneRequired, nameof(phone));
             }
 
             if (string.IsNullOrWhiteSpace(firebaseIdToken))
             {
-                throw new ArgumentException("Firebase token is required", nameof(firebaseIdToken));
+                throw new ArgumentException(MessageKeys.FirebaseIdTokenRequired, nameof(firebaseIdToken));
             }
 
             var account = await _db.Accounts
                 .Include(a => a.Credentials)
                 .FirstOrDefaultAsync(a => a.AccountId == accountId)
-                ?? throw new KeyNotFoundException("Account not found");
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
 
             var alreadyLinked = account.Credentials.Any(c => c.Type == "phone");
             if (alreadyLinked)
             {
-                throw new InvalidOperationException("PHONE_ALREADY_LINKED");
+                throw new InvalidOperationException(MessageKeys.PhoneAlreadyLinked);
             }
 
             var normalizedPhone = NormalizeVietnamPhone(phone);
@@ -347,20 +350,20 @@ namespace BizFlow.Infrastructure.Services
             if (!string.Equals(normalizedPhone, verifiedPhone, StringComparison.Ordinal))
             {
                 _logger.LogWarning("Phone linking mismatch. RequestPhone={RequestPhone}, FirebasePhone={FirebasePhone}", normalizedPhone, verifiedPhone);
-                throw new InvalidOperationException("PHONE_VERIFICATION_MISMATCH");
+                throw new InvalidOperationException(MessageKeys.PhoneVerificationMismatch);
             }
 
             var usedByOtherAccount = await _db.Credentials.AnyAsync(c => c.Type == "phone" && c.Identifier == normalizedPhone && c.AccountId != accountId);
             if (usedByOtherAccount)
             {
-                throw new InvalidOperationException("PHONE_ALREADY_EXISTS");
+                throw new InvalidOperationException(MessageKeys.PhoneAlreadyExists);
             }
 
             if (string.IsNullOrWhiteSpace(account.PasswordHash))
             {
                 if (string.IsNullOrWhiteSpace(password))
                 {
-                    throw new ArgumentException("Password is required when account has no password", nameof(password));
+                    throw new ArgumentException(MessageKeys.PasswordRequiredWhenNoPassword, nameof(password));
                 }
 
                 ValidatePasswordOrThrow(password);
@@ -402,10 +405,10 @@ namespace BizFlow.Infrastructure.Services
             var account = await _db.Accounts
                 .Include(a => a.Credentials)
                 .FirstOrDefaultAsync(a => a.AccountId == accountId)
-                ?? throw new KeyNotFoundException("Account not found");
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
 
             if (account.PasswordHash != null)
-                throw new InvalidOperationException("Password is already set. Use change password instead.");
+                throw new InvalidOperationException(MessageKeys.PasswordAlreadySet);
 
             // Hash and set password
             account.PasswordHash = _jwtService.HashPassword(password);
@@ -445,30 +448,30 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(currentPassword))
             {
-                throw new ArgumentException("Current password is required", nameof(currentPassword));
+                throw new ArgumentException(MessageKeys.CurrentPasswordRequired, nameof(currentPassword));
             }
 
             ValidatePasswordOrThrow(newPassword);
 
             var account = await _db.Accounts
                 .FirstOrDefaultAsync(a => a.AccountId == accountId)
-                ?? throw new KeyNotFoundException("Account not found");
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
 
             if (string.IsNullOrWhiteSpace(account.PasswordHash))
             {
                 _logger.LogWarning("Change password rejected: account has no password. AccountId={AccountId}", accountId);
-                throw new InvalidOperationException("NO_PASSWORD_TO_CHANGE");
+                throw new InvalidOperationException(MessageKeys.NoPasswordToChange);
             }
 
             if (!_jwtService.VerifyPassword(currentPassword, account.PasswordHash))
             {
                 _logger.LogWarning("Change password failed: incorrect current password. AccountId={AccountId}", accountId);
-                throw new UnauthorizedAccessException("CURRENT_PASSWORD_INCORRECT");
+                throw new UnauthorizedAccessException(MessageKeys.CurrentPasswordIncorrect);
             }
 
             if (_jwtService.VerifyPassword(newPassword, account.PasswordHash))
             {
-                throw new InvalidOperationException("NEW_PASSWORD_SAME_AS_CURRENT");
+                throw new InvalidOperationException(MessageKeys.NewPasswordSameAsCurrent);
             }
 
             account.PasswordHash = _jwtService.HashPassword(newPassword);
@@ -484,7 +487,7 @@ namespace BizFlow.Infrastructure.Services
             var profile = await _db.Profiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
-                ?? throw new KeyNotFoundException("Profile not found");
+                ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
             _logger.LogInformation("Profile retrieved. ProfileId={ProfileId}", profileId);
 
@@ -515,7 +518,7 @@ namespace BizFlow.Infrastructure.Services
 
             var profile = await _db.Profiles
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
-                ?? throw new KeyNotFoundException("Profile not found");
+                ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
             if (hasFullName)
             {
@@ -610,7 +613,7 @@ namespace BizFlow.Infrastructure.Services
 
             var profile = await _db.Profiles
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
-                ?? throw new KeyNotFoundException("Profile not found");
+                ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
             if (hasAvatarUpload)
             {
@@ -646,7 +649,7 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
-                throw new ArgumentException("Refresh token is required", nameof(refreshToken));
+                throw new ArgumentException(MessageKeys.RefreshTokenRequired, nameof(refreshToken));
             }
 
             // Find matching token in DB
@@ -672,14 +675,14 @@ namespace BizFlow.Infrastructure.Services
             }
 
             if (matchedToken == null)
-                throw new UnauthorizedAccessException("Invalid or expired refresh token");
+                throw new UnauthorizedAccessException(MessageKeys.RefreshTokenInvalidOrExpired);
 
             // Reuse detection: if token is already revoked, revoke ALL tokens for this account
             if (matchedToken.RevokedAt != null)
             {
                 _logger.LogWarning("Refresh token reuse detected. AccountId={AccountId}", matchedToken.AccountId);
                 await RevokeAllRefreshTokensAsync(matchedToken.AccountId);
-                throw new UnauthorizedAccessException("Refresh token reuse detected. All sessions revoked.");
+                throw new UnauthorizedAccessException(MessageKeys.RefreshTokenReuseDetected);
             }
 
             var account = matchedToken.Account;
@@ -689,7 +692,7 @@ namespace BizFlow.Infrastructure.Services
 
             // Issue new tokens
             var profile = account.Profile
-                ?? throw new InvalidOperationException("Account has no profile");
+                ?? throw new InvalidOperationException(MessageKeys.AccountHasNoProfile);
 
             var newAccessToken = _jwtService.GenerateAccessToken(
                 account.AccountId, profile.ProfileId, account.Role.Name);
@@ -716,7 +719,7 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
-                throw new ArgumentException("Refresh token is required", nameof(refreshToken));
+                throw new ArgumentException(MessageKeys.RefreshTokenRequired, nameof(refreshToken));
             }
 
             var storedTokens = await _db.RefreshTokens
@@ -735,22 +738,75 @@ namespace BizFlow.Infrastructure.Services
                 }
             }
 
-            throw new UnauthorizedAccessException("Invalid refresh token");
+            throw new UnauthorizedAccessException(MessageKeys.InvalidRefreshToken);
         }
 
         public async Task RevokeAllRefreshTokensAsync(Guid accountId)
         {
-            var activeTokens = await _db.RefreshTokens
+            var revokedCount = await MarkAllRefreshTokensRevokedAsync(accountId);
+            await _db.SaveChangesAsync();
+            _logger.LogInformation("All refresh tokens revoked. AccountId={AccountId}, Count={Count}", accountId, revokedCount);
+        }
+
+        /// <summary>
+        /// Marks every non-revoked refresh token for the account as revoked (does not call SaveChanges).
+        /// </summary>
+        private async Task<int> MarkAllRefreshTokensRevokedAsync(Guid accountId)
+        {
+            var tokens = await _db.RefreshTokens
                 .Where(rt => rt.AccountId == accountId && rt.RevokedAt == null)
                 .ToListAsync();
 
-            foreach (var token in activeTokens)
+            var now = DateTime.UtcNow;
+            foreach (var token in tokens)
             {
-                token.RevokedAt = DateTime.UtcNow;
+                token.RevokedAt = now;
             }
 
+            return tokens.Count;
+        }
+
+        public async Task DeleteAccountAsync(Guid accountId, string password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException(MessageKeys.PasswordRequired, nameof(password));
+            }
+
+            var account = await _db.Accounts
+                .FirstOrDefaultAsync(a => a.AccountId == accountId)
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
+
+            if (account.IsActive == false || account.DeletedAt != null)
+            {
+                _logger.LogWarning("Delete account rejected for inactive/deleted account. AccountId={AccountId}", accountId);
+                throw new UnauthorizedAccessException(MessageKeys.AccountInactiveOrDeleted);
+            }
+
+            if (string.IsNullOrWhiteSpace(account.PasswordHash))
+            {
+                _logger.LogWarning("Delete account rejected because account has no password. AccountId={AccountId}", accountId);
+                throw new InvalidOperationException(MessageKeys.NoPasswordToDelete);
+            }
+
+            var passwordOk = _jwtService.VerifyPassword(password, account.PasswordHash);
+            if (!passwordOk)
+            {
+                _logger.LogWarning("Delete account failed due to incorrect password. AccountId={AccountId}", accountId);
+                throw new UnauthorizedAccessException(MessageKeys.CurrentPasswordIncorrect);
+            }
+
+            account.IsActive = false;
+            account.DeletedAt = DateTime.UtcNow;
+            account.UpdatedAt = DateTime.UtcNow;
+
+            var refreshTokensRevoked = await MarkAllRefreshTokensRevokedAsync(accountId);
             await _db.SaveChangesAsync();
-            _logger.LogInformation("All refresh tokens revoked. AccountId={AccountId}, Count={Count}", accountId, activeTokens.Count);
+
+            _logger.LogInformation(
+                "Account deleted (soft delete). AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
+                accountId,
+                refreshTokensRevoked);
         }
 
         public async Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId)
@@ -775,7 +831,7 @@ namespace BizFlow.Infrastructure.Services
 
             if (!profileExists)
             {
-                throw new KeyNotFoundException("Profile not found");
+                throw new KeyNotFoundException(MessageKeys.NotFound);
             }
 
             var firebaseAuth = GetFirebaseAuth();
@@ -811,7 +867,7 @@ namespace BizFlow.Infrastructure.Services
 
             if (audiences.Count == 0)
             {
-                throw new InvalidOperationException("GoogleAuth client IDs are not configured");
+                throw new InvalidOperationException(MessageKeys.GoogleAuthClientIdsNotConfigured);
             }
 
             var settings = new GoogleJsonWebSignature.ValidationSettings
@@ -826,7 +882,7 @@ namespace BizFlow.Infrastructure.Services
             catch (InvalidJwtException ex)
             {
                 _logger.LogWarning(ex, "Invalid Google ID token");
-                throw new UnauthorizedAccessException("Invalid Google token");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidGoogleToken);
             }
         }
 
@@ -872,12 +928,12 @@ namespace BizFlow.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(password))
             {
-                throw new ArgumentException("Password is required", nameof(password));
+                throw new ArgumentException(MessageKeys.PasswordRequired, nameof(password));
             }
 
             if (password.Length < 6 || password.Length > 128)
             {
-                throw new ArgumentException("Password must be between 6 and 128 characters", nameof(password));
+                throw new ArgumentException(MessageKeys.PasswordInvalidFormat, nameof(password));
             }
         }
 
@@ -893,24 +949,24 @@ namespace BizFlow.Infrastructure.Services
             if (account.IsActive == false || account.DeletedAt != null)
             {
                 _logger.LogWarning("{Method} login rejected for inactive/deleted account. AccountId={AccountId}", method, account.AccountId);
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidCredentials);
             }
 
             if (string.IsNullOrWhiteSpace(account.PasswordHash))
             {
                 _logger.LogWarning("{Method} login rejected because account has no password. AccountId={AccountId}", method, account.AccountId);
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidCredentials);
             }
 
             var passwordOk = _jwtService.VerifyPassword(password, account.PasswordHash);
             if (!passwordOk)
             {
                 _logger.LogWarning("{Method} login failed due to wrong password. Identifier={Identifier}", method, identifier);
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidCredentials);
             }
 
             var profile = account.Profile
-                ?? throw new InvalidOperationException("Account has no profile");
+                ?? throw new InvalidOperationException(MessageKeys.AccountHasNoProfile);
 
             var accessToken = _jwtService.GenerateAccessToken(account.AccountId, profile.ProfileId, account.Role.Name);
             var refreshToken = _jwtService.GenerateRefreshToken();
@@ -948,7 +1004,7 @@ namespace BizFlow.Infrastructure.Services
                 return "+84" + cleaned[1..];
             }
 
-            throw new ArgumentException("Phone number must be in format 0xxxxxxxxx or +84xxxxxxxxx", nameof(phone));
+            throw new ArgumentException(MessageKeys.PhoneInvalidFormat, nameof(phone));
         }
 
         private async Task<string> VerifyFirebasePhoneTokenAsync(string firebaseIdToken)
@@ -960,18 +1016,18 @@ namespace BizFlow.Infrastructure.Services
                 var decoded = await firebaseAuth.VerifyIdTokenAsync(firebaseIdToken);
                 if (decoded == null || decoded.Claims == null)
                 {
-                    throw new UnauthorizedAccessException("Invalid Firebase token payload");
+                    throw new UnauthorizedAccessException(MessageKeys.FirebaseTokenPayloadInvalid);
                 }
 
                 if (!decoded.Claims.TryGetValue("phone_number", out var phoneObj) || phoneObj == null)
                 {
-                    throw new UnauthorizedAccessException("Firebase token has no verified phone number");
+                    throw new UnauthorizedAccessException(MessageKeys.FirebaseTokenNoPhoneNumber);
                 }
 
                 var firebasePhone = phoneObj.ToString();
                 if (string.IsNullOrWhiteSpace(firebasePhone))
                 {
-                    throw new UnauthorizedAccessException("Firebase phone number is empty");
+                    throw new UnauthorizedAccessException(MessageKeys.FirebasePhoneNumberEmpty);
                 }
 
                 return firebasePhone.Trim();
@@ -979,12 +1035,12 @@ namespace BizFlow.Infrastructure.Services
             catch (FirebaseAuthException ex)
             {
                 _logger.LogWarning(ex, "Invalid Firebase ID token");
-                throw new UnauthorizedAccessException("Invalid Firebase token");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidFirebaseToken);
             }
             catch (NullReferenceException ex)
             {
                 _logger.LogWarning(ex, "Firebase ID token payload is malformed or incomplete");
-                throw new UnauthorizedAccessException("Invalid Firebase token");
+                throw new UnauthorizedAccessException(MessageKeys.InvalidFirebaseToken);
             }
         }
 
@@ -995,7 +1051,7 @@ namespace BizFlow.Infrastructure.Services
             {
                 if (string.IsNullOrWhiteSpace(_firebaseConfig.ProjectId))
                 {
-                    throw new InvalidOperationException("FirebaseAuth:ProjectId is not configured");
+                    throw new InvalidOperationException(MessageKeys.FirebaseProjectIdNotConfigured);
                 }
 
                 try
@@ -1015,7 +1071,7 @@ namespace BizFlow.Infrastructure.Services
 
             if (app == null)
             {
-                throw new InvalidOperationException("Firebase app is not initialized");
+                throw new InvalidOperationException(MessageKeys.FirebaseAppNotInitialized);
             }
 
             return FirebaseAuth.GetAuth(app);
@@ -1036,9 +1092,12 @@ namespace BizFlow.Infrastructure.Services
                     return GoogleCredential.FromFile(candidatePath);
                 }
 
-                throw new InvalidOperationException(
-                    $"Firebase service account file not found at '{candidatePath}'. " +
-                    $"GOOGLE_APPLICATION_CREDENTIALS='{envPath}', FirebaseAuth:ServiceAccountPath='{configPath}'.");
+                _logger.LogError(
+                    "Firebase service account file not found at '{CandidatePath}'. GOOGLE_APPLICATION_CREDENTIALS='{EnvPath}', FirebaseAuth:ServiceAccountPath='{ConfigPath}'.",
+                    candidatePath,
+                    envPath,
+                    configPath);
+                throw new InvalidOperationException(MessageKeys.FirebaseServiceAccountFileNotFound);
             }
 
             return GoogleCredential.GetApplicationDefault();

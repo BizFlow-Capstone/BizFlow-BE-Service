@@ -26,6 +26,12 @@ namespace BizFlow.Application.DTOs.Auth
         public string Password { get; set; } = null!;
     }
 
+    public class DeleteAccountRequest
+    {
+        [Required]
+        public string Password { get; set; } = null!;
+    }
+
     public class ChangePasswordRequest
     {
         [Required]

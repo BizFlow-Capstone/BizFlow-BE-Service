@@ -398,6 +398,7 @@ app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
     app.UseOutputCache();
 });
 app.UseAuthentication();
+app.UseActiveAccountMiddleware();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
 

@@ -71,6 +71,12 @@ namespace BizFlow.Application.Interfaces.Services
         Task RevokeAllRefreshTokensAsync(Guid accountId);
 
         /// <summary>
+        /// Delete the signed-in account after confirming password.
+        /// Also revokes all refresh tokens.
+        /// </summary>
+        Task DeleteAccountAsync(Guid accountId, string password);
+
+        /// <summary>
         /// Get linked credentials for an account.
         /// </summary>
         Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId);
