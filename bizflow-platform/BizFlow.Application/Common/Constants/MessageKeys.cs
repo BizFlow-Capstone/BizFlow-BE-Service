@@ -75,6 +75,8 @@ namespace BizFlow.Application.Common.Constants
         public const string PhoneLinkSuccess = "AUTH_PHONE_LINK_SUCCESS";
         public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
         public const string LogoutAllSuccess = "AUTH_LOGOUT_ALL_SUCCESS";
+        public const string AdminRevokeAllRefreshTokensSuccess = "AUTH_ADMIN_REVOKE_ALL_REFRESH_TOKENS_SUCCESS";
+        public const string AdminCannotManageAdminAccount = "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT";
 
         /// <summary>Validation errors for profile info (fullName, taxCode, ...).</summary>
         public const string ProfileFullNameRequired = "AUTH_PROFILE_FULLNAME_REQUIRED";

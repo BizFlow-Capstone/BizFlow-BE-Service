@@ -38,7 +38,8 @@ namespace BizFlow.Infrastructure.Repositories
             ITaxRulesetRepository taxRulesetRepository,
             IFormulaDefinitionRepository formulaDefinitionRepository,
             IFormulaResultRepository formulaResultRepository,
-            IStockMovementRepository stockMovementRepository)
+            IStockMovementRepository stockMovementRepository,
+            IAccountRepository accountRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -69,6 +70,7 @@ namespace BizFlow.Infrastructure.Repositories
             FormulaDefinitions = formulaDefinitionRepository;
             FormulaResults = formulaResultRepository;
             StockMovements = stockMovementRepository;
+            Accounts = accountRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -101,6 +103,7 @@ namespace BizFlow.Infrastructure.Repositories
         public IFormulaDefinitionRepository FormulaDefinitions { get; set; }
         public IFormulaResultRepository FormulaResults { get; set; }
         public IStockMovementRepository StockMovements { get; set; }
+        public IAccountRepository Accounts { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -58,6 +58,8 @@
   "AUTH_PHONE_LINK_SUCCESS": "Liên kết số điện thoại thành công",
   "AUTH_ACCOUNT_NOT_FOUND": "Không tìm thấy tài khoản",
   "AUTH_LOGOUT_ALL_SUCCESS": "Đăng xuất tất cả thiết bị thành công",
+  "AUTH_ADMIN_REVOKE_ALL_REFRESH_TOKENS_SUCCESS": "Thu hồi toàn bộ phiên đăng nhập thành công",
+  "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT": "Không thể quản lý tài khoản quản trị viên",
   "AUTH_PROFILE_FULLNAME_REQUIRED": "Họ tên không được để trống",
   "AUTH_PROFILE_FULLNAME_TOO_LONG": "Họ tên quá dài",
   "AUTH_PROFILE_FULLNAME_INVALID_TYPE": "Họ tên phải là chuỗi hoặc null",

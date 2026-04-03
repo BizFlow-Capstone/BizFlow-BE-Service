@@ -58,6 +58,8 @@
   "AUTH_PHONE_LINK_SUCCESS": "Phone linked successfully",
   "AUTH_ACCOUNT_NOT_FOUND": "Account not found",
   "AUTH_LOGOUT_ALL_SUCCESS": "Logged out from all devices successfully",
+  "AUTH_ADMIN_REVOKE_ALL_REFRESH_TOKENS_SUCCESS": "All refresh token sessions were revoked successfully",
+  "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT": "Admin accounts cannot be managed by this endpoint",
   "AUTH_PROFILE_FULLNAME_REQUIRED": "Full name is required",
   "AUTH_PROFILE_FULLNAME_TOO_LONG": "Full name is too long",
   "AUTH_PROFILE_FULLNAME_INVALID_TYPE": "Full name must be a string or null",
