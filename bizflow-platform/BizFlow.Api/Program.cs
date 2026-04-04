@@ -166,6 +166,16 @@ builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(Image
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
 builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
+builder.Services.Configure<AiServiceSettings>(builder.Configuration.GetSection(AiServiceSettings.SectionName));
+
+// AI Service HTTP Client
+builder.Services.AddHttpClient("AiService", (sp, client) =>
+{
+    var aiSettings = builder.Configuration.GetSection(AiServiceSettings.SectionName).Get<AiServiceSettings>()
+                     ?? new AiServiceSettings();
+    client.BaseAddress = new Uri(aiSettings.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(aiSettings.TimeoutSeconds);
+});
 
 builder.Services.AddAuthentication(options =>
 {

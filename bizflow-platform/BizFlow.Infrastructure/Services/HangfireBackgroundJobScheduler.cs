@@ -10,6 +10,12 @@ namespace BizFlow.Infrastructure.Services
             BackgroundJob.Enqueue<ISubscriptionService>(service =>
                 service.IncrementUsageSqlBackgroundAsync(subscriptionId, featureCode));
         }
+
+        public void EnqueueAiAnomalyCheck(int locationId, string recordType, long recordId)
+        {
+            BackgroundJob.Enqueue<IAiServiceClient>(client =>
+                client.CheckAnomalyAsync(locationId, recordType, recordId, CancellationToken.None));
+        }
     }
 }
 

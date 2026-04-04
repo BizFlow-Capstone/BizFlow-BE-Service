@@ -86,6 +86,11 @@ namespace BizFlow.Infrastructure
                 .As<IBackgroundJobScheduler>()
                 .SingleInstance();
 
+            // AI Service HTTP client (uses IHttpClientFactory from MS DI)
+            builder.RegisterType<AiServiceHttpClient>()
+                .As<IAiServiceClient>()
+                .InstancePerLifetimeScope();
+
             // Register Jobs
             builder.RegisterType<ImageCleanupJob>().AsSelf().InstancePerDependency();
                  builder.RegisterType<SubscriptionExpiryCheckJob>().AsSelf().InstancePerDependency();

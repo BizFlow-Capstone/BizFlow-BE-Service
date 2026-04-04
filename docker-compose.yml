@@ -56,7 +56,10 @@ services:
       - StripeSettings__WebCancelUrl=${STRIPE_WEB_CANCEL_URL:-http://localhost:8080/}
       - StripeSettings__MobileSuccessUrl=${STRIPE_MOBILE_SUCCESS_URL:-bizflow://payment/success}
       - StripeSettings__MobileCancelUrl=${STRIPE_MOBILE_CANCEL_URL:-bizflow://payment/cancel}
-      - AiService__BaseUrl=http://bizflow-ai:5000
+      # AI Service (internal container-to-container)
+      - AiService__BaseUrl=${AI_SERVICE_BASE_URL:-http://bizflow-ai:5000}
+      - AiService__InternalSecret=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
+      - AiService__TimeoutSeconds=${AI_SERVICE_TIMEOUT_SECONDS:-30}
     volumes:
       - ./docker/credentials:/app/credentials:ro
     depends_on:
@@ -80,6 +83,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
       - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      # Shared secret — must match AiService__InternalSecret in the BE service
+      - INTERNAL_API_SECRET=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
     networks:
       - bizflow-network
 

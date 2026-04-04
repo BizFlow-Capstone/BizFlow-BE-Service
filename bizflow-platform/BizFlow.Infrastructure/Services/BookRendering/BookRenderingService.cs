@@ -3,6 +3,7 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace BizFlow.Infrastructure.Services.BookRendering;
@@ -766,6 +767,7 @@ public class BookRenderingService : IBookRenderingService
         var safeBatchSize = SanitizeBatchSize(batchSize);
 
         var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
 
         // Filter to current period
         var list = allMovements
@@ -784,36 +786,56 @@ public class BookRenderingService : IBookRenderingService
 
         return new SourceDataResult
         {
-            Items = list.Select(sm => new SourceRow
+            Items = list.Select(sm =>
             {
-                Date = DateOnly.FromDateTime(sm.CreatedAt),
-                Id = sm.StockMovementId,
-                Section = sm.ProductId.ToString(),  // group by ProductId
-                Values = new Dictionary<string, object?>
+                var costPrice = GetMovementCostPrice(sm, importCostLookup);
+                return new SourceRow
                 {
-                    ["StockMovementId"] = sm.StockMovementId,
-                    ["ProductId"] = sm.ProductId,
-                    ["ProductName"] = sm.Product?.ProductName,
-                    ["MovementDate"] = DateOnly.FromDateTime(sm.CreatedAt),
-                    ["MovementType"] = sm.MovementType,
-                    ["Description"] = sm.Memo ?? $"{sm.MovementType} — {sm.ReferenceType} #{sm.ReferenceId}",
-                    ["Unit"] = sm.Product?.Unit,
-                    ["CostPrice"] = sm.Product?.CostPrice ?? 0m,
-                    ["Quantity"] = sm.Quantity,
-                    ["QuantityAbs"] = Math.Abs(sm.Quantity),
-                    ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (int?)null,
-                    ["ImportValue"] = sm.Quantity > 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
-                    ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (int?)null,
-                    ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m) : (decimal?)null,
-                    ["BalanceAfter"] = sm.BalanceAfter,
-                    ["BalanceValue"] = sm.BalanceAfter * (sm.Product?.CostPrice ?? 0m),
-                    ["ReferenceType"] = sm.ReferenceType,
-                    ["ReferenceId"] = sm.ReferenceId
-                }
+                    Date = DateOnly.FromDateTime(sm.CreatedAt),
+                    Id = sm.StockMovementId,
+                    Section = sm.ProductId.ToString(),  // group by ProductId
+                    Values = new Dictionary<string, object?>
+                    {
+                        ["StockMovementId"] = sm.StockMovementId,
+                        ["ProductId"] = sm.ProductId,
+                        ["ProductName"] = sm.Product?.ProductName,
+                        ["MovementDate"] = DateOnly.FromDateTime(sm.CreatedAt),
+                        ["MovementType"] = sm.MovementType,
+                        ["Description"] = sm.Memo ?? $"{sm.MovementType} — {sm.ReferenceType} #{sm.ReferenceId}",
+                        ["Unit"] = sm.Product?.Unit,
+                        ["CostPrice"] = costPrice,
+                        ["Quantity"] = sm.Quantity,
+                        ["QuantityAbs"] = Math.Abs(sm.Quantity),
+                        ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (int?)null,
+                        ["ImportValue"] = sm.Quantity > 0 ? Math.Abs(sm.Quantity) * costPrice : (decimal?)null,
+                        ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (int?)null,
+                        ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * costPrice : (decimal?)null,
+                        ["BalanceAfter"] = sm.BalanceAfter,
+                        ["BalanceValue"] = sm.BalanceAfter * costPrice,
+                        ["ReferenceType"] = sm.ReferenceType,
+                        ["ReferenceId"] = sm.ReferenceId
+                    }
+                };
             }).ToList(),
             HasMore = hasMore,
             TotalEstimated = totalCount
         };
+    }
+
+    /// <summary>
+    /// Resolves the cost price for a stock movement:
+    /// - For IMPORT movements: uses the cost price recorded on the ProductImport line (import-time price).
+    /// - For other movements (ORDER, ADJUSTMENT): falls back to the product's current CostPrice.
+    /// </summary>
+    private static decimal GetMovementCostPrice(
+        StockMovement sm,
+        Dictionary<(long ImportId, long ProductId), decimal> importCostLookup)
+    {
+        if (sm.ReferenceType == StockMovementReferenceType.Import
+            && sm.ReferenceId.HasValue
+            && importCostLookup.TryGetValue((sm.ReferenceId.Value, sm.ProductId), out var importCostPrice))
+            return importCostPrice;
+        return sm.Product?.CostPrice ?? 0m;
     }
 
     private async Task<int> CountSourceRowsAsync(BookRenderContext ctx)
@@ -1078,24 +1100,36 @@ public class BookRenderingService : IBookRenderingService
         if (groupByField.Equals("ProductId", StringComparison.OrdinalIgnoreCase))
         {
             var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
+            var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
+
             var periodMovements = allMovements.Where(sm =>
             {
                 var d = DateOnly.FromDateTime(sm.CreatedAt);
                 return d >= context.PeriodStart && d <= context.PeriodEnd;
             }).ToList();
 
-            // Discover distinct products that have movements in this period
-            var productGroups = periodMovements
+            // Include ALL distinct products with any movement (even before this period),
+            // so products with no activity in the current period still appear with their opening balance.
+            var allProductGroups = allMovements
                 .GroupBy(sm => sm.ProductId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            var keys = productGroups.Keys.OrderBy(k => k).Select(k => k.ToString()).ToList();
-            var names = productGroups.ToDictionary(
+            var periodProductGroups = periodMovements
+                .GroupBy(sm => sm.ProductId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var keys = allProductGroups.Keys.OrderBy(k => k).Select(k => k.ToString()).ToList();
+            var names = allProductGroups.ToDictionary(
                 kv => kv.Key.ToString(),
                 kv => kv.Value.First().Product?.ProductName ?? $"Product #{kv.Key}");
-            var amounts = productGroups.ToDictionary(
-                kv => kv.Key.ToString(),
-                kv => kv.Value.Where(sm => sm.Quantity > 0).Sum(sm => Math.Abs(sm.Quantity) * (sm.Product?.CostPrice ?? 0m)));
+
+            // amounts = total import value for this period only (0 if no imports this period)
+            var amounts = allProductGroups.Keys.ToDictionary(
+                pid => pid.ToString(),
+                pid => periodProductGroups.TryGetValue(pid, out var moves)
+                    ? moves.Where(sm => sm.Quantity > 0)
+                           .Sum(sm => Math.Abs(sm.Quantity) * GetMovementCostPrice(sm, importCostLookup))
+                    : 0m);
 
             return (keys, names, amounts, new Dictionary<(string, string), decimal>());
         }
