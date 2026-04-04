@@ -111,5 +111,17 @@ namespace BizFlow.Infrastructure.Repositories
         {
             _dbContext.ProductsImports.Remove(item);
         }
+
+        public async Task<Dictionary<(long ImportId, long ProductId), decimal>> GetImportCostLookupByLocationAsync(int locationId)
+        {
+            var items = await _dbContext.ProductsImports
+                .Where(pi => pi.Import.BusinessLocationId == locationId)
+                .Select(pi => new { pi.ImportId, pi.ProductId, pi.CostPrice })
+                .ToListAsync();
+
+            return items.ToDictionary(
+                x => (x.ImportId, x.ProductId),
+                x => x.CostPrice);
+        }
     }
 }

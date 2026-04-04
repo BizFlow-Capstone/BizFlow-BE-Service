@@ -2,6 +2,7 @@ using System.Text.Json;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace BizFlow.Infrastructure.Services.FormulaEngine;
@@ -262,6 +263,7 @@ public class FormulaEngine : IFormulaEngine
         string? periodFilter, string? sign)
     {
         var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
+        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
 
         // Apply periodFilter
         IEnumerable<StockMovement> filtered = periodFilter switch
@@ -290,10 +292,26 @@ public class FormulaEngine : IFormulaEngine
 
         var list = filtered.ToList();
 
+        // Resolve import-time cost price for TotalValue (don’t use Product.CostPrice which reflects last-known price)
+        decimal GetCostPrice(StockMovement sm)
+        {
+            if (sm.ReferenceType == StockMovementReferenceType.Import
+                && sm.ReferenceId.HasValue
+                && importCostLookup.TryGetValue((sm.ReferenceId.Value, sm.ProductId), out var ic))
+                return ic;
+            return sm.Product?.CostPrice ?? 0m;
+        }
+
         return aggType.ToUpper() switch
         {
-            "SUM" => list.Sum(sm => GetStockFieldValue(sm, field)),
-            "AVG" => list.Count > 0 ? list.Average(sm => GetStockFieldValue(sm, field)) : 0m,
+            "SUM" => field == "TotalValue"
+                ? list.Sum(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm))
+                : list.Sum(sm => GetStockFieldValue(sm, field)),
+            "AVG" => list.Count > 0
+                ? (field == "TotalValue"
+                    ? list.Average(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm))
+                    : list.Average(sm => GetStockFieldValue(sm, field)))
+                : 0m,
             "COUNT" => list.Count,
             _ => 0m
         };

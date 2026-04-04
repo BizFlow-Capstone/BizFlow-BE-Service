@@ -13,6 +13,7 @@ docker-compose.override.yml
 .env.dev
 .env.prod
 uat.env
+prod.env
 
 # Firebase credentials (local only)
 docker/credentials/*.json

@@ -20,6 +20,7 @@ namespace BizFlow.Application.Services
         private readonly IStockMovementService _stockMovementService;
         private readonly IMessageService _messageService;
         private readonly IMapper _mapper;
+        private readonly IAiServiceClient _aiServiceClient;
 
         public ProductService(
             IUnitOfWork unitOfWork,
@@ -28,7 +29,8 @@ namespace BizFlow.Application.Services
             IImportService importService,
             IStockMovementService stockMovementService,
             IMessageService messageService,
-            IMapper mapper)
+            IMapper mapper,
+            IAiServiceClient aiServiceClient)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
@@ -37,6 +39,7 @@ namespace BizFlow.Application.Services
             _stockMovementService = stockMovementService;
             _messageService = messageService;
             _mapper = mapper;
+            _aiServiceClient = aiServiceClient;
         }
 
         #region Query Methods
@@ -168,6 +171,10 @@ namespace BizFlow.Application.Services
 
             var created = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
 
+            // Fire-and-forget: sync product to AI vector store for semantic search
+            _ = _aiServiceClient.TriggerVectorStoreSyncAsync(
+                request.LocationId, created.ProductId, created.ProductName, created.Unit, created.BusinessType?.Name);
+
             return (_mapper.Map<ProductSummaryDto>(created), warnings);
         }
 
@@ -233,6 +240,10 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
 
             var updated = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
+
+            // Fire-and-forget: sync updated product to AI vector store
+            _ = _aiServiceClient.TriggerVectorStoreSyncAsync(
+                request.LocationId, updated.ProductId, updated.ProductName, updated.Unit, updated.BusinessType?.Name);
 
             return (_mapper.Map<ProductSummaryDto>(updated), warnings);
         }
@@ -380,6 +391,9 @@ namespace BizFlow.Application.Services
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            // Fire-and-forget: remove product from AI vector store
+            _ = _aiServiceClient.TriggerVectorStoreDeleteAsync(product.BusinessLocationId, productId);
         }
 
         #endregion

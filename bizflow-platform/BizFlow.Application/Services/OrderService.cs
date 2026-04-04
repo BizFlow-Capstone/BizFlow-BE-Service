@@ -21,6 +21,7 @@ namespace BizFlow.Application.Services
         private readonly IStockMovementService _stockMovementService;
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IMessageService _messageService;
+        private readonly IBackgroundJobScheduler _backgroundJobScheduler;
 
         public OrderService(
             IUnitOfWork uow,
@@ -28,7 +29,8 @@ namespace BizFlow.Application.Services
             IBusinessLocationService locationService,
             IStockMovementService stockMovementService,
             IGeneralLedgerService generalLedgerService,
-            IMessageService messageService)
+            IMessageService messageService,
+            IBackgroundJobScheduler backgroundJobScheduler)
         {
             _uow = uow;
             _mapper = mapper;
@@ -36,6 +38,7 @@ namespace BizFlow.Application.Services
             _stockMovementService = stockMovementService;
             _generalLedgerService = generalLedgerService;
             _messageService = messageService;
+            _backgroundJobScheduler = backgroundJobScheduler;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -244,6 +247,11 @@ namespace BizFlow.Application.Services
 
             var completed = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
             var completedDto = await MapOrderWithCreatorAsync(completed);
+
+            // Fire-and-forget: enqueue AI anomaly check via Hangfire.
+            // If AI Service is down, the job will retry — does not block user.
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(locationId, "order", order.OrderId);
+
             return new OrderActionResultDto { Order = completedDto };
         }
 

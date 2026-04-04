@@ -183,6 +183,16 @@ builder.Services.AddOptions<ResendClientOptions>()
     });
 builder.Services.AddScoped<IEmailSender, ResendEmailSender>();
 builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
+builder.Services.Configure<AiServiceSettings>(builder.Configuration.GetSection(AiServiceSettings.SectionName));
+
+// AI Service HTTP Client
+builder.Services.AddHttpClient("AiService", (sp, client) =>
+{
+    var aiSettings = builder.Configuration.GetSection(AiServiceSettings.SectionName).Get<AiServiceSettings>()
+                     ?? new AiServiceSettings();
+    client.BaseAddress = new Uri(aiSettings.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(aiSettings.TimeoutSeconds);
+});
 
 builder.Services.AddAuthentication(options =>
 {
