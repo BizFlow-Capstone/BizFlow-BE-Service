@@ -56,9 +56,9 @@ services:
       - StripeSettings__WebCancelUrl=${STRIPE_WEB_CANCEL_URL:-http://localhost:8080/}
       - StripeSettings__MobileSuccessUrl=${STRIPE_MOBILE_SUCCESS_URL:-bizflow://payment/success}
       - StripeSettings__MobileCancelUrl=${STRIPE_MOBILE_CANCEL_URL:-bizflow://payment/cancel}
-      # Resend
-      - ResendSettings__ApiKey=${RESEND_API_KEY:-}
-      - ResendSettings__DefaultFrom=${RESEND_DEFAULT_FROM:-}
+      # Resend (section key is "Resend" in appsettings — use Resend__* for env override)
+      - Resend__ApiKey=${RESEND_API_KEY:-}
+      - Resend__DefaultFrom=${RESEND_DEFAULT_FROM:-}
       - AiService__BaseUrl=http://bizflow-ai:5000
       # AI Service (internal container-to-container)
       - AiService__BaseUrl=${AI_SERVICE_BASE_URL:-http://bizflow-ai:5000}
