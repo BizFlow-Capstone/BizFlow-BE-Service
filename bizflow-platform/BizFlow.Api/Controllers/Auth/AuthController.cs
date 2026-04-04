@@ -4,11 +4,14 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Auth;
+using BizFlow.Application.DTOs.Otp;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BizFlow.Api.Controllers.Auth
 {
@@ -16,14 +19,17 @@ namespace BizFlow.Api.Controllers.Auth
     public class AuthController : BaseApiController
     {
         private readonly IAuthService _authService;
+        private readonly IOtpService _otpService;
 
         public AuthController(
             IAuthService authService,
+            IOtpService otpService,
             IMessageService messageService,
             ILogger<AuthController> logger)
             : base(messageService, logger)
         {
             _authService = authService;
+            _otpService = otpService;
         }
 
         [HttpPost("google")]
@@ -137,6 +143,22 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 return InternalServerError(ex);
             }
+        }
+
+        [HttpPost("otp/send")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request, CancellationToken ct)
+        {
+            var response = await _otpService.SendOtpAsync(request, ct);
+            return Ok(response, MessageKeys.OtpSent);
+        }
+
+        [HttpPost("otp/verify")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
+        {
+            var response = await _otpService.VerifyOtpAsync(request, ct);
+            return Ok(response, MessageKeys.OtpVerified);
         }
 
         [HttpPost("login/email")]

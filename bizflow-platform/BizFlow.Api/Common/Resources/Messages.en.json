@@ -225,5 +225,10 @@
   "SUBSCRIPTION_DISCOUNT_START_IN_PAST": "Discount start cannot be in the past.",
   "SUBSCRIPTION_DISCOUNT_END_IN_PAST": "Discount end cannot be in the past.",
   "SUBSCRIPTION_DISCOUNT_END_MUST_BE_AFTER_START": "Discount end must be after discount start.",
-  "ADMIN_ONLY": "This action requires administrator privileges"
+  "ADMIN_ONLY": "This action requires administrator privileges",
+  
+  "OTP_SENT": "Verification code sent successfully",
+  "OTP_VERIFIED": "Verification successful",
+  "OTP_INVALID_OR_EXPIRED": "Invalid or expired verification code",
+  "OTP_TOO_MANY_REQUESTS": "Please wait before requesting a new code"
 }

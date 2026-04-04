@@ -38,5 +38,13 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(p => ids.Contains(p.ProfileId))
                 .ToListAsync();
         }
+
+        public Task<string?> GetFullNameByEmailAsync(string email, CancellationToken ct = default)
+        {
+            return _context.Credentials
+                .Where(c => c.Type == "email" && c.Identifier == email)
+                .Select(c => c.Account.Profile != null ? c.Account.Profile.FullName : null)
+                .FirstOrDefaultAsync(ct);
+        }
     }
 }

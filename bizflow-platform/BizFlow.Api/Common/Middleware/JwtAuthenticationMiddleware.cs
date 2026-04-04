@@ -18,10 +18,10 @@ public class JwtAuthenticationMiddleware
     {
         await _next(context);
 
-        // Chỉ xử lý khi response là 401 và chưa có body
+        // Only handle 401 responses that have not started writing a body
         if (context.Response.StatusCode == 401 && !context.Response.HasStarted)
         {
-            // Kiểm tra header IS-TOKEN-EXPIRED
+            // Check IS-TOKEN-EXPIRED header
             var isTokenExpired = context.Response.Headers.ContainsKey("IS-TOKEN-EXPIRED");
 
             context.Response.ContentType = "application/json";

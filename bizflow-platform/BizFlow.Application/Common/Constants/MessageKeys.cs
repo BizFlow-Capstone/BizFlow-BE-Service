@@ -75,7 +75,7 @@ namespace BizFlow.Application.Common.Constants
         public const string PhoneLinkSuccess = "AUTH_PHONE_LINK_SUCCESS";
         public const string AccountNotFound = "AUTH_ACCOUNT_NOT_FOUND";
         public const string AccountInactiveOrDeleted = "AUTH_ACCOUNT_INACTIVE_OR_DELETED";
-        /// <summary>Không thể xóa tài khoản vì chưa đặt mật khẩu (chỉ đăng nhập OAuth).</summary>
+        /// <summary>Cannot delete account because no password is set (OAuth-only sign-in).</summary>
         public const string NoPasswordToDelete = "AUTH_NO_PASSWORD_TO_DELETE";
 
         public const string IdTokenRequired = "AUTH_ID_TOKEN_REQUIRED";
@@ -214,9 +214,7 @@ namespace BizFlow.Application.Common.Constants
         public const string InvalidSubscriptionPlanId = "SUBSCRIPTION_INVALID_PLAN_ID";
         public const string SubscriptionCheckoutQuantityInvalid = "SUBSCRIPTION_CHECKOUT_QUANTITY_INVALID";
         public const string SubscriptionFreePlanPaymentNotAllowed = "SUBSCRIPTION_FREE_PLAN_PAYMENT_NOT_ALLOWED";
-        /// <summary>Không có quyền dùng tính năng (gói, location, v.v.).</summary>
         public const string SubscriptionFeatureAccessDenied = "SUBSCRIPTION_FEATURE_ACCESS_DENIED";
-        /// <summary>Đã hết lượt sử dụng trong kỳ.</summary>
         public const string SubscriptionFeatureUsageLimitReached = "SUBSCRIPTION_FEATURE_USAGE_LIMIT_REACHED";
         public const string SubscriptionAccessGrantMemberInvalid = "SUBSCRIPTION_ACCESS_GRANT_MEMBER_INVALID";
         public const string SubscriptionPlanDeleteHasActiveSubscriptions = "SUBSCRIPTION_PLAN_DELETE_HAS_ACTIVE_SUBSCRIPTIONS";
@@ -239,5 +237,13 @@ namespace BizFlow.Application.Common.Constants
 
         // ============ ADMIN ============
         public const string AdminOnly = "ADMIN_ONLY";
+
+        // =========================================================================================
+        // OTP VERIFICATION
+        // =========================================================================================
+        public const string OtpSent            = "OTP_SENT";
+        public const string OtpVerified         = "OTP_VERIFIED";
+        public const string OtpInvalidOrExpired = "OTP_INVALID_OR_EXPIRED";
+        public const string OtpTooManyRequests  = "OTP_TOO_MANY_REQUESTS";
     }
 }

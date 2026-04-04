@@ -1,7 +1,7 @@
 namespace BizFlow.Application.DTOs.Subscription
 {
     /// <summary>
-    /// Giá cho admin: lưu đủ cấu hình; <see cref="IsDiscountActive"/> tính theo UTC hiện tại.
+    /// Admin price row: full configuration persisted; <see cref="IsDiscountActive"/> is computed from current UTC.
     /// </summary>
     public class AdminSubscriptionPlanPriceDto
     {
@@ -10,7 +10,7 @@ namespace BizFlow.Application.DTOs.Subscription
         public decimal? DiscountedPrice { get; set; }
         public DateTime? DiscountStart { get; set; }
         public DateTime? DiscountEnd { get; set; }
-        /// <summary>Có đang trong cửa sổ giảm giá (theo UTC) hay không.</summary>
+        /// <summary>Whether the current UTC time falls inside the discount window.</summary>
         public bool IsDiscountActive { get; set; }
         public bool IsActive { get; set; }
         public string Currency { get; set; } = "VND";

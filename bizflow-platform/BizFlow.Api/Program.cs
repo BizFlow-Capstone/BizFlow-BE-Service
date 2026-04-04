@@ -11,9 +11,12 @@ using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Interfaces.Repositories;
+using Resend;
 using BizFlow.Infrastructure;
 using BizFlow.Infrastructure.Consumers;
 using BizFlow.Infrastructure.Jobs;
+using BizFlow.Infrastructure.Services;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using MassTransit;
@@ -165,6 +168,20 @@ builder.Services.Configure<GeneralLedgerSettings>(builder.Configuration.GetSecti
 builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(ImageSettings.SectionName));
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
+builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection(ResendSettings.SectionName));
+builder.Services.AddHttpClient<IResend, ResendClient>();
+builder.Services.AddOptions<ResendClientOptions>()
+    .Configure<IOptions<ResendSettings>>((opts, resendSection) =>
+    {
+        var s = resendSection.Value;
+        if (!string.IsNullOrWhiteSpace(s.ApiKey))
+        {
+            opts.ApiToken = s.ApiKey;
+        }
+
+        opts.ThrowExceptions = false;
+    });
+builder.Services.AddScoped<IEmailSender, ResendEmailSender>();
 builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
 
 builder.Services.AddAuthentication(options =>
@@ -481,6 +498,12 @@ if (isHangfireEnabled)
         "notification-retention",
         job => job.ExecuteAsync(),
         "0 2 * * *"
+    );
+
+    RecurringJob.AddOrUpdate<OtpCleanupJob>(
+        "otp-cleanup",
+        job => job.ExecuteAsync(),
+        "0 * * * *" // Hourly
     );
 }
 else

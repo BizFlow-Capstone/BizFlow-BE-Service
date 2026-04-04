@@ -225,5 +225,10 @@
   "SUBSCRIPTION_DISCOUNT_START_IN_PAST": "Thời điểm bắt đầu giảm giá không được ở trong quá khứ.",
   "SUBSCRIPTION_DISCOUNT_END_IN_PAST": "Thời điểm kết thúc giảm giá không được ở trong quá khứ.",
   "SUBSCRIPTION_DISCOUNT_END_MUST_BE_AFTER_START": "Thời điểm kết thúc giảm giá phải sau thời điểm bắt đầu.",
-  "ADMIN_ONLY": "Chức năng này chỉ dành cho quản trị viên"
+  "ADMIN_ONLY": "Chức năng này chỉ dành cho quản trị viên",
+  
+  "OTP_SENT": "Đã gửi mã xác minh thành công",
+  "OTP_VERIFIED": "Xác minh thành công",
+  "OTP_INVALID_OR_EXPIRED": "Mã xác minh không hợp lệ hoặc đã hết hạn",
+  "OTP_TOO_MANY_REQUESTS": "Vui lòng đợi 1 phút trước khi yêu cầu mã mới"
 }

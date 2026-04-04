@@ -438,7 +438,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("text");
             entity.Property(e => e.Phone)
                 .HasMaxLength(20)
-                .HasComment("Số điện thoại (unique per location)");
+                .HasComment("Phone number (unique per location)");
             entity.Property(e => e.UpdatedAt)
                 .ValueGeneratedOnAddOrUpdate()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")

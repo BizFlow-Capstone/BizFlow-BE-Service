@@ -99,6 +99,7 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<ScheduledNotificationDispatchJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<OtpCleanupJob>().AsSelf().InstancePerDependency();
 
             // Register Accounting Book engines
             builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
