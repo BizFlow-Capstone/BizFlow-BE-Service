@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS otp_codes (
 -- Down Migration
 -- DROP TABLE IF EXISTS otp_codes;
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('101_create_otp_codes_table', '1.0.0')
+VALUES ('102_create_otp_codes_table', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = VALUES(ProductVersion);
