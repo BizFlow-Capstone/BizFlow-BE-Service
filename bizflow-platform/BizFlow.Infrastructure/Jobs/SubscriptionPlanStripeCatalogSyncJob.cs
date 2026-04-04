@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 namespace BizFlow.Infrastructure.Jobs
 {
     /// <summary>
-    /// Định kỳ: khi qua DiscountStart/DiscountEnd, cập nhật cờ giảm giá trên DB và
-    /// đồng bộ Stripe Price với giá hiệu dụng (Checkout dùng StripePriceId cố định).
+    /// Scheduled job: when crossing DiscountStart/DiscountEnd, update discount flags in the DB and
+    /// sync the Stripe Price to the effective amount (Checkout uses a fixed StripePriceId).
     /// </summary>
     public class SubscriptionPlanStripeCatalogSyncJob
     {

@@ -4,7 +4,7 @@ using BizFlow.Application.Common.Exceptions;
 namespace BizFlow.Application.Common.Validation
 {
     /// <summary>
-    /// Quy tắc cửa sổ giảm giá: không quá khứ; kết thúc phải sau bắt đầu (UTC).
+    /// Discount window rules: start not in the past; end must be after start (UTC).
     /// </summary>
     public static class PlanPriceDiscountRules
     {
@@ -18,7 +18,7 @@ namespace BizFlow.Application.Common.Validation
             };
         }
 
-        /// <summary>Áp dụng khi có <paramref name="discountedPrice"/> (kèm hoặc không kèm ngày).</summary>
+        /// <summary>Applied when <paramref name="discountedPrice"/> is set (with or without dates).</summary>
         public static void ValidateOrThrow(decimal? discountedPrice, DateTime? discountStart, DateTime? discountEnd)
         {
             if (!discountedPrice.HasValue)

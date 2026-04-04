@@ -6,7 +6,7 @@ namespace BizFlow.Application.Interfaces.Repositories
     public interface ISubscriptionPlanRepository
     {
         Task<List<SubscriptionPlan>> GetActivePlansWithFeaturesAsync();
-        /// <summary>Gói miễn phí: active, đúng <paramref name="planName"/>, giá hiệu lực 0 VND.</summary>
+        /// <summary>Free plan: active, matches <paramref name="planName"/>, effective price 0 VND.</summary>
         Task<SubscriptionPlan?> GetActiveFreePlanAsync(string planName);
         Task<SubscriptionPlan?> GetByIdWithFeaturesAsync(int subscriptionPlanId);
         Task<SubscriptionPlan?> GetByIdAsync(int subscriptionPlanId);

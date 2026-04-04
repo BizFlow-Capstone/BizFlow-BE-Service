@@ -8,7 +8,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Feature?> GetByCodeAsync(string featureCode);
         Task AddAsync(Feature feature);
 
-        /// <summary>Trả về các <c>FeatureId</c> có trong DB trong tập <paramref name="featureIds"/>.</summary>
+        /// <summary>Returns <c>FeatureId</c> values that exist in the database among <paramref name="featureIds"/>.</summary>
         Task<HashSet<int>> GetExistingIdsAsync(IEnumerable<int> featureIds);
     }
 }

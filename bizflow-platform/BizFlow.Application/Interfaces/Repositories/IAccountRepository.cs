@@ -4,7 +4,7 @@ using BizFlow.Domain.Entities;
 namespace BizFlow.Application.Interfaces.Repositories;
 
 /// <summary>
-/// Truy vấn <see cref="Account"/> (credentials, profile, role) và refresh token liên quan.
+/// Queries <see cref="Account"/> (credentials, profile, role) and related refresh tokens.
 /// </summary>
 public interface IAccountRepository
 {

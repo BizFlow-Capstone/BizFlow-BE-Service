@@ -16,7 +16,7 @@ public partial class Cost
     public int BusinessLocationId { get; set; }
 
     /// <summary>
-    /// FK to BusinessTypes – ngành nghề liên quan đến khoản chi (nullable for legacy rows)
+    /// FK to BusinessTypes — business sector for this expense (nullable for legacy rows)
     /// </summary>
     public Guid? BusinessTypeId { get; set; }
 

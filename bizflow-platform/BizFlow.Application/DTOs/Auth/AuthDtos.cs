@@ -48,22 +48,22 @@ namespace BizFlow.Application.DTOs.Auth
     public class UpdateProfileInfoRequest
     {
         /// <summary>
-        /// Dùng <see cref="JsonElement"/> để phân biệt: "không gửi fullName" vs "gửi fullName: null".
+        /// Uses <see cref="JsonElement"/> to distinguish omitted <c>fullName</c> from <c>fullName: null</c>.
         /// </summary>
         public JsonElement FullName { get; set; }
 
         /// <summary>
-        /// Dùng <see cref="JsonElement"/> để phân biệt: "không gửi taxCode" vs "gửi taxCode: null".
+        /// Uses <see cref="JsonElement"/> to distinguish omitted <c>taxCode</c> from <c>taxCode: null</c>.
         /// </summary>
         public JsonElement TaxCode { get; set; }
     }
 
     public class UpdateAvatarRequest
     {
-        /// <summary>Xóa ảnh đại diện (không gửi file avatar).</summary>
+        /// <summary>Remove profile photo (no avatar file in request).</summary>
         public bool RemoveAvatar { get; set; }
 
-        /// <summary>Gán từ form file <c>avatar</c> trong API; upload qua Cloudinary.</summary>
+        /// <summary>Set from multipart form field <c>avatar</c>; uploaded via Cloudinary.</summary>
         internal Stream? AvatarStream { get; set; }
 
         internal string? AvatarFileName { get; set; }

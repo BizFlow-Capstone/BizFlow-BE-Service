@@ -19,12 +19,12 @@ namespace BizFlow.Application.DTOs.Import
         public DateTime? ReceivedAt { get; set; }
 
         /// <summary>
-        /// Số hiệu chứng từ để ghi vào Cost tạo từ import (optional)
+        /// Voucher number written to Cost rows created from import (optional)
         /// </summary>
         public string? DocumentNumber { get; set; }
 
         /// <summary>
-        /// Ngày chứng từ để ghi vào Cost tạo từ import (optional)
+        /// Voucher date written to Cost rows created from import (optional)
         /// </summary>
         public DateOnly? DocumentDate { get; set; }
 

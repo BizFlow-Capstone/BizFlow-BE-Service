@@ -18,7 +18,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task<List<FeatureDto>> GetAllFeaturesAsync();
 
         /// <summary>
-        /// Job định kỳ: cập nhật cờ giảm giá theo cửa sổ UTC và đồng bộ Stripe Price với giá hiệu dụng (base/discount).
+        /// Scheduled job: update discount flags from the UTC window and sync Stripe Price to the effective amount (base/discount).
         /// </summary>
         Task ReconcileDiscountWindowsAndStripeCatalogAsync();
     }

@@ -1,20 +1,20 @@
 namespace BizFlow.Domain.Constants;
 
 /// <summary>
-/// Constants cho IndustryTaxRates — TaxType tokens phải khớp chính xác với giá trị
-/// được dùng trong FormulaEngine lookup (case-sensitive, Ordinal compare).
+/// Constants for IndustryTaxRates — TaxType tokens must match exactly the values
+/// used in FormulaEngine lookup (case-sensitive, Ordinal compare).
 /// </summary>
 public static class IndustryTaxRateConstants
 {
-    /// <summary>Thuế GTGT — áp dụng cho tất cả nhóm chịu thuế.</summary>
+    /// <summary>VAT — applies to all taxable groups.</summary>
     public const string Vat = "VAT";
 
-    /// <summary>Thuế TNCN Cách 1 — % trên DT vượt 500tr, chỉ Nhóm 2.</summary>
+    /// <summary>PIT Method 1 — percentage on revenue above 500M threshold; Group 2 only.</summary>
     public const string PitMethod1 = "PIT_METHOD_1";
 
     /// <summary>
-    /// Tập hợp các TaxType hợp lệ cho IndustryTaxRates.
-    /// Dùng để validate khi admin tạo/cập nhật tax rate.
+    /// Allowed TaxType values for IndustryTaxRates.
+    /// Used to validate when an admin creates or updates a tax rate.
     /// </summary>
     public static readonly HashSet<string> AllowedTaxTypes = new(StringComparer.Ordinal)
     {
@@ -22,14 +22,14 @@ public static class IndustryTaxRateConstants
         PitMethod1
     };
 
-    /// <summary>Giá trị nhỏ nhất của TaxRate (dạng fraction, 0 = 0%).</summary>
+    /// <summary>Minimum TaxRate value (fraction, 0 = 0%).</summary>
     public const decimal MinRate = 0m;
 
-    /// <summary>Giá trị lớn nhất của TaxRate (dạng fraction, 1 = 100%).</summary>
+    /// <summary>Maximum TaxRate value (fraction, 1 = 100%).</summary>
     public const decimal MaxRate = 1m;
 }
 
-/// <summary>Constants cho BusinessType entity.</summary>
+/// <summary>Constants for the BusinessType entity.</summary>
 public static class BusinessTypeConstants
 {
     public const string Active = "active";

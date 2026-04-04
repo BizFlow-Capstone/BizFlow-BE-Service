@@ -26,7 +26,7 @@ namespace BizFlow.Infrastructure.Repositories
         }
 
         /// <summary>
-        /// Bulk update DB; caller phải đồng bộ entity đang track (ExecuteUpdate không cập nhật tracker).
+        /// Bulk update DB; caller must reconcile tracked entities (ExecuteUpdate does not update the change tracker).
         /// </summary>
         public async Task DeactivateByPlanIdAsync(int subscriptionPlanId)
         {
