@@ -55,4 +55,23 @@ public class AccountRepository : IAccountRepository
             .Where(rt => rt.AccountId == accountId && rt.ExpiresAt > nowUtc)
             .ToListAsync();
     }
+
+    public async Task<Account?> GetWithProfileAndRoleByNormalizedEmailCredentialAsync(string normalizedEmail, CancellationToken ct = default)
+    {
+        var credential = await _dbContext.Credentials
+            .Include(c => c.Account)
+                .ThenInclude(a => a.Role)
+            .Include(c => c.Account)
+                .ThenInclude(a => a.Profile)
+            .FirstOrDefaultAsync(
+                c => c.Type == "email" && c.Identifier.ToLower() == normalizedEmail,
+                ct);
+
+        return credential?.Account;
+    }
+
+    public Task<Account?> GetTrackedByIdAsync(Guid accountId, CancellationToken ct = default)
+    {
+        return _dbContext.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId, ct);
+    }
 }

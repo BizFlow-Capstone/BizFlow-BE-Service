@@ -276,6 +276,16 @@ builder.Services.AddAuthentication(options =>
     }
 });
 
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthJwtConstants.Policies.PasswordReset, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim(AuthJwtConstants.PurposeClaimType, AuthJwtConstants.PasswordResetPurpose);
+        policy.RequireClaim(AuthJwtConstants.PasswordResetNonceClaimType);
+    });
+});
+
 // Swagger Configuration with Bearer Token
 builder.Services.AddSwaggerGen(c =>
 {
@@ -426,6 +436,7 @@ app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
 });
 app.UseAuthentication();
 app.UseActiveAccountMiddleware();
+app.UsePasswordResetTokenRestriction();
 app.UseJwtAuthenticationMiddleware();
 app.UseAuthorization();
 

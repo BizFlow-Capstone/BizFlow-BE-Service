@@ -145,20 +145,37 @@ namespace BizFlow.Api.Controllers.Auth
             }
         }
 
-        [HttpPost("otp/send")]
+        /// <summary>Step 1: send OTP to email for forgot-password flow.</summary>
+        [HttpPost("forgot-password/send-otp")]
         [AllowAnonymous]
-        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request, CancellationToken ct)
+        public async Task<IActionResult> SendForgotPasswordOtp([FromBody] SendOtpRequest request, CancellationToken ct)
         {
             var response = await _otpService.SendOtpAsync(request, ct);
             return Ok(response, MessageKeys.OtpSent);
         }
 
-        [HttpPost("otp/verify")]
+        /// <summary>Step 2: verify email OTP; returns password-reset access token (no refresh).</summary>
+        [HttpPost("forgot-password/verify-otp")]
         [AllowAnonymous]
-        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
+        public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
         {
-            var response = await _otpService.VerifyOtpAsync(request, ct);
+            var response = await _authService.VerifyEmailOtpForPasswordResetAsync(request.Email, request.OtpCode, ct);
             return Ok(response, MessageKeys.OtpVerified);
+        }
+
+        /// <summary>Step 3: set new password; requires password-reset JWT from <c>forgot-password/verify-otp</c>.</summary>
+        [HttpPost("forgot-password/reset")]
+        [Authorize(Policy = AuthJwtConstants.Policies.PasswordReset)]
+        public async Task<IActionResult> ResetPasswordForgotFlow([FromBody] SetPasswordRequest request)
+        {
+            var accountId = GetCurrentAccountId();
+            var nonceClaim = User.FindFirst(AuthJwtConstants.PasswordResetNonceClaimType)?.Value;
+            if (string.IsNullOrEmpty(nonceClaim) || !Guid.TryParse(nonceClaim, out var passwordResetNonce))
+                throw new BadRequestException(MessageKeys.PasswordResetTokenInvalidOrUsed);
+
+            await _authService.ResetPasswordAfterForgotOtpAsync(accountId, request.Password, passwordResetNonce);
+            Logger.LogInformation("Forgot password completed. AccountId={AccountId}", accountId);
+            return Ok(MessageKeys.PasswordChanged);
         }
 
         [HttpPost("login/email")]

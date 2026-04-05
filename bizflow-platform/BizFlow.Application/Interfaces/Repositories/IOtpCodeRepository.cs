@@ -10,6 +10,12 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// <summary>Gets the latest active OTP for the email.</summary>
         Task<OtpCode?> GetLatestActiveOtpAsync(string email, CancellationToken ct = default);
 
+        /// <summary>
+        /// If the latest active OTP for <paramref name="email"/> matches <paramref name="code"/>,
+        /// marks it used and saves. Otherwise returns false without throwing.
+        /// </summary>
+        Task<bool> TryConsumeActiveOtpAsync(string email, string code, CancellationToken ct = default);
+
         /// <summary>Sets IsUsed = true for all active OTPs for the email.</summary>
         Task DisableAllActiveOtpsAsync(string email, CancellationToken ct = default);
 

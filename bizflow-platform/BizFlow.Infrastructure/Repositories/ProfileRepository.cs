@@ -39,11 +39,17 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public Task<string?> GetFullNameByEmailAsync(string email, CancellationToken ct = default)
+        public Task<string?> GetFullNameForEligibleForgotPasswordEmailAsync(string normalizedEmail, CancellationToken ct = default)
         {
             return _context.Credentials
-                .Where(c => c.Type == "email" && c.Identifier == email)
-                .Select(c => c.Account.Profile != null ? c.Account.Profile.FullName : null)
+                .AsNoTracking()
+                .Where(
+                    c => c.Type == "email"
+                        && c.Account.DeletedAt == null
+                        && c.Account.IsActive != false
+                        && c.Account.Profile != null
+                        && c.Identifier.ToLower() == normalizedEmail)
+                .Select(c => c.Account.Profile!.FullName)
                 .FirstOrDefaultAsync(ct);
         }
     }

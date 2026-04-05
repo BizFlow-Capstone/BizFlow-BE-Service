@@ -69,6 +69,8 @@
   "AUTH_PASSWORD_REQUIRED_WHEN_NO_PASSWORD": "Password is required when the account has no password yet",
   "AUTH_DEFAULT_ROLE_NOT_FOUND": "Default role '{0}' was not found",
   "AUTH_ACCOUNT_HAS_NO_PROFILE": "Account has no profile",
+  "AUTH_FORGOT_PASSWORD_EMAIL_NOT_REGISTERED": "No active account is registered with this email",
+  "AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_USED": "This password reset link is invalid or has already been used. Request a new code if you still need to reset your password.",
   "AUTH_REFRESH_TOKEN_INVALID_OR_EXPIRED": "Invalid or expired refresh token",
   "AUTH_REFRESH_TOKEN_REUSE_DETECTED": "Refresh token reuse detected. All sessions have been revoked.",
   "AUTH_INVALID_REFRESH_TOKEN": "Invalid refresh token",

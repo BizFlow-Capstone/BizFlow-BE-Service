@@ -1,8 +1,11 @@
 using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Common.Utilities;
 using BizFlow.Application.DTOs.Auth;
+using BizFlow.Application.DTOs.Otp;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
@@ -26,6 +29,8 @@ namespace BizFlow.Infrastructure.Services
         private readonly GoogleAuthConfig _googleConfig;
         private readonly FirebaseAuthConfig _firebaseConfig;
         private readonly IImageService _imageService;
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IOtpService _otpService;
         private readonly ILogger<AuthService> _logger;
 
         private const string DefaultRoleName = "user";
@@ -37,6 +42,8 @@ namespace BizFlow.Infrastructure.Services
             IOptions<GoogleAuthConfig> googleConfig,
             IOptions<FirebaseAuthConfig> firebaseConfig,
             IImageService imageService,
+            IUnitOfWork unitOfWork,
+            IOtpService otpService,
             ILogger<AuthService> logger)
         {
             _db = db;
@@ -45,6 +52,8 @@ namespace BizFlow.Infrastructure.Services
             _googleConfig = googleConfig.Value;
             _firebaseConfig = firebaseConfig.Value;
             _imageService = imageService;
+            _unitOfWork = unitOfWork;
+            _otpService = otpService;
             _logger = logger;
         }
 
@@ -412,6 +421,7 @@ namespace BizFlow.Infrastructure.Services
 
             // Hash and set password
             account.PasswordHash = _jwtService.HashPassword(password);
+            account.PasswordResetNonce = null;
             account.UpdatedAt = DateTime.UtcNow;
 
             // If account has a Google credential with email, auto-create email credential
@@ -442,6 +452,42 @@ namespace BizFlow.Infrastructure.Services
 
             await _db.SaveChangesAsync();
             _logger.LogInformation("Password set for account. AccountId={AccountId}", accountId);
+        }
+
+        public async Task<VerifyOtpResponse> VerifyEmailOtpForPasswordResetAsync(string email, string otpCode, CancellationToken ct = default)
+        {
+            var verified = await _otpService.VerifyEmailOtpForPasswordResetAsync(email, otpCode, ct);
+
+            var accessToken = _jwtService.GenerateAccessToken(
+                verified.AccountId,
+                verified.ProfileId,
+                verified.RoleName,
+                forPasswordReset: true,
+                passwordResetNonce: verified.PasswordResetNonce);
+
+            return new VerifyOtpResponse { Verified = true, AccessToken = accessToken };
+        }
+
+        public async Task ResetPasswordAfterForgotOtpAsync(Guid accountId, string newPassword, Guid passwordResetNonce)
+        {
+            if (string.IsNullOrWhiteSpace(newPassword))
+                throw new BadRequestException(MessageKeys.PasswordRequired);
+            if (newPassword.Length < 6 || newPassword.Length > 128)
+                throw new BadRequestException(MessageKeys.PasswordInvalidFormat);
+
+            var account = await _unitOfWork.Accounts.GetTrackedByIdAsync(accountId)
+                ?? throw new NotFoundException(MessageKeys.AccountNotFound);
+
+            if (account.PasswordResetNonce == null || account.PasswordResetNonce != passwordResetNonce)
+                throw new BadRequestException(MessageKeys.PasswordResetTokenInvalidOrUsed);
+
+            account.PasswordHash = _jwtService.HashPassword(newPassword);
+            account.PasswordResetNonce = null;
+            account.UpdatedAt = DateTime.UtcNow;
+
+            await RevokeAllRefreshTokensAsync(accountId);
+
+            _logger.LogInformation("Password reset completed after forgot flow. AccountId={AccountId}", accountId);
         }
 
         public async Task ChangePasswordAsync(Guid accountId, string currentPassword, string newPassword)
@@ -475,6 +521,7 @@ namespace BizFlow.Infrastructure.Services
             }
 
             account.PasswordHash = _jwtService.HashPassword(newPassword);
+            account.PasswordResetNonce = null;
             account.UpdatedAt = DateTime.UtcNow;
 
             await RevokeAllRefreshTokensAsync(accountId);

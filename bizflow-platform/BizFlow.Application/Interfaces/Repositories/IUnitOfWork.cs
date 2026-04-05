@@ -39,6 +39,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IFormulaResultRepository FormulaResults { get; }
         IStockMovementRepository StockMovements { get; }
         IAccountRepository Accounts { get; }
+        IOtpCodeRepository OtpCodes { get; }
 
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

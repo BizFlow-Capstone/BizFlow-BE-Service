@@ -16,6 +16,8 @@
 # After Google Login, copy tokens here:
 @accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDhhMGJkMy0yZmRiLTRjNmMtODRhMy1jZTQ1NjA3ZWE1ZDQiLCJwcm9maWxlSWQiOiJmZjQ1MzA5Yy03YjBiLTQwMTItOTMzYi0wNDI0MDVkNzU2ODUiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJ1c2VyIiwianRpIjoiMTcxN2YwZmMtMTI2MS00NzJmLTg2MjktN2RkYzNlMjQzM2Y2IiwiaWF0IjoxNzczNDgyODE2LCJleHAiOjE3NzM0ODMxMTYsImlzcyI6IkJpekZsb3ciLCJhdWQiOiJCaXpGbG93VXNlcnMifQ.yKp37U43_ysj-WuDpOcLR38pqvKUFAu6eR10GSA74yg
 @refreshToken = qVQKYbAeClP47EKEy9jMtEmRY2KOALU25dX+G2NLxOU=
+# After forgot-password/verify-otp; has "purpose":"password_reset" — use only for forgot-password/reset
+@resetAccessToken = paste_token_from_otp_verify_here
 
 
 ### ====================================================
@@ -48,6 +50,36 @@ Content-Type: {{contentType}}
     "phone": "0363053659",
     "firebaseIdToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImEyZGZiOGEzOGI1MmQ5ZjA5ZWRjYWE1MDcwYTBlOGYwYTllMDk4YmEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vYml6Zmxvdy1iODIwNyIsImF1ZCI6ImJpemZsb3ctYjgyMDciLCJhdXRoX3RpbWUiOjE3NzM0ODI2ODksInVzZXJfaWQiOiJKcE9WZmFseXRvYU1qV093MUpKZXl5R3BvczUyIiwic3ViIjoiSnBPVmZhbHl0b2FNaldPdzFKSmV5eUdwb3M1MiIsImlhdCI6MTc3MzQ4MjY5MCwiZXhwIjoxNzczNDg2MjkwLCJwaG9uZV9udW1iZXIiOiIrODQzNjMwNTM2NTkiLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7InBob25lIjpbIis4NDM2MzA1MzY1OSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBob25lIn19.KmzxzHkbNu0XN5upVrgLfu2dmIDikmvON5CG9_yxeSCChy4zUf0Sm3dBd-942YMd1JdDDPljAuBGnDbeI0k5gd3TSjVfAgqfGIJNyGBcJA5Sz-vhi1mhWRnLxc6aymlN1xA0YWGGkVPRk1hJpJp2sXzxrP8NFUAQCAJCCu4YFDaGtZYFuqbOvgq64DCgWA7B7JCOrPFuk9mm-4hvTxHclAN8iULCxSnQCft6YNyHGgNpPf4mQBY4hV_JnQpL1B6-Lmw8tm7c2luoX-PnbWIE8q7PCY-5YW2QFbDng73hhmSQ1oQM92cVyTn-v_clNgGDYhAx9jXfGNmiSUauYOoRmQ",
     "password": "MySecureP@ssw0rd123"
+}
+
+### ====================================================
+### FORGOT PASSWORD (email OTP)
+### ====================================================
+### 1) send-otp → 2) verify-otp (accessToken, no refresh) →
+### 3) reset (Bearer password-reset token only).
+### Password-reset JWT cannot call other protected APIs (403).
+### ====================================================
+POST {{host}}/api/auth/forgot-password/send-otp
+Content-Type: {{contentType}}
+
+{
+    "email": "user@example.com"
+}
+
+POST {{host}}/api/auth/forgot-password/verify-otp
+Content-Type: {{contentType}}
+
+{
+    "email": "user@example.com",
+    "otpCode": "123456"
+}
+
+POST {{host}}/api/auth/forgot-password/reset
+Authorization: Bearer {{resetAccessToken}}
+Content-Type: {{contentType}}
+
+{
+    "password": "NewSecureP@ssw0rd123"
 }
 
 ### ====================================================

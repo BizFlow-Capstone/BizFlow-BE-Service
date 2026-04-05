@@ -1,4 +1,5 @@
-﻿using BizFlow.Application.Common.Interfaces;
+﻿using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -18,16 +19,26 @@ namespace BizFlow.Infrastructure.Services
             _settings = settings.Value;
         }
 
-        public string GenerateAccessToken(Guid accountId, Guid profileId, string roleName)
+        public string GenerateAccessToken(Guid accountId, Guid profileId, string roleName, bool forPasswordReset = false, Guid? passwordResetNonce = null)
         {
+            if (forPasswordReset && passwordResetNonce == null)
+                throw new ArgumentException("passwordResetNonce is required for password-reset tokens.", nameof(passwordResetNonce));
+
             var claims = new List<Claim>
             {
                 new(JwtRegisteredClaimNames.Sub, accountId.ToString()),
                 new("profileId", profileId.ToString()),
-                new(ClaimTypes.Role, roleName),
-                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+                new(ClaimTypes.Role, roleName)
             };
+
+            if (forPasswordReset)
+            {
+                claims.Add(new Claim(AuthJwtConstants.PurposeClaimType, AuthJwtConstants.PasswordResetPurpose));
+                claims.Add(new Claim(AuthJwtConstants.PasswordResetNonceClaimType, passwordResetNonce!.Value.ToString("D")));
+            }
+
+            claims.Add(new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
+            claims.Add(new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

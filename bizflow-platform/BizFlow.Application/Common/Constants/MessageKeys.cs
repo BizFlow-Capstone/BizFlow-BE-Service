@@ -88,6 +88,10 @@ namespace BizFlow.Application.Common.Constants
         public const string PasswordRequiredWhenNoPassword = "AUTH_PASSWORD_REQUIRED_WHEN_NO_PASSWORD";
         public const string DefaultRoleNotFound = "AUTH_DEFAULT_ROLE_NOT_FOUND";
         public const string AccountHasNoProfile = "AUTH_ACCOUNT_HAS_NO_PROFILE";
+        /// <summary>Forgot-password: no active account with this email credential.</summary>
+        public const string ForgotPasswordEmailNotRegistered = "AUTH_FORGOT_PASSWORD_EMAIL_NOT_REGISTERED";
+        /// <summary>Forgot-password reset JWT already used or invalid nonce.</summary>
+        public const string PasswordResetTokenInvalidOrUsed = "AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_USED";
         public const string RefreshTokenInvalidOrExpired = "AUTH_REFRESH_TOKEN_INVALID_OR_EXPIRED";
         public const string RefreshTokenReuseDetected = "AUTH_REFRESH_TOKEN_REUSE_DETECTED";
         public const string InvalidRefreshToken = "AUTH_INVALID_REFRESH_TOKEN";

@@ -8,7 +8,6 @@ using BizFlow.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,8 +15,7 @@ namespace BizFlow.Application.Services
 {
     public class OtpService : IOtpService
     {
-        private readonly IOtpCodeRepository _otpCodeRepository;
-        private readonly IProfileRepository _profileRepository;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IEmailSender _emailSender;
         private readonly IMessageService _messageService;
         private readonly ILogger<OtpService> _logger;
@@ -26,15 +24,15 @@ namespace BizFlow.Application.Services
         private const int RateLimitMinutes  = 1;
         private const string EmailTemplateAlias = "password-reset";
 
+        private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
         public OtpService(
-            IOtpCodeRepository otpCodeRepository,
-            IProfileRepository profileRepository,
+            IUnitOfWork unitOfWork,
             IEmailSender emailSender,
             IMessageService messageService,
             ILogger<OtpService> logger)
         {
-            _otpCodeRepository = otpCodeRepository;
-            _profileRepository = profileRepository;
+            _unitOfWork     = unitOfWork;
             _emailSender       = emailSender;
             _messageService    = messageService;
             _logger            = logger;
@@ -42,31 +40,35 @@ namespace BizFlow.Application.Services
 
         public async Task<SendOtpResponse> SendOtpAsync(SendOtpRequest request, CancellationToken ct = default)
         {
+            var normalizedEmail = NormalizeEmail(request.Email);
+
+            var fullName = await _unitOfWork.Profiles.GetFullNameForEligibleForgotPasswordEmailAsync(normalizedEmail, ct);
+            if (fullName == null)
+                throw new BadRequestException(MessageKeys.ForgotPasswordEmailNotRegistered);
+
             // Rate-limit: do not allow resend within RateLimitMinutes
-            var existing = await _otpCodeRepository.GetLatestActiveOtpAsync(request.Email, ct);
+            var existing = await _unitOfWork.OtpCodes.GetLatestActiveOtpAsync(normalizedEmail, ct);
             if (existing != null)
             {
                 var elapsed = DateTime.UtcNow - existing.CreatedAt;
                 if (elapsed.TotalMinutes < RateLimitMinutes)
-                    throw new BadRequestException(_messageService.GetMessage(MessageKeys.OtpTooManyRequests));
+                    throw new BadRequestException(MessageKeys.OtpTooManyRequests);
             }
 
             // Invalidate older OTPs that are still active
-            await _otpCodeRepository.DisableAllActiveOtpsAsync(request.Email, ct);
+            await _unitOfWork.OtpCodes.DisableAllActiveOtpsAsync(normalizedEmail, ct);
 
             // Generate new code and persist
             var code = GenerateCode();
             var otpCode = new OtpCode
             {
-                Email     = request.Email,
+                Email     = normalizedEmail,
                 Code      = code,
                 ExpiredAt = DateTime.UtcNow.AddMinutes(ExpirationMinutes)
             };
-            await _otpCodeRepository.AddAsync(otpCode);
+            await _unitOfWork.OtpCodes.AddAsync(otpCode);
 
-            // Get FullName from Profile if exists, otherwise fallback to Email prefix
-            var fullName = await _profileRepository.GetFullNameByEmailAsync(request.Email, ct);
-            var userName = !string.IsNullOrWhiteSpace(fullName) ? fullName : request.Email.Split('@')[0];
+            var userName = !string.IsNullOrWhiteSpace(fullName) ? fullName : normalizedEmail.Split('@')[0];
 
             // Send email via Resend template
             var variables = new Dictionary<string, string> 
@@ -76,34 +78,56 @@ namespace BizFlow.Application.Services
                 { "USER_NAME", userName }
             };
             var sendResult = await _emailSender.SendTemplateAsync(
-                request.Email,
+                normalizedEmail,
                 EmailTemplateAlias,
                 variables,
                 idempotencyKey: otpCode.Id.ToString(),
                 ct);
 
             if (!sendResult.Success)
-                _logger.LogWarning("Failed to send OTP email to {Email}. Reason: {Error}", request.Email, sendResult.ErrorDetail);
+                _logger.LogWarning("Failed to send OTP email to {Email}. Reason: {Error}", normalizedEmail, sendResult.ErrorDetail);
 
             return new SendOtpResponse
             {
-                Destination  = request.Email,
+                Destination  = normalizedEmail,
                 ExpiryMinutes = ExpirationMinutes
             };
         }
 
-        public async Task<VerifyOtpResponse> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken ct = default)
+        public async Task<PasswordResetOtpVerifiedResult> VerifyEmailOtpForPasswordResetAsync(string email, string otpCode, CancellationToken ct = default)
         {
-            var activeOtp = await _otpCodeRepository.GetLatestActiveOtpAsync(request.Email, ct);
+            if (string.IsNullOrWhiteSpace(email))
+                throw new BadRequestException(MessageKeys.EmailRequired);
+            if (string.IsNullOrWhiteSpace(otpCode))
+                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
 
-            if (activeOtp == null || activeOtp.Code != request.OtpCode)
-                throw new BadRequestException(_messageService.GetMessage(MessageKeys.OtpInvalidOrExpired));
+            var normalizedEmail = NormalizeEmail(email);
 
-            // Mark as used
-            activeOtp.IsUsed = true;
-            await _otpCodeRepository.UpdateAsync(activeOtp);
+            if (!await _unitOfWork.OtpCodes.TryConsumeActiveOtpAsync(normalizedEmail, otpCode, ct))
+                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
 
-            return new VerifyOtpResponse { Verified = true };
+            var account = await _unitOfWork.Accounts.GetWithProfileAndRoleByNormalizedEmailCredentialAsync(normalizedEmail, ct);
+            if (account == null)
+                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
+            if (account.IsActive == false || account.DeletedAt != null)
+                throw new UnauthorizedException(MessageKeys.AccountInactiveOrDeleted);
+
+            var profile = account.Profile
+                ?? throw new BadRequestException(MessageKeys.AccountHasNoProfile);
+
+            var nonce = Guid.NewGuid();
+            account.PasswordResetNonce = nonce;
+            await _unitOfWork.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Email OTP verified for password reset. AccountId={AccountId}", account.AccountId);
+
+            return new PasswordResetOtpVerifiedResult
+            {
+                AccountId = account.AccountId,
+                ProfileId = profile.ProfileId,
+                RoleName = account.Role.Name,
+                PasswordResetNonce = nonce
+            };
         }
 
         // Random 6-digit code using RandomNumberGenerator to avoid bias

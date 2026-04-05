@@ -152,6 +152,11 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
+            entity.Property(e => e.PasswordResetNonce)
+                .HasColumnName("password_reset_nonce")
+                .HasComment("Single-use forgot-password JWT; cleared after reset")
+                .HasColumnType("char(36)")
+                .IsUnicode(false);
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")

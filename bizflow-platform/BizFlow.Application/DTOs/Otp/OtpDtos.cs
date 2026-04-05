@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BizFlow.Application.DTOs.Otp
 {
-    /// <summary>Request to send an OTP by email.</summary>
+    /// <summary>Request body for <c>POST /api/auth/forgot-password/send-otp</c>.</summary>
     public class SendOtpRequest
     {
         [Required]
@@ -16,7 +16,7 @@ namespace BizFlow.Application.DTOs.Otp
         public int ExpiryMinutes { get; set; }
     }
 
-    /// <summary>Request to verify the OTP received by email.</summary>
+    /// <summary>Request body for <c>POST /api/auth/forgot-password/verify-otp</c>.</summary>
     public class VerifyOtpRequest
     {
         [Required]
@@ -31,5 +31,17 @@ namespace BizFlow.Application.DTOs.Otp
     public class VerifyOtpResponse
     {
         public bool Verified { get; set; }
+
+        /// <summary>JWT for <c>POST /api/auth/forgot-password/reset</c> only (no refresh token).</summary>
+        public string AccessToken { get; set; } = null!;
+    }
+
+    /// <summary>After a valid OTP: nonce is persisted; auth layer uses this to sign the password-reset JWT.</summary>
+    public sealed class PasswordResetOtpVerifiedResult
+    {
+        public Guid AccountId { get; init; }
+        public Guid ProfileId { get; init; }
+        public string RoleName { get; init; } = null!;
+        public Guid PasswordResetNonce { get; init; }
     }
 }

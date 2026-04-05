@@ -1,4 +1,5 @@
 using BizFlow.Application.DTOs.Auth;
+using BizFlow.Application.DTOs.Otp;
 
 namespace BizFlow.Application.Interfaces.Services
 {
@@ -85,5 +86,15 @@ namespace BizFlow.Application.Interfaces.Services
         /// Create Firebase custom token for a profile id.
         /// </summary>
         Task<FirebaseCustomTokenResponse> CreateFirebaseCustomTokenAsync(Guid profileId);
+
+        /// <summary>
+        /// Consume email OTP and return a password-reset access JWT (no refresh token). Forgot-password flow.
+        /// </summary>
+        Task<VerifyOtpResponse> VerifyEmailOtpForPasswordResetAsync(string email, string otpCode, CancellationToken ct = default);
+
+        /// <summary>
+        /// Set a new password after forgot-password OTP; revokes all refresh tokens. Caller must use password-reset JWT.
+        /// </summary>
+        Task ResetPasswordAfterForgotOtpAsync(Guid accountId, string newPassword, Guid passwordResetNonce);
     }
 }

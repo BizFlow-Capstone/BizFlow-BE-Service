@@ -69,6 +69,8 @@
   "AUTH_PASSWORD_REQUIRED_WHEN_NO_PASSWORD": "Tài khoản chưa có mật khẩu — cần nhập mật khẩu",
   "AUTH_DEFAULT_ROLE_NOT_FOUND": "Không tìm thấy vai trò mặc định '{0}'",
   "AUTH_ACCOUNT_HAS_NO_PROFILE": "Tài khoản chưa có hồ sơ",
+  "AUTH_FORGOT_PASSWORD_EMAIL_NOT_REGISTERED": "Không có tài khoản đang hoạt động nào đăng ký với email này",
+  "AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_USED": "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã được sử dụng. Vui lòng yêu cầu mã mới nếu bạn vẫn cần đặt lại mật khẩu.",
   "AUTH_REFRESH_TOKEN_INVALID_OR_EXPIRED": "Refresh token không hợp lệ hoặc đã hết hạn",
   "AUTH_REFRESH_TOKEN_REUSE_DETECTED": "Phát hiện dùng lại refresh token. Đã thu hồi tất cả phiên đăng nhập.",
   "AUTH_INVALID_REFRESH_TOKEN": "Refresh token không hợp lệ",

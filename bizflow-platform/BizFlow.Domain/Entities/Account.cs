@@ -36,6 +36,11 @@ public partial class Account
     /// </summary>
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>
+    /// Single-use value for forgot-password JWT; cleared after successful reset or replaced on new OTP verify.
+    /// </summary>
+    public Guid? PasswordResetNonce { get; set; }
+
     public virtual ICollection<Credential> Credentials { get; set; } = new List<Credential>();
 
     public virtual Profile? Profile { get; set; }
