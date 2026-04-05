@@ -16,7 +16,7 @@ public partial class AccountingPeriodAuditLog
 
     public string? Reason { get; set; }
 
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

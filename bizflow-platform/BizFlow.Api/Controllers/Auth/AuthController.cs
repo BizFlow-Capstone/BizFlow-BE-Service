@@ -482,6 +482,10 @@ namespace BizFlow.Api.Controllers.Auth
             }
         }
 
+        /// <summary>
+        /// Soft-delete immediately; Hangfire purges the row and owned locations after <c>AccountPurge:RetentionDays</c>,
+        /// and nulls audit user ids on shared business rows (orders, costs, etc.).
+        /// </summary>
         [HttpPost("delete-account")]
         [Authorize]
         public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequest request)

@@ -81,9 +81,9 @@ public partial class Order
     public string? Note { get; set; }
 
     /// <summary>
-    /// UserId who created the order
+    /// UserId who created the order (null if creator account was purged / anonymized).
     /// </summary>
-    public Guid CreatedBy { get; set; }
+    public Guid? CreatedBy { get; set; }
 
     /// <summary>
     /// UserId of latest updater

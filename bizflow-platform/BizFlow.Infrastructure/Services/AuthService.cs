@@ -851,7 +851,7 @@ namespace BizFlow.Infrastructure.Services
             await _db.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Account deleted (soft delete). AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
+                "Account soft-deleted; Hangfire will hard-delete after retention. AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
                 accountId,
                 refreshTokensRevoked);
         }

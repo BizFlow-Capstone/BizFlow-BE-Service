@@ -16,7 +16,7 @@ namespace BizFlow.Application.DTOs.Order
         public decimal DebtAmount { get; set; }
         public string Status { get; set; } = null!;
         public string? Note { get; set; }
-        public Guid CreatedByProfileId { get; set; }
+        public Guid? CreatedByProfileId { get; set; }
         public string? CreatedByProfileFullName { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

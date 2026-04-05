@@ -193,5 +193,28 @@ namespace BizFlow.Infrastructure.Repositories
                 return result;
             });
         }
+
+        public async Task ExecuteResilientPurgeAsync(Func<CancellationToken, Task<bool>> action, CancellationToken ct = default)
+        {
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                _dbContext.Database.SetCommandTimeout(300);
+                await using var tx = await _dbContext.Database.BeginTransactionAsync(ct);
+                try
+                {
+                    var shouldCommit = await action(ct);
+                    if (shouldCommit)
+                        await tx.CommitAsync(ct);
+                    else
+                        await tx.RollbackAsync(ct);
+                }
+                catch
+                {
+                    await tx.RollbackAsync(ct);
+                    throw;
+                }
+            });
+        }
     }
 }

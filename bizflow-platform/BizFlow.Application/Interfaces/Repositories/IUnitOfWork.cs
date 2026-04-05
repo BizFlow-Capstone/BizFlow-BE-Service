@@ -48,5 +48,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task RollbackTransactionAsync();
         Task ExecuteResilientAsync(Func<CancellationToken, Task> action, CancellationToken ct = default);
         Task<TResult> ExecuteResilientAsync<TResult>(Func<CancellationToken, Task<TResult>> action, CancellationToken ct = default);
+
+        /// <summary>
+        /// Resilient transaction for bulk SQL (ExecuteDelete / raw UPDATE) without an implicit SaveChanges.
+        /// Commits when <paramref name="action"/> returns <c>true</c>, rolls back when <c>false</c>.
+        /// </summary>
+        Task ExecuteResilientPurgeAsync(Func<CancellationToken, Task<bool>> action, CancellationToken ct = default);
     }
 }

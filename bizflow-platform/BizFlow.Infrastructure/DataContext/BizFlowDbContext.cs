@@ -157,6 +157,10 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Single-use forgot-password JWT; cleared after reset")
                 .HasColumnType("char(36)")
                 .IsUnicode(false);
+            entity.Property(e => e.HardDeletedAt)
+                .HasColumnName("hard_deleted_at")
+                .HasComment("UTC when physical purge completed (optional)")
+                .HasColumnType("datetime");
             entity.Property(e => e.IsActive)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")

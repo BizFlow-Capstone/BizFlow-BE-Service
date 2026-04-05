@@ -21,7 +21,7 @@ public partial class AccountingExport
     public string? FileUrl { get; set; }
     public string? FilePublicId { get; set; }
 
-    public Guid ExportedByUserId { get; set; }
+    public Guid? ExportedByUserId { get; set; }
     public DateTime ExportedAt { get; set; }
     public string? Notes { get; set; }
 

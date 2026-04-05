@@ -10,6 +10,7 @@ namespace BizFlow.Application.Mappers
         {
             CreateMap<Order, OrderDto>()
                 .ForMember(d => d.CreatedByProfileId, o => o.MapFrom(s => s.CreatedBy))
+                .ForMember(d => d.CreatedByProfileFullName, o => o.Ignore())
                 .ForMember(d => d.Items, o => o.MapFrom(s => s.OrderDetails));
 
             CreateMap<OrderDetail, OrderDetailDto>()

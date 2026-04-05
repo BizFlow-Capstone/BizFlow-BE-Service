@@ -183,6 +183,7 @@ builder.Services.AddOptions<ResendClientOptions>()
     });
 builder.Services.AddScoped<IEmailSender, ResendEmailSender>();
 builder.Services.Configure<FreePlanOptions>(builder.Configuration.GetSection(FreePlanOptions.SectionName));
+builder.Services.Configure<AccountPurgeOptions>(builder.Configuration.GetSection(AccountPurgeOptions.SectionName));
 builder.Services.Configure<AiServiceSettings>(builder.Configuration.GetSection(AiServiceSettings.SectionName));
 
 // AI Service HTTP Client
@@ -453,6 +454,9 @@ if (isHangfireEnabled)
             : [new LocalRequestsOnlyAuthorizationFilter()]
     });
 
+    // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
+    RecurringJob.RemoveIfExists("subscription-free-backfill-monthly");
+
     // Schedule Recurring Job
     RecurringJob.AddOrUpdate<ImageCleanupJob>(
         "image-cleanup",
@@ -526,6 +530,11 @@ if (isHangfireEnabled)
         job => job.ExecuteAsync(),
         "0 * * * *" // Hourly
     );
+
+    RecurringJob.AddOrUpdate<AccountHardDeleteJob>(
+        "account-hard-delete",
+        job => job.ExecuteAsync(),
+        "15 * * * *");
 }
 else
 {

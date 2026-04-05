@@ -61,9 +61,9 @@ public partial class Revenue
     public DateOnly? DocumentDate { get; set; }
 
     /// <summary>
-    /// UserId that created this record
+    /// UserId that created this record (null if creator was purged / anonymized).
     /// </summary>
-    public Guid CreatedBy { get; set; }
+    public Guid? CreatedBy { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

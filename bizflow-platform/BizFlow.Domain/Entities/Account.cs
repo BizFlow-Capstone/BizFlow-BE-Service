@@ -41,6 +41,11 @@ public partial class Account
     /// </summary>
     public Guid? PasswordResetNonce { get; set; }
 
+    /// <summary>
+    /// UTC when background purge finished (row is removed after purge; column reserved for alternate flows).
+    /// </summary>
+    public DateTime? HardDeletedAt { get; set; }
+
     public virtual ICollection<Credential> Credentials { get; set; } = new List<Credential>();
 
     public virtual Profile? Profile { get; set; }

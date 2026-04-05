@@ -23,7 +23,7 @@ public partial class TaxPayment
     public string? ReferenceNumber { get; set; }
     public string? Notes { get; set; }
 
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? DeletedAt { get; set; }
 

@@ -56,9 +56,9 @@ public partial class Debtor
     public DateTime? DeletedAt { get; set; }
 
     /// <summary>
-    /// Creator user id (FK to Profiles)
+    /// Creator user id (FK to Profiles); null if anonymized.
     /// </summary>
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

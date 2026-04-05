@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BizFlow.Domain.Entities;
@@ -17,7 +17,7 @@ public partial class AccountingBookTaxOverrides
 
     public string Note { get; set; } = null!;
 
-    public Guid UpdatedByUserId { get; set; }
+    public Guid? UpdatedByUserId { get; set; }
 
     public DateTime UpdatedAt { get; set; }
 }

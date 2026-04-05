@@ -41,9 +41,9 @@ public partial class DebtorPaymentTransaction
     public decimal BalanceAfter { get; set; }
 
     /// <summary>
-    /// UserId who recorded the payment
+    /// UserId who recorded the payment; null if anonymized.
     /// </summary>
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
 
     /// <summary>
     /// Actual payment timestamp

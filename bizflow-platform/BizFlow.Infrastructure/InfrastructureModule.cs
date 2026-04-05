@@ -105,6 +105,7 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<OtpCleanupJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AccountHardDeleteJob>().AsSelf().InstancePerDependency();
 
             // Register Accounting Book engines
             builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()

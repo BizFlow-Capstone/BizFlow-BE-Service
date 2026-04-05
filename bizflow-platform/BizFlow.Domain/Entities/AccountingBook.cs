@@ -28,7 +28,7 @@ public partial class AccountingBook
     /// </summary>
     public string Status { get; set; } = "active";
 
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ArchivedAt { get; set; }
 

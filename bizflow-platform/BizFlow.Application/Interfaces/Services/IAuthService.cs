@@ -72,8 +72,8 @@ namespace BizFlow.Application.Interfaces.Services
         Task RevokeAllRefreshTokensAsync(Guid accountId);
 
         /// <summary>
-        /// Delete the signed-in account after confirming password.
-        /// Also revokes all refresh tokens.
+        /// Soft-delete the signed-in account after confirming password (revokes all refresh tokens).
+        /// Physical removal and anonymization of audit fields run later via Hangfire using <c>AccountPurge</c> settings.
         /// </summary>
         Task DeleteAccountAsync(Guid accountId, string password);
 

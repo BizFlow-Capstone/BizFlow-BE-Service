@@ -108,7 +108,7 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner && order.CreatedBy != userId)
+            if (!isOwner && (order.CreatedBy == null || order.CreatedBy != userId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
             if (order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
@@ -179,7 +179,7 @@ namespace BizFlow.Application.Services
             var locationId = ResolveOrderLocationId(order, null);
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner && order.CreatedBy != userId)
+            if (!isOwner && (order.CreatedBy == null || order.CreatedBy != userId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
             if (!order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
@@ -354,7 +354,7 @@ namespace BizFlow.Application.Services
 
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner && oldOrder.CreatedBy != userId)
+            if (!isOwner && (oldOrder.CreatedBy == null || oldOrder.CreatedBy != userId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
             var idempotencyMarker = BuildEditCompletedIdempotencyMarker(request.IdempotencyKey);
@@ -570,7 +570,7 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateLocationAccessAsync(profileId, locationId);
 
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(profileId, locationId);
-            if (!isOwner && order.CreatedBy != profileId)
+            if (!isOwner && (order.CreatedBy == null || order.CreatedBy != profileId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
             return await MapOrderWithCreatorAsync(order);
@@ -605,8 +605,12 @@ namespace BizFlow.Application.Services
         private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
         {
             var dto = _mapper.Map<OrderDto>(order);
-            var profile = await _uow.Profiles.GetByIdAsync(order.CreatedBy);
-            dto.CreatedByProfileFullName = profile?.FullName;
+            if (order.CreatedBy is { } creatorId)
+            {
+                var profile = await _uow.Profiles.GetByIdAsync(creatorId);
+                dto.CreatedByProfileFullName = profile?.FullName;
+            }
+
             return dto;
         }
 
@@ -617,13 +621,15 @@ namespace BizFlow.Application.Services
             if (dtos.Count == 0)
                 return dtos;
 
-            var creatorIds = orderList.Select(o => o.CreatedBy).Distinct().ToList();
-            var profiles = await _uow.Profiles.GetByIdsAsync(creatorIds);
+            var creatorIds = orderList.Select(o => o.CreatedBy).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+            var profiles = creatorIds.Count > 0
+                ? await _uow.Profiles.GetByIdsAsync(creatorIds)
+                : [];
             var fullNameByProfileId = profiles.ToDictionary(p => p.ProfileId, p => p.FullName);
 
             foreach (var dto in dtos)
             {
-                if (fullNameByProfileId.TryGetValue(dto.CreatedByProfileId, out var fullName))
+                if (dto.CreatedByProfileId is { } pid && fullNameByProfileId.TryGetValue(pid, out var fullName))
                     dto.CreatedByProfileFullName = fullName;
             }
 
