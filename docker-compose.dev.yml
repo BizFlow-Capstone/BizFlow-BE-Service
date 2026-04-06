@@ -4,9 +4,18 @@
 # Extends docker-compose.yml for the local development environment.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev down
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai down
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai ps
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f bizflow-api bizflow-ai
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d --build bizflow-api
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f bizflow-api
 #
+#
+# =============================================================================
 # Stripe webhook (dev): stripe-cli service runs `listen` and forwards to bizflow-api.
 #   - Requires STRIPE_SECRET_KEY in .env.dev (CLI reads STRIPE_API_KEY in the container).
 #   - First run: `docker logs bizflow-stripe-cli` → copy the "webhook signing secret" line (whsec_...)
@@ -68,10 +77,22 @@ services:
   # API — dev settings: expose port directly (no nginx needed in dev)
   # ---------------------------------------------------------------------------
   bizflow-api:
+    build:
+      context: ./bizflow-platform
+      dockerfile: Dockerfile
+      target: build
+    working_dir: /src
+    command: ["dotnet", "watch", "--project", "BizFlow.Api/BizFlow.Api.csproj", "run", "--urls", "http://0.0.0.0:8080"]
     environment:
       - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-bizflow_db};User=${MYSQL_USER:-admin};Password=${MYSQL_PASSWORD};CharSet=utf8mb4;SslMode=none;AllowPublicKeyRetrieval=true;Allow User Variables=true;
+      - ASPNETCORE_ENVIRONMENT=Development
+      - GOOGLE_APPLICATION_CREDENTIALS=/src/credentials/firebase-adminsdk.json
+      - FirebaseAuth__ServiceAccountPath=/src/credentials/firebase-adminsdk.json
     ports:
       - "8080:8080"
+    volumes:
+      - ./bizflow-platform:/src
+      - ./docker/credentials:/src/credentials:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -79,10 +100,24 @@ services:
         condition: service_started
 
   # ---------------------------------------------------------------------------
+  # AI — dev settings: expose FastAPI docs to host and wait for mysql
+  # ---------------------------------------------------------------------------
+  bizflow-ai:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
+    ports:
+      - "5050:5000"
+    volumes:
+      - ../BizFlow-AI-Service:/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # Stripe CLI — forwards webhooks to the API (same Docker network; no host-side `stripe listen`)
   # ---------------------------------------------------------------------------
   stripe-cli:
     image: stripe/stripe-cli:latest
+    pull_policy: missing
     container_name: bizflow-stripe-cli
     restart: unless-stopped
     environment:

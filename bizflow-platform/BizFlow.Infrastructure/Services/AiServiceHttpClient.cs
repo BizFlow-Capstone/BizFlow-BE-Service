@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BizFlow.Application.Common.Models;
@@ -37,27 +38,45 @@ namespace BizFlow.Infrastructure.Services
             Stream audioStream, string mimeType, int locationId, CancellationToken ct = default)
         {
             using var content = new MultipartFormDataContent();
-            content.Add(new StreamContent(audioStream), "audio", "audio.webm");
+            var normalizedMimeType = NormalizeMimeType(mimeType);
+            var streamContent = new StreamContent(audioStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(normalizedMimeType);
+            content.Add(streamContent, "audio", BuildAudioFileName(normalizedMimeType));
             content.Add(new StringContent(locationId.ToString()), "location_id");
 
             var response = await SendAsync(HttpMethod.Post, "/draft-order", content, ct);
             return await DeserializeAsync<AiDraftOrderResultDto>(response, ct);
         }
 
-        public async Task<AiInvoiceResultDto> OcrInvoiceAsync(
-            Stream imageStream, string mimeType, int locationId, CancellationToken ct = default)
+        public async Task<AiDraftRevenueResultDto> ParseDraftRevenueAsync(
+            Stream audioStream, string mimeType, int locationId, CancellationToken ct = default)
         {
             using var content = new MultipartFormDataContent();
-            var streamContent = new StreamContent(imageStream);
-            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
-            content.Add(streamContent, "image", "image.jpg");
+            var normalizedMimeType = NormalizeMimeType(mimeType);
+            var streamContent = new StreamContent(audioStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(normalizedMimeType);
+            content.Add(streamContent, "audio", BuildAudioFileName(normalizedMimeType));
             content.Add(new StringContent(locationId.ToString()), "location_id");
 
-            var response = await SendAsync(HttpMethod.Post, "/ocr/invoice", content, ct);
-            return await DeserializeAsync<AiInvoiceResultDto>(response, ct);
+            var response = await SendAsync(HttpMethod.Post, "/draft-revenue", content, ct);
+            return await DeserializeAsync<AiDraftRevenueResultDto>(response, ct);
         }
 
-        public async Task<AiDeliveryNoteResultDto> OcrDeliveryNoteAsync(
+        public async Task<AiDraftCostResultDto> ParseDraftCostAsync(
+            Stream audioStream, string mimeType, int locationId, CancellationToken ct = default)
+        {
+            using var content = new MultipartFormDataContent();
+            var normalizedMimeType = NormalizeMimeType(mimeType);
+            var streamContent = new StreamContent(audioStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(normalizedMimeType);
+            content.Add(streamContent, "audio", BuildAudioFileName(normalizedMimeType));
+            content.Add(new StringContent(locationId.ToString()), "location_id");
+
+            var response = await SendAsync(HttpMethod.Post, "/draft-cost", content, ct);
+            return await DeserializeAsync<AiDraftCostResultDto>(response, ct);
+        }
+
+        public async Task<AiPurchaseInvoiceResultDto> OcrPurchaseInvoiceAsync(
             Stream imageStream, string mimeType, int locationId, CancellationToken ct = default)
         {
             using var content = new MultipartFormDataContent();
@@ -66,8 +85,21 @@ namespace BizFlow.Infrastructure.Services
             content.Add(streamContent, "image", "image.jpg");
             content.Add(new StringContent(locationId.ToString()), "location_id");
 
-            var response = await SendAsync(HttpMethod.Post, "/ocr/delivery-note", content, ct);
-            return await DeserializeAsync<AiDeliveryNoteResultDto>(response, ct);
+            var response = await SendAsync(HttpMethod.Post, "/ocr/purchase-invoice", content, ct);
+            return await DeserializeAsync<AiPurchaseInvoiceResultDto>(response, ct);
+        }
+
+        public async Task<AiSaleInvoiceResultDto> OcrSaleInvoiceAsync(
+            Stream imageStream, string mimeType, int locationId, CancellationToken ct = default)
+        {
+            using var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(imageStream);
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+            content.Add(streamContent, "image", "image.jpg");
+            content.Add(new StringContent(locationId.ToString()), "location_id");
+
+            var response = await SendAsync(HttpMethod.Post, "/ocr/sale-invoice", content, ct);
+            return await DeserializeAsync<AiSaleInvoiceResultDto>(response, ct);
         }
 
         // ── Tier 1 anomaly ───────────────────────────────────────
@@ -180,6 +212,40 @@ namespace BizFlow.Infrastructure.Services
             where TResult : new()
         {
             return await response.Content.ReadFromJsonAsync<TResult>(JsonOptions, ct) ?? new TResult();
+        }
+
+        private static string NormalizeMimeType(string? mimeType)
+        {
+            if (string.IsNullOrWhiteSpace(mimeType))
+            {
+                return "audio/webm";
+            }
+
+            // Strip codec params: "audio/webm; codecs=opus" → "audio/webm"
+            var normalized = mimeType.Trim().ToLowerInvariant();
+            var semicolonIdx = normalized.IndexOf(';');
+            if (semicolonIdx >= 0)
+                normalized = normalized[..semicolonIdx].TrimEnd();
+
+            return normalized switch
+            {
+                "audio/x-m4a" => "audio/m4a",
+                "audio/mp4" => "audio/m4a",
+                "audio/aac" => "audio/m4a",
+                _ => normalized,
+            };
+        }
+
+        private static string BuildAudioFileName(string mimeType)
+        {
+            return mimeType switch
+            {
+                "audio/m4a" => "audio.m4a",
+                "audio/mp3" => "audio.mp3",
+                "audio/wav" => "audio.wav",
+                "audio/ogg" => "audio.ogg",
+                _ => "audio.webm",
+            };
         }
     }
 }

@@ -5,10 +5,13 @@ namespace BizFlow.Application.DTOs.Ai
     public class AiDraftOrderItemDto
     {
         public string? ProductId { get; set; }
+        public string? SaleItemId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public bool Matched { get; set; }
         public double Quantity { get; set; }
         public string Unit { get; set; } = string.Empty;
+        public double? UnitPrice { get; set; }
+        public double? LineTotal { get; set; }
         public string? CustomerName { get; set; }
         public bool IsDebt { get; set; }
     }
@@ -18,11 +21,12 @@ namespace BizFlow.Application.DTOs.Ai
         public List<AiDraftOrderItemDto> Items { get; set; } = new();
         public string RawTranscript { get; set; } = string.Empty;
         public string Confidence { get; set; } = string.Empty;
+        public double? TotalAmount { get; set; }
     }
 
-    // ── OCR Invoice ──────────────────────────────────────────────
+    // ── OCR Purchase Invoice (hóa đơn nhập hàng) ──────────────────────────
 
-    public class AiInvoiceItemDto
+    public class AiPurchaseInvoiceItemDto
     {
         public string ProductName { get; set; } = string.Empty;
         public double Quantity { get; set; }
@@ -30,27 +34,68 @@ namespace BizFlow.Application.DTOs.Ai
         public double UnitPrice { get; set; }
     }
 
-    public class AiInvoiceResultDto
+    public class AiPurchaseInvoiceResultDto
     {
         public string? SupplierName { get; set; }
         public string? InvoiceDate { get; set; }
-        public List<AiInvoiceItemDto> Items { get; set; } = new();
+        public List<AiPurchaseInvoiceItemDto> Items { get; set; } = new();
         public double? TotalAmount { get; set; }
         public string Confidence { get; set; } = string.Empty;
     }
 
-    // ── OCR Delivery Note ────────────────────────────────────────
+    // ── OCR Sale Invoice (hóa đơn bán hàng) ─────────────────────────────────
 
-    public class AiDeliveryItemDto
+    public class AiSaleInvoiceItemDto
     {
         public string ProductName { get; set; } = string.Empty;
         public double Quantity { get; set; }
         public string Unit { get; set; } = string.Empty;
+        public double UnitPrice { get; set; }
     }
 
-    public class AiDeliveryNoteResultDto
+    public class AiSaleInvoiceResultDto
     {
-        public List<AiDeliveryItemDto> Items { get; set; } = new();
+        public string? BuyerName { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? InvoiceDate { get; set; }
+        public List<AiSaleInvoiceItemDto> Items { get; set; } = new();
+        public double? VatAmount { get; set; }
+        public double? TotalAmount { get; set; }
+        public string Confidence { get; set; } = string.Empty;
+    }
+
+    // ── Draft Revenue (doanh thu từ giọng nói) ───────────────────────────────
+
+    public class AiDraftRevenueItemDto
+    {
+        public double? Amount { get; set; }
+        public string? Description { get; set; }
+        public string? RevenueDate { get; set; }   // YYYY-MM-DD; null = today
+        public string? MoneyChannel { get; set; }  // "cash" | "bank"
+    }
+
+    public class AiDraftRevenueResultDto
+    {
+        public List<AiDraftRevenueItemDto> Items { get; set; } = new();
+        public string RawTranscript { get; set; } = string.Empty;
+        public string Confidence { get; set; } = string.Empty;
+    }
+
+    // ── Draft Cost (chi phí từ giọng nói) ────────────────────────────────────
+
+    public class AiDraftCostItemDto
+    {
+        public double? Amount { get; set; }
+        public string? Description { get; set; }
+        public string? CostDate { get; set; }       // YYYY-MM-DD; null = today
+        public string? CostType { get; set; }
+        public string? PaymentMethod { get; set; }  // "cash" | "bank"
+    }
+
+    public class AiDraftCostResultDto
+    {
+        public List<AiDraftCostItemDto> Items { get; set; } = new();
+        public string RawTranscript { get; set; } = string.Empty;
         public string Confidence { get; set; } = string.Empty;
     }
 

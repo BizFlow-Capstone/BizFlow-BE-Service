@@ -78,7 +78,7 @@ services:
   # ---------------------------------------------------------------------------
   bizflow-ai:
     build:
-      context: ./bizflow-ai
+      context: ../BizFlow-AI-Service
       dockerfile: Dockerfile
     container_name: bizflow-ai
     profiles:
@@ -86,9 +86,11 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
-      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      - AI_DB_URL=${AI_DB_URL}
       # Shared secret — must match AiService__InternalSecret in the BE service
       - INTERNAL_API_SECRET=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
+    volumes:
+      - ./docker/credentials:/app/credentials:ro
     networks:
       - bizflow-network
 
