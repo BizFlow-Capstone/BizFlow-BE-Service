@@ -169,6 +169,7 @@ builder.Services.Configure<ImageSettings>(builder.Configuration.GetSection(Image
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection(StripeSettings.SectionName));
 builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection(ResendSettings.SectionName));
+builder.Services.Configure<AppPublicUrlsOptions>(builder.Configuration.GetSection(AppPublicUrlsOptions.SectionName));
 builder.Services.AddHttpClient<IResend, ResendClient>();
 builder.Services.AddOptions<ResendClientOptions>()
     .Configure<IOptions<ResendSettings>>((opts, resendSection) =>

@@ -34,10 +34,13 @@ namespace BizFlow.Application.DTOs.Auth
 
     public class ChangePasswordRequest
     {
-        [Required]
+        /// <summary>
+        /// Optional when the account has <c>mustChangePassword</c> (e.g. consultant first login): identity is already proven by the session.
+        /// Otherwise required.
+        /// </summary>
         [MinLength(6)]
         [MaxLength(128)]
-        public string CurrentPassword { get; set; } = null!;
+        public string? CurrentPassword { get; set; }
 
         [Required]
         [MinLength(6)]
@@ -75,6 +78,9 @@ namespace BizFlow.Application.DTOs.Auth
         public string FullName { get; set; } = null!;
         public string? AvatarUrl { get; set; }
         public string? TaxCode { get; set; }
+
+        /// <summary>When true, client should prompt the user to change password (soft enforcement).</summary>
+        public bool MustChangePassword { get; set; }
     }
 
     public class LoginWithEmailRequest
@@ -179,6 +185,10 @@ namespace BizFlow.Application.DTOs.Auth
         public string? AvatarUrl { get; set; }
         public string Role { get; set; } = null!;
         public bool HasPassword { get; set; }
+
+        /// <summary>When true, client should prompt the user to change password (soft enforcement).</summary>
+        public bool MustChangePassword { get; set; }
+
         public List<CredentialInfo> Credentials { get; set; } = new();
     }
 

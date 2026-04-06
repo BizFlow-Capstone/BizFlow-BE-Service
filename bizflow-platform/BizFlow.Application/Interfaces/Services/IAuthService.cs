@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Admin;
 using BizFlow.Application.DTOs.Auth;
 using BizFlow.Application.DTOs.Otp;
 
@@ -38,8 +39,9 @@ namespace BizFlow.Application.Interfaces.Services
 
         /// <summary>
         /// Change password for an account that already has a password. Revokes all refresh tokens.
+        /// When <paramref name="currentPassword"/> is null/empty and <c>MustChangePassword</c> is true, current password is not required (session proves identity).
         /// </summary>
-        Task ChangePasswordAsync(Guid accountId, string currentPassword, string newPassword);
+        Task ChangePasswordAsync(Guid accountId, string? currentPassword, string newPassword);
 
         /// <summary>
         /// Get the signed-in user's profile from storage.
@@ -96,5 +98,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Set a new password after forgot-password OTP; revokes all refresh tokens. Caller must use password-reset JWT.
         /// </summary>
         Task ResetPasswordAfterForgotOtpAsync(Guid accountId, string newPassword, Guid passwordResetNonce);
+
+        /// <summary>
+        /// Admin-only: create consultant (email + random password, welcome email). Does not return the password.
+        /// </summary>
+        Task<CreateConsultantResponse> CreateConsultantByAdminAsync(string email, string? fullName, CancellationToken cancellationToken = default);
     }
 }

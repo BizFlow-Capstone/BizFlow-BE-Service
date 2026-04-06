@@ -107,6 +107,16 @@ namespace BizFlow.Application.Common.Constants
         public const string LogoutAllSuccess = "AUTH_LOGOUT_ALL_SUCCESS";
         public const string AdminRevokeAllRefreshTokensSuccess = "AUTH_ADMIN_REVOKE_ALL_REFRESH_TOKENS_SUCCESS";
         public const string AdminCannotManageAdminAccount = "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT";
+        public const string AdminForgotPasswordNotAllowed = "AUTH_ADMIN_FORGOT_PASSWORD_NOT_ALLOWED";
+
+        /// <summary>Consultant accounts are email-only; phone linking is not allowed.</summary>
+        public const string ConsultantCannotLinkPhone = "AUTH_CONSULTANT_CANNOT_LINK_PHONE";
+
+        /// <summary>Admin created a consultant account (welcome email sent or attempted).</summary>
+        public const string ConsultantCreated = "AUTH_CONSULTANT_CREATED";
+
+        /// <summary>Role <c>consultant</c> missing from database.</summary>
+        public const string ConsultantRoleNotFound = "AUTH_CONSULTANT_ROLE_NOT_FOUND";
 
         /// <summary>Validation errors for profile info (fullName, taxCode, ...).</summary>
         public const string ProfileFullNameRequired = "AUTH_PROFILE_FULLNAME_REQUIRED";
