@@ -286,6 +286,32 @@ public class AccountingPeriodService : IAccountingPeriodService
         return MapPeriod(period);
     }
 
+    public async Task DeletePeriodAsync(int locationId, long periodId, Guid userId)
+    {
+        await EnsureOwnerAccessAsync(userId, locationId);
+
+        var period = await _unitOfWork.AccountingPeriods.GetByLocationAndIdAsync(locationId, periodId)
+            ?? throw new NotFoundException(MessageKeys.PeriodNotFound);
+
+        if (period.Status != AccountingPeriodConstants.PeriodStatuses.Open)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                "Only open periods can be deleted. Finalized or reopened periods cannot be removed.");
+
+        var bookCount = await _unitOfWork.AccountingPeriods.CountActiveBooksAsync(periodId);
+        if (bookCount > 0)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                "Cannot delete a period that has accounting books. Remove all books first.");
+
+        var hasTaxPayments = await _unitOfWork.AccountingPeriods.HasTaxPaymentsAsync(periodId);
+        if (hasTaxPayments)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                "Cannot delete a period that has tax payment records.");
+
+        await _unitOfWork.AccountingPeriods.RemoveAuditLogsAsync(periodId);
+        _unitOfWork.AccountingPeriods.Remove(period);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     public async Task<List<AccountingPeriodAuditLogDto>> GetAuditLogsAsync(int locationId, long periodId, Guid userId)
     {
         await EnsureOwnerAccessAsync(userId, locationId);

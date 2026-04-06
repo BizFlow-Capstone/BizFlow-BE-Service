@@ -85,6 +85,20 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
             .ToListAsync();
     }
 
+    public async Task<bool> ExistsByCodeAsync(string templateCode)
+        => await _context.Set<AccountingTemplate>().AnyAsync(x => x.TemplateCode == templateCode);
+
+    public async Task<AccountingTemplate?> GetByIdWithVersionsAsync(int templateId)
+        => await _context.Set<AccountingTemplate>()
+            .Include(x => x.Versions.OrderByDescending(v => v.CreatedAt))
+                .ThenInclude(v => v.AccountingBooks)
+            .Include(x => x.Versions)
+                .ThenInclude(v => v.FieldMappings)
+            .FirstOrDefaultAsync(x => x.TemplateId == templateId);
+
+    public async Task AddTemplateAsync(AccountingTemplate template)
+        => await _context.Set<AccountingTemplate>().AddAsync(template);
+
     public async Task<AccountingTemplateVersion> AddVersionAsync(AccountingTemplateVersion version)
     {
         await _context.Set<AccountingTemplateVersion>().AddAsync(version);

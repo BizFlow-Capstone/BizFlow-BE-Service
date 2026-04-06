@@ -51,4 +51,11 @@ public class FormulaResultRepository : IFormulaResultRepository
             .Where(x => x.BookId == bookId)
             .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsStale, true));
     }
+
+    public async Task DeleteByBookIdAsync(long bookId)
+    {
+        await _context.Set<FormulaResult>()
+            .Where(x => x.BookId == bookId)
+            .ExecuteDeleteAsync();
+    }
 }

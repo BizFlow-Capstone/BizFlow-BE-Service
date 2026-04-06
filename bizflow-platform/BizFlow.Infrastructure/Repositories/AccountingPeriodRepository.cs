@@ -97,6 +97,19 @@ public class AccountingPeriodRepository : IAccountingPeriodRepository
         return count;
     }
 
+    public async Task<bool> HasTaxPaymentsAsync(long periodId)
+    {
+        return await _context.Set<TaxPayment>()
+            .AnyAsync(x => x.PeriodId == periodId && x.DeletedAt == null);
+    }
+
+    public async Task RemoveAuditLogsAsync(long periodId)
+    {
+        await _context.Set<AccountingPeriodAuditLog>()
+            .Where(x => x.PeriodId == periodId)
+            .ExecuteDeleteAsync();
+    }
+
     public async Task AddAsync(AccountingPeriod period)
     {
         await _context.Set<AccountingPeriod>().AddAsync(period);
@@ -105,6 +118,11 @@ public class AccountingPeriodRepository : IAccountingPeriodRepository
     public void Update(AccountingPeriod period)
     {
         _context.Set<AccountingPeriod>().Update(period);
+    }
+
+    public void Remove(AccountingPeriod period)
+    {
+        _context.Set<AccountingPeriod>().Remove(period);
     }
 
     public async Task AddAuditLogAsync(AccountingPeriodAuditLog log)

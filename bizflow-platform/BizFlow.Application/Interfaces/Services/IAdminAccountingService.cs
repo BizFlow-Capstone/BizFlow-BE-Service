@@ -8,6 +8,8 @@ public interface IAdminAccountingService
     Task<AdminTemplateVersionDetailDto> GetTemplateVersionDetailAsync(int templateVersionId);
     Task<List<AdminTemplateFormulaDto>> GetTemplateFormulasAsync(int templateVersionId);
 
+    Task<AdminTemplateDto> CreateTemplateAsync(CreateTemplateRequest request, Guid actorUserId);
+    Task<AdminTemplateVersionDto> CreateTemplateVersionAsync(int templateId, CreateTemplateVersionRequest request, Guid actorUserId);
     Task<AdminTemplateVersionDto> CloneTemplateVersionAsync(int templateVersionId, Guid actorUserId);
     Task<AdminTemplateVersionDto> UpdateTemplateVersionAsync(int templateVersionId, UpdateTemplateVersionRequest request);
     Task<AdminTemplateVersionDto> ActivateTemplateVersionAsync(int templateVersionId);

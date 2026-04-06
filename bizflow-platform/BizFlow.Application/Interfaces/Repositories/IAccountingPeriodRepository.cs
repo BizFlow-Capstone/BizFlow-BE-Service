@@ -12,8 +12,12 @@ public interface IAccountingPeriodRepository
     Task<(decimal NetCash, decimal NetBank)> CalculateNetCashAndBankAsync(int locationId, DateOnly startDate, DateOnly endDate);
     Task<long> CountActiveBooksAsync(long periodId);
 
+    Task<bool> HasTaxPaymentsAsync(long periodId);
+    Task RemoveAuditLogsAsync(long periodId);
+
     Task AddAsync(AccountingPeriod period);
     void Update(AccountingPeriod period);
+    void Remove(AccountingPeriod period);
 
     Task AddAuditLogAsync(AccountingPeriodAuditLog log);
     Task<List<AccountingPeriodAuditLog>> GetAuditLogsAsync(long periodId);

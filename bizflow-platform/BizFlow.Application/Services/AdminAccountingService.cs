@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.Admin;
@@ -33,17 +34,7 @@ public class AdminAccountingService : IAdminAccountingService
 
         return new AdminAccountingOverviewDto
         {
-            Templates = templates.Select(t => new AdminTemplateDto
-            {
-                TemplateId = t.TemplateId,
-                TemplateCode = t.TemplateCode,
-                Name = t.Name,
-                IsActive = t.IsActive,
-                Versions = t.Versions
-                    .OrderByDescending(v => v.CreatedAt)
-                    .Select(MapTemplateVersion)
-                    .ToList()
-            }).ToList(),
+            Templates = templates.Select(MapTemplate).ToList(),
             TaxRulesets = rulesets.Select(MapTaxRuleset).ToList(),
             Formulas = formulas.Select(MapFormula).ToList(),
             BusinessTypes = businessTypes.Select(bt => new AdminBusinessTypeDto
@@ -123,6 +114,91 @@ public class AdminAccountingService : IAdminAccountingService
                 .OrderBy(x => x.Code)
                 .ToList();
         }
+
+    public async Task<AdminTemplateDto> CreateTemplateAsync(CreateTemplateRequest request, Guid actorUserId)
+    {
+        if (string.IsNullOrWhiteSpace(request.TemplateCode))
+            throw new BadRequestException(MessageKeys.BadRequest, "TemplateCode is required.");
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new BadRequestException(MessageKeys.BadRequest, "Name is required.");
+        if (request.ApplicableGroups == null || request.ApplicableGroups.Count == 0)
+            throw new BadRequestException(MessageKeys.BadRequest, "ApplicableGroups must have at least one value.");
+
+        var validDataSources = new[] { "revenues", "revenue_cost", "gl_entries", "stock_movements" };
+        if (!validDataSources.Contains(request.DataSourceType))
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"Invalid DataSourceType. Valid values: {string.Join(", ", validDataSources)}.");
+
+        var code = request.TemplateCode.Trim().ToUpper();
+        if (await _uow.AccountingTemplates.ExistsByCodeAsync(code))
+            throw new BadRequestException(MessageKeys.BadRequest, $"TemplateCode '{code}' already exists.");
+
+        var versionLabel = string.IsNullOrWhiteSpace(request.InitialVersionLabel)
+            ? "v1-draft"
+            : request.InitialVersionLabel.Trim();
+
+        var template = new AccountingTemplate
+        {
+            TemplateCode = code,
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
+            ApplicableGroups = JsonSerializer.Serialize(request.ApplicableGroups.Distinct().ToList()),
+            ApplicableMethods = request.ApplicableMethods != null && request.ApplicableMethods.Count > 0
+                ? JsonSerializer.Serialize(request.ApplicableMethods)
+                : null,
+            DataSourceType = request.DataSourceType,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            Versions = new List<AccountingTemplateVersion>
+            {
+                new AccountingTemplateVersion
+                {
+                    VersionLabel = versionLabel,
+                    IsActive = false,
+                    CreatedByUserId = actorUserId,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        await _uow.AccountingTemplates.AddTemplateAsync(template);
+        await _uow.SaveChangesAsync();
+
+        return MapTemplate(template);
+    }
+
+    public async Task<AdminTemplateVersionDto> CreateTemplateVersionAsync(int templateId, CreateTemplateVersionRequest request, Guid actorUserId)
+    {
+        if (string.IsNullOrWhiteSpace(request.VersionLabel))
+            throw new BadRequestException(MessageKeys.BadRequest, "VersionLabel is required.");
+        if (request.VersionLabel.Length > TemplateVersionLabelMaxLength)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"VersionLabel cannot exceed {TemplateVersionLabelMaxLength} characters.");
+
+        var template = await _uow.AccountingTemplates.GetByIdWithVersionsAsync(templateId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var labelTrimmed = request.VersionLabel.Trim();
+        if (template.Versions.Any(v => v.VersionLabel == labelTrimmed))
+            throw new BadRequestException(MessageKeys.BadRequest,
+                $"VersionLabel '{labelTrimmed}' already exists for this template.");
+
+        var version = new AccountingTemplateVersion
+        {
+            TemplateId = templateId,
+            VersionLabel = labelTrimmed,
+            IsActive = false,
+            EffectiveFrom = request.EffectiveFrom,
+            ChangeNotes = request.ChangeNotes?.Trim(),
+            CreatedByUserId = actorUserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.AccountingTemplates.AddVersionAsync(version);
+        await _uow.SaveChangesAsync();
+
+        return MapTemplateVersion(version);
+    }
 
     public async Task<AdminTemplateVersionDto> CloneTemplateVersionAsync(int templateVersionId, Guid actorUserId)
     {
@@ -222,8 +298,15 @@ public class AdminAccountingService : IAdminAccountingService
         var template = allTemplates.FirstOrDefault(t => t.TemplateId == version.TemplateId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
+        // Only deactivate versions that share the same effective period.
+        // Versions with a different EffectiveFrom can remain active concurrently.
         foreach (var v in template.Versions)
-            v.IsActive = v.TemplateVersionId == templateVersionId;
+        {
+            if (v.TemplateVersionId == templateVersionId)
+                v.IsActive = true;
+            else if (v.IsActive && v.EffectiveFrom == version.EffectiveFrom)
+                v.IsActive = false;
+        }
 
         template.IsActive = true;
 
@@ -243,15 +326,17 @@ public class AdminAccountingService : IAdminAccountingService
         if (version.IsActive)
         {
             var templates = await _uow.AccountingTemplates.GetAllWithVersionsAsync();
-            var siblings = templates
+            var samePeriodActiveSiblings = templates
                 .Where(t => t.TemplateId == version.TemplateId)
                 .SelectMany(t => t.Versions)
-                .Where(v => v.TemplateVersionId != templateVersionId)
+                .Where(v => v.TemplateVersionId != templateVersionId
+                         && v.IsActive
+                         && v.EffectiveFrom == version.EffectiveFrom)
                 .ToList();
 
-            if (!siblings.Any(v => v.IsActive))
+            if (!samePeriodActiveSiblings.Any())
                 throw new BadRequestException(MessageKeys.BadRequest,
-                    "Cannot deactivate the only active template version. Activate another version first.");
+                    "Cannot deactivate the only active version for this effective period. Activate another version for the same period first.");
         }
 
         version.IsActive = false;
@@ -1427,6 +1512,31 @@ public class AdminAccountingService : IAdminAccountingService
             });
         }
         return string.Join("\n", parts).Trim();
+    }
+
+    private static AdminTemplateDto MapTemplate(AccountingTemplate t)
+    {
+        var groups = string.IsNullOrEmpty(t.ApplicableGroups)
+            ? new List<int>()
+            : JsonSerializer.Deserialize<List<int>>(t.ApplicableGroups) ?? new();
+        var methods = string.IsNullOrEmpty(t.ApplicableMethods)
+            ? null
+            : JsonSerializer.Deserialize<List<string>>(t.ApplicableMethods);
+        return new AdminTemplateDto
+        {
+            TemplateId = t.TemplateId,
+            TemplateCode = t.TemplateCode,
+            Name = t.Name,
+            Description = t.Description,
+            DataSourceType = t.DataSourceType,
+            ApplicableGroups = groups,
+            ApplicableMethods = methods,
+            IsActive = t.IsActive,
+            Versions = t.Versions
+                .OrderByDescending(v => v.CreatedAt)
+                .Select(MapTemplateVersion)
+                .ToList()
+        };
     }
 
     private static AdminTemplateVersionDto MapTemplateVersion(AccountingTemplateVersion version)

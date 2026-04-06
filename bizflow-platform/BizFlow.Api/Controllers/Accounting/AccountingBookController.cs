@@ -84,5 +84,17 @@ public class AccountingBookController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpDelete("{bookId:long}")]
+    [SwaggerOperation(Summary = "Delete accounting book", Description = "Delete an accounting book from an open period. Blocked if the book has exports.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteBook(int locationId, long bookId)
+    {
+        await _accountingBookService.DeleteBookAsync(locationId, GetCurrentUserId(), bookId);
+        return Ok(MessageKeys.DataDeletedSuccessfully);
+    }
+
     private Guid GetCurrentUserId() => User.GetRequiredUserId();
 }
