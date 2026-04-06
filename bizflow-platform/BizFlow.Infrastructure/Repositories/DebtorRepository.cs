@@ -99,5 +99,19 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(t => t.DebtorId == debtorId)
                 .OrderByDescending(t => t.PaidAt)
                 .ToListAsync();
+
+        public async Task<decimal> SumOutstandingDebtByLocationsAsync(
+            IReadOnlyCollection<int> businessLocationIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (businessLocationIds == null || businessLocationIds.Count == 0)
+                return 0m;
+
+            return await _db.Debtors
+                .Where(d => businessLocationIds.Contains(d.BusinessLocationId)
+                    && d.IsActive == true
+                    && d.CurrentBalance < 0)
+                .SumAsync(d => -d.CurrentBalance, cancellationToken);
+        }
     }
 }

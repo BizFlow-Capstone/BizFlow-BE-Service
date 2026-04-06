@@ -156,15 +156,8 @@ namespace BizFlow.Api.Controllers.Auth
 
         /// <summary>Step 2: verify email OTP; returns password-reset access token (no refresh).</summary>
         [HttpPost("forgot-password/verify-otp")]
-        [AllowAnonymous]
-        public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
-        {
-            var response = await _authService.VerifyEmailOtpForPasswordResetAsync(request.Email, request.OtpCode, ct);
-            return Ok(response, MessageKeys.OtpVerified);
-        }
 
-        /// <summary>Step 3: set new password; requires password-reset JWT from <c>forgot-password/verify-otp</c>.</summary>
-        [HttpPost("forgot-password/reset")]
+
         [Authorize(Policy = AuthJwtConstants.Policies.PasswordReset)]
         public async Task<IActionResult> ResetPasswordForgotFlow([FromBody] SetPasswordRequest request)
         {

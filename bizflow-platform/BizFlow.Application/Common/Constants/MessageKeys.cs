@@ -177,6 +177,8 @@ namespace BizFlow.Application.Common.Constants
         public const string LowStockConfirmRequired = "LOW_STOCK_CONFIRM_REQUIRED";
         public const string OrderPaymentAmountMismatch = "ORDER_PAYMENT_AMOUNT_MISMATCH";
         public const string OrderLocationChangeNotAllowed = "ORDER_LOCATION_CHANGE_NOT_ALLOWED";
+        /// <summary>Order was already completed or is not pending (e.g. duplicate complete after row lock).</summary>
+        public const string OrderCompleteNotPending = "ORDER_COMPLETE_NOT_PENDING";
 
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
@@ -197,6 +199,10 @@ namespace BizFlow.Application.Common.Constants
         public const string PeriodSuggestionNoSource = "PERIOD_SUGGESTION_NO_SOURCE";
         public const string PeriodSuggestionFromPrevious = "PERIOD_SUGGESTION_FROM_PREVIOUS";
         public const string PeriodSuggestionFormula = "PERIOD_SUGGESTION_FORMULA";
+        // ============ DASHBOARD (user) ============
+        public const string DashboardInvalidPeriod = "DASHBOARD_INVALID_PERIOD";
+        public const string DashboardCustomDatesRequired = "DASHBOARD_CUSTOM_DATES_REQUIRED";
+
         // ============ DEBTOR ============
         public const string DebtorNotFound = "DEBTOR_NOT_FOUND";
         public const string DebtorNotActive = "DEBTOR_NOT_ACTIVE";

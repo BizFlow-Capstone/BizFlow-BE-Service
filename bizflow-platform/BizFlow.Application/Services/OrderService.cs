@@ -173,19 +173,20 @@ namespace BizFlow.Application.Services
 
         public async Task<OrderActionResultDto> CompleteAsync(Guid userId, long orderId, CompleteOrderRequest request)
         {
-            var order = await _uow.Orders.GetByIdWithDetailsAsync(orderId)
+            // No-tracking: avoids EF returning a stale tracked instance inside the transaction after FOR UPDATE.
+            var orderPreview = await _uow.Orders.GetByIdWithDetailsAsNoTrackingAsync(orderId)
                 ?? throw new NotFoundException(MessageKeys.NotFound);
 
-            var locationId = ResolveOrderLocationId(order, null);
+            var locationId = ResolveOrderLocationId(orderPreview, null);
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId);
-            if (!isOwner && (order.CreatedBy == null || order.CreatedBy != userId))
+            if (!isOwner && (orderPreview.CreatedBy == null || orderPreview.CreatedBy != userId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
-            if (!order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
+            if (!orderPreview.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            var warnings = GetLowStockWarnings(order.OrderDetails);
+            var warnings = GetLowStockWarnings(orderPreview.OrderDetails);
             if (warnings.Any() && !request.ConfirmLowStock)
             {
                 return new OrderActionResultDto
@@ -195,8 +196,16 @@ namespace BizFlow.Application.Services
                 };
             }
 
-            await _uow.ExecuteResilientAsync(async _ =>
+            await _uow.ExecuteResilientAsync(async ct =>
             {
+                await _uow.Orders.LockOrderRowForUpdateAsync(orderId, ct);
+
+                var order = await _uow.Orders.GetByIdWithDetailsAsync(orderId)
+                    ?? throw new NotFoundException(MessageKeys.NotFound);
+
+                if (!order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
+                    throw new BadRequestException(MessageKeys.OrderCompleteNotPending);
+
                 foreach (var detail in order.OrderDetails)
                 {
                     var product = detail.SaleItem.Product;
@@ -245,12 +254,12 @@ namespace BizFlow.Application.Services
                 await _uow.SaveChangesAsync();
             });
 
-            var completed = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
+            var completed = await _uow.Orders.GetByIdWithDetailsAsync(orderId) ?? throw new NotFoundException(MessageKeys.NotFound);
             var completedDto = await MapOrderWithCreatorAsync(completed);
 
             // Fire-and-forget: enqueue AI anomaly check via Hangfire.
             // If AI Service is down, the job will retry — does not block user.
-            _backgroundJobScheduler.EnqueueAiAnomalyCheck(locationId, "order", order.OrderId);
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(locationId, "order", orderId);
 
             return new OrderActionResultDto { Order = completedDto };
         }

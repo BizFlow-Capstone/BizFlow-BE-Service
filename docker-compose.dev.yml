@@ -46,11 +46,14 @@ services:
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     networks:
       - bizflow-network
+    # CMD-SHELL + $$VAR: password is read inside the container (avoids compose-time issues if .env has special chars).
+    # start_period: first init (migrations in docker-entrypoint-initdb.d) can exceed a few probe cycles.
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 90s
 
   # ---------------------------------------------------------------------------
   # MySQL Backup (dev — daily dump, stored in ./backups)

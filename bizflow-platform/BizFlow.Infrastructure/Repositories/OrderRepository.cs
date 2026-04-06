@@ -1,6 +1,7 @@
 using BizFlow.Application.DTOs.Order;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 using BizFlow.Application.Specifications.Orders;
@@ -68,6 +69,21 @@ namespace BizFlow.Infrastructure.Repositories
                 .Include(o => o.Debtor)
                 .FirstOrDefaultAsync(o => o.OrderId == orderId);
 
+        public Task<Order?> GetByIdWithDetailsAsNoTrackingAsync(long orderId, CancellationToken cancellationToken = default)
+            => _db.Orders
+                .AsNoTracking()
+                .Include(o => o.OrderDetails)
+                    .ThenInclude(od => od.SaleItem)
+                        .ThenInclude(si => si.Product)
+                .Include(o => o.Debtor)
+                .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
+
+        public Task LockOrderRowForUpdateAsync(long orderId, CancellationToken cancellationToken = default)
+            => _db.Database.ExecuteSqlRawAsync(
+                "SELECT OrderId FROM `Orders` WHERE OrderId = {0} LIMIT 1 FOR UPDATE",
+                new object[] { orderId },
+                cancellationToken);
+
         public Task<Order?> GetLatestReplacementByRefOrderIdAsync(long refOrderId)
             => _db.Orders
                 .Include(o => o.OrderDetails)
@@ -132,5 +148,24 @@ namespace BizFlow.Infrastructure.Repositories
 
         public void Remove(Order order)
             => _db.Orders.Remove(order);
+
+        public async Task<int> CountCompletedByLocationsAndCompletedAtUtcAsync(
+            IReadOnlyCollection<int> businessLocationIds,
+            DateTime completedFromUtc,
+            DateTime completedToUtc,
+            CancellationToken cancellationToken = default)
+        {
+            if (businessLocationIds == null || businessLocationIds.Count == 0)
+                return 0;
+
+            return await _db.Orders
+                .Where(o => o.Status == OrderStatus.Completed
+                    && o.CompletedAt != null
+                    && o.CompletedAt >= completedFromUtc
+                    && o.CompletedAt <= completedToUtc)
+                .Where(o => o.OrderDetails.Any(od =>
+                    businessLocationIds.Contains(od.SaleItem.Product.BusinessLocationId)))
+                .CountAsync(cancellationToken);
+        }
     }
 }

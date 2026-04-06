@@ -88,5 +88,21 @@ namespace BizFlow.Infrastructure.Repositories
 
         public void Update(Revenue revenue)
             => _db.Revenues.Update(revenue);
+
+        public async Task<decimal> SumAmountByLocationsAndDateRangeAsync(
+            IReadOnlyCollection<int> businessLocationIds,
+            DateOnly fromDate,
+            DateOnly toDate,
+            CancellationToken cancellationToken = default)
+        {
+            if (businessLocationIds == null || businessLocationIds.Count == 0)
+                return 0m;
+
+            return await _db.Revenues
+                .Where(r => businessLocationIds.Contains(r.BusinessLocationId)
+                    && r.RevenueDate >= fromDate
+                    && r.RevenueDate <= toDate)
+                .SumAsync(r => r.Amount, cancellationToken);
+        }
     }
 }

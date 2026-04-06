@@ -11,5 +11,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds);
         Task<Revenue> AddAsync(Revenue revenue);
         void Update(Revenue revenue);
+
+        Task<decimal> SumAmountByLocationsAndDateRangeAsync(
+            IReadOnlyCollection<int> businessLocationIds,
+            DateOnly fromDate,
+            DateOnly toDate,
+            CancellationToken cancellationToken = default);
     }
 }
