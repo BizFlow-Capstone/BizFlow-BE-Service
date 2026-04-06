@@ -252,8 +252,10 @@ public class CreateMappableEntityRequest
 
 public class UpdateMappableEntityRequest
 {
+    public string? EntityCode { get; set; }
     public string? DisplayName { get; set; }
     public string? Description { get; set; }
+    public string? Category { get; set; }
     public bool? IsActive { get; set; }
 }
 
@@ -268,6 +270,7 @@ public class CreateMappableFieldRequest
 
 public class UpdateMappableFieldRequest
 {
+    public string? FieldCode { get; set; }
     public string? DisplayName { get; set; }
     public string? Description { get; set; }
     public string? DataType { get; set; }

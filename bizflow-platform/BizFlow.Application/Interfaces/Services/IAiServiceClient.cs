@@ -6,8 +6,10 @@ namespace BizFlow.Application.Interfaces.Services
     {
         // ── User-facing (sync) ───────────────────────────────────
         Task<AiDraftOrderResultDto> ParseDraftOrderAsync(Stream audioStream, string mimeType, int locationId, CancellationToken ct = default);
-        Task<AiInvoiceResultDto> OcrInvoiceAsync(Stream imageStream, string mimeType, int locationId, CancellationToken ct = default);
-        Task<AiDeliveryNoteResultDto> OcrDeliveryNoteAsync(Stream imageStream, string mimeType, int locationId, CancellationToken ct = default);
+        Task<AiDraftRevenueResultDto> ParseDraftRevenueAsync(Stream audioStream, string mimeType, int locationId, CancellationToken ct = default);
+        Task<AiDraftCostResultDto> ParseDraftCostAsync(Stream audioStream, string mimeType, int locationId, CancellationToken ct = default);
+        Task<AiPurchaseInvoiceResultDto> OcrPurchaseInvoiceAsync(Stream imageStream, string mimeType, int locationId, CancellationToken ct = default);
+        Task<AiSaleInvoiceResultDto> OcrSaleInvoiceAsync(Stream imageStream, string mimeType, int locationId, CancellationToken ct = default);
 
         // ── Tier 1 anomaly (fire-and-forget via Hangfire) ────────
         Task<AiCheckRecordResultDto> CheckAnomalyAsync(int locationId, string recordType, long recordId, CancellationToken ct = default);

@@ -369,7 +369,7 @@ public class AdminAccountingService : IAdminAccountingService
         try { System.Text.Json.JsonDocument.Parse(request.ExpressionJson); }
         catch { throw new BadRequestException(MessageKeys.BadRequest, "ExpressionJson is not valid JSON"); }
 
-        var existing = (await _uow.FormulaDefinitions.GetActiveAsync())
+        var existing = (await _uow.FormulaDefinitions.GetAllAsync())
             .FirstOrDefault(f => string.Equals(f.Code, request.Code.Trim(), StringComparison.OrdinalIgnoreCase));
         if (existing != null)
             throw new BadRequestException(MessageKeys.BadRequest, $"Formula code '{request.Code}' already exists");
@@ -384,7 +384,7 @@ public class AdminAccountingService : IAdminAccountingService
             ResultDataType = request.ResultDataType ?? "decimal",
             RoundingMode = request.RoundingMode,
             RoundingPrecision = request.RoundingPrecision ?? 0,
-            IsActive = true,
+            IsActive = false,
             CreatedByUserId = actorUserId,
             CreatedAt = DateTime.UtcNow
         };
@@ -936,10 +936,25 @@ public class AdminAccountingService : IAdminAccountingService
         var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
+        if (request.EntityCode != null)
+        {
+            var entityCode = request.EntityCode.Trim();
+            if (!string.Equals(entity.EntityCode, entityCode, StringComparison.Ordinal))
+            {
+                var existing = await _uow.AccountingTemplates.GetMappableEntityByCodeAsync(entityCode);
+                if (existing != null && existing.EntityId != entity.EntityId)
+                    throw new BadRequestException(MessageKeys.BadRequest, $"EntityCode '{request.EntityCode}' already exists");
+            }
+
+            entity.EntityCode = entityCode;
+        }
+
         if (request.DisplayName != null)
             entity.DisplayName = request.DisplayName.Trim();
         if (request.Description != null)
             entity.Description = request.Description;
+        if (request.Category != null)
+            entity.Category = request.Category.Trim();
         if (request.IsActive.HasValue)
             entity.IsActive = request.IsActive.Value;
 
@@ -985,6 +1000,21 @@ public class AdminAccountingService : IAdminAccountingService
     {
         var field = await _uow.AccountingTemplates.GetMappableFieldByIdAsync(fieldId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.FieldCode != null)
+        {
+            var fieldCode = request.FieldCode.Trim();
+            if (!string.Equals(field.FieldCode, fieldCode, StringComparison.Ordinal))
+            {
+                var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(field.EntityId)
+                    ?? throw new NotFoundException(MessageKeys.NotFound);
+
+                if (entity.Fields.Any(f => f.FieldId != fieldId && f.FieldCode == fieldCode))
+                    throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists on this entity");
+            }
+
+            field.FieldCode = fieldCode;
+        }
 
         if (request.DisplayName != null) field.DisplayName = request.DisplayName.Trim();
         if (request.Description != null) field.Description = request.Description;
