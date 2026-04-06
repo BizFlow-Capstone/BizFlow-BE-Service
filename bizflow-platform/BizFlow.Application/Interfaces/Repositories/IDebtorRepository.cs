@@ -17,5 +17,9 @@ namespace BizFlow.Application.Interfaces.Repositories
 
         Task<DebtorPaymentTransaction> AddPaymentAsync(DebtorPaymentTransaction transaction);
         Task<IEnumerable<DebtorPaymentTransaction>> GetPaymentsAsync(long debtorId);
+
+        Task<decimal> SumOutstandingDebtByLocationsAsync(
+            IReadOnlyCollection<int> businessLocationIds,
+            CancellationToken cancellationToken = default);
     }
 }
