@@ -15,6 +15,10 @@ public class AdminTemplateDto
     public int TemplateId { get; set; }
     public string TemplateCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string DataSourceType { get; set; } = string.Empty;
+    public List<int> ApplicableGroups { get; set; } = new();
+    public List<string>? ApplicableMethods { get; set; }
     public bool IsActive { get; set; }
     public List<AdminTemplateVersionDto> Versions { get; set; } = new();
 }
@@ -150,6 +154,24 @@ public class CloneFormulaRequest
 {
     public string? NewCode { get; set; }
     public string? NameSuffix { get; set; }
+}
+
+public class CreateTemplateRequest
+{
+    public string TemplateCode { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public List<int> ApplicableGroups { get; set; } = new();
+    public List<string>? ApplicableMethods { get; set; }
+    public string DataSourceType { get; set; } = "revenues";
+    public string? InitialVersionLabel { get; set; }
+}
+
+public class CreateTemplateVersionRequest
+{
+    public string VersionLabel { get; set; } = string.Empty;
+    public DateOnly? EffectiveFrom { get; set; }
+    public string? ChangeNotes { get; set; }
 }
 
 public class AdminPreviewRequest

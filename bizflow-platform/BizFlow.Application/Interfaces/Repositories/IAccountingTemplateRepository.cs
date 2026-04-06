@@ -7,6 +7,9 @@ public interface IAccountingTemplateRepository
     Task<AccountingTemplate?> GetByCodeAsync(string templateCode);
     Task<List<AccountingTemplate>> GetActiveTemplatesAsync();
     Task<List<AccountingTemplate>> GetAllWithVersionsAsync();
+    Task<AccountingTemplate?> GetByIdWithVersionsAsync(int templateId);
+    Task<bool> ExistsByCodeAsync(string templateCode);
+    Task AddTemplateAsync(AccountingTemplate template);
     Task<AccountingTemplateVersion?> GetActiveVersionByTemplateIdAsync(int templateId);
     Task<AccountingTemplateVersion?> GetVersionWithMappingsAsync(int templateVersionId);
     Task<AccountingTemplateVersion?> GetVersionWithMappingsAndBooksAsync(int templateVersionId);

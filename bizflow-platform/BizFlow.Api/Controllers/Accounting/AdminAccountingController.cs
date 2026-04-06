@@ -35,6 +35,18 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpPost("templates")]
+    [SwaggerOperation(Summary = "Create a new accounting template (Admin only)")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CreateTemplate([FromBody] CreateTemplateRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateTemplateAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
     [HttpGet("template-versions/{templateVersionId:int}")]
     [SwaggerOperation(Summary = "Get template version detail")]
     public async Task<IActionResult> GetTemplateVersionDetail(int templateVersionId)
@@ -59,6 +71,19 @@ public class AdminAccountingController : BaseApiController
     {
         EnsureAdminOrConsultant();
         var result = await _adminAccountingService.CloneTemplateVersionAsync(templateVersionId, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpPost("templates/{templateId:int}/versions")]
+    [SwaggerOperation(Summary = "Create blank draft version for an existing template (Admin only)")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateTemplateVersion(int templateId, [FromBody] CreateTemplateVersionRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateTemplateVersionAsync(templateId, request, User.GetRequiredUserId());
         return Ok(result, MessageKeys.DataCreatedSuccessfully);
     }
 

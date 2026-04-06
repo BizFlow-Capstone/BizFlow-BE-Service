@@ -92,6 +92,18 @@ public class AccountingPeriodController : BaseApiController
         return Ok(period, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpDelete("{periodId:long}")]
+    [SwaggerOperation(Summary = "Delete accounting period", Description = "Delete an open period with no books and no tax payments")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeletePeriod(int locationId, long periodId)
+    {
+        await _accountingPeriodService.DeletePeriodAsync(locationId, periodId, GetCurrentUserId());
+        return Ok(MessageKeys.DataDeletedSuccessfully);
+    }
+
     [HttpPost("{periodId:long}/finalize")]
     [SwaggerOperation(Summary = "Finalize period", Description = "Finalize an accounting period")]
     [ProducesResponseType(StatusCodes.Status200OK)]

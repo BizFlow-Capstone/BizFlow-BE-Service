@@ -59,4 +59,22 @@ public class AccountingBookRepository : IAccountingBookRepository
     {
         _context.Set<AccountingBook>().Update(book);
     }
+
+    public async Task<AccountingBook?> GetByIdWithPeriodAsync(long bookId)
+    {
+        return await _context.Set<AccountingBook>()
+            .Include(x => x.Period)
+            .FirstOrDefaultAsync(x => x.BookId == bookId);
+    }
+
+    public async Task<bool> HasExportsAsync(long bookId)
+    {
+        return await _context.Set<AccountingExport>()
+            .AnyAsync(x => x.BookId == bookId);
+    }
+
+    public void Remove(AccountingBook book)
+    {
+        _context.Set<AccountingBook>().Remove(book);
+    }
 }

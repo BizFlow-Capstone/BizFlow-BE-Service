@@ -11,5 +11,6 @@ public interface IAccountingPeriodService
     Task<AccountingPeriodDto> GetPeriodDetailAsync(int locationId, long periodId, Guid userId);
     Task<AccountingPeriodDto> FinalizePeriodAsync(int locationId, long periodId, Guid userId);
     Task<AccountingPeriodDto> ReopenPeriodAsync(int locationId, long periodId, Guid userId, string reason);
+    Task DeletePeriodAsync(int locationId, long periodId, Guid userId);
     Task<List<AccountingPeriodAuditLogDto>> GetAuditLogsAsync(int locationId, long periodId, Guid userId);
 }

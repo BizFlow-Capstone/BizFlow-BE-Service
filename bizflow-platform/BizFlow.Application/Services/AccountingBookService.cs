@@ -67,7 +67,13 @@ public class AccountingBookService : IAccountingBookService
                     throw new BadRequestException($"TEMPLATE_NOT_APPLICABLE_METHOD:{code}");
             }
 
-            var version = template.Versions.FirstOrDefault(v => v.IsActive)
+            // Pick the active version that is in effect for the period's start date.
+            // If multiple active versions exist (different EffectiveFrom), choose the
+            // most recently effective one that has already taken effect by period.StartDate.
+            var version = template.Versions
+                .Where(v => v.IsActive && (v.EffectiveFrom == null || v.EffectiveFrom <= period.StartDate))
+                .OrderByDescending(v => v.EffectiveFrom ?? DateOnly.MinValue)
+                .FirstOrDefault()
                 ?? throw new BadRequestException($"TEMPLATE_NO_ACTIVE_VERSION:{code}");
 
             templateVersions.Add((template, version));
@@ -167,6 +173,35 @@ public class AccountingBookService : IAccountingBookService
             BusinessTypes = locationBusinessTypes,
             CreatedAt = b.CreatedAt
         }).ToList();
+    }
+
+    // ────────────────────────────────────────────────────────
+    // DELETE BOOK
+    // ────────────────────────────────────────────────────────
+    public async Task DeleteBookAsync(int locationId, Guid userId, long bookId)
+    {
+        await _locationService.ValidateOwnerAsync(userId, locationId);
+
+        var book = await _uow.AccountingBooks.GetByIdWithPeriodAsync(bookId)
+            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+
+        if (book.BusinessLocationId != locationId)
+            throw new NotFoundException("BOOK_NOT_FOUND");
+
+        if (book.Period.Status != AccountingPeriodConstants.PeriodStatuses.Open)
+            throw new BadRequestException("BOOK_PERIOD_NOT_OPEN",
+                "Cannot delete a book whose period is finalized or reopened.");
+
+        var hasExports = await _uow.AccountingBooks.HasExportsAsync(bookId);
+        if (hasExports)
+            throw new BadRequestException("BOOK_HAS_EXPORTS",
+                "Cannot delete a book that has been exported. Exports are permanent audit records.");
+
+        // Delete formula cache (no cascade), then the book itself.
+        // AccountingBookBusinessTypes will cascade automatically.
+        await _uow.FormulaResults.DeleteByBookIdAsync(bookId);
+        _uow.AccountingBooks.Remove(book);
+        await _uow.SaveChangesAsync();
     }
 
     // ────────────────────────────────────────────────────────
