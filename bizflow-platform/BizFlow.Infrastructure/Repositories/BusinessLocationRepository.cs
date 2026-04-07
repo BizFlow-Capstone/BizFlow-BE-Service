@@ -220,6 +220,14 @@ namespace BizFlow.Infrastructure.Repositories
             return hasEmployees;
         }
 
+        public async Task<List<int>> GetAllActiveLocationIdsAsync()
+        {
+            return await _context.BusinessLocations
+                .Where(l => l.DeletedAt == null && l.IsActive == true)
+                .Select(l => l.BusinessLocationId)
+                .ToListAsync();
+        }
+
         #endregion
 
         #region Command Methods

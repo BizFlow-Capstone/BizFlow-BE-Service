@@ -20,8 +20,20 @@ public partial class BizFlowDbContext
 
     public virtual DbSet<UserNotification> UserNotifications { get; set; }
 
+    // ── AI tables (managed by Python Alembic, read-only from .NET) ──
+    public virtual DbSet<AiRevenueForecast> AiRevenueForecasts { get; set; }
+    public virtual DbSet<AiAnomalyAlert> AiAnomalyAlerts { get; set; }
+    public virtual DbSet<AiReorderSuggestion> AiReorderSuggestions { get; set; }
+    public virtual DbSet<AiProductInsight> AiProductInsights { get; set; }
+
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
+        // AI tables are managed by Python Alembic — exclude from EF migrations
+        modelBuilder.Entity<AiRevenueForecast>().ToTable("ai_revenue_forecasts", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<AiAnomalyAlert>().ToTable("ai_anomaly_alerts", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<AiReorderSuggestion>().ToTable("ai_reorder_suggestions", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<AiProductInsight>().ToTable("ai_product_insights", t => t.ExcludeFromMigrations());
+
         // Force all DateTimes from DB to have Kind = Utc so JSON correctly outputs 'Z'
         var dateTimeConverter = new ValueConverter<DateTime, DateTime>(
             v => v,

@@ -133,4 +133,62 @@ namespace BizFlow.Application.DTOs.Ai
         public int Processed { get; set; }
         public int Skipped { get; set; }
     }
+
+    public class AiVectorStoreBackfillResultDto
+    {
+        public string LocationId { get; set; } = string.Empty;
+        public int Synced { get; set; }
+        public int Skipped { get; set; }
+    }
+
+    // ── Dashboard Read DTOs ──────────────────────────────────────
+
+    public class AiForecastItemDto
+    {
+        public string ForecastDate { get; set; } = string.Empty;
+        public double PredictedRevenue { get; set; }
+        public double LowerBound { get; set; }
+        public double UpperBound { get; set; }
+        public string? TrendNote { get; set; }
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    public class AiForecastReadDto
+    {
+        public List<AiForecastItemDto> Forecasts { get; set; } = new();
+    }
+
+    public class AiAnomalyAlertReadDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string AlertType { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Tier { get; set; } = string.Empty;
+        public DateTime ReferenceDate { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string? ReferenceId { get; set; }
+        public bool IsAcknowledged { get; set; }
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    public class AiReorderItemReadDto
+    {
+        public string ProductId { get; set; } = string.Empty;
+        public double CurrentStock { get; set; }
+        public int DaysUntilStockout { get; set; }
+        public double SuggestedQuantity { get; set; }
+        public double AvgDailySales { get; set; }
+        public string Urgency { get; set; } = string.Empty;
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    public class AiProductInsightReadDto
+    {
+        public string ProductId { get; set; } = string.Empty;
+        public string InsightType { get; set; } = string.Empty;
+        public int Rank { get; set; }
+        public double MetricValue { get; set; }
+        public int PeriodDays { get; set; }
+        public DateTime GeneratedAt { get; set; }
+    }
 }

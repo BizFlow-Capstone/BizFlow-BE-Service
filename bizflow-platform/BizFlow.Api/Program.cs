@@ -535,6 +535,27 @@ if (isHangfireEnabled)
         "account-hard-delete",
         job => job.ExecuteAsync(),
         "15 * * * *");
+
+    // ── AI Nightly Jobs ──────────────────────────────────────────
+    RecurringJob.AddOrUpdate<AiForecastJob>(
+        "ai-forecast",
+        job => job.ExecuteAsync(),
+        "0 18 * * *"); // 01:00 Vietnam time (UTC+7)
+
+    RecurringJob.AddOrUpdate<AiAnomalyPatternJob>(
+        "ai-anomaly-pattern",
+        job => job.ExecuteAsync(),
+        "0 19 * * *"); // 02:00 Vietnam time (UTC+7)
+
+    RecurringJob.AddOrUpdate<AiReorderJob>(
+        "ai-reorder",
+        job => job.ExecuteAsync(),
+        "0 20 * * *"); // 03:00 Vietnam time (UTC+7)
+
+    RecurringJob.AddOrUpdate<AiProductInsightsJob>(
+        "ai-product-insights",
+        job => job.ExecuteAsync(),
+        "30 20 * * *"); // 03:30 Vietnam time (UTC+7)
 }
 else
 {

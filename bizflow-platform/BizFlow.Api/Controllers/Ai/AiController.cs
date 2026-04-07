@@ -3,6 +3,7 @@ using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Ai;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,16 +17,19 @@ namespace BizFlow.Api.Controllers.Ai
     {
         private readonly IAiServiceClient _aiServiceClient;
         private readonly IBusinessLocationService _locationService;
+        private readonly IUnitOfWork _unitOfWork;
 
         public AiController(
             IAiServiceClient aiServiceClient,
             IBusinessLocationService locationService,
+            IUnitOfWork unitOfWork,
             IMessageService messageService,
             ILogger<AiController> logger)
             : base(messageService, logger)
         {
             _aiServiceClient = aiServiceClient;
             _locationService = locationService;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpPost("draft-order")]
@@ -136,6 +140,161 @@ namespace BizFlow.Api.Controllers.Ai
                 stream, image.ContentType ?? "image/jpeg", locationId);
 
             return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        // ── Dashboard Read Endpoints ─────────────────────────────────
+
+        [HttpGet("forecast")]
+        [SwaggerOperation(
+            Summary = "Đọc dự báo doanh thu",
+            Description = "Trả về dự báo 7 ngày tới (pre-computed bởi nightly job). Không gọi AI realtime.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetForecast([FromQuery] int locationId)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var forecasts = await _unitOfWork.AiRevenueForecasts
+                .GetByLocationAsync(locationId.ToString());
+
+            var dto = new AiForecastReadDto
+            {
+                Forecasts = forecasts.Select(f => new AiForecastItemDto
+                {
+                    ForecastDate = f.ForecastDate,
+                    PredictedRevenue = f.PredictedRevenue,
+                    LowerBound = f.LowerBound,
+                    UpperBound = f.UpperBound,
+                    TrendNote = f.TrendNote,
+                    GeneratedAt = f.GeneratedAt,
+                }).ToList()
+            };
+
+            return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("reorder")]
+        [SwaggerOperation(
+            Summary = "Đọc gợi ý nhập hàng",
+            Description = "Trả về danh sách sản phẩm cần nhập thêm, sắp xếp theo mức độ khẩn cấp. Pre-computed nightly.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetReorderSuggestions([FromQuery] int locationId)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var suggestions = await _unitOfWork.AiReorderSuggestions
+                .GetByLocationAsync(locationId.ToString());
+
+            var dto = suggestions.Select(r => new AiReorderItemReadDto
+            {
+                ProductId = r.ProductId,
+                CurrentStock = r.CurrentStock,
+                DaysUntilStockout = r.DaysUntilStockout,
+                SuggestedQuantity = r.SuggestedQuantity,
+                AvgDailySales = r.AvgDailySales,
+                Urgency = r.Urgency,
+                GeneratedAt = r.GeneratedAt,
+            }).ToList();
+
+            return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("insights")]
+        [SwaggerOperation(
+            Summary = "Đọc phân tích hiệu suất sản phẩm",
+            Description = "Top sellers, growth trends, promote candidates. Pre-computed nightly.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetProductInsights([FromQuery] int locationId)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var insights = await _unitOfWork.AiProductInsights
+                .GetByLocationAsync(locationId.ToString());
+
+            var dto = insights.Select(i => new AiProductInsightReadDto
+            {
+                ProductId = i.ProductId,
+                InsightType = i.InsightType,
+                Rank = i.Rank,
+                MetricValue = i.MetricValue,
+                PeriodDays = i.PeriodDays,
+                GeneratedAt = i.GeneratedAt,
+            }).ToList();
+
+            return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("anomalies")]
+        [SwaggerOperation(
+            Summary = "Đọc cảnh báo bất thường",
+            Description = "Trả về danh sách cảnh báo. Dùng acknowledged=false để lọc chưa xác nhận.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetAnomalies([FromQuery] int locationId, [FromQuery] bool? acknowledged = null)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var alerts = await _unitOfWork.AiAnomalyAlerts
+                .GetByLocationAsync(locationId.ToString(), acknowledged);
+
+            var dto = alerts.Select(a => new AiAnomalyAlertReadDto
+            {
+                Id = a.Id,
+                AlertType = a.AlertType,
+                Severity = a.Severity,
+                Tier = a.Tier,
+                ReferenceDate = a.ReferenceDate,
+                Description = a.Description,
+                ReferenceId = a.ReferenceId,
+                IsAcknowledged = a.IsAcknowledged,
+                GeneratedAt = a.GeneratedAt,
+            }).ToList();
+
+            return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpPost("anomalies/{id}/acknowledge")]
+        [SwaggerOperation(
+            Summary = "Xác nhận đã xem cảnh báo",
+            Description = "Đánh dấu cảnh báo đã được chủ shop xem/dismiss.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> AcknowledgeAnomaly(string id, [FromQuery] int locationId)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var alert = await _unitOfWork.AiAnomalyAlerts.GetByIdAsync(id);
+            if (alert == null || alert.LocationId != locationId.ToString())
+                return NotFound(MessageKeys.NotFound);
+
+            alert.IsAcknowledged = true;
+            _unitOfWork.AiAnomalyAlerts.Update(alert);
+            await _unitOfWork.SaveChangesAsync();
+
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
+        }
+
+        [HttpPost("vector-store/backfill")]
+        [SwaggerOperation(
+            Summary = "Backfill toàn bộ sản phẩm của location vào ChromaDB",
+            Description = "Đồng bộ tất cả sản phẩm Active của location vào vector store. Idempotent — an toàn để gọi lại nhiều lần. Dùng cho những sản phẩm tạo trước khi tích hợp AI.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> BackfillVectorStore([FromQuery] int locationId, CancellationToken ct)
+        {
+            var userId = GetCurrentUserId();
+            await _locationService.ValidateLocationAccessAsync(userId, locationId);
+
+            var result = await _aiServiceClient.TriggerVectorStoreBackfillAsync(locationId, ct);
+            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
         }
 
         private Guid GetCurrentUserId() => User.GetRequiredUserId();

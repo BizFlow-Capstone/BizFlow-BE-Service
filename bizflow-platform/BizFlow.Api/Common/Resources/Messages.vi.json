@@ -235,5 +235,7 @@
   "OTP_SENT": "Đã gửi mã xác minh thành công",
   "OTP_VERIFIED": "Xác minh thành công",
   "OTP_INVALID_OR_EXPIRED": "Mã xác minh không hợp lệ hoặc đã hết hạn",
-  "OTP_TOO_MANY_REQUESTS": "Vui lòng đợi 1 phút trước khi yêu cầu mã mới"
+  "OTP_TOO_MANY_REQUESTS": "Vui lòng đợi 1 phút trước khi yêu cầu mã mới",
+
+  "AI_SERVICE_ERROR": "Dịch vụ AI không thể xử lý yêu cầu, vui lòng thử lại sau"
 }

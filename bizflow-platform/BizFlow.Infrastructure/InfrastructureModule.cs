@@ -107,6 +107,13 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<OtpCleanupJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<AccountHardDeleteJob>().AsSelf().InstancePerDependency();
 
+            // AI nightly jobs
+            builder.RegisterType<AiForecastJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiAnomalyPatternJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiReorderJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiProductInsightsJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiAnomalyCheckJob>().AsSelf().InstancePerDependency();
+
             // Register Accounting Book engines
             builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
                    .As<IFormulaEngine>()

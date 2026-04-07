@@ -245,6 +245,9 @@ namespace BizFlow.Application.Common.Constants
         public const string SubscriptionDiscountEndInPast = "SUBSCRIPTION_DISCOUNT_END_IN_PAST";
         public const string SubscriptionDiscountEndMustBeAfterStart = "SUBSCRIPTION_DISCOUNT_END_MUST_BE_AFTER_START";
 
+        // ============ AI SERVICE ============
+        public const string AiServiceError = "AI_SERVICE_ERROR";
+
         // ============ ADMIN ============
         public const string AdminOnly = "ADMIN_ONLY";
 

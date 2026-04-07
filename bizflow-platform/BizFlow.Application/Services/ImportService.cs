@@ -16,6 +16,7 @@ namespace BizFlow.Application.Services
         private readonly IImageService _imageService;
         private readonly IStockMovementService _stockMovementService;
         private readonly ICostService _costService;
+        private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IMapper _mapper;
 
         public ImportService(
@@ -23,12 +24,14 @@ namespace BizFlow.Application.Services
             IImageService imageService,
             IStockMovementService stockMovementService,
             ICostService costService,
+            IBackgroundJobScheduler backgroundJobScheduler,
             IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
             _stockMovementService = stockMovementService;
             _costService = costService;
+            _backgroundJobScheduler = backgroundJobScheduler;
             _mapper = mapper;
         }
 
@@ -202,6 +205,10 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
 
             await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
+
+            // Fire-and-forget: enqueue AI anomaly check via Hangfire.
+            // If AI Service is down, the job will retry — does not block user.
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(import.BusinessLocationId, "import", import.ImportId);
 
             return new ImportPatchResultDto
             {

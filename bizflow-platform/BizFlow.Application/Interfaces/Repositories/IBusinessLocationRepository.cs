@@ -64,6 +64,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<bool> HasRelatedDataAsync(int locationId);
 
+        /// <summary>
+        /// Get all active (non-deleted) location IDs — used by AI nightly batch jobs.
+        /// </summary>
+        Task<List<int>> GetAllActiveLocationIdsAsync();
+
         // ============ Command Methods ============
 
         Task<BusinessLocation> AddAsync(BusinessLocation location);

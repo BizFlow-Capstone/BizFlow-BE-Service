@@ -17,6 +17,7 @@ namespace BizFlow.Application.Interfaces.Services
         // ── Vector store sync (fire-and-forget) ──────────────────
         Task TriggerVectorStoreSyncAsync(int locationId, long productId, string name, string unit, string? category, CancellationToken ct = default);
         Task TriggerVectorStoreDeleteAsync(int locationId, long productId, CancellationToken ct = default);
+        Task<AiVectorStoreBackfillResultDto> TriggerVectorStoreBackfillAsync(int locationId, CancellationToken ct = default);
 
         // ── Nightly batch jobs ───────────────────────────────────
         Task<AiBatchJobResultDto> TriggerForecastAsync(List<int> locationIds, CancellationToken ct = default);

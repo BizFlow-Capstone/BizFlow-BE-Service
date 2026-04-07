@@ -147,6 +147,14 @@ namespace BizFlow.Infrastructure.Services
             await SendJsonAsync(HttpMethod.Post, "/vector-store/delete", body, ct);
         }
 
+        public async Task<AiVectorStoreBackfillResultDto> TriggerVectorStoreBackfillAsync(
+            int locationId, CancellationToken ct = default)
+        {
+            var body = new { location_id = locationId.ToString() };
+            var response = await SendJsonAsync(HttpMethod.Post, "/vector-store/backfill", body, ct);
+            return await DeserializeAsync<AiVectorStoreBackfillResultDto>(response, ct);
+        }
+
         // ── Nightly batch jobs ───────────────────────────────────
 
         public async Task<AiBatchJobResultDto> TriggerForecastAsync(
@@ -191,6 +199,12 @@ namespace BizFlow.Infrastructure.Services
             request.Content = content;
 
             var response = await _httpClient.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError("AI Service returned {StatusCode} for {Method} {Path}. Body: {Body}",
+                    (int)response.StatusCode, method, path, body);
+            }
             response.EnsureSuccessStatusCode();
             return response;
         }
@@ -203,6 +217,12 @@ namespace BizFlow.Infrastructure.Services
             request.Content = JsonContent.Create(body, options: JsonOptions);
 
             var response = await _httpClient.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError("AI Service returned {StatusCode} for {Method} {Path}. Body: {Body}",
+                    (int)response.StatusCode, method, path, responseBody);
+            }
             response.EnsureSuccessStatusCode();
             return response;
         }

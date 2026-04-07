@@ -40,7 +40,11 @@ namespace BizFlow.Infrastructure.Repositories
             IFormulaResultRepository formulaResultRepository,
             IStockMovementRepository stockMovementRepository,
             IAccountRepository accountRepository,
-            IOtpCodeRepository otpCodeRepository)
+            IOtpCodeRepository otpCodeRepository,
+            IAiRevenueForecastRepository aiRevenueForecastRepository,
+            IAiAnomalyAlertRepository aiAnomalyAlertRepository,
+            IAiReorderSuggestionRepository aiReorderSuggestionRepository,
+            IAiProductInsightRepository aiProductInsightRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -73,6 +77,10 @@ namespace BizFlow.Infrastructure.Repositories
             StockMovements = stockMovementRepository;
             Accounts = accountRepository;
             OtpCodes = otpCodeRepository;
+            AiRevenueForecasts = aiRevenueForecastRepository;
+            AiAnomalyAlerts = aiAnomalyAlertRepository;
+            AiReorderSuggestions = aiReorderSuggestionRepository;
+            AiProductInsights = aiProductInsightRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -107,6 +115,12 @@ namespace BizFlow.Infrastructure.Repositories
         public IStockMovementRepository StockMovements { get; set; }
         public IAccountRepository Accounts { get; set; }
         public IOtpCodeRepository OtpCodes { get; set; }
+
+        // ── AI Module ──
+        public IAiRevenueForecastRepository AiRevenueForecasts { get; set; }
+        public IAiAnomalyAlertRepository AiAnomalyAlerts { get; set; }
+        public IAiReorderSuggestionRepository AiReorderSuggestions { get; set; }
+        public IAiProductInsightRepository AiProductInsights { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

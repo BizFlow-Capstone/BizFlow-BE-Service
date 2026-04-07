@@ -41,6 +41,12 @@ namespace BizFlow.Application.Interfaces.Repositories
         IAccountRepository Accounts { get; }
         IOtpCodeRepository OtpCodes { get; }
 
+        // ── AI Module (read-only from .NET side) ──
+        IAiRevenueForecastRepository AiRevenueForecasts { get; }
+        IAiAnomalyAlertRepository AiAnomalyAlerts { get; }
+        IAiReorderSuggestionRepository AiReorderSuggestions { get; }
+        IAiProductInsightRepository AiProductInsights { get; }
+
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync();

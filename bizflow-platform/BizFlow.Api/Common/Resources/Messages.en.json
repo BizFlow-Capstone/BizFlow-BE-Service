@@ -235,5 +235,7 @@
   "OTP_SENT": "Verification code sent successfully",
   "OTP_VERIFIED": "Verification successful",
   "OTP_INVALID_OR_EXPIRED": "Invalid or expired verification code",
-  "OTP_TOO_MANY_REQUESTS": "Please wait before requesting a new code"
+  "OTP_TOO_MANY_REQUESTS": "Please wait before requesting a new code",
+
+  "AI_SERVICE_ERROR": "AI service could not process the request, please try again later"
 }
