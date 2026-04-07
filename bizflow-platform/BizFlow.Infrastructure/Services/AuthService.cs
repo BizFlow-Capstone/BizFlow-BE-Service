@@ -3,6 +3,7 @@ using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Common.Utilities;
+using BizFlow.Application.DTOs.Admin;
 using BizFlow.Application.DTOs.Auth;
 using BizFlow.Application.DTOs.Otp;
 using BizFlow.Application.Interfaces.Repositories;
@@ -17,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace BizFlow.Infrastructure.Services
@@ -31,9 +33,13 @@ namespace BizFlow.Infrastructure.Services
         private readonly IImageService _imageService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOtpService _otpService;
+        private readonly IEmailSender _emailSender;
+        private readonly IOptions<AppPublicUrlsOptions> _appPublicUrls;
         private readonly ILogger<AuthService> _logger;
 
         private const string DefaultRoleName = "user";
+        private const string ConsultantRoleName = "consultant";
+        private const string ConsultantWelcomeTemplateAlias = "consultant-welcome";
 
         public AuthService(
             BizFlowDbContext db,
@@ -44,6 +50,8 @@ namespace BizFlow.Infrastructure.Services
             IImageService imageService,
             IUnitOfWork unitOfWork,
             IOtpService otpService,
+            IEmailSender emailSender,
+            IOptions<AppPublicUrlsOptions> appPublicUrls,
             ILogger<AuthService> logger)
         {
             _db = db;
@@ -54,6 +62,8 @@ namespace BizFlow.Infrastructure.Services
             _imageService = imageService;
             _unitOfWork = unitOfWork;
             _otpService = otpService;
+            _emailSender = emailSender;
+            _appPublicUrls = appPublicUrls;
             _logger = logger;
         }
 
@@ -109,6 +119,7 @@ namespace BizFlow.Infrastructure.Services
                     RoleId = role.RoleId,
                     PasswordHash = null, // Google-only, no password yet
                     IsActive = true,
+                    MustChangePassword = false,
                     LastLoginAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -278,6 +289,7 @@ namespace BizFlow.Infrastructure.Services
                 RoleId = role.RoleId,
                 PasswordHash = _jwtService.HashPassword(password),
                 IsActive = true,
+                MustChangePassword = false,
                 LastLoginAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -344,8 +356,14 @@ namespace BizFlow.Infrastructure.Services
 
             var account = await _db.Accounts
                 .Include(a => a.Credentials)
+                .Include(a => a.Role)
                 .FirstOrDefaultAsync(a => a.AccountId == accountId)
                 ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
+
+            if (string.Equals(account.Role.Name, ConsultantRoleName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(MessageKeys.ConsultantCannotLinkPhone);
+            }
 
             var alreadyLinked = account.Credentials.Any(c => c.Type == "phone");
             if (alreadyLinked)
@@ -483,6 +501,7 @@ namespace BizFlow.Infrastructure.Services
 
             account.PasswordHash = _jwtService.HashPassword(newPassword);
             account.PasswordResetNonce = null;
+            account.MustChangePassword = false;
             account.UpdatedAt = DateTime.UtcNow;
 
             await RevokeAllRefreshTokensAsync(accountId);
@@ -490,13 +509,8 @@ namespace BizFlow.Infrastructure.Services
             _logger.LogInformation("Password reset completed after forgot flow. AccountId={AccountId}", accountId);
         }
 
-        public async Task ChangePasswordAsync(Guid accountId, string currentPassword, string newPassword)
+        public async Task ChangePasswordAsync(Guid accountId, string? currentPassword, string newPassword)
         {
-            if (string.IsNullOrWhiteSpace(currentPassword))
-            {
-                throw new ArgumentException(MessageKeys.CurrentPasswordRequired, nameof(currentPassword));
-            }
-
             ValidatePasswordOrThrow(newPassword);
 
             var account = await _db.Accounts
@@ -509,10 +523,21 @@ namespace BizFlow.Infrastructure.Services
                 throw new InvalidOperationException(MessageKeys.NoPasswordToChange);
             }
 
-            if (!_jwtService.VerifyPassword(currentPassword, account.PasswordHash))
+            var currentProvided = !string.IsNullOrWhiteSpace(currentPassword);
+            if (!currentProvided)
             {
-                _logger.LogWarning("Change password failed: incorrect current password. AccountId={AccountId}", accountId);
-                throw new UnauthorizedAccessException(MessageKeys.CurrentPasswordIncorrect);
+                if (!account.MustChangePassword)
+                {
+                    throw new ArgumentException(MessageKeys.CurrentPasswordRequired, nameof(currentPassword));
+                }
+            }
+            else
+            {
+                if (!_jwtService.VerifyPassword(currentPassword!, account.PasswordHash))
+                {
+                    _logger.LogWarning("Change password failed: incorrect current password. AccountId={AccountId}", accountId);
+                    throw new UnauthorizedAccessException(MessageKeys.CurrentPasswordIncorrect);
+                }
             }
 
             if (_jwtService.VerifyPassword(newPassword, account.PasswordHash))
@@ -522,6 +547,7 @@ namespace BizFlow.Infrastructure.Services
 
             account.PasswordHash = _jwtService.HashPassword(newPassword);
             account.PasswordResetNonce = null;
+            account.MustChangePassword = false;
             account.UpdatedAt = DateTime.UtcNow;
 
             await RevokeAllRefreshTokensAsync(accountId);
@@ -533,6 +559,7 @@ namespace BizFlow.Infrastructure.Services
         {
             var profile = await _db.Profiles
                 .AsNoTracking()
+                .Include(p => p.Account)
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
                 ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
@@ -543,7 +570,8 @@ namespace BizFlow.Infrastructure.Services
                 ProfileId = profile.ProfileId,
                 FullName = profile.FullName,
                 AvatarUrl = profile.AvatarUrl,
-                TaxCode = profile.TaxCode
+                TaxCode = profile.TaxCode,
+                MustChangePassword = profile.Account.MustChangePassword
             };
         }
 
@@ -564,6 +592,7 @@ namespace BizFlow.Infrastructure.Services
             }
 
             var profile = await _db.Profiles
+                .Include(p => p.Account)
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
                 ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
@@ -639,7 +668,8 @@ namespace BizFlow.Infrastructure.Services
                 ProfileId = profile.ProfileId,
                 FullName = profile.FullName,
                 AvatarUrl = profile.AvatarUrl,
-                TaxCode = profile.TaxCode
+                TaxCode = profile.TaxCode,
+                MustChangePassword = profile.Account.MustChangePassword
             };
         }
 
@@ -659,6 +689,7 @@ namespace BizFlow.Infrastructure.Services
             }
 
             var profile = await _db.Profiles
+                .Include(p => p.Account)
                 .FirstOrDefaultAsync(p => p.ProfileId == profileId)
                 ?? throw new KeyNotFoundException(MessageKeys.NotFound);
 
@@ -688,7 +719,8 @@ namespace BizFlow.Infrastructure.Services
                 ProfileId = profile.ProfileId,
                 FullName = profile.FullName,
                 AvatarUrl = profile.AvatarUrl,
-                TaxCode = profile.TaxCode
+                TaxCode = profile.TaxCode,
+                MustChangePassword = profile.Account.MustChangePassword
             };
         }
 
@@ -962,6 +994,7 @@ namespace BizFlow.Infrastructure.Services
                 AvatarUrl = account.Profile.AvatarUrl,
                 Role = account.Role.Name,
                 HasPassword = account.PasswordHash != null,
+                MustChangePassword = account.MustChangePassword,
                 Credentials = account.Credentials.Select(c => new CredentialInfo
                 {
                     Type = c.Type,
@@ -969,6 +1002,137 @@ namespace BizFlow.Infrastructure.Services
                     EmailVerified = c.Type == "email" ? c.EmailVerified : null
                 }).ToList()
             };
+        }
+
+        public async Task<CreateConsultantResponse> CreateConsultantByAdminAsync(string email, string? fullName, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentException(MessageKeys.EmailRequired, nameof(email));
+            }
+
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            var emailTaken = await _db.Credentials.AnyAsync(
+                c => c.Type == "email" && c.Identifier.ToLower() == normalizedEmail,
+                cancellationToken);
+            if (emailTaken)
+            {
+                throw new InvalidOperationException(MessageKeys.EmailAlreadyExists);
+            }
+
+            var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == ConsultantRoleName, cancellationToken)
+                ?? throw new InvalidOperationException(MessageKeys.ConsultantRoleNotFound);
+
+            var plainPassword = GenerateConsultantTemporaryPassword();
+            ValidatePasswordOrThrow(plainPassword);
+
+            var displayName = string.IsNullOrWhiteSpace(fullName)
+                ? normalizedEmail.Split('@')[0]
+                : fullName.Trim();
+
+            var account = new Account
+            {
+                AccountId = Guid.NewGuid(),
+                RoleId = role.RoleId,
+                PasswordHash = _jwtService.HashPassword(plainPassword),
+                IsActive = true,
+                MustChangePassword = true,
+                LastLoginAt = null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var profile = new Profile
+            {
+                ProfileId = Guid.NewGuid(),
+                AccountId = account.AccountId,
+                FullName = displayName,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var emailCredential = new Credential
+            {
+                CredentialId = Guid.NewGuid(),
+                AccountId = account.AccountId,
+                Type = "email",
+                Identifier = normalizedEmail,
+                EmailVerified = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Accounts.Add(account);
+            _db.Profiles.Add(profile);
+            _db.Credentials.Add(emailCredential);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            account = await _db.Accounts
+                .Include(a => a.Profile)
+                .Include(a => a.Role)
+                .Include(a => a.Credentials)
+                .FirstAsync(a => a.AccountId == account.AccountId, cancellationToken);
+
+            await _subscriptionService.EnsureFreeSubscriptionAsync(account.Profile!.ProfileId);
+
+            var loginUrl = (_appPublicUrls.Value.LoginUrl ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(loginUrl))
+            {
+                _logger.LogWarning("AppPublicUrls:LoginUrl is not configured; consultant welcome email CTA may be empty. AccountId={AccountId}", account.AccountId);
+            }
+
+            var variables = new Dictionary<string, string>
+            {
+                ["consultant_email"] = normalizedEmail,
+                ["login_url"] = loginUrl,
+                ["temporary_password"] = plainPassword
+            };
+
+            var sendResult = await _emailSender.SendTemplateAsync(
+                normalizedEmail,
+                ConsultantWelcomeTemplateAlias,
+                variables,
+                idempotencyKey: $"consultant-welcome/{account.AccountId}",
+                cancellationToken).ConfigureAwait(false);
+
+            if (!sendResult.Success)
+            {
+                _logger.LogWarning(
+                    "Consultant welcome email failed for AccountId={AccountId}. Reason={Reason}",
+                    account.AccountId,
+                    sendResult.ErrorDetail ?? "unknown");
+            }
+
+            return new CreateConsultantResponse
+            {
+                AccountId = account.AccountId,
+                ProfileId = account.Profile.ProfileId,
+                Email = normalizedEmail
+            };
+        }
+
+        private static string GenerateConsultantTemporaryPassword()
+        {
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghijkmnopqrstuvwxyz";
+            const string digits = "23456789";
+            var all = string.Concat(upper, lower, digits);
+            Span<byte> randomBytes = stackalloc byte[48];
+            RandomNumberGenerator.Fill(randomBytes);
+            var chars = new char[14];
+            chars[0] = upper[randomBytes[0] % upper.Length];
+            chars[1] = lower[randomBytes[1] % lower.Length];
+            chars[2] = digits[randomBytes[2] % digits.Length];
+            for (var i = 3; i < 14; i++)
+            {
+                chars[i] = all[randomBytes[i] % all.Length];
+            }
+
+            for (var i = chars.Length - 1; i > 0; i--)
+            {
+                var j = randomBytes[i + 16] % (i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+
+            return new string(chars);
         }
 
         private static void ValidatePasswordOrThrow(string password)

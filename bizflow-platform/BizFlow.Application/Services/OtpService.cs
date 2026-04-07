@@ -23,6 +23,7 @@ namespace BizFlow.Application.Services
         private const int ExpirationMinutes = 5;
         private const int RateLimitMinutes  = 1;
         private const string EmailTemplateAlias = "password-reset";
+        private const string AdminRoleName = "admin";
 
         private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
@@ -42,9 +43,13 @@ namespace BizFlow.Application.Services
         {
             var normalizedEmail = NormalizeEmail(request.Email);
 
-            var fullName = await _unitOfWork.Profiles.GetFullNameForEligibleForgotPasswordEmailAsync(normalizedEmail, ct);
-            if (fullName == null)
+            var account = await _unitOfWork.Accounts.GetWithProfileAndRoleByNormalizedEmailCredentialAsync(normalizedEmail, ct);
+            if (account == null)
                 throw new BadRequestException(MessageKeys.ForgotPasswordEmailNotRegistered);
+            if (string.Equals(account.Role.Name, AdminRoleName, StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException(MessageKeys.AdminForgotPasswordNotAllowed);
+            if (account.IsActive == false || account.DeletedAt != null)
+                throw new UnauthorizedException(MessageKeys.AccountInactiveOrDeleted);
 
             // Rate-limit: do not allow resend within RateLimitMinutes
             var existing = await _unitOfWork.OtpCodes.GetLatestActiveOtpAsync(normalizedEmail, ct);
@@ -68,7 +73,9 @@ namespace BizFlow.Application.Services
             };
             await _unitOfWork.OtpCodes.AddAsync(otpCode);
 
-            var userName = !string.IsNullOrWhiteSpace(fullName) ? fullName : normalizedEmail.Split('@')[0];
+            var userName = !string.IsNullOrWhiteSpace(account.Profile?.FullName)
+                ? account.Profile.FullName
+                : normalizedEmail.Split('@')[0];
 
             // Send email via Resend template
             var variables = new Dictionary<string, string> 
@@ -103,14 +110,15 @@ namespace BizFlow.Application.Services
 
             var normalizedEmail = NormalizeEmail(email);
 
-            if (!await _unitOfWork.OtpCodes.TryConsumeActiveOtpAsync(normalizedEmail, otpCode, ct))
-                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
-
             var account = await _unitOfWork.Accounts.GetWithProfileAndRoleByNormalizedEmailCredentialAsync(normalizedEmail, ct);
             if (account == null)
                 throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
+            if (string.Equals(account.Role.Name, AdminRoleName, StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException(MessageKeys.AdminForgotPasswordNotAllowed);
             if (account.IsActive == false || account.DeletedAt != null)
                 throw new UnauthorizedException(MessageKeys.AccountInactiveOrDeleted);
+            if (!await _unitOfWork.OtpCodes.TryConsumeActiveOtpAsync(normalizedEmail, otpCode, ct))
+                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
 
             var profile = account.Profile
                 ?? throw new BadRequestException(MessageKeys.AccountHasNoProfile);

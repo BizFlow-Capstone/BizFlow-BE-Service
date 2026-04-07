@@ -6,7 +6,7 @@ namespace BizFlow.Application.Interfaces.Repositories;
 /// </summary>
 public interface IAccountPurgeRepository
 {
-    /// <summary>Soft-deleted accounts ready for physical purge (by <c>DeletedAt</c> and optional <c>HardDeletedAt</c>).</summary>
+    /// <summary>Soft-deleted accounts ready for physical purge (by <c>DeletedAt</c> cutoff).</summary>
     Task<List<Guid>> GetPendingPurgeAccountIdsAsync(DateTime eligibilityCutoffUtc, int take, CancellationToken ct = default);
 
     /// <summary>

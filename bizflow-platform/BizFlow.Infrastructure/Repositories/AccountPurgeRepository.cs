@@ -21,7 +21,7 @@ public sealed class AccountPurgeRepository : IAccountPurgeRepository
     {
         var batch = Math.Max(1, take);
         return _db.Accounts.AsNoTracking()
-            .Where(a => a.DeletedAt != null && a.DeletedAt <= eligibilityCutoffUtc && a.HardDeletedAt == null)
+            .Where(a => a.DeletedAt != null && a.DeletedAt <= eligibilityCutoffUtc)
             .OrderBy(a => a.DeletedAt)
             .Select(a => a.AccountId)
             .Take(batch)
@@ -34,7 +34,7 @@ public sealed class AccountPurgeRepository : IAccountPurgeRepository
         CancellationToken ct = default)
     {
         var account = await _db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId, ct);
-        if (account == null || account.DeletedAt == null || account.HardDeletedAt != null)
+        if (account == null || account.DeletedAt == null)
             return (false, null);
 
         if (account.DeletedAt > eligibilityCutoffUtc)

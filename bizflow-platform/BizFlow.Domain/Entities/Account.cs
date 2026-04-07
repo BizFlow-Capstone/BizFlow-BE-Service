@@ -42,9 +42,9 @@ public partial class Account
     public Guid? PasswordResetNonce { get; set; }
 
     /// <summary>
-    /// UTC when background purge finished (row is removed after purge; column reserved for alternate flows).
+    /// When true, API includes this in account/profile payloads so the client can prompt a password change (soft enforcement).
     /// </summary>
-    public DateTime? HardDeletedAt { get; set; }
+    public bool MustChangePassword { get; set; }
 
     public virtual ICollection<Credential> Credentials { get; set; } = new List<Credential>();
 

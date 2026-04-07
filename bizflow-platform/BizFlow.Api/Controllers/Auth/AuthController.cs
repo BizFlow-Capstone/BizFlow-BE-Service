@@ -135,6 +135,10 @@ namespace BizFlow.Api.Controllers.Auth
             {
                 return BadRequest(MessageKeys.PhoneVerificationMismatch);
             }
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.ConsultantCannotLinkPhone)
+            {
+                return BadRequest(MessageKeys.ConsultantCannotLinkPhone);
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
@@ -156,8 +160,15 @@ namespace BizFlow.Api.Controllers.Auth
 
         /// <summary>Step 2: verify email OTP; returns password-reset access token (no refresh).</summary>
         [HttpPost("forgot-password/verify-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
+        {
+            var result = await _authService.VerifyEmailOtpForPasswordResetAsync(request.Email, request.OtpCode, ct);
+            return Ok(result, MessageKeys.OtpVerified);
+        }
 
-
+        /// <summary>Step 3: reset password using password-reset JWT from verify-otp.</summary>
+        [HttpPost("forgot-password/reset")]
         [Authorize(Policy = AuthJwtConstants.Policies.PasswordReset)]
         public async Task<IActionResult> ResetPasswordForgotFlow([FromBody] SetPasswordRequest request)
         {
@@ -271,9 +282,9 @@ namespace BizFlow.Api.Controllers.Auth
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+                if (string.IsNullOrWhiteSpace(request.NewPassword))
                 {
-                    return BadRequest(MessageKeys.ValidationError, new { message = "Current password and new password are required" });
+                    return BadRequest(MessageKeys.ValidationError, new { message = "New password is required" });
                 }
 
                 var accountId = GetCurrentAccountId();
@@ -301,6 +312,10 @@ namespace BizFlow.Api.Controllers.Auth
             catch (ArgumentException ex) when (ex.Message == MessageKeys.PasswordInvalidFormat)
             {
                 return BadRequest(MessageKeys.PasswordInvalidFormat);
+            }
+            catch (ArgumentException ex) when (ex.Message == MessageKeys.CurrentPasswordRequired)
+            {
+                return BadRequest(MessageKeys.CurrentPasswordRequired);
             }
             catch (ArgumentException ex)
             {
@@ -367,15 +382,21 @@ namespace BizFlow.Api.Controllers.Auth
         }
 
         /// <summary>
-        /// Update avatar using JSON body only (removeAvatar).
+        /// Update avatar using multipart/form-data (avatar file) or remove via removeAvatar=true.
         /// </summary>
         [HttpPut("profile/avatar")]
         [Authorize]
-        [Consumes("application/json")]
-        public async Task<IActionResult> UpdateAvatarJson([FromBody] UpdateAvatarRequest request)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateAvatar([FromForm] UpdateAvatarRequest request, IFormFile? avatar)
         {
             try
             {
+                if (avatar != null)
+                {
+                    request.AvatarStream = avatar.OpenReadStream();
+                    request.AvatarFileName = avatar.FileName;
+                }
+
                 var profileId = User.GetRequiredUserId();
                 var result = await _authService.UpdateAvatarAsync(profileId, request);
                 Logger.LogInformation("Update avatar success. ProfileId={ProfileId}", profileId);
