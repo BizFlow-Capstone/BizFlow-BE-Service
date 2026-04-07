@@ -16,8 +16,18 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<List<AiProductInsight>> GetByLocationAsync(string locationId)
         {
-            return await _db.AiProductInsights
+            // Return only the latest computed batch (max generated_at day).
+            var maxGeneratedAt = await _db.AiProductInsights
                 .Where(i => i.LocationId == locationId)
+                .MaxAsync(i => (DateTime?)i.GeneratedAt);
+
+            if (maxGeneratedAt == null)
+                return new List<AiProductInsight>();
+
+            var batchStart = maxGeneratedAt.Value.Date;
+
+            return await _db.AiProductInsights
+                .Where(i => i.LocationId == locationId && i.GeneratedAt >= batchStart)
                 .OrderBy(i => i.InsightType)
                 .ThenBy(i => i.Rank)
                 .AsNoTracking()

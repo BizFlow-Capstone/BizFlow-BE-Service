@@ -16,8 +16,18 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<List<AiReorderSuggestion>> GetByLocationAsync(string locationId)
         {
-            return await _db.AiReorderSuggestions
+            // Return only the latest computed batch (max generated_at day).
+            var maxGeneratedAt = await _db.AiReorderSuggestions
                 .Where(r => r.LocationId == locationId)
+                .MaxAsync(r => (DateTime?)r.GeneratedAt);
+
+            if (maxGeneratedAt == null)
+                return new List<AiReorderSuggestion>();
+
+            var batchStart = maxGeneratedAt.Value.Date;
+
+            return await _db.AiReorderSuggestions
+                .Where(r => r.LocationId == locationId && r.GeneratedAt >= batchStart)
                 .OrderBy(r => r.DaysUntilStockout)
                 .AsNoTracking()
                 .ToListAsync();

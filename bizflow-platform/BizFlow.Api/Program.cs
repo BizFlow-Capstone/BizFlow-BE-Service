@@ -410,6 +410,7 @@ catch (Exception ex)
 // Configure the HTTP request pipeline.
 
 app.UseGlobalExceptionMiddleware();
+app.UseMiddleware<CharsetMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
