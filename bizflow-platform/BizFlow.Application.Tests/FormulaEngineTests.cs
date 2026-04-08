@@ -257,4 +257,165 @@ public class FormulaEngineTests
         Assert.Equal(0.01m, results["TAX_RATE"]);
         Assert.Equal(10m, results["TAX_AMOUNT"]);
     }
+
+    [Fact]
+    public async Task Evaluate_InvalidJson_ShouldDefaultToZero()
+    {
+        var formula = new FormulaDefinition
+        {
+            FormulaId = 99,
+            Code = "BROKEN_JSON",
+            ExpressionJson = "{\"op\": \"ADD\",",
+            FormulaType = "computed"
+        };
+
+        var sut = BuildSut();
+        var results = await sut.EvaluateFormulasAsync(BuildContext(), new[] { formula });
+
+        Assert.Equal(0m, results["BROKEN_JSON"]);
+    }
+
+    [Fact]
+    public async Task Evaluate_UnknownNodeShape_ShouldReturnZero()
+    {
+        var formula = new FormulaDefinition
+        {
+            FormulaId = 100,
+            Code = "UNKNOWN_NODE",
+            ExpressionJson = """{"foo": "bar"}""",
+            FormulaType = "computed"
+        };
+
+        var sut = BuildSut();
+        var results = await sut.EvaluateFormulasAsync(BuildContext(), new[] { formula });
+
+        Assert.Equal(0m, results["UNKNOWN_NODE"]);
+    }
+
+    [Fact]
+    public async Task Evaluate_DuplicateCode_ShouldKeepLastComputedValue()
+    {
+        var formulas = new[]
+        {
+            new FormulaDefinition
+            {
+                FormulaId = 1,
+                Code = "DUP_CODE",
+                ExpressionJson = """{"literal": 1}""",
+                FormulaType = "literal"
+            },
+            new FormulaDefinition
+            {
+                FormulaId = 2,
+                Code = "DUP_CODE",
+                ExpressionJson = """{"literal": 2}""",
+                FormulaType = "literal"
+            }
+        };
+
+        var sut = BuildSut();
+        var results = await sut.EvaluateFormulasAsync(BuildContext(), formulas);
+
+        Assert.Equal(2m, results["DUP_CODE"]);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // EDGE CASES: DATA-DRIVEN TAX RULES (CIRCULAR 152)
+    // ═══════════════════════════════════════════════════
+
+    [Fact]
+    public async Task CalculateTax_Group1_WithRevenueUnder500M_ShouldReturnZero()
+    {
+        // Nhóm 1: Doanh thu <= 500tr thì miễn thuế. Doanh thu = 400tr.
+        var btId1 = Guid.NewGuid();
+        var context = BuildContext();
+        context.BusinessTypeIds = new List<Guid> { btId1 };
+
+        // Revenue mock
+        var mockRevRepo = new Mock<IRevenueRepository>();
+        mockRevRepo.Setup(r => r.SearchAsync(It.IsAny<BizFlow.Application.DTOs.Revenue.RevenueQueryParams>()))
+            .ReturnsAsync((new List<Revenue>
+            {
+                new Revenue { BusinessTypeId = btId1, Amount = 400_000_000m }
+            }, 1));
+        _uow.SetupGet(u => u.Revenues).Returns(mockRevRepo.Object);
+
+        // Json Structure for Group 1 tax: threshold min = 500M. 
+        // 400M <= 500M => should trigger elseValue (0).
+        var formula = new FormulaDefinition
+        {
+            FormulaId = 1, Code = "TAX_VAT", FormulaType = "computed",
+            ExpressionJson = JsonSerializer.Serialize(new
+            {
+                @foreach = "industry",
+                source = "revenues",
+                field = "Amount",
+                threshold = new { min = 500_000_000, elseValue = 0 },
+                apply = new
+                {
+                    op = "MULTIPLY",
+                    left = new { context = "group_amount" },
+                    right = new { @literal = 0.05 } // 5% VAT
+                },
+                reduce = "SUM"
+            })
+        };
+
+        var sut = BuildSut();
+        var results = await sut.EvaluateFormulasAsync(context, new[] { formula });
+
+        // Expected: 0m because total revenue 400M is <= 500M
+        Assert.Equal(0m, results["TAX_VAT"]);
+    }
+
+    [Fact]
+    public async Task CalculateTax_Group2_Option1_ShouldSubtract500M_BeforeTax()
+    {
+        // Nhóm 2 - Cách 1: Doanh thu > 500tr -> Trừ 500tr rồi mới nhân thuế. Doanh thu = 600tr.
+        var btId1 = Guid.NewGuid();
+        var context = BuildContext();
+        context.BusinessTypeIds = new List<Guid> { btId1 };
+
+        // Revenue mock
+        var mockRevRepo = new Mock<IRevenueRepository>();
+        mockRevRepo.Setup(r => r.SearchAsync(It.IsAny<BizFlow.Application.DTOs.Revenue.RevenueQueryParams>()))
+            .ReturnsAsync((new List<Revenue>
+            {
+                new Revenue { BusinessTypeId = btId1, Amount = 600_000_000m }
+            }, 1));
+        _uow.SetupGet(u => u.Revenues).Returns(mockRevRepo.Object);
+
+        // Json Structure for Group 2 (Trừ khoán 500tr): deduction amount = 500M
+        // Formula: (group_amount - group_deduction) * tax_rate
+        // Which is (600M - 500M) * 5% = 100M * 5% = 5M
+        var formula = new FormulaDefinition
+        {
+            FormulaId = 1, Code = "TAX_VAT", FormulaType = "computed",
+            ExpressionJson = JsonSerializer.Serialize(new
+            {
+                @foreach = "industry",
+                source = "revenues",
+                field = "Amount",
+                deduction = new { amount = 500_000_000, target = "highest_revenue" },
+                apply = new
+                {
+                    op = "MULTIPLY",
+                    left = new 
+                    {
+                        op = "SUBTRACT",
+                        left = new { context = "group_amount" },
+                        right = new { context = "group_deduction" }
+                    },
+                    right = new { @literal = 0.05 } // 5% VAT
+                },
+                reduce = "SUM"
+            })
+        };
+
+        var sut = BuildSut();
+        var results = await sut.EvaluateFormulasAsync(context, new[] { formula });
+
+        // Expected: (600,000,000 - 500,000,000) * 0.05 = 5,000,000
+        Assert.Equal(5_000_000m, results["TAX_VAT"]);
+    }
 }

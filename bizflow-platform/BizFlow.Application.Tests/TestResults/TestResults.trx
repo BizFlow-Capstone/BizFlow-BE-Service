@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="eb956586-c930-45df-a536-6d67b85abcf2" name="Duy.Tran@DESKTOP-1EAPPVM 2026-04-08 20:25:03" runUser="DESKTOP-1EAPPVM\Duy.Tran" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-04-08T20:25:03.4680351+07:00" queuing="2026-04-08T20:25:03.4680354+07:00" start="2026-04-08T20:25:02.7164116+07:00" finish="2026-04-08T20:25:03.4752294+07:00" />
+  <TestSettings name="default" id="d0b42ea2-698a-4870-8317-475a215c5512">
+    <Deployment runDeploymentRoot="Duy.Tran_DESKTOP-1EAPPVM_2026-04-08_20_25_03" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="8b054525-ad01-40af-8a05-aafd75e36019" testId="48cf9e94-6f51-1974-68a7-640d4e24db0f" testName="BizFlow.Application.Tests.OrderServiceTests.CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue" computerName="DESKTOP-1EAPPVM" duration="00:00:00.1448218" startTime="2026-04-08T20:25:03.3650500+07:00" endTime="2026-04-08T20:25:03.3650671+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8b054525-ad01-40af-8a05-aafd75e36019">
+      <Output>
+        <ErrorInfo>
+          <Message>System.NullReferenceException : Object reference not set to an instance of an object.</Message>
+          <StackTrace>   at BizFlow.Application.Services.OrderService.&lt;&gt;c__DisplayClass10_0.&lt;&lt;CompleteAsync&gt;b__0&gt;d.MoveNext() in D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application\Services\OrderService.cs:line 225&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at BizFlow.Application.Tests.OrderServiceTests.&lt;&gt;c.&lt;CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue&gt;b__23_5(Func`2 func, CancellationToken ct) in D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application.Tests\OrderServiceTests.cs:line 318&#xD;
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at Moq.Extensions.InvokePreserveStack(Delegate del, IReadOnlyList`1 args) in /_/src/Moq/Extensions.cs:line 163&#xD;
+   at Moq.MethodCall.&lt;&gt;c__DisplayClass18_0.&lt;SetCallbackBehavior&gt;b__1(IInvocation invocation) in /_/src/Moq/MethodCall.cs:line 186&#xD;
+   at Moq.Behaviors.Callback.Execute(Invocation invocation) in /_/src/Moq/Behaviors/Callback.cs:line 22&#xD;
+   at Moq.MethodCall.ExecuteCore(Invocation invocation) in /_/src/Moq/MethodCall.cs:line 103&#xD;
+   at Moq.Setup.Execute(Invocation invocation) in /_/src/Moq/Setup.cs:line 84&#xD;
+   at Moq.FindAndExecuteMatchingSetup.Handle(Invocation invocation, Mock mock) in /_/src/Moq/Interception/InterceptionAspects.cs:line 95&#xD;
+   at Moq.Mock.Moq.IInterceptor.Intercept(Invocation invocation) in /_/src/Moq/Interception/Mock.cs:line 17&#xD;
+   at Moq.CastleProxyFactory.Interceptor.Intercept(IInvocation underlying) in /_/src/Moq/Interception/CastleProxyFactory.cs:line 107&#xD;
+   at Castle.DynamicProxy.AbstractInvocation.Proceed()&#xD;
+   at Castle.Proxies.IUnitOfWorkProxy.ExecuteResilientAsync(Func`2 action, CancellationToken ct)&#xD;
+   at BizFlow.Application.Services.OrderService.CompleteAsync(Guid userId, Int64 orderId, CompleteOrderRequest request) in D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application\Services\OrderService.cs:line 199&#xD;
+   at BizFlow.Application.Tests.OrderServiceTests.CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue() in D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application.Tests\OrderServiceTests.cs:line 328&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="BizFlow.Application.Tests.OrderServiceTests.CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue" storage="d:\bizflow-be-service\bizflow-platform\bizflow.application.tests\bin\debug\net8.0\bizflow.application.tests.dll" id="48cf9e94-6f51-1974-68a7-640d4e24db0f">
+      <Execution id="8b054525-ad01-40af-8a05-aafd75e36019" />
+      <TestMethod codeBase="D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application.Tests\bin\Debug\net8.0\BizFlow.Application.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="BizFlow.Application.Tests.OrderServiceTests" name="CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="48cf9e94-6f51-1974-68a7-640d4e24db0f" executionId="8b054525-ad01-40af-8a05-aafd75e36019" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 8.0.25)&#xD;
+[xUnit.net 00:00:00.07]   Discovering: BizFlow.Application.Tests&#xD;
+[xUnit.net 00:00:00.12]   Discovered:  BizFlow.Application.Tests&#xD;
+[xUnit.net 00:00:00.13]   Starting:    BizFlow.Application.Tests&#xD;
+[xUnit.net 00:00:00.31]       System.NullReferenceException : Object reference not set to an instance of an object.&#xD;
+[xUnit.net 00:00:00.31]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.31]         D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application\Services\OrderService.cs(225,0): at BizFlow.Application.Services.OrderService.&lt;&gt;c__DisplayClass10_0.&lt;&lt;CompleteAsync&gt;b__0&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:00.31]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:00.31]         D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application.Tests\OrderServiceTests.cs(318,0): at BizFlow.Application.Tests.OrderServiceTests.&lt;&gt;c.&lt;CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue&gt;b__23_5(Func`2 func, CancellationToken ct)&#xD;
+[xUnit.net 00:00:00.31]            at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+[xUnit.net 00:00:00.31]            at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:00.31]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Extensions.cs(163,0): at Moq.Extensions.InvokePreserveStack(Delegate del, IReadOnlyList`1 args)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/MethodCall.cs(186,0): at Moq.MethodCall.&lt;&gt;c__DisplayClass18_0.&lt;SetCallbackBehavior&gt;b__1(IInvocation invocation)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Behaviors/Callback.cs(22,0): at Moq.Behaviors.Callback.Execute(Invocation invocation)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/MethodCall.cs(103,0): at Moq.MethodCall.ExecuteCore(Invocation invocation)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Setup.cs(84,0): at Moq.Setup.Execute(Invocation invocation)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Interception/InterceptionAspects.cs(95,0): at Moq.FindAndExecuteMatchingSetup.Handle(Invocation invocation, Mock mock)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Interception/Mock.cs(17,0): at Moq.Mock.Moq.IInterceptor.Intercept(Invocation invocation)&#xD;
+[xUnit.net 00:00:00.31]         /_/src/Moq/Interception/CastleProxyFactory.cs(107,0): at Moq.CastleProxyFactory.Interceptor.Intercept(IInvocation underlying)&#xD;
+[xUnit.net 00:00:00.31]            at Castle.DynamicProxy.AbstractInvocation.Proceed()&#xD;
+[xUnit.net 00:00:00.31]            at Castle.Proxies.IUnitOfWorkProxy.ExecuteResilientAsync(Func`2 action, CancellationToken ct)&#xD;
+[xUnit.net 00:00:00.31]         D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application\Services\OrderService.cs(199,0): at BizFlow.Application.Services.OrderService.CompleteAsync(Guid userId, Int64 orderId, CompleteOrderRequest request)&#xD;
+[xUnit.net 00:00:00.31]         D:\BizFlow-BE-Service\bizflow-platform\BizFlow.Application.Tests\OrderServiceTests.cs(328,0): at BizFlow.Application.Tests.OrderServiceTests.CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue()&#xD;
+[xUnit.net 00:00:00.31]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:00.32]   Finished:    BizFlow.Application.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="DESKTOP-1EAPPVM" outcome="Error" timestamp="2026-04-08T20:25:03.3626120+07:00">
+        <Text>[xUnit.net 00:00:00.31]     BizFlow.Application.Tests.OrderServiceTests.CompleteAsync_WithNegativeInventory_ShouldNotBlock_WhenTrackInventoryTrue [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

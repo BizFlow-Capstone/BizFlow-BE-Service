@@ -23,6 +23,8 @@ public class AccountingBookServiceTests
     private readonly Mock<IAccountingPeriodRepository> _periodRepo = new();
     private readonly Mock<IBusinessLocationRepository> _locationRepo = new();
     private readonly Mock<IBusinessTypeRepository> _businessTypeRepo = new();
+    private readonly Mock<IProductRepository> _productRepo = new();
+    private readonly Mock<IRevenueRepository> _revenueRepo = new();
 
     private readonly Guid _userId = Guid.NewGuid();
     private const int LocationId = 6;
@@ -35,6 +37,15 @@ public class AccountingBookServiceTests
         _uow.SetupGet(x => x.AccountingPeriods).Returns(_periodRepo.Object);
         _uow.SetupGet(x => x.BusinessLocations).Returns(_locationRepo.Object);
         _uow.SetupGet(x => x.BusinessTypes).Returns(_businessTypeRepo.Object);
+        _uow.SetupGet(x => x.Products).Returns(_productRepo.Object);
+        _uow.SetupGet(x => x.Revenues).Returns(_revenueRepo.Object);
+
+        _productRepo.Setup(r => r.QuickSearchByLocationAsync(It.IsAny<int>(), It.IsAny<string?>()))
+            .ReturnsAsync(new List<Product>());
+        _revenueRepo.Setup(r => r.SearchAsync(It.IsAny<Application.DTOs.Revenue.RevenueQueryParams>()))
+            .ReturnsAsync((Enumerable.Empty<Revenue>(), 0));
+        _businessTypeRepo.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(new List<BusinessType>());
     }
 
     private AccountingBookService BuildSut() => new(
@@ -64,7 +75,7 @@ public class AccountingBookServiceTests
         // Act & Assert
         var ex = await Assert.ThrowsAsync<BadRequestException>(
             () => sut.CreateBooksAsync(LocationId, _userId, request));
-        Assert.Equal("PERIOD_FINALIZED", ex.Message);
+        Assert.Equal("PERIOD_FINALIZED", ex.MessageKey);
     }
 
     [Fact]
@@ -107,7 +118,7 @@ public class AccountingBookServiceTests
 
         var ex = await Assert.ThrowsAsync<BadRequestException>(
             () => sut.CreateBooksAsync(LocationId, _userId, request));
-        Assert.Equal("NO_ACTIVE_RULESET", ex.Message);
+        Assert.Equal("NO_ACTIVE_RULESET", ex.MessageKey);
     }
 
     [Fact]
@@ -204,6 +215,11 @@ public class AccountingBookServiceTests
 
         _bookRepo.Setup(r => r.GetByLocationAndPeriodAsync(LocationId, 1))
             .ReturnsAsync(books);
+        _businessTypeRepo.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(new List<BusinessType>
+            {
+                new() { BusinessTypeId = books[0].BookBusinessTypes.First().BusinessTypeId, Name = "Tap hoa", Status = "active" }
+            });
 
         var sut = BuildSut();
         var result = await sut.ListBooksAsync(LocationId, _userId, 1);

@@ -1,4 +1,5 @@
 using AutoMapper;
+using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.DTOs.Cost;
 using BizFlow.Application.Interfaces.Repositories;
@@ -86,7 +87,7 @@ public class CostServiceTests
         await sut.DeleteManualAsync(userId, cost.CostId);
 
         Assert.NotNull(cost.DeletedAt);
-        _generalLedgerService.Verify(g => g.ReverseCostEntriesAsync(cost, "manual cost deleted"), Times.Once);
+        _generalLedgerService.Verify(g => g.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostDeletedReversalReason), Times.Once);
     }
 
     [Fact]
@@ -137,6 +138,36 @@ public class CostServiceTests
         await Assert.ThrowsAsync<BadRequestException>(() => sut.DeleteManualAsync(userId, cost.CostId));
 
         _generalLedgerService.Verify(g => g.ReverseCostEntriesAsync(It.IsAny<Cost>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteManualAsync_WhenCostNotFound_ShouldThrowNotFound()
+    {
+        var userId = Guid.NewGuid();
+        _costRepo.Setup(r => r.GetByIdAsync(404)).ReturnsAsync((Cost?)null);
+
+        var sut = BuildSut();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => sut.DeleteManualAsync(userId, 404));
+    }
+
+    [Fact]
+    public async Task CreateManualAsync_WhenPaymentMethodInvalid_ShouldThrowBadRequest()
+    {
+        var userId = Guid.NewGuid();
+        var request = new CreateManualCostRequest
+        {
+            BusinessLocationId = 1,
+            CostType = CostType.Manual,
+            Description = "Invalid payment",
+            Amount = 2000,
+            PaymentMethod = "wire_transfer_unknown"
+        };
+
+        var sut = BuildSut();
+
+        await Assert.ThrowsAsync<BadRequestException>(() => sut.CreateManualAsync(userId, request));
+        _costRepo.Verify(r => r.AddAsync(It.IsAny<Cost>()), Times.Never);
     }
 
     private CostService BuildSut()
