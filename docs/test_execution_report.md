@@ -188,6 +188,31 @@ Danh sách chi tiết các test cases đã lập trình thông qua xUnit và Moq
 | `ChangePasswordAsync_WhenNoPasswordSet_ShouldThrowInvalidOperation` | Đổi pass trong khi trước giờ login Google không có pass | Google Account (null pass) | `Throw InvalidOperationException` | Passed | N/A |
 | `ChangePasswordAsync_WhenValid_ShouldChangeAndRevokeTokens` | Đổi MK an toàn sẽ bắt văng TẤT CẢ device khác | MK cũ & MK mới đúng | Đăng xuất toàn hệ thống (RevokeAllTokens) và Update Hash | Passed | N/A |
 | `UpdateProfileInfoAsync_WhenEmptyName_ShouldThrowArgumentException` | Validation chặn khoảng trắng | Name = `  ` | `Throw ArgumentException` | Passed | N/A |
+| `RefreshTokenAsync_WhenInvalidToken_ShouldThrowUnauthorized` | Chặn refresh token giả mạo/không tồn tại | `refreshToken` không khớp DB | `Throw UnauthorizedException` | Passed | N/A |
+| `RefreshTokenAsync_WhenValid_ShouldRotateTokenAndRevokeOldOne` | Kiểm tra Token Rotation đúng chuẩn bảo mật | Refresh token hợp lệ | Cấp token mới + revoke token cũ | Passed | N/A |
+| `RefreshTokenAsync_WhenReuseDetected_ShouldRevokeAllAndThrowUnauthorized` | Phát hiện token bị tái sử dụng và khóa toàn bộ session | Dùng lại refresh token đã revoke | Revoke tất cả token của account + `Throw UnauthorizedException` | Passed | N/A |
+| `RevokeRefreshTokenAsync_WhenValid_ShouldRevokeOnlyMatchedToken` | Đăng xuất 1 thiết bị không ảnh hưởng thiết bị khác | Refresh token hợp lệ của 1 session | Chỉ revoke token khớp | Passed | N/A |
+| `RevokeAllRefreshTokensAsync_ShouldRevokeOnlyTargetAccountTokens` | Đăng xuất toàn bộ thiết bị của đúng account | `accountId` mục tiêu | Tất cả token account đó bị revoke, account khác giữ nguyên | Passed | N/A |
+| `VerifyEmailOtpForPasswordResetAsync_WhenOtpValid_ShouldReturnPasswordResetAccessToken` | Xác thực OTP quên mật khẩu và cấp reset JWT chứa nonce | Email + OTP đúng | `Verified=true`, trả access token reset flow | Passed | N/A |
+| `ResetPasswordAfterForgotOtpAsync_WhenNonceMismatch_ShouldThrowBadRequest` | Chặn reset bằng nonce sai/đã dùng | Nonce không khớp DB | `Throw BadRequestException` | Passed | N/A |
+| `ResetPasswordAfterForgotOtpAsync_WhenValid_ShouldUpdatePasswordClearNonceAndRevokeAllTokens` | Hoàn tất quên mật khẩu an toàn | Nonce đúng + mật khẩu mới hợp lệ | Đổi hash, xóa nonce, revoke toàn bộ refresh token | Passed | N/A |
+| `ChangePasswordAsync_WhenMustChangePasswordAndCurrentMissing_ShouldAllowChange` | Hỗ trợ luồng bắt buộc đổi mật khẩu lần đầu (consultant) | `MustChangePassword=true`, thiếu current password | Cho phép đổi mật khẩu + revoke token cũ | Passed | N/A |
+| `ChangePasswordAsync_WhenNewPasswordSameAsCurrent_ShouldThrowInvalidOperation` | Chặn người dùng đặt lại đúng mật khẩu cũ | `newPassword == currentPassword` | `Throw InvalidOperationException` | Passed | N/A |
+| `DeleteAccountAsync_WhenValid_ShouldSoftDeleteAndRevokeAllTokens` | Đảm bảo xóa tài khoản mềm kèm thu hồi toàn bộ session | Password đúng | `IsActive=false`, set `DeletedAt`, revoke all tokens | Passed | N/A |
+| `SetPasswordAsync_WhenGoogleCredentialExists_ShouldSetPasswordAndCreateEmailCredential` | Thiết lập mật khẩu cho tài khoản Google-only và tự link email | Account có GoogleEmail, chưa có password | Set hash mật khẩu + tạo Email credential verified | Passed | N/A |
+| `RevokeRefreshTokenAsync_WhenTokenInvalid_ShouldThrowUnauthorized` | Chặn logout với refresh token giả mạo | Token không tồn tại trong DB | `Throw UnauthorizedException` | Passed | N/A |
+| `DeleteAccountAsync_WhenWrongPassword_ShouldThrowUnauthorized` | Chặn xóa tài khoản khi nhập sai mật khẩu xác nhận | Password sai | `Throw UnauthorizedException` | Passed | N/A |
+| `DeleteAccountAsync_WhenNoPasswordSet_ShouldThrowInvalidOperation` | Chặn xóa tài khoản social-only chưa có mật khẩu | `PasswordHash = null` | `Throw InvalidOperationException` | Passed | N/A |
+| `DeleteAccountAsync_WhenAccountInactive_ShouldThrowUnauthorized` | Chặn xóa lại account đã inactive/deleted | `IsActive = false` | `Throw UnauthorizedException` | Passed | N/A |
+| `CreateFirebaseCustomTokenAsync_WhenProfileNotFound_ShouldThrowKeyNotFound` | Chặn cấp Firebase custom token cho profile không tồn tại | `profileId` không có trong DB | `Throw KeyNotFoundException` | Passed | N/A |
+| `GetProfileAsync_WhenNotFound_ShouldThrowKeyNotFound` | Chặn truy vấn profile ảo | `profileId` không tồn tại | `Throw KeyNotFoundException` | Passed | N/A |
+| `GetCredentialsAsync_WhenHasCredentials_ShouldReturnMaskedList` | Trả danh sách credential đã mask đúng kiểu dữ liệu | Account có email + phone | Trả 2 credential; email có `EmailVerified`, phone trả `null` | Passed | N/A |
+| `UpdateAvatarAsync_WhenNoFieldProvided_ShouldThrowArgumentException` | Chặn request update avatar rỗng | Không upload avatar, `RemoveAvatar=false` | `Throw ArgumentException` | Passed | N/A |
+| `CreateConsultantByAdminAsync_WhenEmailTaken_ShouldThrowInvalidOperation` | Chặn admin tạo consultant trùng email đã tồn tại | Email đã có credential | `Throw InvalidOperationException` | Passed | N/A |
+| `GoogleLoginAsync_WhenTokenMissing_ShouldThrowArgumentException` | Validation bắt buộc idToken cho Google login | `idToken` rỗng | `Throw ArgumentException` | Passed | N/A |
+| `LoginWithPhoneAsync_WhenPhoneMissing_ShouldThrowArgumentException` | Validation bắt buộc phone cho đăng nhập SĐT | `phone` rỗng | `Throw ArgumentException` | Passed | N/A |
+| `RegisterWithPhoneAsync_WhenFirebaseTokenMissing_ShouldThrowArgumentException` | Validation bắt buộc Firebase token cho đăng ký SĐT | `firebaseIdToken` rỗng | `Throw ArgumentException` | Passed | N/A |
+| `LinkPhoneAsync_WhenAccountNotFound_ShouldThrowKeyNotFound` | Chặn link phone cho account không tồn tại | `accountId` không có trong DB | `Throw KeyNotFoundException` | Passed | N/A |
 
 ### 1.16 Subscription Plan Service (Admin)
 | Test Case | Mục đích | Đầu vào (Input) | Output mong đợi | Thực tế | Lỗi/Log Message |

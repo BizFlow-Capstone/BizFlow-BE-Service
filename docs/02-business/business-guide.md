@@ -185,7 +185,7 @@ User (Role = User)
 |--------|:-----:|:--------:|:-----:|:----------:|
 | Tạo hồ sơ công nợ (Debtor) | ✅ | ❌ | ❌ | ❌ |
 | Xem danh sách công nợ | ✅ | ✅ | ❌ | ❌ |
-| Xem chi tiết công nợ | ✅ | ✅ | ❌ | ❌ |
+| Xem chi tiết công nợ | ✅ | ❌ | ❌ | ❌ |
 | Ghi nhận thanh toán nợ | ✅ | ✅ | ❌ | ❌ |
 | Chỉnh sửa thông tin Debtor | ✅ | ❌ | ❌ | ❌ |
 | Xóa Debtor | ✅ | ❌ | ❌ | ❌ |
