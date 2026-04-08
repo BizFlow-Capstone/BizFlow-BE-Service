@@ -13,6 +13,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<(IEnumerable<Product> Items, int TotalCount)> SearchAsync(ProductQueryParams query);
 
         /// <summary>
+        /// Quick search products by location and optional keyword (name or SKU).
+        /// </summary>
+        Task<List<Product>> QuickSearchByLocationAsync(int locationId, string? search);
+
+        /// <summary>
         /// Get product by ID
         /// </summary>
         Task<Product?> GetByIdAsync(long productId);
@@ -29,9 +34,32 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<bool> HasHistoryAsync(long productId);
 
         /// <summary>
+        /// Find product by SKU in the same location (for duplicate warning)
+        /// </summary>
+        Task<Product?> FindBySkuInLocationAsync(int locationId, string sku, long? excludeProductId);
+
+        /// <summary>
+        /// Get cost price history from confirmed imports for a product
+        /// </summary>
+        Task<List<CostPriceHistoryItemDto>> GetCostPriceHistoryAsync(long productId);
+
+        /// <summary>
+        /// Get the latest cost price from confirmed imports, excluding a specific import
+        /// </summary>
+        Task<decimal?> GetLatestCostPriceFromImportsAsync(long productId, long excludeImportId);
+
+        /// <summary>
+        /// Get sale items by IDs with Product and ProductPricePolicies for bulk selling-price adjustment.
+        /// </summary>
+        Task<List<SaleItem>> GetSaleItemsForPriceAdjustAsync(IEnumerable<long> saleItemIds);
+
+        /// <summary>
         /// Get all non-null ImagePublicIds from Products table (for cleanup job)
         /// </summary>
-        Task<List<string>> GetAllImagePublicIdsAsync();
+        /// <summary>
+        /// Check which of the given PublicIds exist in the database (for orphan detection)
+        /// </summary>
+        Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds);
 
 
         // ============ Command Methods ============

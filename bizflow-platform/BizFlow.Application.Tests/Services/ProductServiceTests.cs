@@ -386,6 +386,34 @@ namespace BizFlow.Application.Tests.Services
                 () => _productService.CreateProductAsync(userId, request));
         }
 
+        [Fact]
+        public async Task CreateProductAsync_WithDuplicateUnitWithinPriceTiers_ThrowsBadRequestException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var locationId = 1;
+            var request = new CreateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                ProductName = "Test Product",
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>
+                {
+                    new() { Unit = "box", Quantity = 5, Price = 450m },
+                    new() { Unit = "box", Quantity = 10, Price = 800m }  // Trùng Unit
+                }
+            };
+
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId))
+                .ReturnsAsync(true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<BadRequestException>(
+                () => _productService.CreateProductAsync(userId, request));
+        }
+
         // Note: Image upload failure test cannot be tested directly because ImageStream is internal
         // and can only be set via controller deserialization. This would require integration tests.
 
@@ -534,6 +562,37 @@ namespace BizFlow.Application.Tests.Services
             var locationId = 1;
             var product = new Product { ProductId = productId, BusinessLocationId = locationId };
             var request = new UpdateProductRequest { LocationId = 999 };  // Different location
+
+            _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId))
+                .ReturnsAsync(product);
+            _mockUnitOfWork.Setup(x => x.BusinessLocations.IsOwnerOfLocationAsync(userId, locationId))
+                .ReturnsAsync(true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<BadRequestException>(
+                () => _productService.UpdateProductAsync(userId, productId, request));
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WithDuplicateUnitWithinPriceTiers_ThrowsBadRequestException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var productId = 1L;
+            var locationId = 1;
+            var product = new Product { ProductId = productId, BusinessLocationId = locationId };
+            var request = new UpdateProductRequest
+            {
+                LocationId = locationId,
+                BusinessTypeId = Guid.NewGuid(),
+                Unit = "kg",
+                CostPrice = 100m,
+                PriceTiers = new List<PriceTierRequest>
+                {
+                    new() { Unit = "box", Quantity = 5, Price = 450m },
+                    new() { Unit = "box", Quantity = 10, Price = 800m } // Trùng Unit
+                }
+            };
 
             _mockUnitOfWork.Setup(x => x.Products.GetByIdWithSaleItemsAsync(productId))
                 .ReturnsAsync(product);

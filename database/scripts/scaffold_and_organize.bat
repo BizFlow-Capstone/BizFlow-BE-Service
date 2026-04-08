@@ -10,16 +10,34 @@ echo.
 :: CONFIGURATION
 :: ============================================
 set "CONNECTION_STRING=Server=localhost;Port=3307;Database=bizflow_db;User=admin;Password=admin;CharSet=utf8mb4;SslMode=none;"
-set "PROJECT_ROOT=%~dp0..\.."
+for %%I in ("%~dp0.") do set "SCRIPT_DIR=%%~fI"
+set "PROJECT_ROOT=%SCRIPT_DIR%\..\.."
 set "INFRASTRUCTURE_DIR=%PROJECT_ROOT%\bizflow-platform\BizFlow.Infrastructure"
 set "DOMAIN_DIR=%PROJECT_ROOT%\bizflow-platform\BizFlow.Domain"
+set "SOLUTION_FILE=%PROJECT_ROOT%\bizflow-platform\bizflow-platform.sln"
 set "TEMP_ENTITIES_DIR=%INFRASTRUCTURE_DIR%\TempEntities"
 set "TEMP_DATA_DIR=%INFRASTRUCTURE_DIR%\TempData"
 set "FINAL_ENTITIES_DIR=%DOMAIN_DIR%\Entities"
 set "FINAL_DATACONTEXT_DIR=%INFRASTRUCTURE_DIR%\DataContext"
+set "HELPER_PS1=%SCRIPT_DIR%\transform_scaffold_output.ps1"
+
+if not exist "%HELPER_PS1%" (
+    set "HELPER_PS1=%PROJECT_ROOT%\database\scripts\transform_scaffold_output.ps1"
+)
+
+if not exist "%HELPER_PS1%" (
+    echo [ERROR] Missing helper script: transform_scaffold_output.ps1
+    echo Expected at:
+    echo   %SCRIPT_DIR%\transform_scaffold_output.ps1
+    echo   %PROJECT_ROOT%\database\scripts\transform_scaffold_output.ps1
+    pause
+    exit /b 1
+)
 
 :: Tables to scaffold (plural names in database)
-set "TABLES=--table Roles --table Users --table BusinessTypes --table BusinessTypeTaxes --table BusinessLocations --table UserLocationAssignments --table Products --table ProductPricePolicies --table Imports --table ProductsImports --table SaleItems --table Hires --table ImportSchemas --table ImportSchemaVersions"
+:: NOTE: AccountingPeriods/AccountingPeriodAuditLogs are configured in BizFlowDbContext.Custom.cs
+:: and intentionally excluded here to avoid duplicate DbSet/ModelBuilder definitions.
+set "TABLES=--table Roles --table Accounts --table Profiles --table Credentials --table RefreshTokens --table DeviceTokens --table BusinessTypes --table BusinessTypeTaxes --table BusinessLocations --table UserLocationAssignments --table Products --table ProductPricePolicies --table Imports --table ProductsImports --table SaleItems --table Hires --table ImportSchemas --table ImportSchemaVersions --table StockMovements --table SystemConfig --table Debtors --table DebtorPaymentTransactions --table Orders --table OrderDetails --table Revenues --table Costs --table GeneralLedgerEntries --table Features --table SubscriptionPlans --table PlanFeatures --table Subscriptions --table Transactions --table FeatureUsages --table SubscriptionAuditLogs"
 
 :: ============================================
 :: STEP 1: CHECK PREREQUISITES
@@ -127,17 +145,29 @@ if exist "%TEMP_ENTITIES_DIR%\ProductsImports.cs" (
     ren "%TEMP_ENTITIES_DIR%\ProductsImports.cs" "ProductImport.cs"
     echo   [RENAME] ProductsImports.cs -^> ProductImport.cs
 )
-if exist "%TEMP_ENTITIES_DIR%\ProductImports.cs" (
-    ren "%TEMP_ENTITIES_DIR%\ProductImports.cs" "ProductImport.cs"
-    echo   [RENAME] ProductImports.cs -^> ProductImport.cs
-)
 if exist "%TEMP_ENTITIES_DIR%\Hires.cs" (
     ren "%TEMP_ENTITIES_DIR%\Hires.cs" "Hire.cs"
     echo   [RENAME] Hires.cs -^> Hire.cs
 )
-if exist "%TEMP_ENTITIES_DIR%\Users.cs" (
-    ren "%TEMP_ENTITIES_DIR%\Users.cs" "User.cs"
-    echo   [RENAME] Users.cs -^> User.cs
+if exist "%TEMP_ENTITIES_DIR%\Accounts.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Accounts.cs" "Account.cs"
+    echo   [RENAME] Accounts.cs -^> Account.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Profiles.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Profiles.cs" "Profile.cs"
+    echo   [RENAME] Profiles.cs -^> Profile.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Credentials.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Credentials.cs" "Credential.cs"
+    echo   [RENAME] Credentials.cs -^> Credential.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\RefreshTokens.cs" (
+    ren "%TEMP_ENTITIES_DIR%\RefreshTokens.cs" "RefreshToken.cs"
+    echo   [RENAME] RefreshTokens.cs -^> RefreshToken.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\DeviceTokens.cs" (
+    ren "%TEMP_ENTITIES_DIR%\DeviceTokens.cs" "DeviceToken.cs"
+    echo   [RENAME] DeviceTokens.cs -^> DeviceToken.cs
 )
 if exist "%TEMP_ENTITIES_DIR%\ImportSchemas.cs" (
     ren "%TEMP_ENTITIES_DIR%\ImportSchemas.cs" "ImportSchema.cs"
@@ -146,6 +176,69 @@ if exist "%TEMP_ENTITIES_DIR%\ImportSchemas.cs" (
 if exist "%TEMP_ENTITIES_DIR%\ImportSchemaVersions.cs" (
     ren "%TEMP_ENTITIES_DIR%\ImportSchemaVersions.cs" "ImportSchemaVersion.cs"
     echo   [RENAME] ImportSchemaVersions.cs -^> ImportSchemaVersion.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\StockMovements.cs" (
+    ren "%TEMP_ENTITIES_DIR%\StockMovements.cs" "StockMovement.cs"
+    echo   [RENAME] StockMovements.cs -^> StockMovement.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\SystemConfig.cs" (
+    echo   [SKIP] SystemConfig.cs already singular
+)
+if exist "%TEMP_ENTITIES_DIR%\Debtors.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Debtors.cs" "Debtor.cs"
+    echo   [RENAME] Debtors.cs -^> Debtor.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\DebtorPaymentTransactions.cs" (
+    ren "%TEMP_ENTITIES_DIR%\DebtorPaymentTransactions.cs" "DebtorPaymentTransaction.cs"
+    echo   [RENAME] DebtorPaymentTransactions.cs -^> DebtorPaymentTransaction.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Orders.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Orders.cs" "Order.cs"
+    echo   [RENAME] Orders.cs -^> Order.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\OrderDetails.cs" (
+    ren "%TEMP_ENTITIES_DIR%\OrderDetails.cs" "OrderDetail.cs"
+    echo   [RENAME] OrderDetails.cs -^> OrderDetail.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Revenues.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Revenues.cs" "Revenue.cs"
+    echo   [RENAME] Revenues.cs -^> Revenue.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Costs.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Costs.cs" "Cost.cs"
+    echo   [RENAME] Costs.cs -^> Cost.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\GeneralLedgerEntries.cs" (
+    ren "%TEMP_ENTITIES_DIR%\GeneralLedgerEntries.cs" "GeneralLedgerEntry.cs"
+    echo   [RENAME] GeneralLedgerEntries.cs -^> GeneralLedgerEntry.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Features.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Features.cs" "Feature.cs"
+    echo   [RENAME] Features.cs -^> Feature.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\SubscriptionPlans.cs" (
+    ren "%TEMP_ENTITIES_DIR%\SubscriptionPlans.cs" "SubscriptionPlan.cs"
+    echo   [RENAME] SubscriptionPlans.cs -^> SubscriptionPlan.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\PlanFeatures.cs" (
+    ren "%TEMP_ENTITIES_DIR%\PlanFeatures.cs" "PlanFeature.cs"
+    echo   [RENAME] PlanFeatures.cs -^> PlanFeature.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Subscriptions.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Subscriptions.cs" "Subscription.cs"
+    echo   [RENAME] Subscriptions.cs -^> Subscription.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\Transactions.cs" (
+    ren "%TEMP_ENTITIES_DIR%\Transactions.cs" "Transaction.cs"
+    echo   [RENAME] Transactions.cs -^> Transaction.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\FeatureUsages.cs" (
+    ren "%TEMP_ENTITIES_DIR%\FeatureUsages.cs" "FeatureUsage.cs"
+    echo   [RENAME] FeatureUsages.cs -^> FeatureUsage.cs
+)
+if exist "%TEMP_ENTITIES_DIR%\SubscriptionAuditLogs.cs" (
+    ren "%TEMP_ENTITIES_DIR%\SubscriptionAuditLogs.cs" "SubscriptionAuditLog.cs"
+    echo   [RENAME] SubscriptionAuditLogs.cs -^> SubscriptionAuditLog.cs
 )
 echo.
 
@@ -165,14 +258,39 @@ for %%F in ("%TEMP_ENTITIES_DIR%\*.cs") do (
     set "FILENAME=%%~nxF"
     set "OUTPUT_FILE=%FINAL_ENTITIES_DIR%\%%~nxF"
     
-    :: Replace namespace and class names using PowerShell
-    powershell -Command "$content = Get-Content '!INPUT_FILE!' -Raw; $content = $content -replace 'namespace BizFlow\.Infrastructure\.TempEntities', 'namespace BizFlow.Domain.Entities' -replace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', '' -replace 'public partial class Roles', 'public partial class Role' -replace 'public partial class BusinessTypes', 'public partial class BusinessType' -replace 'public partial class BusinessTypeTaxes', 'public partial class BusinessTypeTax' -replace 'public partial class BusinessLocations', 'public partial class BusinessLocation' -replace 'public partial class UserLocationAssignments', 'public partial class UserLocationAssignment' -replace 'public partial class Products', 'public partial class Product' -replace 'public partial class SaleItems', 'public partial class SaleItem' -replace 'public partial class ProductPricePolicies', 'public partial class ProductPricePolicy' -replace 'public partial class Imports', 'public partial class Import' -replace 'public partial class ProductsImports', 'public partial class ProductImport' -replace 'public partial class ProductImports', 'public partial class ProductImport' -replace 'public partial class Hires', 'public partial class Hire' -replace 'public partial class Users', 'public partial class User' -replace 'public partial class ImportSchemas', 'public partial class ImportSchema' -replace 'public partial class ImportSchemaVersions', 'public partial class ImportSchemaVersion' -replace 'public partial class Importchemas', 'public partial class ImportSchema' -replace 'public partial class ImportchemaVersions', 'public partial class ImportSchemaVersion' -replace 'ICollection<Roles>', 'ICollection<Role>' -replace 'ICollection<BusinessTypes>', 'ICollection<BusinessType>' -replace 'ICollection<BusinessTypeTaxes>', 'ICollection<BusinessTypeTax>' -replace 'ICollection<BusinessLocations>', 'ICollection<BusinessLocation>' -replace 'ICollection<UserLocationAssignments>', 'ICollection<UserLocationAssignment>' -replace 'ICollection<Products>', 'ICollection<Product>' -replace 'ICollection<SaleItems>', 'ICollection<SaleItem>' -replace 'ICollection<ProductPricePolicies>', 'ICollection<ProductPricePolicy>' -replace 'ICollection<Imports>', 'ICollection<Import>' -replace 'ICollection<ProductsImports>', 'ICollection<ProductImport>' -replace 'ICollection<ProductImports>', 'ICollection<ProductImport>' -replace 'ICollection<Hires>', 'ICollection<Hire>' -replace 'ICollection<Users>', 'ICollection<User>' -replace 'ICollection<ImportSchemas>', 'ICollection<ImportSchema>' -replace 'ICollection<ImportSchemaVersions>', 'ICollection<ImportSchemaVersion>' -replace 'ICollection<Importchemas>', 'ICollection<ImportSchema>' -replace 'ICollection<ImportchemaVersions>', 'ICollection<ImportSchemaVersion>' -replace 'List<Roles>', 'List<Role>' -replace 'List<BusinessTypes>', 'List<BusinessType>' -replace 'List<BusinessTypeTaxes>', 'List<BusinessTypeTax>' -replace 'List<BusinessLocations>', 'List<BusinessLocation>' -replace 'List<UserLocationAssignments>', 'List<UserLocationAssignment>' -replace 'List<Products>', 'List<Product>' -replace 'List<SaleItems>', 'List<SaleItem>' -replace 'List<ProductPricePolicies>', 'List<ProductPricePolicy>' -replace 'List<Imports>', 'List<Import>' -replace 'List<ProductsImports>', 'List<ProductImport>' -replace 'List<ProductImports>', 'List<ProductImport>' -replace 'List<Hires>', 'List<Hire>' -replace 'List<Users>', 'List<User>' -replace 'List<ImportSchemas>', 'List<ImportSchema>' -replace 'List<ImportSchemaVersions>', 'List<ImportSchemaVersion>' -replace 'List<Importchemas>', 'List<ImportSchema>' -replace 'List<ImportchemaVersions>', 'List<ImportSchemaVersion>' -replace 'virtual Roles', 'virtual Role' -replace 'virtual BusinessTypes', 'virtual BusinessType' -replace 'virtual BusinessTypeTaxes', 'virtual BusinessTypeTax' -replace 'virtual BusinessLocations', 'virtual BusinessLocation' -replace 'virtual UserLocationAssignments', 'virtual UserLocationAssignment' -replace 'virtual Products', 'virtual Product' -replace 'virtual SaleItems', 'virtual SaleItem' -replace 'virtual ProductPricePolicies', 'virtual ProductPricePolicy' -replace 'virtual Imports', 'virtual Import' -replace 'virtual ProductsImports', 'virtual ProductImport' -replace 'virtual ProductImports', 'virtual ProductImport' -replace 'virtual Hires', 'virtual Hire' -replace 'virtual Users', 'virtual User' -replace 'virtual ImportSchemas', 'virtual ImportSchema' -replace 'virtual ImportSchemaVersions', 'virtual ImportSchemaVersion' -replace 'virtual Importchemas', 'virtual ImportSchema' -replace 'virtual ImportchemaVersions', 'virtual ImportSchemaVersion'; Set-Content '!OUTPUT_FILE!' -Value $content -NoNewline"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%HELPER_PS1%" -Mode Entity -InputFile "!INPUT_FILE!" -OutputFile "!OUTPUT_FILE!"
+    if errorlevel 1 (
+        echo   [WARNING] Transform failed for !FILENAME!, copying raw file as fallback
+        copy /Y "!INPUT_FILE!" "!OUTPUT_FILE!" >nul
+    )
     
     set /a ENTITY_COUNT+=1
     echo   [OK] Fixed: !FILENAME!
 )
 
 echo   Total entities: !ENTITY_COUNT!
+echo.
+
+:: ============================================
+:: STEP 5.5: FIX DEVICE TOKEN NAMING
+:: ============================================
+echo [STEP 5.5] Fixing DeviceToken naming...
+
+powershell -Command "$targets = @(); if (Test-Path '%FINAL_ENTITIES_DIR%') { $targets += Get-ChildItem '%FINAL_ENTITIES_DIR%' -Filter '*.cs' -File }; foreach ($file in $targets) { $content = Get-Content $file.FullName -Raw; $content = $content -creplace 'public partial class DeviceTokens', 'public partial class DeviceToken' -creplace 'ICollection<DeviceTokens>', 'ICollection<DeviceToken>' -creplace 'List<DeviceTokens>', 'List<DeviceToken>' -creplace 'virtual DeviceTokens', 'virtual DeviceToken' -creplace '\bProfile\?\s+Profiles\b', 'Profile? Profile' -creplace '\bProfile\s+Profiles\b', 'Profile Profile'; $content = $content.Replace('Profile? Profiles', 'Profile? Profile').Replace('Profile Profiles', 'Profile Profile'); Set-Content $file.FullName -Value $content -NoNewline }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch DeviceToken names in entities.
+) else (
+    echo   [OK] DeviceToken names patched in entities
+)
+
+powershell -Command "$file = '%FINAL_ENTITIES_DIR%\BusinessLocation.cs'; if (Test-Path $file) { $content = Get-Content $file -Raw; if ($content -notmatch 'ICollection<AccountingPeriod>\s+AccountingPeriods') { $insert = '    public virtual ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();'; $content = $content -replace '(public string\? TaxCode \{ get; set; \}\r?\n\r?\n)', ('$1' + $insert); Set-Content $file -Value $content -NoNewline } }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch BusinessLocation.AccountingPeriods navigation.
+) else (
+    echo   [OK] BusinessLocation.AccountingPeriods navigation ensured
+)
 echo.
 
 :: ============================================
@@ -188,11 +306,60 @@ set "DBCONTEXT_OUTPUT=%FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs"
 
 if exist "%DBCONTEXT_INPUT%" (
     :: Fix DbContext namespace, add Entity using, and update DbSet types
-    powershell -Command "$content = Get-Content '%DBCONTEXT_INPUT%' -Raw; $content = $content -replace 'namespace BizFlow\.Infrastructure\.TempData', 'namespace BizFlow.Infrastructure.DataContext'; if ($content -notmatch 'using BizFlow\.Domain\.Entities;') { $content = $content -replace '(using .*?;\r?\n)', \"`$1using BizFlow.Domain.Entities;`r`n\" }; $content = $content -replace 'using BizFlow\.Infrastructure\.TempEntities;\r?\n', '' -replace 'DbSet<Roles>', 'DbSet<Role>' -replace 'DbSet<BusinessTypes>', 'DbSet<BusinessType>' -replace 'DbSet<BusinessTypeTaxes>', 'DbSet<BusinessTypeTax>' -replace 'DbSet<BusinessLocations>', 'DbSet<BusinessLocation>' -replace 'DbSet<UserLocationAssignments>', 'DbSet<UserLocationAssignment>' -replace 'DbSet<Products>', 'DbSet<Product>' -replace 'DbSet<SaleItems>', 'DbSet<SaleItem>' -replace 'DbSet<ProductPricePolicies>', 'DbSet<ProductPricePolicy>' -replace 'DbSet<Imports>', 'DbSet<Import>' -replace 'DbSet<ProductsImports>', 'DbSet<ProductImport>' -replace 'DbSet<ProductImports>', 'DbSet<ProductImport>' -replace 'DbSet<Hires>', 'DbSet<Hire>' -replace 'DbSet<Users>', 'DbSet<User>' -replace 'DbSet<ImportSchemas>', 'DbSet<ImportSchema>' -replace 'DbSet<ImportSchemaVersions>', 'DbSet<ImportSchemaVersion>' -replace 'modelBuilder\.Entity<Roles>', 'modelBuilder.Entity<Role>' -replace 'modelBuilder\.Entity<BusinessTypes>', 'modelBuilder.Entity<BusinessType>' -replace 'modelBuilder\.Entity<BusinessTypeTaxes>', 'modelBuilder.Entity<BusinessTypeTax>' -replace 'modelBuilder\.Entity<BusinessLocations>', 'modelBuilder.Entity<BusinessLocation>' -replace 'modelBuilder\.Entity<UserLocationAssignments>', 'modelBuilder.Entity<UserLocationAssignment>' -replace 'modelBuilder\.Entity<Products>', 'modelBuilder.Entity<Product>' -replace 'modelBuilder\.Entity<SaleItems>', 'modelBuilder.Entity<SaleItem>' -replace 'modelBuilder\.Entity<ProductPricePolicies>', 'modelBuilder.Entity<ProductPricePolicy>' -replace 'modelBuilder\.Entity<Imports>', 'modelBuilder.Entity<Import>' -replace 'modelBuilder\.Entity<ProductsImports>', 'modelBuilder.Entity<ProductImport>' -replace 'modelBuilder\.Entity<ProductImports>', 'modelBuilder.Entity<ProductImport>' -replace 'modelBuilder\.Entity<Hires>', 'modelBuilder.Entity<Hire>' -replace 'modelBuilder\.Entity<Users>', 'modelBuilder.Entity<User>' -replace 'modelBuilder\.Entity<ImportSchemas>', 'modelBuilder.Entity<ImportSchema>' -replace 'modelBuilder\.Entity<ImportSchemaVersions>', 'modelBuilder.Entity<ImportSchemaVersion>'; Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%HELPER_PS1%" -Mode DbContext -InputFile "%DBCONTEXT_INPUT%" -OutputFile "%DBCONTEXT_OUTPUT%"
+    if errorlevel 1 (
+        echo   [ERROR] Failed to transform DbContext
+        pause
+        exit /b 1
+    )
     
     echo   [OK] Fixed: BizFlowDbContext.cs
 ) else (
     echo   [WARNING] DbContext not found in TempData
+)
+
+powershell -Command "if (Test-Path '%DBCONTEXT_OUTPUT%') { $content = Get-Content '%DBCONTEXT_OUTPUT%' -Raw; $content = $content -creplace 'DbSet<DeviceTokens>', 'DbSet<DeviceToken>' -creplace 'modelBuilder\.Entity<DeviceTokens>', 'modelBuilder.Entity<DeviceToken>' -creplace '\bProfile\?\s+Profiles\b', 'Profile? Profile' -creplace '\bProfile\s+Profiles\b', 'Profile Profile' -creplace 'WithOne\(p => p\.Profiles\)', 'WithOne(p => p.Profile)'; $content = $content.Replace('Profile? Profiles', 'Profile? Profile').Replace('Profile Profiles', 'Profile Profile').Replace('WithOne(p => p.Profiles)', 'WithOne(p => p.Profile)'); Set-Content '%DBCONTEXT_OUTPUT%' -Value $content -NoNewline }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to patch DeviceToken names in DbContext.
+) else (
+    echo   [OK] DeviceToken names patched in DbContext
+)
+echo.
+
+:: ============================================
+:: STEP 6.4: DEDUPLICATE USING DIRECTIVES
+:: ============================================
+echo [STEP 6.4] Deduplicating using directives in generated files...
+
+powershell -Command "$targets = @(); if (Test-Path '%FINAL_ENTITIES_DIR%') { $targets += Get-ChildItem '%FINAL_ENTITIES_DIR%' -Filter '*.cs' -File }; if (Test-Path '%FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs') { $targets += Get-Item '%FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs' }; foreach ($file in $targets) { $lines = Get-Content $file.FullName; $out = New-Object System.Collections.Generic.List[string]; $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal); $inHeader = $true; foreach ($line in $lines) { if ($inHeader -and $line -match '^\s*using\s+[^;]+;\s*$') { $key = $line.Trim(); if ($seen.Add($key)) { $out.Add($line) }; continue }; if ($inHeader -and ($line.Trim().Length -eq 0 -or $line.TrimStart().StartsWith('//'))) { $out.Add($line); continue }; $inHeader = $false; $out.Add($line) }; Set-Content $file.FullName -Value $out }"
+
+if errorlevel 1 (
+    echo   [WARNING] Failed to deduplicate using directives.
+) else (
+    echo   [OK] Deduplicated using directives
+)
+echo.
+
+:: ============================================
+:: STEP 6.5: REMOVE UNUSED USING DIRECTIVES
+:: ============================================
+echo [STEP 6.5] Removing unused using directives...
+
+if exist "%SOLUTION_FILE%" (
+    cd /d "%PROJECT_ROOT%\bizflow-platform"
+    dotnet format "%SOLUTION_FILE%" ^
+        --include "%FINAL_ENTITIES_DIR%" "%FINAL_DATACONTEXT_DIR%\BizFlowDbContext.cs" ^
+        --diagnostics IDE0005 ^
+        --verbosity minimal >nul 2>&1
+
+    if errorlevel 1 (
+        echo   [WARNING] dotnet format failed or unavailable. Skipped unused using cleanup.
+    ) else (
+        echo   [OK] Removed unused using directives (IDE0005)
+    )
+) else (
+    echo   [WARNING] Solution file not found. Skipped unused using cleanup.
 )
 echo.
 

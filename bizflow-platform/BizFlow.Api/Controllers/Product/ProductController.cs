@@ -1,9 +1,11 @@
 using BizFlow.Api.Common.Controllers;
+using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Product;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
@@ -14,23 +16,19 @@ namespace BizFlow.Api.Controllers.Product
     /// Product Management APIs
     /// </summary>
     [Route("api/my-business")]
-    public class ProductController : BaseApiController
+    [Authorize]
+    public class ProductController : PaginatedApiController
     {
         private readonly IProductService _productService;
-        private readonly PaginationSettings _paginationSettings;
-
-        // TODO: Replace with actual JWT-based user identification
-        private static readonly Guid _mockCurrentUserId = Guid.Parse("550e8400-e29b-41d4-a716-446655440001");
 
         public ProductController(
             IProductService productService,
             IMessageService messageService,
             IOptions<PaginationSettings> paginationSettings,
             ILogger<ProductController> logger)
-            : base(messageService, logger)
+            : base(messageService, logger, paginationSettings)
         {
             _productService = productService;
-            _paginationSettings = paginationSettings.Value;
         }
 
         #region Product APIs
@@ -44,11 +42,24 @@ namespace BizFlow.Api.Controllers.Product
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParams query)
         {
-            // Apply pagination defaults from settings
             ApplyPaginationDefaults(query);
 
             var userId = GetCurrentUserId();
             var result = await _productService.SearchProductsAsync(userId, query);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
+        /// Lightweight product search for order flow
+        /// </summary>
+        [HttpGet("locations/{locationId:int}/products/quick-search")]
+        [SwaggerOperation(Summary = "Quick search products", Description = "Search by name/sku in a business location and return: name, sku, imageUrl, sellingPrice, saleItems.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> QuickSearchProducts(int locationId, [FromQuery] string? search)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.SearchQuickProductsAsync(userId, locationId, search);
             return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
@@ -83,6 +94,21 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Get product cost price history from confirmed imports
+        /// </summary>
+        [HttpGet("product/{productId:long}/cost-price-history")]
+        [SwaggerOperation(Summary = "Get cost price history", Description = "Returns all cost price changes from confirmed imports. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetCostPriceHistory(long productId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.GetCostPriceHistoryAsync(userId, productId);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
         /// Create a new product
         /// </summary>
         [HttpPost("product")]
@@ -99,8 +125,8 @@ namespace BizFlow.Api.Controllers.Product
             }
 
             var userId = GetCurrentUserId();
-            var product = await _productService.CreateProductAsync(userId, request);
-            return Created(product, MessageKeys.DataCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId });
+            var (product, warnings) = await _productService.CreateProductAsync(userId, request);
+            return Created(product, MessageKeys.DataCreatedSuccessfully, nameof(GetProducts), new { locationId = request.LocationId }, warnings);
         }
 
         /// <summary>
@@ -121,14 +147,14 @@ namespace BizFlow.Api.Controllers.Product
             }
 
             var userId = GetCurrentUserId();
-            var product = await _productService.UpdateProductAsync(userId, id, request);
-            return Ok(product, MessageKeys.DataUpdatedSuccessfully);
+            var (product, warnings) = await _productService.UpdateProductAsync(userId, id, request);
+            return Ok(product, MessageKeys.DataUpdatedSuccessfully, warnings);
         }
 
         /// <summary>
         /// Update product status
         /// </summary>
-        [HttpPut("product/{productId:long}/status")]
+        [HttpPatch("product/{productId:long}/status")]
         [SwaggerOperation(Summary = "Update product status", Description = "Toggle active/inactive. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -136,13 +162,39 @@ namespace BizFlow.Api.Controllers.Product
         public async Task<IActionResult> UpdateProductStatus(long productId, [FromBody] UpdateProductStatusRequest request)
         {
             var userId = GetCurrentUserId();
-            var success = await _productService.UpdateProductStatusAsync(userId, productId, request.Status);
+            await _productService.UpdateProductStatusAsync(userId, productId, request.Status);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
+        }
 
-            if (!success)
-            {
-                return Forbidden(MessageKeys.Forbidden);
-            }
+        /// <summary>
+        /// Manually adjust product stock to target quantity
+        /// </summary>
+        [HttpPatch("product/{productId:long}/stock")]
+        [SwaggerOperation(Summary = "Adjust product stock", Description = "Manual stock adjustment with optional memo. Increase creates import + stock movement. Decrease creates stock movement only. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AdjustProductStock(long productId, [FromBody] AdjustProductStockRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var product = await _productService.AdjustProductStockAsync(userId, productId, request);
+            return Ok(product, MessageKeys.DataUpdatedSuccessfully);
+        }
 
+        /// <summary>
+        /// Bulk adjust selling price on selected sale items by fixed delta.
+        /// </summary>
+        [HttpPatch("products/sale-items/selling-price")]
+        [SwaggerOperation(Summary = "Bulk adjust selling price", Description = "Adjust selected sale-item selling prices by fixed delta. Positive delta increases price, negative delta decreases price. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> BulkAdjustSellingPrice([FromBody] BulkAdjustSellingPriceRequest request)
+        {
+            var userId = GetCurrentUserId();
+            await _productService.BulkAdjustSellingPriceAsync(userId, request);
             return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 
@@ -150,20 +202,14 @@ namespace BizFlow.Api.Controllers.Product
         /// Delete product (soft delete)
         /// </summary>
         [HttpDelete("product/{productId:long}")]
-        [SwaggerOperation(Summary = "Delete product", Description = "Soft delete - sets DeletedAt timestamp. Owner only.")]
+        [SwaggerOperation(Summary = "Delete product", Description = "Soft/Hard delete based on history. Cascades to SaleItems. Owner only.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteProduct(long productId)
         {
             var userId = GetCurrentUserId();
-            var success = await _productService.DeleteProductAsync(userId, productId);
-
-            if (!success)
-            {
-                return Forbidden(MessageKeys.Forbidden);
-            }
-
+            await _productService.DeleteProductAsync(userId, productId);
             return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
@@ -171,26 +217,9 @@ namespace BizFlow.Api.Controllers.Product
 
         #region Private Helper Methods
 
-        private Guid GetCurrentUserId()
-        {
-            return _mockCurrentUserId;
-        }
+        private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
         /// <summary>
-        /// Apply default pagination values from settings if not provided
-        /// </summary>
-        private void ApplyPaginationDefaults(PaginationParams pagination)
-        {
-            pagination.PageNumber ??= _paginationSettings.DefaultPageNumber;
-            pagination.PageSize ??= _paginationSettings.DefaultPageSize;
-
-            // Clamp page size to max allowed
-            if (pagination.PageSize > _paginationSettings.MaxPageSize)
-            {
-                pagination.PageSize = _paginationSettings.MaxPageSize;
-            }
-        }
-
         #endregion
     }
 }

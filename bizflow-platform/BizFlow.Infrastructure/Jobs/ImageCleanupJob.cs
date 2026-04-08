@@ -5,62 +5,112 @@ using Microsoft.Extensions.Logging;
 namespace BizFlow.Infrastructure.Jobs
 {
     /// <summary>
-    /// Hangfire job to cleanup orphaned images from Cloudinary
+    /// Hangfire job to cleanup orphaned images from Cloudinary.
+    /// Scans all Cloudinary resources page by page, deletes those not referenced in DB.
+    /// NOTE: Upload presets use Cloudinary virtual folders — public_id does NOT include folder path.
     /// </summary>
     public class ImageCleanupJob
     {
         private readonly ICloudinaryService _cloudinaryService;
         private readonly IProductRepository _productRepository;
+        private readonly IImportRepository _importRepository;
         private readonly ILogger<ImageCleanupJob> _logger;
+
+        /// <summary>
+        /// Grace period — only delete images uploaded more than this duration ago
+        /// to avoid race conditions with in-progress uploads
+        /// </summary>
+        private static readonly TimeSpan GracePeriod = TimeSpan.FromMinutes(10);
 
         public ImageCleanupJob(
             ICloudinaryService cloudinaryService,
             IProductRepository productRepository,
+            IImportRepository importRepository,
             ILogger<ImageCleanupJob> logger)
         {
             _cloudinaryService = cloudinaryService;
             _productRepository = productRepository;
+            _importRepository = importRepository;
             _logger = logger;
         }
 
         /// <summary>
-        /// Find and delete orphaned images from Cloudinary
+        /// Find and delete orphaned images from Cloudinary, processing page by page
         /// </summary>
         public async Task ExecuteAsync()
         {
             _logger.LogInformation("Starting Cloudinary image cleanup job...");
 
+            var cutoff = DateTime.UtcNow - GracePeriod;
+            int totalDeleted = 0;
+            int totalFailed = 0;
+            int totalScanned = 0;
+            string? cursor = null;
+
             try
             {
-                // Get all PublicIds from Cloudinary
-                var cloudinaryPublicIds = await _cloudinaryService.GetAllPublicIdsAsync("products");
-                _logger.LogInformation($"Found {cloudinaryPublicIds.Count} images in Cloudinary");
-
-                // Get all PublicIds from database
-                var dbPublicIds = await _productRepository.GetAllImagePublicIdsAsync();
-                _logger.LogInformation($"Found {dbPublicIds.Count} PublicIds in database");
-
-                // Find orphaned images (in Cloudinary but not in DB)
-                var orphanedPublicIds = cloudinaryPublicIds.Except(dbPublicIds).ToList();
-                _logger.LogInformation($"Found {orphanedPublicIds.Count} orphaned images");
-
-                // Delete orphaned images
-                int deletedCount = 0;
-                foreach (var publicId in orphanedPublicIds)
+                do
                 {
-                    var deleted = await _cloudinaryService.DeleteImageAsync(publicId);
-                    if (deleted)
-                    {
-                        deletedCount++;
-                        _logger.LogInformation($"Deleted orphaned image: {publicId}");
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Failed to delete orphaned image: {publicId}");
-                    }
-                }
+                    // 1. Get one page of all Cloudinary resources (no prefix — virtual folders)
+                    var page = await _cloudinaryService.GetResourcePageAsync("", cursor);
+                    cursor = page.NextCursor;
 
-                _logger.LogInformation($"Cloudinary cleanup job completed. Deleted {deletedCount}/{orphanedPublicIds.Count} orphaned images");
+                    if (page.Resources.Count == 0) break;
+                    totalScanned += page.Resources.Count;
+
+                    // 2. Filter by grace period — skip recently uploaded images
+                    var candidates = page.Resources
+                        .Where(r => r.CreatedAt < cutoff)
+                        .Select(r => r.PublicId)
+                        .ToList();
+
+                    if (candidates.Count == 0) continue;
+
+                    // 3. Batch check against DB — which PublicIds are still referenced?
+                    var existsInProducts = await _productRepository.GetExistingPublicIdsAsync(candidates);
+                    var existsInImports = await _importRepository.GetExistingPublicIdsAsync(candidates);
+
+                    var orphans = candidates
+                        .Where(id => !existsInProducts.Contains(id) && !existsInImports.Contains(id))
+                        .ToList();
+
+                    _logger.LogInformation(
+                        "Page: {Total} scanned, {Candidates} checked, {Orphans} orphans found",
+                        page.Resources.Count, candidates.Count, orphans.Count);
+
+                    if (orphans.Count == 0) continue;
+
+                    // 4. Delete orphans concurrently (batch of 10)
+                    foreach (var batch in orphans.Chunk(10))
+                    {
+                        var tasks = batch.Select(async publicId =>
+                        {
+                            var success = await _cloudinaryService.DeleteImageAsync(publicId);
+                            return (publicId, success);
+                        });
+
+                        var results = await Task.WhenAll(tasks);
+
+                        foreach (var (publicId, success) in results)
+                        {
+                            if (success)
+                            {
+                                totalDeleted++;
+                                _logger.LogDebug("Deleted orphaned image: {PublicId}", publicId);
+                            }
+                            else
+                            {
+                                totalFailed++;
+                                _logger.LogWarning("Failed to delete orphaned image: {PublicId}", publicId);
+                            }
+                        }
+                    }
+
+                } while (cursor != null);
+
+                _logger.LogInformation(
+                    "Cloudinary cleanup completed. Scanned: {Scanned}, Deleted: {Deleted}, Failed: {Failed}",
+                    totalScanned, totalDeleted, totalFailed);
             }
             catch (Exception ex)
             {

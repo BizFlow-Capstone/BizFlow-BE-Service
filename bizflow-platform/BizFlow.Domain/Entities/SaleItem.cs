@@ -18,6 +18,8 @@ public partial class SaleItem
 
     public DateTime? DeletedAt { get; set; }
 
+    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
     public virtual Product Product { get; set; } = null!;
 
     public virtual ICollection<ProductPricePolicy> ProductPricePolicies { get; set; } = new List<ProductPricePolicy>();

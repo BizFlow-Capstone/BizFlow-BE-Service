@@ -1,0 +1,144 @@
+# =============================================================================
+# BizFlow Docker Compose - DEVELOPMENT overrides
+# =============================================================================
+# Extends docker-compose.yml for the local development environment.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai down
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai ps
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f bizflow-api bizflow-ai
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai up -d --build bizflow-api
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev --profile ai logs -f bizflow-api
+#
+#
+# =============================================================================
+# Stripe webhook (dev): stripe-cli service runs `listen` and forwards to bizflow-api.
+#   - Requires STRIPE_SECRET_KEY in .env.dev (CLI reads STRIPE_API_KEY in the container).
+#   - First run: `docker logs bizflow-stripe-cli` → copy the "webhook signing secret" line (whsec_...)
+#     into STRIPE_WEBHOOK_SECRET, then restart bizflow-api (secret may change each listen session).
+#   - Stop when not testing Stripe: docker stop bizflow-stripe-cli
+#   - Start again: docker start bizflow-stripe-cli
+#   - Build: docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d --build
+#   - Logs: docker logs bizflow-stripe-cli
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Local MySQL (dev only — production uses Aiven hosted MySQL)
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: bizflow-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
+      MYSQL_USER: ${MYSQL_USER:-admin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"        # Expose to host so devs can connect via DB tools (e.g. DBeaver)
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    networks:
+      - bizflow-network
+    # CMD-SHELL + $$VAR: password is read inside the container (avoids compose-time issues if .env has special chars).
+    # start_period: first init (migrations in docker-entrypoint-initdb.d) can exceed a few probe cycles.
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # MySQL Backup (dev — daily dump, stored in ./backups)
+  # ---------------------------------------------------------------------------
+  mysql-backup:
+    image: mysql:8.0
+    container_name: bizflow-mysql-backup-dev
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-admin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
+    volumes:
+      - ./backups:/backups
+      - ./docker/scripts/backup.sh:/backup.sh:ro
+    command: /bin/bash -c "chmod +x /backup.sh && /backup.sh"
+    networks:
+      - bizflow-network
+
+  # ---------------------------------------------------------------------------
+  # API — dev settings: expose port directly (no nginx needed in dev)
+  # ---------------------------------------------------------------------------
+  bizflow-api:
+    build:
+      context: ./bizflow-platform
+      dockerfile: Dockerfile
+      target: build
+    working_dir: /src
+    command: ["dotnet", "watch", "--project", "BizFlow.Api/BizFlow.Api.csproj", "run", "--urls", "http://0.0.0.0:8080"]
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-bizflow_db};User=${MYSQL_USER:-admin};Password=${MYSQL_PASSWORD};CharSet=utf8mb4;SslMode=none;AllowPublicKeyRetrieval=true;Allow User Variables=true;
+      - ASPNETCORE_ENVIRONMENT=Development
+      - GOOGLE_APPLICATION_CREDENTIALS=/src/credentials/firebase-adminsdk.json
+      - FirebaseAuth__ServiceAccountPath=/src/credentials/firebase-adminsdk.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./bizflow-platform:/src
+      - ./docker/credentials:/src/credentials:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  # ---------------------------------------------------------------------------
+  # AI — dev settings: expose FastAPI docs to host and wait for mysql
+  # ---------------------------------------------------------------------------
+  bizflow-ai:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
+    ports:
+      - "5050:5000"
+    volumes:
+      - ../BizFlow-AI-Service:/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Stripe CLI — forwards webhooks to the API (same Docker network; no host-side `stripe listen`)
+  # ---------------------------------------------------------------------------
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    pull_policy: missing
+    container_name: bizflow-stripe-cli
+    restart: unless-stopped
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+    command:
+      - listen
+      - --forward-to
+      - http://bizflow-api:8080/api/webhooks/stripe
+    depends_on:
+      bizflow-api:
+        condition: service_started
+    networks:
+      - bizflow-network
+
+volumes:
+  mysql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD:-.}/data/mysql

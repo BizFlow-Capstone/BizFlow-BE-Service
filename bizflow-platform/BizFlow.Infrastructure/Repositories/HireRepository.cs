@@ -22,7 +22,10 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<IEnumerable<Guid>> GetHiredEmployeeIdsAsync(Guid ownerId)
         {
             return await _context.Hires
-                .Where(h => h.OwnerId == ownerId && h.IsActive == true)
+                .Where(h =>
+                    h.OwnerId == ownerId &&
+                    h.IsActive == true &&
+                    (h.Status == "accepted" || h.Status == "Accepted"))
                 .Select(h => h.EmployeeId)
                 .ToListAsync();
         }
@@ -30,24 +33,33 @@ namespace BizFlow.Infrastructure.Repositories
         /// <summary>
         /// Gets hired employees with user details (name, email, phone)
         /// </summary>
-        public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
+        public async Task<IEnumerable<(Hire hire, string fullName, string email, string? phone, string? avatarUrl)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId)
         {
             var result = await _context.Hires
                 .Where(h => h.OwnerId == ownerId)
-                .Join(_context.Users,
+                .Join(_context.Profiles,
                     hire => hire.EmployeeId,
-                    user => user.UserId,
-                    (hire, user) => new { hire, user })
+                    profile => profile.ProfileId,
+                    (hire, profile) => new { hire, profile })
+                .Join(_context.Accounts,
+                    x => x.profile.AccountId,
+                    account => account.AccountId,
+                    (x, account) => new { x.hire, x.profile, account })
                 .Select(x => new
                 {
                     Hire = x.hire,
-                    x.user.FullName,
-                    x.user.Email,
-                    x.user.Phone
+                    x.profile.FullName,
+                    x.profile.AvatarUrl,
+                    Email = _context.Credentials
+                        .Where(c => c.AccountId == x.account.AccountId && c.Type == "email")
+                        .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
+                    Phone = _context.Credentials
+                        .Where(c => c.AccountId == x.account.AccountId && c.Type == "phone")
+                        .Select(c => (string?)c.Identifier).FirstOrDefault()
                 })
                 .ToListAsync();
 
-            return result.Select(x => (x.Hire, x.FullName, x.Email, x.Phone));
+            return result.Select(x => (x.Hire, x.FullName, x.Email, x.Phone, x.AvatarUrl));
         }
 
         #endregion

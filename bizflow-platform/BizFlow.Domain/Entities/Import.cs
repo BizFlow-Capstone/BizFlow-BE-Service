@@ -33,9 +33,9 @@ public partial class Import
     public string? Supplier { get; set; }
 
     /// <summary>
-    /// Import data schema
+    /// Whether the import has an invoice attached
     /// </summary>
-    public string? SchemaJson { get; set; }
+    public bool HasInvoice { get; set; }
 
     /// <summary>
     /// Total amount
@@ -52,6 +52,21 @@ public partial class Import
     /// </summary>
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// When the import was confirmed
+    /// </summary>
+    public DateTime? ConfirmedAt { get; set; }
+
+    /// <summary>
+    /// When the import was cancelled
+    /// </summary>
+    public DateTime? CancelledAt { get; set; }
+
+    /// <summary>
+    /// Reason for cancellation
+    /// </summary>
+    public string? CancelReason { get; set; }
+
     public DateTime? ReceivedAt { get; set; }
 
     public string? Note { get; set; }
@@ -66,7 +81,21 @@ public partial class Import
     /// </summary>
     public string? ImagePublicId { get; set; }
 
+    /// <summary>
+    /// FK to ImportSchemaVersions
+    /// </summary>
+    public int? SchemaVersionId { get; set; }
+
+    /// <summary>
+    /// Stored data captured from schema form
+    /// </summary>
+    public string? SchemaDataJson { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
+    public virtual ICollection<Cost> Costs { get; set; } = new List<Cost>();
+
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
+
+    public virtual ImportSchemaVersion? SchemaVersion { get; set; }
 }

@@ -135,8 +135,3 @@ VALUES
 (217, 6, 117, '650e8400-e29b-41d4-a716-446655440003', 'sale',  930000.00, '2026-04-03', 'Doanh thu ban hang', 'cash', 'ff45309c-7b0b-4012-933b-042405d75685', '2026-04-03 18:00:00', NULL),
 (218, 6, 118, '650e8400-e29b-41d4-a716-446655440003', 'sale',   57000.00, '2026-04-05', 'Doanh thu ban hang', 'cash', 'ff45309c-7b0b-4012-933b-042405d75685', '2026-04-05 15:00:00', NULL),
 (219, 6, 119, '650e8400-e29b-41d4-a716-446655440003', 'sale', 1710000.00, '2026-04-06', 'Doanh thu ban hang', 'cash', 'ff45309c-7b0b-4012-933b-042405d75685', '2026-04-06 18:30:00', NULL);
-
--- Track migration
-INSERT INTO __MigrationHistory (MigrationId, ProductVersion)
-VALUES ('109_seed_orders_location6', '1.0.0')
-ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;

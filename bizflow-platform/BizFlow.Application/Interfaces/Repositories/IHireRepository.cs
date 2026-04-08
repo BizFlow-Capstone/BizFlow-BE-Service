@@ -12,6 +12,6 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// <summary>
         /// Get all hired employees with user details for an owner
         /// </summary>
-        Task<IEnumerable<(Hire hire, string fullName, string email, string? phone)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId);
+        Task<IEnumerable<(Hire hire, string fullName, string email, string? phone, string? avatarUrl)>> GetHiredEmployeesWithDetailsAsync(Guid ownerId);
     }
 }

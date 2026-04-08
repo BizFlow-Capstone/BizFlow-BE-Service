@@ -784,7 +784,7 @@ namespace BizFlow.Application.Tests.Services
         }
 
         [Fact]
-        public async Task DeleteImportAsync_StockNeverGoesBelowZero_WhenCancellingConfirmedImport()
+        public async Task DeleteImportAsync_WhenCancellingWouldResultInNegativeStock_ThrowsBadRequestException()
         {
             // Arrange
             var userId = Guid.NewGuid();
@@ -808,11 +808,9 @@ namespace BizFlow.Application.Tests.Services
             _mockUnitOfWork.Setup(x => x.Imports.GetByIdWithItemsAsync(importId))
                 .ReturnsAsync(import);
 
-            // Act
-            await _importService.DeleteImportAsync(userId, importId);
-
-            // Assert — stock floors at 0 via Math.Max(0, ...)
-            Assert.Equal(0, product.Stock);
+            // Act & Assert
+            await Assert.ThrowsAsync<BadRequestException>(
+                () => _importService.DeleteImportAsync(userId, importId));
         }
 
         [Fact]

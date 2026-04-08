@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Infrastructure.DataContext;
 using BizFlow.Infrastructure.Repositories;
@@ -9,6 +9,8 @@ using BizFlow.Application.Common.Models;
 using CloudinaryDotNet;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Infrastructure.Services;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 namespace BizFlow.Infrastructure
 {
@@ -23,6 +25,8 @@ namespace BizFlow.Infrastructure
 
         protected override void Load(ContainerBuilder builder)
         {
+            InitializeFirebaseApp();
+
             builder.RegisterType<UnitOfWork>()
                    .As<IUnitOfWork>()
                    .InstancePerLifetimeScope();
@@ -72,8 +76,94 @@ namespace BizFlow.Infrastructure
                    .As<ICloudinaryService>()
                    .SingleInstance();
 
+                 // Firestore service should be singleton to reuse FirestoreDb instance
+                 builder.RegisterType<FirestoreService>()
+                     .As<IFirestoreService>()
+                     .SingleInstance();
+
+            // Hangfire enqueue abstraction (not picked up by *Service assembly scan)
+            builder.RegisterType<HangfireBackgroundJobScheduler>()
+                .As<IBackgroundJobScheduler>()
+                .SingleInstance();
+
+            // AI Service HTTP client (uses IHttpClientFactory from MS DI)
+            builder.RegisterType<AiServiceHttpClient>()
+                .As<IAiServiceClient>()
+                .InstancePerLifetimeScope();
+
             // Register Jobs
             builder.RegisterType<ImageCleanupJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<SubscriptionExpiryCheckJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<SubscriptionReminderJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<UsageSnapshotJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<FirestoreSyncJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<StaleTransactionCleanupJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<StripePendingReconcileJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<StripeRefundReconcileJob>().AsSelf().InstancePerDependency();
+                 builder.RegisterType<SubscriptionPlanStripeCatalogSyncJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<ScheduledNotificationDispatchJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<OtpCleanupJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AccountHardDeleteJob>().AsSelf().InstancePerDependency();
+
+            // AI nightly jobs
+            builder.RegisterType<AiForecastJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiAnomalyPatternJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiReorderJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiProductInsightsJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiAnomalyCheckJob>().AsSelf().InstancePerDependency();
+
+            // Register Accounting Book engines
+            builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
+                   .As<IFormulaEngine>()
+                   .InstancePerLifetimeScope();
+            builder.RegisterType<BizFlow.Infrastructure.Services.BookRendering.BookRenderingService>()
+                   .As<IBookRenderingService>()
+                   .InstancePerLifetimeScope();
+        }
+
+        private void InitializeFirebaseApp()
+        {
+            if (IsFirebaseInitialized())
+            {
+                return;
+            }
+
+            var serviceAccountPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+            if (string.IsNullOrWhiteSpace(serviceAccountPath))
+            {
+                serviceAccountPath = _configuration["FirebaseAuth:ServiceAccountPath"];
+            }
+
+            // Backward compatibility for old key naming.
+            if (string.IsNullOrWhiteSpace(serviceAccountPath))
+            {
+                serviceAccountPath = _configuration["Firebase:ServiceAccountPath"];
+            }
+
+            if (string.IsNullOrWhiteSpace(serviceAccountPath) || !File.Exists(serviceAccountPath))
+            {
+                return;
+            }
+
+            FirebaseApp.Create(new AppOptions
+            {
+                Credential = GoogleCredential.FromFile(serviceAccountPath)
+            });
+        }
+
+        private static bool IsFirebaseInitialized()
+        {
+            try
+            {
+                _ = FirebaseApp.DefaultInstance;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

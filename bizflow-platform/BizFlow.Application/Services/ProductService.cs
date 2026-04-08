@@ -99,6 +99,16 @@ namespace BizFlow.Application.Services
                     // Pass null for errors, and the unit name as a message argument
                     throw new BadRequestException(MessageKeys.ProductDuplicateUnitInPriceTiers, null, duplicateUnitTier.Unit ?? "");
                 }
+
+                // Check for duplicate units WITHIN the PriceTiers list itself
+                var duplicateSubTier = request.PriceTiers
+                    .GroupBy(t => t.Unit?.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault(g => g.Count() > 1);
+
+                if (duplicateSubTier != null)
+                {
+                    throw new BadRequestException(MessageKeys.ProductDuplicateUnitInPriceTiers, null, duplicateSubTier.Key ?? "");
+                }
             }
 
             // 3. Build Product Entity Graph
@@ -223,6 +233,16 @@ namespace BizFlow.Application.Services
                 if (duplicateUnitTier != null)
                 {
                     throw new BadRequestException(MessageKeys.ProductDuplicateUnitInPriceTiers, null, duplicateUnitTier.Unit ?? "");
+                }
+
+                // Check for duplicate units WITHIN the PriceTiers list itself
+                var duplicateSubTier = request.PriceTiers
+                    .GroupBy(t => t.Unit?.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault(g => g.Count() > 1);
+
+                if (duplicateSubTier != null)
+                {
+                    throw new BadRequestException(MessageKeys.ProductDuplicateUnitInPriceTiers, null, duplicateSubTier.Key ?? "");
                 }
             }
 

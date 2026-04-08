@@ -5,8 +5,16 @@ namespace BizFlow.Domain.Entities;
 
 public partial class ProductImport
 {
+    public long ProductImportId { get; set; }
+
+    /// <summary>
+    /// FK to Imports
+    /// </summary>
     public long ImportId { get; set; }
 
+    /// <summary>
+    /// FK to Products
+    /// </summary>
     public long ProductId { get; set; }
 
     /// <summary>
@@ -28,6 +36,8 @@ public partial class ProductImport
     /// Base/smallest inventory unit
     /// </summary>
     public string BaseUnit { get; set; } = null!;
+
+    public DateTime CreatedAt { get; set; }
 
     public virtual Import Import { get; set; } = null!;
 

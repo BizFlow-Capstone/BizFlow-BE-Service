@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Hire;
+using BizFlow.Application.DTOs.Location;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
@@ -17,104 +19,154 @@ namespace BizFlow.Infrastructure.Repositories
         #region Query Methods
 
         /// <summary>
-        /// Gets all locations owned by a user (IsOwner = true)
+        /// Single query: locations + owner name. Replaces N+1 pattern.
         /// </summary>
-        public async Task<IEnumerable<BusinessLocation>> GetOwnedByUserIdAsync(Guid userId)
+        public async Task<IEnumerable<BusinessLocationDto>> GetLocationsByUserAsync(Guid userId, bool isOwner)
         {
-            return await _context.UserLocationAssignments
-                .Where(ula => ula.UserId == userId && ula.IsOwner)
-                .Join(_context.BusinessLocations,
-                    ula => ula.BusinessLocationId,
-                    loc => loc.BusinessLocationId,
-                    (ula, loc) => loc)
-                .ToListAsync();
+            return await (
+                from ula in _context.UserLocationAssignments
+                where ula.UserId == userId && ula.IsOwner == isOwner && ula.IsActive == true
+                join loc in _context.BusinessLocations
+                    on ula.BusinessLocationId equals loc.BusinessLocationId
+                where loc.DeletedAt == null
+                      && (isOwner || loc.IsActive == true) // RULE-LOC-07: Employee only sees active locations
+                join ownerUla in _context.UserLocationAssignments
+                    on new { loc.BusinessLocationId, IsOwner = true }
+                    equals new { ownerUla.BusinessLocationId, ownerUla.IsOwner }
+                join ownerProfile in _context.Profiles
+                    on ownerUla.UserId equals ownerProfile.ProfileId
+                select new BusinessLocationDto
+                {
+                    Id = loc.BusinessLocationId,
+                    Name = loc.LocationName,
+                    Address = loc.Address,
+                    District = loc.District,
+                    City = loc.City,
+                    Phone = loc.Phone,
+                    IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
+                    OwnerName = ownerProfile.FullName
+                }
+            ).ToListAsync();
         }
 
-        /// <summary>
-        /// Gets all locations where user works (IsOwner = false)
-        /// </summary>
-        public async Task<IEnumerable<BusinessLocation>> GetWorkLocationsByUserIdAsync(Guid userId)
-        {
-            return await _context.UserLocationAssignments
-                .Where(ula => ula.UserId == userId && !ula.IsOwner)
-                .Join(_context.BusinessLocations,
-                    ula => ula.BusinessLocationId,
-                    loc => loc.BusinessLocationId,
-                    (ula, loc) => loc)
-                .ToListAsync();
-        }
-
-        /// <summary>
-        /// Gets a location by ID
-        /// </summary>
         public async Task<BusinessLocation?> GetByIdAsync(int id)
         {
             return await _context.BusinessLocations
-                .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id);
+                .FirstOrDefaultAsync(loc => loc.BusinessLocationId == id && loc.DeletedAt == null);
         }
 
-        /// <summary>
-        /// Gets a location by ID with owner's full name
-        /// </summary>
-        public async Task<(BusinessLocation? Location, string? OwnerName)> GetByIdWithOwnerAsync(int id)
+        public async Task<BusinessLocationDto?> GetLocationDtoByUserAndIdAsync(Guid userId, int locationId)
         {
-            var result = await (
+            return await (
+                from ula in _context.UserLocationAssignments
+                where ula.UserId == userId && ula.IsOwner && ula.IsActive == true
+                join loc in _context.BusinessLocations
+                    on ula.BusinessLocationId equals loc.BusinessLocationId
+                where loc.BusinessLocationId == locationId && loc.DeletedAt == null
+                join ownerUla in _context.UserLocationAssignments
+                    on new { loc.BusinessLocationId, IsOwner = true }
+                    equals new { ownerUla.BusinessLocationId, ownerUla.IsOwner }
+                join ownerProfile in _context.Profiles
+                    on ownerUla.UserId equals ownerProfile.ProfileId
+                select new BusinessLocationDto
+                {
+                    Id = loc.BusinessLocationId,
+                    Name = loc.LocationName,
+                    Address = loc.Address,
+                    District = loc.District,
+                    City = loc.City,
+                    Phone = loc.Phone,
+                    IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
+                    OwnerName = ownerProfile.FullName
+                }
+            ).FirstOrDefaultAsync();
+        }
+
+        public async Task<BusinessLocationDetailDto?> GetLocationDetailByIdAsync(int locationId)
+        {
+            var detail = await (
                 from loc in _context.BusinessLocations
-                where loc.BusinessLocationId == id
-                join ula in _context.UserLocationAssignments
-                    on loc.BusinessLocationId equals ula.BusinessLocationId
-                where ula.IsOwner
-                join user in _context.Users
-                    on ula.UserId equals user.UserId
-                select new { Location = loc, OwnerName = user.FullName }
+                where loc.BusinessLocationId == locationId && loc.DeletedAt == null
+                join ownerUla in _context.UserLocationAssignments
+                    on new { loc.BusinessLocationId, IsOwner = true }
+                    equals new { ownerUla.BusinessLocationId, ownerUla.IsOwner }
+                join ownerProfile in _context.Profiles
+                    on ownerUla.UserId equals ownerProfile.ProfileId
+                select new BusinessLocationDetailDto
+                {
+                    Id = loc.BusinessLocationId,
+                    Name = loc.LocationName,
+                    Address = loc.Address,
+                    District = loc.District,
+                    City = loc.City,
+                    Phone = loc.Phone,
+                    TaxCode = loc.TaxCode,
+                    IsActive = loc.IsActive ?? false,
+                    OwnerProfileId = ownerProfile.ProfileId,
+                    OwnerName = ownerProfile.FullName
+                }
             ).FirstOrDefaultAsync();
 
-            return result == null 
-                ? (null, null) 
-                : (result.Location, result.OwnerName);
+            if (detail == null) return null;
+
+            detail.Employees = await (
+                from ula in _context.UserLocationAssignments
+                where ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true
+                join profile in _context.Profiles
+                    on ula.UserId equals profile.ProfileId
+                join account in _context.Accounts
+                    on profile.AccountId equals account.AccountId
+                select new EmployeeSummaryDto
+                {
+                    ProfileId = ula.UserId.ToString(),
+                    UserName = profile.FullName,
+                    Phone = account.Credentials.Where(c => c.AccountId == account.AccountId && c.Type == "phone").Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
+                }
+            ).ToListAsync();
+
+            return detail;
         }
 
-        /// <summary>
-        /// Checks if user is owner of a location
-        /// </summary>
         public async Task<bool> IsOwnerOfLocationAsync(Guid userId, int locationId)
         {
             return await _context.UserLocationAssignments
-                .AnyAsync(ula => 
-                    ula.UserId == userId && 
-                    ula.BusinessLocationId == locationId && 
+                .AnyAsync(ula =>
+                    ula.UserId == userId &&
+                    ula.BusinessLocationId == locationId &&
                     ula.IsOwner);
         }
 
-        /// <summary>
-        /// Checks if user has access to location (owner or assigned employee)
-        /// </summary>
         public async Task<bool> HasAccessToLocationAsync(Guid userId, int locationId)
         {
             return await _context.UserLocationAssignments
-                .AnyAsync(ula => 
-                    ula.UserId == userId && 
-                    ula.BusinessLocationId == locationId && 
+                .AnyAsync(ula =>
+                    ula.UserId == userId &&
+                    ula.BusinessLocationId == locationId &&
                     ula.IsActive == true);
         }
 
-        /// <summary>
-        /// Checks if location name already exists for an owner
-        /// </summary>
-        public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)
+        public async Task<Guid?> GetOwnerIdByLocationAsync(int locationId)
         {
             return await _context.UserLocationAssignments
-                .Where(ula => ula.UserId == userId && ula.IsOwner)
-                .Join(_context.BusinessLocations,
-                    ula => ula.BusinessLocationId,
-                    loc => loc.BusinessLocationId,
-                    (ula, loc) => loc)
-                .AnyAsync(loc => loc.Name == locationName);
+                .Where(ula => ula.BusinessLocationId == locationId && ula.IsOwner && ula.IsActive == true)
+                .Select(ula => (Guid?)ula.UserId)
+                .FirstOrDefaultAsync();
         }
 
-        /// <summary>
-        /// Gets employee IDs already assigned to a location
-        /// </summary>
+        public async Task<bool> IsExistedByNameAsync(Guid userId, string locationName)
+        {
+            return await (
+                from ula in _context.UserLocationAssignments
+                where ula.UserId == userId && ula.IsOwner
+                join loc in _context.BusinessLocations
+                    on ula.BusinessLocationId equals loc.BusinessLocationId
+                where loc.DeletedAt == null && loc.LocationName == locationName
+                select loc
+            ).AnyAsync();
+        }
+
         public async Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId)
         {
             return await _context.UserLocationAssignments
@@ -123,18 +175,29 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        /// <summary>
-        /// Gets basic info of employees assigned to a location
-        /// </summary>
-        public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string Phone)>> GetEmployeesByLocationIdAsync(int locationId)
+        public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string? Phone)>> GetEmployeesByLocationIdAsync(int locationId)
         {
             return await _context.UserLocationAssignments
                 .Where(ula => ula.BusinessLocationId == locationId && !ula.IsOwner && ula.IsActive == true)
-                .Join(_context.Users,
+                .Join(_context.Profiles,
                     ula => ula.UserId,
-                    user => user.UserId,
-                    (ula, user) => new { user.UserId, user.FullName, user.Email, user.Phone })
-                .Select(x => new ValueTuple<Guid, string, string, string>(x.UserId, x.FullName, x.Email, x.Phone))
+                    profile => profile.ProfileId,
+                    (ula, profile) => new { ula, profile })
+                .Join(_context.Accounts,
+                    x => x.profile.AccountId,
+                    account => account.AccountId,
+                    (x, account) => new
+                    {
+                        x.profile.ProfileId,
+                        x.profile.FullName,
+                        Email = _context.Credentials
+                            .Where(c => c.AccountId == account.AccountId && c.Type == "email")
+                            .Select(c => c.Identifier).FirstOrDefault() ?? string.Empty,
+                        Phone = _context.Credentials
+                            .Where(c => c.AccountId == account.AccountId && c.Type == "phone")
+                            .Select(c => c.Identifier).FirstOrDefault()
+                    })
+                .Select(x => new ValueTuple<Guid, string, string, string?>(x.ProfileId, x.FullName, x.Email, x.Phone))
                 .ToListAsync();
         }
 
@@ -142,29 +205,71 @@ namespace BizFlow.Infrastructure.Repositories
 
         #region Command Methods
 
-        /// <summary>
-        /// Adds a new location to database
-        /// </summary>
+        public async Task<bool> HasRelatedDataAsync(int locationId)
+        {
+            var hasProducts = await _context.Products
+                .AnyAsync(p => p.BusinessLocationId == locationId);
+            if (hasProducts) return true;
+
+            var hasImports = await _context.Imports
+                .AnyAsync(i => i.BusinessLocationId == locationId);
+            if (hasImports) return true;
+
+            var hasEmployees = await _context.UserLocationAssignments
+                .AnyAsync(ula => ula.BusinessLocationId == locationId && !ula.IsOwner);
+            return hasEmployees;
+        }
+
+        public async Task<List<int>> GetAllActiveLocationIdsAsync()
+        {
+            return await _context.BusinessLocations
+                .Where(l => l.DeletedAt == null && l.IsActive == true)
+                .Select(l => l.BusinessLocationId)
+                .ToListAsync();
+        }
+
+        #endregion
+
+        #region Command Methods
+
         public async Task<BusinessLocation> AddAsync(BusinessLocation location)
         {
             var entry = await _context.BusinessLocations.AddAsync(location);
             return entry.Entity;
         }
 
-        /// <summary>
-        /// Updates an existing location
-        /// </summary>
         public void Update(BusinessLocation location)
         {
             _context.BusinessLocations.Update(location);
         }
 
-        /// <summary>
-        /// Adds user-location assignment (owner or employee)
-        /// </summary>
+        public void Delete(BusinessLocation location)
+        {
+            _context.BusinessLocations.Remove(location);
+        }
+
         public async Task AddUserLocationAssignmentAsync(UserLocationAssignment assignment)
         {
             await _context.UserLocationAssignments.AddAsync(assignment);
+        }
+
+        public async Task RemoveEmployeeFromLocationAsync(int locationId, Guid employeeId)
+        {
+            var assignment = await _context.UserLocationAssignments
+                .Where(ula =>
+                    ula.BusinessLocationId == locationId &&
+                    ula.UserId == employeeId &&
+                    !ula.IsOwner &&
+                    ula.IsActive == true)
+                .OrderByDescending(ula => ula.AssignedAt)
+                .ThenByDescending(ula => ula.UserLocationAssignmentId)
+                .FirstOrDefaultAsync();
+
+            if (assignment != null)
+            {
+                assignment.IsActive = false;
+                assignment.UnassignedAt = DateTime.UtcNow;
+            }
         }
 
         #endregion

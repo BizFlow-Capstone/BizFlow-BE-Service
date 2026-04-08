@@ -1,0 +1,70 @@
+using BizFlow.Application.DTOs.Admin;
+
+namespace BizFlow.Application.Interfaces.Services;
+
+public interface IAdminAccountingService
+{
+    Task<AdminAccountingOverviewDto> GetOverviewAsync();
+    Task<AdminTemplateVersionDetailDto> GetTemplateVersionDetailAsync(int templateVersionId);
+    Task<List<AdminTemplateFormulaDto>> GetTemplateFormulasAsync(int templateVersionId);
+
+    Task<AdminTemplateDto> CreateTemplateAsync(CreateTemplateRequest request, Guid actorUserId);
+    Task<AdminTemplateVersionDto> CreateTemplateVersionAsync(int templateId, CreateTemplateVersionRequest request, Guid actorUserId);
+    Task<AdminTemplateVersionDto> CloneTemplateVersionAsync(int templateVersionId, Guid actorUserId);
+    Task<AdminTemplateVersionDto> UpdateTemplateVersionAsync(int templateVersionId, UpdateTemplateVersionRequest request);
+    Task<AdminTemplateVersionDto> ActivateTemplateVersionAsync(int templateVersionId);
+    Task<AdminTemplateVersionDto> DeactivateTemplateVersionAsync(int templateVersionId);
+    Task DeleteTemplateVersionDraftAsync(int templateVersionId);
+
+    Task<AdminTemplateFieldMappingDto> UpdateTemplateFieldMappingForTestingAsync(int mappingId, UpdateTemplateFieldMappingRequest request);
+
+    Task<AdminFormulaDto> GetFormulaDetailAsync(long formulaId);
+    Task<AdminFormulaDto> CreateFormulaAsync(CreateFormulaRequest request, Guid actorUserId);
+    Task<AdminFormulaDto> UpdateFormulaForTestingAsync(long formulaId, UpdateFormulaForTestingRequest request);
+    Task<AdminFormulaDto> CloneFormulaAsync(long formulaId, CloneFormulaRequest request);
+
+    Task<AdminTaxRulesetDto> ActivateTaxRulesetAsync(int rulesetId);
+    Task<AdminTaxRulesetDto> DeactivateTaxRulesetAsync(int rulesetId);
+
+    Task<AdminPreviewResponse> PreviewAsync(AdminPreviewRequest request);
+
+    // ── Compare ──
+    Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request);
+
+    // ── Trace ──
+    Task<AdminTraceResponse> TraceFormulaAsync(AdminTraceRequest request);
+
+    // ── Reference ──
+    AdminReferenceDto GetReference();
+
+    // ── Node Schema ──
+    List<FormulaNodeSchemaDto> GetFormulaNodeSchemas();
+
+    // ── MappableEntities CRUD ──
+    Task<List<AdminMappableEntityDto>> GetMappableEntitiesAsync(bool? active);
+    Task<AdminMappableEntityDetailDto> GetMappableEntityDetailAsync(int entityId);
+    Task<AdminMappableEntityDto> CreateMappableEntityAsync(CreateMappableEntityRequest request, Guid actorUserId);
+    Task<AdminMappableEntityDto> UpdateMappableEntityAsync(int entityId, UpdateMappableEntityRequest request);
+
+    // ── MappableFields CRUD ──
+    Task<AdminMappableFieldDto> CreateMappableFieldAsync(int entityId, CreateMappableFieldRequest request);
+    Task<AdminMappableFieldDto> UpdateMappableFieldAsync(int fieldId, UpdateMappableFieldRequest request);
+
+    // ── RowDefinitions CRUD ──
+    Task<List<AdminRowDefinitionDto>> GetRowDefinitionsAsync(int templateVersionId);
+    Task<AdminRowDefinitionDto> CreateRowDefinitionAsync(int templateVersionId, CreateRowDefinitionRequest request);
+    Task<AdminRowDefinitionDto> UpdateRowDefinitionAsync(int rowDefId, UpdateRowDefinitionRequest request);
+    Task DeleteRowDefinitionAsync(int rowDefId);
+
+    // ── FieldMappings create/delete ──
+    Task<AdminTemplateFieldMappingDto> CreateFieldMappingAsync(int templateVersionId, CreateFieldMappingRequest request);
+    Task DeleteFieldMappingAsync(int mappingId);
+
+    // ── Full structure ──
+    Task<AdminFullStructureDto> GetFullStructureAsync(int templateVersionId);
+
+    // ── BusinessTypes + IndustryTaxRates Admin ──
+    Task<List<AdminBusinessTypesWithRatesDto>> GetBusinessTypesWithRatesAsync(int rulesetId);
+    Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId);
+    Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request);
+}

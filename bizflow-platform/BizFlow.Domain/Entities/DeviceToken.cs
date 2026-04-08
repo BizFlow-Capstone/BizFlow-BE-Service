@@ -1,0 +1,40 @@
+using System;
+using System.Collections.Generic;
+
+namespace BizFlow.Domain.Entities;
+
+public partial class DeviceToken
+{
+    /// <summary>
+    /// UUID
+    /// </summary>
+    public Guid DeviceTokenId { get; set; }
+
+    /// <summary>
+    /// FK to Profiles
+    /// </summary>
+    public Guid ProfileId { get; set; }
+
+    /// <summary>
+    /// FCM Token
+    /// </summary>
+    public string Token { get; set; } = null!;
+
+    /// <summary>
+    /// Device identifier
+    /// </summary>
+    public string? DeviceName { get; set; }
+
+    /// <summary>
+    /// iOS, Android, Web
+    /// </summary>
+    public string Platform { get; set; } = null!;
+
+    public DateTime RegisteredAt { get; set; }
+
+    public DateTime? LastUsedAt { get; set; }
+
+    public bool? IsActive { get; set; }
+
+    public virtual Profile Profile { get; set; } = null!;
+}

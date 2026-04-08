@@ -9,18 +9,23 @@ namespace BizFlow.Application.Specifications.Products
         public ProductSearchSpec(ProductQueryParams query, bool isCount = false, bool filterOnly = false)
             : base(p => p.BusinessLocationId == query.LocationId)
         {
-            // Filters
+            // Unified search: match Name OR SKU
+            if (!string.IsNullOrWhiteSpace(query.Search))
+                AddCriteria(p => p.ProductName.Contains(query.Search)
+                    || (p.Sku != null && p.Sku.Contains(query.Search)));
+
+            // Specific filters (for advanced filtering)
             if (!string.IsNullOrWhiteSpace(query.Name))
                 AddCriteria(p => p.ProductName.Contains(query.Name));
 
             if (!string.IsNullOrWhiteSpace(query.Sku))
                 AddCriteria(p => p.Sku != null && p.Sku.Contains(query.Sku));
 
-            if (query.MinCostPrice.HasValue)
-                AddCriteria(p => p.CostPrice >= query.MinCostPrice.Value);
+            if (query.MinSellingPrice.HasValue)
+                AddCriteria(p => p.SellingPrice >= query.MinSellingPrice.Value);
 
-            if (query.MaxCostPrice.HasValue)
-                AddCriteria(p => p.CostPrice <= query.MaxCostPrice.Value);
+            if (query.MaxSellingPrice.HasValue)
+                AddCriteria(p => p.SellingPrice <= query.MaxSellingPrice.Value);
 
             if (query.MinStock.HasValue)
                 AddCriteria(p => p.Stock >= query.MinStock.Value);
@@ -33,6 +38,9 @@ namespace BizFlow.Application.Specifications.Products
 
             if (query.TrackInventory.HasValue)
                 AddCriteria(p => p.TrackInventory == query.TrackInventory.Value);
+
+            if (query.BusinessTypeId.HasValue)
+                AddCriteria(p => p.BusinessTypeId == query.BusinessTypeId.Value);
 
             // Apply Sorting (Needed for both Full and FilterOnly modes to ensure ID order matches)
             if (!isCount)

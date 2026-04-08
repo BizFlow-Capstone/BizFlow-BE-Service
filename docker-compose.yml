@@ -1,53 +1,110 @@
+# =============================================================================
+# BizFlow Docker Compose - BASE configuration
+# =============================================================================
+# This file defines shared services across all environments.
+# Do NOT run this file directly. Use the environment-specific overrides:
+#
+#   Production:
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# With AI service (add --profile ai):
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod --profile ai up -d
+# =============================================================================
+
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: bizflow-mysql
+  # ---------------------------------------------------------------------------
+  # BizFlow .NET Core API
+  # ---------------------------------------------------------------------------
+  bizflow-api:
+    build:
+      context: ./bizflow-platform
+      dockerfile: Dockerfile
+    container_name: bizflow-api
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_123}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
-      MYSQL_USER: ${MYSQL_USER:-admin}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-admin}
-    ports:
-      - "${MYSQL_PORT:-3307}:3306"
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:8080
+      # Database — injected from .env file
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      # JWT
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER:-BizFlow}
+      - JwtSettings__Audience=${JWT_AUDIENCE:-BizFlowUsers}
+      - JwtSettings__AccessTokenExpirationMinutes=${JWT_ACCESS_EXPIRY_MINUTES:-5}
+      - JwtSettings__RefreshTokenExpirationDays=${JWT_REFRESH_EXPIRY_DAYS:-365}
+      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID:-}
+      - GoogleAuth__AndroidClientId=${GOOGLE_ANDROID_CLIENT_ID:-}
+      - GoogleAuth__ClientSecret=${GOOGLE_CLIENT_SECRET:-}
+      # Cloudinary
+      - CloudinarySettings__CloudName=${CLOUDINARY_CLOUD_NAME:-}
+      - CloudinarySettings__ApiKey=${CLOUDINARY_API_KEY:-}
+      - CloudinarySettings__ApiSecret=${CLOUDINARY_API_SECRET:-}
+      # Firebase FCM
+      - FirebaseAuth__ProjectId=${FIREBASE_PROJECT_ID:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/firebase-adminsdk.json
+      - FirebaseAuth__ServiceAccountPath=/app/credentials/firebase-adminsdk.json
+      # RabbitMQ
+      - RabbitMQ__Host=${RABBITMQ_HOST:-rabbitmq}
+      - RabbitMQ__Port=${RABBITMQ_PORT:-5672}
+      - RabbitMQ__Username=${RABBITMQ_USER:-guest}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-guest}
+      # Stripe
+      - StripeSettings__SecretKey=${STRIPE_SECRET_KEY:-}
+      - StripeSettings__WebhookSecret=${STRIPE_WEBHOOK_SECRET:-}
+      - StripeSettings__SuccessCallbackUrl=${STRIPE_CALLBACK_SUCCESS_URL:-http://localhost:8080/api/subscriptions/payment/redirect/success}
+      - StripeSettings__CancelCallbackUrl=${STRIPE_CALLBACK_CANCEL_URL:-http://localhost:8080/api/subscriptions/payment/redirect/cancel}
+      - StripeSettings__WebSuccessUrl=${STRIPE_WEB_SUCCESS_URL:-http://localhost:8080/}
+      - StripeSettings__WebCancelUrl=${STRIPE_WEB_CANCEL_URL:-http://localhost:8080/}
+      - StripeSettings__MobileSuccessUrl=${STRIPE_MOBILE_SUCCESS_URL:-bizflow://payment/success}
+      - StripeSettings__MobileCancelUrl=${STRIPE_MOBILE_CANCEL_URL:-bizflow://payment/cancel}
+      # Resend (section key is "Resend" in appsettings — use Resend__* for env override)
+      - Resend__ApiKey=${RESEND_API_KEY:-}
+      - Resend__DefaultFrom=${RESEND_DEFAULT_FROM:-}
+      - AiService__BaseUrl=http://bizflow-ai:5000
+      # AI Service (internal container-to-container)
+      - AiService__BaseUrl=${AI_SERVICE_BASE_URL:-http://bizflow-ai:5000}
+      - AiService__InternalSecret=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
+      - AiService__TimeoutSeconds=${AI_SERVICE_TIMEOUT_SECONDS:-30}
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./database/migrations:/docker-entrypoint-initdb.d:ro
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
-    networks:
-      - bizflow-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  ##Backup Service
-  mysql-backup:
-    image: mysql:8.0
-    container_name: bizflow-mysql-backup
+      - ./docker/credentials:/app/credentials:ro
     depends_on:
-      - mysql
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-admin}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-admin}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
-      BACKUP_FREQUENCY: "0 2 * * *" # Daily at 2 AM
-    volumes:
-      - ./backups:/backups
-      - ./docker/scripts/backup.sh:/backup.sh:ro
-    command: /bin/bash -c "chmod +x /backup.sh && /backup.sh"
+      rabbitmq:
+        condition: service_started
     networks:
       - bizflow-network
 
-volumes:
-  mysql_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD:-.}/data/mysql
+  # ---------------------------------------------------------------------------
+  # BizFlow Python AI Service
+  # Profile: "ai" — only started when explicitly enabled
+  # ---------------------------------------------------------------------------
+  bizflow-ai:
+    build:
+      context: ../BizFlow-AI-Service
+      dockerfile: Dockerfile
+    container_name: bizflow-ai
+    profiles:
+      - ai
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
+      - AI_DB_URL=${AI_DB_URL}
+      # Shared secret — must match AiService__InternalSecret in the BE service
+      - INTERNAL_API_SECRET=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
+    volumes:
+      - ./docker/credentials:/app/credentials:ro
+    networks:
+      - bizflow-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: bizflow-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    networks:
+      - bizflow-network
 
 networks:
   bizflow-network:

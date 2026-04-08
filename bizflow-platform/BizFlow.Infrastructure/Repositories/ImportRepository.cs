@@ -2,6 +2,8 @@ using BizFlow.Application.DTOs.Import;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
+using BizFlow.Application.Specifications.Imports;
+using BizFlow.Infrastructure.Specifications;
 using Microsoft.EntityFrameworkCore;
 
 namespace BizFlow.Infrastructure.Repositories
@@ -19,38 +21,35 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Import> Items, int TotalCount)> SearchAsync(ImportQueryParams query)
         {
-            var baseQuery = _dbContext.Imports
-                .Include(i => i.BusinessLocation)
-                .AsQueryable();
-
-            // Filters
-            if (!string.IsNullOrWhiteSpace(query.Status))
-                baseQuery = baseQuery.Where(i => i.Status == query.Status);
-
-            if (!string.IsNullOrWhiteSpace(query.ImportType))
-                baseQuery = baseQuery.Where(i => i.ImportType == query.ImportType);
-
-            if (query.BusinessLocationId.HasValue)
-                baseQuery = baseQuery.Where(i => i.BusinessLocationId == query.BusinessLocationId.Value);
-
-            if (query.FromDate.HasValue)
-                baseQuery = baseQuery.Where(i => i.CreatedAt >= query.FromDate.Value);
-
-            if (query.ToDate.HasValue)
-                baseQuery = baseQuery.Where(i => i.CreatedAt <= query.ToDate.Value);
-
-            var totalCount = await baseQuery.CountAsync();
+            // 1. Get total count
+            var countSpec = new ImportSearchSpec(query, isCount: true);
+            var countQuery = SpecificationEvaluator<Import>.GetQuery(_dbContext.Imports.AsQueryable(), countSpec);
+            var totalCount = await countQuery.CountAsync();
 
             if (totalCount == 0)
-                return (new List<Import>(), 0);
+                return (Array.Empty<Import>(), 0);
+
+            // 2. Deferred Join Strategy (Get IDs first)
+            var filterSpec = new ImportSearchSpec(query, isCount: false, filterOnly: true);
+            var filterQuery = SpecificationEvaluator<Import>.GetQuery(_dbContext.Imports.AsQueryable(), filterSpec);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 10;
 
-            var items = await baseQuery
-                .OrderByDescending(i => i.CreatedAt)
+            var ids = await filterQuery
+                .Select(i => i.ImportId)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
+                .ToListAsync();
+
+            if (!ids.Any())
+                return (Array.Empty<Import>(), totalCount);
+
+            // 3. Fetch full entities
+            var items = await _dbContext.Imports
+                .Where(i => ids.Contains(i.ImportId))
+                .OrderByDescending(i => i.CreatedAt)
+                .Include(i => i.BusinessLocation)
                 .ToListAsync();
 
             return (items, totalCount);
@@ -77,6 +76,19 @@ namespace BizFlow.Infrastructure.Repositories
             return await _dbContext.Imports.CountAsync();
         }
 
+        public async Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds)
+        {
+            var ids = publicIds.ToList();
+            if (ids.Count == 0) return new HashSet<string>();
+
+            var existing = await _dbContext.Imports
+                .Where(i => i.ImagePublicId != null && ids.Contains(i.ImagePublicId))
+                .Select(i => i.ImagePublicId!)
+                .ToListAsync();
+
+            return new HashSet<string>(existing);
+        }
+
         // ============ Command Methods ============
 
         public async Task<Import> AddAsync(Import import)
@@ -98,6 +110,18 @@ namespace BizFlow.Infrastructure.Repositories
         public void DeleteItem(ProductImport item)
         {
             _dbContext.ProductsImports.Remove(item);
+        }
+
+        public async Task<Dictionary<(long ImportId, long ProductId), decimal>> GetImportCostLookupByLocationAsync(int locationId)
+        {
+            var items = await _dbContext.ProductsImports
+                .Where(pi => pi.Import.BusinessLocationId == locationId)
+                .Select(pi => new { pi.ImportId, pi.ProductId, pi.CostPrice })
+                .ToListAsync();
+
+            return items.ToDictionary(
+                x => (x.ImportId, x.ProductId),
+                x => x.CostPrice);
         }
     }
 }

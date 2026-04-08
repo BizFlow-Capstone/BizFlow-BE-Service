@@ -27,15 +27,8 @@ namespace BizFlow.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllRoles()
         {
-            try
-            {
-                var roles = await _roleService.GetAllRolesAsync();
-                return Ok(roles, MessageKeys.RolesRetrievedSuccessfully);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            var roles = await _roleService.GetAllRolesAsync();
+            return Ok(roles, MessageKeys.RolesRetrievedSuccessfully);
         }
 
         /// <summary>

@@ -30,6 +30,11 @@ public partial class Product
     public decimal CostPrice { get; set; }
 
     /// <summary>
+    /// Selling price in base unit
+    /// </summary>
+    public decimal SellingPrice { get; set; }
+
+    /// <summary>
     /// Quantity in stock
     /// </summary>
     public int Stock { get; set; }
@@ -73,4 +78,6 @@ public partial class Product
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
+
+    public virtual ICollection<StockMovement> StockMovements { get; set; } = new List<StockMovement>();
 }

@@ -16,7 +16,8 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5139",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "GOOGLE_APPLICATION_CREDENTIALS": "D:\\BizFlow-BE-Service\\docker\\credentials\\firebase-adminsdk.json"
       }
     },
     "https": {
@@ -24,9 +25,10 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
-      "applicationUrl": "https://localhost:7270;http://localhost:5139",
+      "applicationUrl": "https://localhost:7271;http://localhost:5139",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "GOOGLE_APPLICATION_CREDENTIALS": "D:\\BizFlow-BE-Service\\docker\\credentials\\firebase-adminsdk.json"
       }
     },
     "IIS Express": {
@@ -34,7 +36,8 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "GOOGLE_APPLICATION_CREDENTIALS": "D:\\BizFlow-BE-Service\\docker\\credentials\\firebase-adminsdk.json"
       }
     }
   }

@@ -20,9 +20,9 @@ namespace BizFlow.Application.Common.Specifications
 
         public List<string> IncludeStrings { get; } = new List<string>();
 
-        public Expression<Func<T, object>> OrderBy { get; private set; }
+        public Expression<Func<T, object>>? OrderBy { get; private set; }
 
-        public Expression<Func<T, object>> OrderByDescending { get; private set; }
+        public Expression<Func<T, object>>? OrderByDescending { get; private set; }
 
         public int Take { get; private set; }
 

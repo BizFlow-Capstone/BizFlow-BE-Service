@@ -28,6 +28,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// </summary>
         Task<int> CountAsync();
 
+        /// <summary>
+        /// Check which of the given PublicIds exist in the database (for orphan detection)
+        /// </summary>
+        Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds);
+
         // ============ Command Methods ============
 
         Task<Import> AddAsync(Import import);
@@ -43,5 +48,12 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// Remove a ProductImport item
         /// </summary>
         void DeleteItem(ProductImport item);
+
+        /// <summary>
+        /// Get a lookup of (ImportId, ProductId) → CostPrice for all imports at a location.
+        /// Used by BookRenderingService and FormulaEngine to resolve import-time cost prices
+        /// for stock movements in S2d rendering (don_gia, tien_nhap, tien_xuat, tien_ton).
+        /// </summary>
+        Task<Dictionary<(long ImportId, long ProductId), decimal>> GetImportCostLookupByLocationAsync(int locationId);
     }
 }

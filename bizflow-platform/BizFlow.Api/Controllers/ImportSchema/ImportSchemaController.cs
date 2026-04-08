@@ -4,6 +4,7 @@ using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.ImportSchema;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -13,6 +14,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
     /// Import Schema Management APIs
     /// </summary>
     [Route("api/admin")]
+    [Authorize]
     public class ImportSchemaController : BaseApiController
     {
         private readonly IImportSchemaService _importSchemaService;
@@ -74,7 +76,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
 
@@ -99,7 +101,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
 
@@ -144,7 +146,7 @@ namespace BizFlow.Api.Controllers.ImportSchema
             }
             catch (BadRequestException ex)
             {
-                return BadRequest(ex.MessageKey);
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
             }
         }
     }

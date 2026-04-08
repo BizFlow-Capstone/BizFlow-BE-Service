@@ -5,44 +5,24 @@ namespace BizFlow.Application.Interfaces.Services
 {
     public interface IBusinessLocationService
     {
-        /// <summary>
-        /// Get all locations owned by the user
-        /// </summary>
+        // Query
         Task<IEnumerable<BusinessLocationDto>> GetOwnedLocationsAsync(Guid userId);
-
-        /// <summary>
-        /// Get all locations where user works at (as employee)
-        /// </summary>
         Task<IEnumerable<BusinessLocationDto>> GetWorkLocationsAsync(Guid userId);
-
-        /// <summary>
-        /// Create a new location (user becomes owner)
-        /// </summary>
-        Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request);
-
-        /// <summary>
-        /// Update location active status (owner only)
-        /// </summary>
-        Task<bool> UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive);
-
-        /// <summary>
-        /// Update location info (owner only)
-        /// </summary>
-        Task<bool> UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request);
-
-        /// <summary>
-        /// Add employees to a location (owner only)
-        /// </summary>
-        Task<bool> AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds);
-
-        /// <summary>
-        /// Get employees assigned to a location (owner only)
-        /// </summary>
+        Task<BusinessLocationDetailDto> GetLocationDetailAsync(Guid userId, int locationId);
         Task<EmployeeSummaryListDto> GetEmployeesByLocationAsync(Guid userId, int locationId);
 
-        /// <summary>
-        /// Delete location (soft delete) - owner only
-        /// </summary>
-        Task<bool> DeleteLocationAsync(Guid userId, int locationId);
+        // Reusable guard — validates access + blocks Employee when IsActive=false (RULE-LOC-07)
+        Task ValidateLocationAccessAsync(Guid userId, int locationId);
+
+        // Reusable guard — owner-only operations; throws ForbiddenException if not owner
+        Task ValidateOwnerAsync(Guid userId, int locationId);
+
+        // Command — all throw exceptions on failure (no bool return)
+        Task<BusinessLocationDto> CreateLocationAsync(Guid userId, CreateLocationRequest request);
+        Task UpdateLocationAsync(Guid userId, int locationId, UpdateLocationRequest request);
+        Task UpdateLocationStatusAsync(Guid userId, int locationId, bool isActive);
+        Task AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds);
+        Task RemoveEmployeeFromLocationAsync(Guid ownerId, int locationId, Guid employeeId);
+        Task DeleteLocationAsync(Guid userId, int locationId);
     }
 }

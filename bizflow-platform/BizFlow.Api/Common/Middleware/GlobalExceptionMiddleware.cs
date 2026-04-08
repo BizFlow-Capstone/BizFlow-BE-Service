@@ -82,6 +82,22 @@ public class GlobalExceptionMiddleware
                 response.Message = messageService.GetMessage(forbiddenEx.MessageKey);
                 break;
 
+            case System.Net.Http.HttpRequestException httpRequestEx:
+                context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                response.Success = false;
+                response.MessageCode = MessageKeys.AiServiceError;
+                response.Message = messageService.GetMessage(MessageKeys.AiServiceError);
+
+                if (_env.IsDevelopment())
+                {
+                    response.Errors = new
+                    {
+                        exception = httpRequestEx.GetType().Name,
+                        message = httpRequestEx.Message
+                    };
+                }
+                break;
+
             case DbUpdateException dbUpdateEx:
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 response.Success = false;

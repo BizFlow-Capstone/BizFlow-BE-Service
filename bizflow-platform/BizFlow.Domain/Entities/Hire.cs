@@ -23,16 +23,26 @@ public partial class Hire
     public bool? IsActive { get; set; }
 
     /// <summary>
-    /// Start date of employment
+    /// pending, accepted, rejected
     /// </summary>
-    public DateTime StartAt { get; set; }
+    public string Status { get; set; } = null!;
+
+    /// <summary>
+    /// Invitation timestamp
+    /// </summary>
+    public DateTime InvitedAt { get; set; }
+
+    /// <summary>
+    /// Start date of employment (NULL when pending/rejected)
+    /// </summary>
+    public DateTime? StartAt { get; set; }
 
     /// <summary>
     /// End date of employment (NULL if still active)
     /// </summary>
     public DateTime? EndAt { get; set; }
 
-    public virtual User Employee { get; set; } = null!;
+    public virtual Profile Employee { get; set; } = null!;
 
-    public virtual User Owner { get; set; } = null!;
+    public virtual Profile Owner { get; set; } = null!;
 }
