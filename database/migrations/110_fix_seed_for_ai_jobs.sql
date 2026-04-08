@@ -59,3 +59,8 @@ VALUES
 -- ============================================================
 UPDATE Products SET Stock = 5   WHERE ProductId = 13 AND BusinessLocationId = 6;
 UPDATE Products SET Stock = 1   WHERE ProductId = 14 AND BusinessLocationId = 6;
+
+-- Track migration
+INSERT INTO __MigrationHistory (MigrationId, ProductVersion)
+VALUES ('110_fix_seed_for_ai_jobs', '1.0.0')
+ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;
