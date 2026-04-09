@@ -12,8 +12,8 @@
 | | Phone Registration | Guest | Register using phone number + password after Firebase Phone Auth OTP verification. Ensure the system validates OTP correctly and creates a new account. |
 | | Link Phone | Owner, Employee | Link phone credential to an existing account after Firebase Phone Auth OTP verification. Validate duplicate phone prevention. |
 | | Set Password | Owner, Employee | Set password for Google-only accounts that need a fallback credential. Also links an email credential using the Google email. |
-| | Change Password | Owner, Employee | Change password for an account that already has a password. Revokes all refresh tokens on success. |
-| | Forgot Password (Send OTP) | Guest | Send OTP code to the registered email for password reset flow. Validate rate-limiting and OTP expiry. |
+| | Change Password | Owner, Employee, consultant | Change password for an account that already has a password. Revokes all refresh tokens on success. |
+| | Forgot Password (Send OTP) | Owner, Employee | Send OTP code to the registered email for password reset flow. Validate rate-limiting and OTP expiry. |
 | | Forgot Password (Verify OTP) | Guest | Consume email OTP and return a password-reset access JWT (no refresh token). Validate OTP correctness and expiration. |
 | | Reset Password | Guest | Set a new password after forgot-password OTP verification. Revokes all refresh tokens. Caller must use password-reset JWT. |
 | | Refresh Token | All Roles | Refresh access token using a valid refresh token. Validate token rotation and expiry. |
@@ -53,13 +53,12 @@
 | | Bulk Adjust Selling Price | Owner | Bulk adjust selling price by fixed delta on selected sale items. |
 | | Delete Product | Owner | Delete product (soft/hard delete based on order history). |
 | | Get Cost Price History | Owner | Get cost price history for a product over time. |
-| **Import Management** | Get Import Template | Owner, Employee | Get the active import JSON schema template for form rendering. |
-| | Create Import | Owner, Employee | Create a new import record with status DRAFT. Include supplier info and import items. |
-| | Update Import | Owner, Employee | Update a DRAFT import's fields and items. Cannot update confirmed imports. |
-| | Confirm/Cancel Import | Owner, Employee | Confirm (adds quantity to product stock) or cancel an import. Validate stock updates. |
-| | List Imports | Owner, Employee | Get paginated list of imports with filters (status, date range, location). |
-| | Get Import Detail | Owner, Employee | Get full import detail including all items and supplier info. |
-| | Delete Import | Owner, Employee | Delete import. DRAFT → hard-delete. CONFIRMED → subtract stock per item, then hard-delete. |
+| **Import Management** | Create Import | Owner | Create a new import record with status DRAFT. Include supplier info and import items. |
+| | Update Import | Owner | Update a DRAFT import's fields and items. Cannot update confirmed imports. |
+| | Confirm/Cancel Import | Owner | Confirm (adds quantity to product stock) or cancel an import. Validate stock updates. |
+| | List Imports | Owner | Get paginated list of imports with filters (status, date range, location). |
+| | Get Import Detail | Owner | Get full import detail including all items and supplier info. |
+| | Delete Import | Owner | Delete import. DRAFT → hard-delete. CONFIRMED → subtract stock per item, then hard-delete. |
 | **Order Management** | Create Order | Owner, Employee | Create a new sale order with order details, customer info, payment method, and debtor assignment. |
 | | Update Order | Owner, Employee | Update an existing order's details before completion. |
 | | Complete Order | Owner, Employee | Complete an order: finalize payment, generate revenue, update stock, and record in general ledger. |
@@ -67,24 +66,24 @@
 | | Edit Completed Order | Owner | Edit a completed order: creates a reversal of old order and a new corrected order. |
 | | Get Order Detail | Owner, Employee | Get detailed order information including items, payment, and customer info. |
 | | List Orders | Owner, Employee | Get paginated list of orders with filters (status, date range, search). |
-| **Cost Management** | Create Manual Cost | Owner, Employee | Create a manual cost record with amount, type, payment method, and optional image. Records in general ledger. |
-| | Update Manual Cost | Owner, Employee | Update a manual cost record's information. Updates general ledger accordingly. |
-| | List Costs | Owner, Employee | Get paginated list of costs with filters (type, date range, location). |
-| | Delete Manual Cost | Owner, Employee | Delete a manual cost record. Reverses general ledger entries. |
-| **Revenue Management** | Create Manual Revenue | Owner, Employee | Create a manual revenue record with amount, type, and payment method. Records in general ledger. |
-| | Update Manual Revenue | Owner, Employee | Update a manual revenue record's information. Updates general ledger accordingly. |
-| | List Revenues | Owner, Employee | Get paginated list of revenues with filters (type, date range, location). |
-| | Delete Manual Revenue | Owner, Employee | Delete a manual revenue record. Reverses general ledger entries. |
-| **General Ledger** | List Ledger Entries | Owner, Employee | Get paginated list of general ledger entries with filters (reference type, transaction type, date range). |
+| **Cost Management** | Create Manual Cost | Owner | Create a manual cost record with amount, type, payment method, and optional image. Records in general ledger. |
+| | Update Manual Cost | Owner | Update a manual cost record's information. Updates general ledger accordingly. |
+| | List Costs | Owner | Get paginated list of costs with filters (type, date range, location). |
+| | Delete Manual Cost | Owner | Delete a manual cost record. Reverses general ledger entries. |
+| **Revenue Management** | Create Manual Revenue | Owner | Create a manual revenue record with amount, type, and payment method. Records in general ledger. |
+| | Update Manual Revenue | Owner | Update a manual revenue record's information. Updates general ledger accordingly. |
+| | List Revenues | Owner | Get paginated list of revenues with filters (type, date range, location). |
+| | Delete Manual Revenue | Owner | Delete a manual revenue record. Reverses general ledger entries. |
+| **General Ledger** | List Ledger Entries | Owner | Get paginated list of general ledger entries with filters (reference type, transaction type, date range). |
 | **Debtor Management** | List Debtors | Owner, Employee | Get paginated list of debtors with summary information (total debt, payment status). |
-| | Get Debtor Detail | Owner, Employee | Get detailed debtor information including payment history. |
-| | Create Debtor | Owner, Employee | Create a new debtor record with name, contact info, and initial balance. |
-| | Update Debtor | Owner, Employee | Update debtor information (name, phone, address). |
+| | Get Debtor Detail | Owner | Get detailed debtor information including payment history. |
+| | Create Debtor | Owner | Create a new debtor record with name, contact info, and initial balance. |
+| | Update Debtor | Owner | Update debtor information (name, phone, address). |
 | | Update Debtor Status | Owner | Enable or disable a debtor record. |
 | | Delete Debtor | Owner | Delete a debtor record. Force delete option for debtors with history. |
 | | Get Active Debtors By Location | Owner, Employee | Get active debtors filtered by business location for order assignment. |
-| | Record Payment | Owner, Employee | Record a debt payment transaction. Updates debtor balance and general ledger. |
-| | Get Payments | Owner, Employee | Get payment transaction history for a specific debtor. |
+| | Record Payment | Owner | Record a debt payment transaction. Updates debtor balance and general ledger. |
+| | Get Payments | Owner | Get payment transaction history for a specific debtor. |
 | **Accounting Period** | Create Period | Owner | Create a new accounting period (quarterly/yearly) for a business location. |
 | | Create Custom Period | Owner | Create a custom accounting period with specific date range. |
 | | Get Opening Balance Suggestion | Owner | Get suggested opening balances based on previous period's closing balances. |
@@ -101,7 +100,7 @@
 | | Get Book Rows | Owner | Get data rows for a book with cursor-based pagination. |
 | | Get Book Sections | Owner | Get book sections structure with formula values for report rendering. |
 | **Subscription Management** | Get Active Plans | All Roles | Get list of active subscription plans available for purchase. |
-| | Get Current Subscription | Owner | Get the current subscription status and feature usage. |
+| | Get Current Subscription | All Roles | Get the current subscription status and feature usage. |
 | | Create Checkout Session | Owner | Create a Stripe checkout session for subscription purchase. |
 | | Get Transactions | Owner | Get payment transaction history for subscriptions. |
 | | Check Feature Access | Owner, Employee | Check if a user has access to a specific feature based on subscription plan. |
@@ -115,19 +114,20 @@
 | | Set Plan Status | Admin | Activate or deactivate a subscription plan. |
 | | Get All Features | Admin | Get list of all available features for plan configuration. |
 | **Admin Accounting** | Get Overview | Admin | Get accounting system overview with template and formula statistics. |
-| | Template Version CRUD | Admin | Create, clone, update, activate, deactivate, and delete template versions for accounting books. |
-| | Formula CRUD | Admin | Create, update, clone, and trace formulas for accounting calculations. |
+| | Template Version Management | Admin | Create, clone, update, activate, deactivate, and delete template versions for accounting books. |
+| | Formula Management | Admin | Create, update, clone, and trace formulas for accounting calculations. |
 | | Tax Ruleset Management | Admin | Activate/deactivate tax rulesets for accounting calculations. |
-| | Row Definition CRUD | Admin | Create, update, and delete row definitions for template structures. |
-| | Field Mapping CRUD | Admin | Create, update, and delete field mappings for template data binding. |
+| | Row Definition Management | Admin | Create, update, and delete row definitions for template structures. |
+| | Field Mapping Management | Admin | Create, update, and delete field mappings for template data binding. |
 | | Business Type & Tax Rate | Admin | Update business types and upsert industry tax rates per ruleset. |
 | | Preview & Compare | Admin | Preview accounting book output and compare different template versions. |
+| | Create template | Admin | Create template for accounting book. |
 | **Admin User Management** | Get Users | Admin | Get paginated list of all managed users with filters (role, status, search). |
 | | Revoke User Tokens | Admin | Force logout a user by revoking all their refresh tokens. |
 | **Notification Management** | Register Device Token | Owner, Employee | Register FCM device token for push notifications. |
 | | Unregister Device Token | Owner, Employee | Unregister device token when logging out. |
 | | Send Push Notification | System | Send push notifications to user's devices (employee invite, subscription expiry, etc.). |
-| | Get User Notifications | Owner, Employee | Get paginated list of user notifications with filters. |
+| | Get User's Notifications | Owner, Employee | Get paginated list of user's notifications. |
 | | Get Notification Detail | Owner, Employee | Get detailed notification information. |
 | | Get Unread Count | Owner, Employee | Get count of unread notifications. |
 | | Mark As Read | Owner, Employee | Mark a specific notification as read. |
@@ -144,12 +144,6 @@
 | | Reorder Suggestions | System | AI batch job for inventory reorder suggestions. |
 | | Product Insights | System | AI batch job for product performance insights. |
 | **Dashboard** | Get Summary | Owner, Employee | Get dashboard summary with revenue, cost, order, and product KPIs for a date range and location. |
-| **Import Schema (Admin)** | Get All Schemas | Admin | Get all import schemas (lightweight list). |
-| | Get Schema By ID | Admin | Get import schema with its active version. |
-| | Create Schema | Admin | Create a new import schema with its first version. |
-| | Update Schema | Admin | Update schema fields; creates a new version only if SchemaJson changed. |
-| | Activate Schema | Admin | Activate a schema (deactivates all others first). |
-| | Delete Schema | Admin | Delete schema: 400 if active, soft delete if ever activated, hard delete otherwise. |
 
 ---
 
