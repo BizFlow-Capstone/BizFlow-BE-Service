@@ -368,6 +368,12 @@ namespace BizFlow.Application.Services
                     CurrentPrice = latestPrice != null ? MapPriceToDto(latestPrice) : null,
                     Features = active.SubscriptionPlan.PlanFeatures.Select(pf => new PlanFeatureDto
                     {
+                        FeatureId = pf.FeatureId,
+                        FeatureCode = pf.Feature?.FeatureCode ?? string.Empty,
+                        FeatureName = pf.Feature?.Name ?? string.Empty,
+                        UsageLimit = allocatedByFeatureId.TryGetValue(pf.FeatureId, out var allocated)
+                            ? allocated
+                            : pf.UsageLimit,
                         FeatureDescription = pf.Feature?.Description,
                     }).ToList()
                 }
