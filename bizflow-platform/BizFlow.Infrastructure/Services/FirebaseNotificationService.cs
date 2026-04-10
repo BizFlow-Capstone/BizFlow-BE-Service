@@ -26,6 +26,14 @@ namespace BizFlow.Infrastructure.Services
             "NAVIGATE_TO_SCREEN"
         };
 
+        private static readonly HashSet<string> SupportedRecipientGroupTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "LOCATION_OWNER",
+            "LOCATION_EMPLOYEES",
+            "LOCATION_OWNER_AND_EMPLOYEES",
+            "ALL_LOCATION_OWNERS"
+        };
+
         private static readonly Dictionary<string, string> SupportedTargetScreenAliases = new(StringComparer.OrdinalIgnoreCase)
         {
             ["EmployeeInvitationsPage"] = "EmployeeInvitationsPage",
@@ -582,6 +590,23 @@ namespace BizFlow.Infrastructure.Services
         {
             var normalizedEventCode = NormalizeEventCode(eventCode);
 
+            // These are system event-driven templates — disabling them breaks core business flows
+            // (invite employee, accept/reject invitation, remove employee). Only content editing is allowed.
+            var lockedEventCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "EMPLOYEE_INVITE",
+                "INVITE_ACCEPTED",
+                "INVITE_REJECTED",
+                "EMPLOYEE_REMOVED"
+            };
+
+            if (lockedEventCodes.Contains(normalizedEventCode))
+            {
+                throw new BadRequestException(
+                    MessageKeys.BadRequest,
+                    new { detail = $"Cannot disable the '{normalizedEventCode}' notification template. This is a system event template — use the edit endpoint to update content only." });
+            }
+
             var template = await _context.NotificationTemplates
                 .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
 
@@ -605,14 +630,30 @@ namespace BizFlow.Infrastructure.Services
             }
 
             var now = DateTime.UtcNow;
+            var scheduledAt = NormalizeScheduledAtOrNull(request.ScheduledAt);
+
+            if (scheduledAt.HasValue && scheduledAt.Value <= now)
+            {
+                throw new BadRequestException(MessageKeys.NotificationScheduledAtMustBeFuture);
+            }
+
             NotificationTemplate? template = null;
             Dictionary<string, string> templateData = request.TemplateData ?? new Dictionary<string, string>();
 
             if (!string.IsNullOrWhiteSpace(request.EventCode))
             {
                 var normalizedEventCode = NormalizeEventCode(request.EventCode);
-                template = await _context.NotificationTemplates
-                    .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode && notificationTemplate.IsActive);
+                var anyTemplate = await _context.NotificationTemplates
+                    .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
+
+                if (anyTemplate != null && !anyTemplate.IsActive)
+                {
+                    throw new BadRequestException(
+                        MessageKeys.BadRequest,
+                        new { detail = $"Template '{normalizedEventCode}' đang tắt. Hãy bật template trước khi tạo dispatch." });
+                }
+
+                template = anyTemplate?.IsActive == true ? anyTemplate : null;
             }
 
             var notificationType = NormalizeNullable(request.NotificationType)
@@ -637,7 +678,11 @@ namespace BizFlow.Infrastructure.Services
             ValidateActionConfiguration(actionType, targetScreen, actionPayloadJson, "actionType", "targetScreen", "actionPayloadJson");
             targetScreen = CanonicalizeTargetScreen(targetScreen);
 
-            var recipientUserIds = await ResolveRecipientUserIdsAsync(request.SendToAllUsers, request.RecipientUserIds);
+            var recipientSelection = await ResolveRecipientSelectionAsync(
+                request.SendToAllUsers,
+                request.RecipientUserIds,
+                request.RecipientGroupType,
+                request.BusinessLocationId);
 
             var dispatch = new NotificationDispatch
             {
@@ -650,9 +695,9 @@ namespace BizFlow.Infrastructure.Services
                 ActionType = actionType,
                 TargetScreen = targetScreen,
                 ActionPayloadJson = actionPayloadJson,
-                RecipientScope = request.SendToAllUsers ? "ALL_USERS" : "SPECIFIC_USERS",
-                RecipientUserIdsJson = JsonSerializer.Serialize(recipientUserIds),
-                ScheduledAt = request.ScheduledAt,
+                RecipientScope = recipientSelection.RecipientScope,
+                RecipientUserIdsJson = JsonSerializer.Serialize(recipientSelection.RecipientUserIds),
+                ScheduledAt = scheduledAt,
                 Status = "PENDING",
                 CreatedByUserId = createdByUserId == Guid.Empty ? null : createdByUserId,
                 CreatedAt = now,
@@ -662,10 +707,100 @@ namespace BizFlow.Infrastructure.Services
             _context.NotificationDispatches.Add(dispatch);
             await _context.SaveChangesAsync();
 
-            if (!request.ScheduledAt.HasValue || request.ScheduledAt.Value <= now)
+            if (!scheduledAt.HasValue)
             {
                 await EnqueueDispatchAsync(dispatch.NotificationDispatchId, CancellationToken.None);
             }
+
+            return MapDispatch(dispatch);
+        }
+
+        public async Task<NotificationRecipientGroupPreviewDto> GetRecipientGroupPreviewAsync(int businessLocationId, string recipientGroupType)
+        {
+            var normalizedRecipientGroupType = NormalizeRecipientGroupTypeOrThrow(recipientGroupType);
+            
+            // Disallow ALL_LOCATION_OWNERS in location-specific preview
+            if (normalizedRecipientGroupType.Equals("ALL_LOCATION_OWNERS", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException(MessageKeys.BadRequest, 
+                    new { detail = "Use GetAllLocationOwnersPreviewAsync for ALL_LOCATION_OWNERS mode" });
+            }
+
+            var location = await _context.BusinessLocations
+                .AsNoTracking()
+                .Where(businessLocation => businessLocation.BusinessLocationId == businessLocationId && businessLocation.DeletedAt == null)
+                .Select(businessLocation => new
+                {
+                    businessLocation.BusinessLocationId,
+                    businessLocation.LocationName
+                })
+                .FirstOrDefaultAsync();
+
+            if (location == null)
+            {
+                throw new NotFoundException(MessageKeys.NotFound);
+            }
+
+            var recipients = await GetLocationRecipientRowsAsync(businessLocationId, normalizedRecipientGroupType);
+
+            return new NotificationRecipientGroupPreviewDto
+            {
+                BusinessLocationId = location.BusinessLocationId,
+                LocationName = location.LocationName,
+                RecipientGroupType = normalizedRecipientGroupType,
+                TotalRecipients = recipients.Count,
+                Recipients = recipients
+            };
+        }
+
+        public async Task<NotificationRecipientGroupPreviewDto> GetAllLocationOwnersPreviewAsync()
+        {
+            var recipients = await GetAllLocationOwnersAsync();
+
+            return new NotificationRecipientGroupPreviewDto
+            {
+                BusinessLocationId = 0, // N/A for ALL_LOCATION_OWNERS
+                LocationName = "Tất cả chủ kinh doanh",
+                RecipientGroupType = "ALL_LOCATION_OWNERS",
+                TotalRecipients = recipients.Count,
+                Recipients = recipients
+            };
+        }
+
+        public async Task<List<BusinessLocationSummaryDto>> GetBusinessLocationsAsync()
+        {
+            return await _context.BusinessLocations
+                .AsNoTracking()
+                .Where(location => location.DeletedAt == null && (location.IsActive == null || location.IsActive == true))
+                .OrderBy(location => location.LocationName)
+                .Select(location => new BusinessLocationSummaryDto
+                {
+                    BusinessLocationId = location.BusinessLocationId,
+                    LocationName = location.LocationName,
+                    City = location.City
+                })
+                .ToListAsync();
+        }
+
+        public async Task<NotificationDispatchDto> CancelDispatchAsync(long dispatchId)
+        {
+            var dispatch = await _context.NotificationDispatches
+                .FirstOrDefaultAsync(entity => entity.NotificationDispatchId == dispatchId);
+
+            if (dispatch == null)
+            {
+                throw new NotFoundException(MessageKeys.NotFound);
+            }
+
+            var now = DateTime.UtcNow;
+            if (dispatch.Status != "PENDING" || !dispatch.ScheduledAt.HasValue || dispatch.ScheduledAt.Value <= now)
+            {
+                throw new BadRequestException(MessageKeys.NotificationDispatchCannotCancel);
+            }
+
+            dispatch.Status = "CANCELLED";
+            dispatch.UpdatedAt = now;
+            await _context.SaveChangesAsync();
 
             return MapDispatch(dispatch);
         }
@@ -702,6 +837,11 @@ namespace BizFlow.Infrastructure.Services
             }
 
             if (dispatch.Status == "COMPLETED")
+            {
+                return;
+            }
+
+            if (dispatch.Status != "PENDING" && dispatch.Status != "PROCESSING")
             {
                 return;
             }
@@ -1002,6 +1142,38 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
             await ProcessNotificationOutboxAsync(cancellationToken);
         }
 
+        private static DateTime? NormalizeScheduledAtOrNull(DateTime? scheduledAt)
+        {
+            if (!scheduledAt.HasValue)
+            {
+                return null;
+            }
+
+            return scheduledAt.Value.Kind switch
+            {
+                DateTimeKind.Utc => scheduledAt.Value,
+                DateTimeKind.Local => scheduledAt.Value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(scheduledAt.Value, DateTimeKind.Utc)
+            };
+        }
+
+        private static string? NormalizeRecipientGroupTypeOrNull(string? recipientGroupType)
+        {
+            if (string.IsNullOrWhiteSpace(recipientGroupType))
+            {
+                return null;
+            }
+
+            var normalizedValue = recipientGroupType.Trim().ToUpperInvariant();
+            return SupportedRecipientGroupTypes.Contains(normalizedValue) ? normalizedValue : null;
+        }
+
+        private static string NormalizeRecipientGroupTypeOrThrow(string recipientGroupType)
+        {
+            return NormalizeRecipientGroupTypeOrNull(recipientGroupType)
+                ?? throw new BadRequestException(MessageKeys.NotificationRecipientGroupInvalid);
+        }
+
         private async Task<string?> SendUserNotificationPushAsync(Guid userId, string title, string body, string priority, Dictionary<string, string> data, CancellationToken cancellationToken)
         {
             var firebaseMessaging = GetFirebaseMessaging();
@@ -1093,20 +1265,95 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
             return data;
         }
 
-        private async Task<List<Guid>> ResolveRecipientUserIdsAsync(bool sendToAllUsers, List<Guid>? recipientUserIds)
+        private async Task<(List<Guid> RecipientUserIds, string RecipientScope)> ResolveRecipientSelectionAsync(
+            bool sendToAllUsers,
+            List<Guid>? recipientUserIds,
+            string? recipientGroupType,
+            int? businessLocationId)
         {
-            if (sendToAllUsers)
-            {
-                return await _context.Profiles
-                    .AsNoTracking()
-                    .Select(profile => profile.ProfileId)
-                    .ToListAsync();
-            }
-
             var requestedIds = (recipientUserIds ?? new List<Guid>())
                 .Where(userId => userId != Guid.Empty)
                 .Distinct()
                 .ToList();
+
+            var normalizedRecipientGroupType = NormalizeRecipientGroupTypeOrNull(recipientGroupType);
+            
+            // Check if it's ALL_LOCATION_OWNERS mode (no location required)
+            var isAllLocationOwnersMode = normalizedRecipientGroupType?.Equals("ALL_LOCATION_OWNERS", StringComparison.OrdinalIgnoreCase) ?? false;
+            
+            // Check if it's location-specific group mode (location required)
+            var isLocationGroupMode = normalizedRecipientGroupType != null && !isAllLocationOwnersMode;
+            
+            var hasGroupSelection = isLocationGroupMode || isAllLocationOwnersMode;
+
+            var selectedModes = 0;
+            if (sendToAllUsers)
+            {
+                selectedModes += 1;
+            }
+
+            if (hasGroupSelection)
+            {
+                selectedModes += 1;
+            }
+
+            if (requestedIds.Count > 0)
+            {
+                selectedModes += 1;
+            }
+
+            if (selectedModes > 1)
+            {
+                throw new BadRequestException(MessageKeys.NotificationRecipientSelectionConflict);
+            }
+
+            if (sendToAllUsers)
+            {
+                var allUserIds = await _context.Profiles
+                    .AsNoTracking()
+                    .Select(profile => profile.ProfileId)
+                    .ToListAsync();
+
+                return (allUserIds, "ALL_USERS");
+            }
+
+            // Handle ALL_LOCATION_OWNERS mode
+            if (isAllLocationOwnersMode)
+            {
+                if (businessLocationId.HasValue)
+                {
+                    throw new BadRequestException(MessageKeys.NotificationRecipientSelectionConflict, 
+                        new { detail = "Cannot specify BusinessLocationId for ALL_LOCATION_OWNERS mode" });
+                }
+
+                var recipients = await GetAllLocationOwnersAsync();
+                if (recipients.Count == 0)
+                {
+                    throw new BadRequestException(MessageKeys.NotificationRecipientGroupEmpty);
+                }
+
+                return (recipients.Select(recipient => recipient.ProfileId).Distinct().ToList(), "ALL_LOCATION_OWNERS");
+            }
+
+            // Handle location-specific group modes
+            if (isLocationGroupMode)
+            {
+                if (businessLocationId == null)
+                {
+                    throw new BadRequestException(MessageKeys.NotificationRecipientLocationRequired);
+                }
+
+                var normalizedGroupType = normalizedRecipientGroupType
+                    ?? throw new BadRequestException(MessageKeys.NotificationRecipientGroupInvalid);
+
+                var recipients = await GetLocationRecipientRowsAsync(businessLocationId.Value, normalizedGroupType);
+                if (recipients.Count == 0)
+                {
+                    throw new BadRequestException(MessageKeys.NotificationRecipientGroupEmpty);
+                }
+
+                return (recipients.Select(recipient => recipient.ProfileId).Distinct().ToList(), normalizedGroupType);
+            }
 
             if (requestedIds.Count == 0)
             {
@@ -1124,7 +1371,224 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 throw new NotFoundException(MessageKeys.UserNotFound);
             }
 
-            return existingIds;
+            return (existingIds, "SPECIFIC_USERS");
+        }
+
+        private async Task<List<NotificationRecipientDto>> GetLocationRecipientRowsAsync(int businessLocationId, string recipientGroupType)
+        {
+            var locationExists = await _context.BusinessLocations
+                .AsNoTracking()
+                .AnyAsync(businessLocation => businessLocation.BusinessLocationId == businessLocationId && businessLocation.DeletedAt == null);
+
+            if (!locationExists)
+            {
+                throw new NotFoundException(MessageKeys.NotFound);
+            }
+
+            var assignmentQuery = _context.UserLocationAssignments
+                .AsNoTracking()
+                .Where(assignment => assignment.BusinessLocationId == businessLocationId && (assignment.IsActive == null || assignment.IsActive == true));
+
+            assignmentQuery = recipientGroupType switch
+            {
+                "LOCATION_OWNER" => assignmentQuery.Where(assignment => assignment.IsOwner),
+                "LOCATION_EMPLOYEES" => assignmentQuery.Where(assignment => !assignment.IsOwner),
+                "LOCATION_OWNER_AND_EMPLOYEES" => assignmentQuery,
+                _ => throw new BadRequestException(MessageKeys.NotificationRecipientGroupInvalid)
+            };
+
+            var assignmentRows = await assignmentQuery
+                .Select(assignment => new
+                {
+                    assignment.UserId,
+                    assignment.IsOwner,
+                    assignment.AssignedAt
+                })
+                .ToListAsync();
+
+            if (assignmentRows.Count == 0)
+            {
+                return new List<NotificationRecipientDto>();
+            }
+
+            var profileIds = assignmentRows
+                .Select(assignment => assignment.UserId)
+                .Distinct()
+                .ToList();
+
+            var profiles = await _context.Profiles
+                .AsNoTracking()
+                .Where(profile => profileIds.Contains(profile.ProfileId))
+                .Select(profile => new
+                {
+                    profile.ProfileId,
+                    profile.AccountId,
+                    profile.FullName
+                })
+                .ToListAsync();
+
+            var accountIds = profiles
+                .Select(profile => profile.AccountId)
+                .Distinct()
+                .ToList();
+
+            var credentials = await _context.Credentials
+                .AsNoTracking()
+                .Where(credential => accountIds.Contains(credential.AccountId))
+                .Select(credential => new
+                {
+                    credential.AccountId,
+                    credential.Type,
+                    credential.Identifier,
+                    credential.GoogleEmail
+                })
+                .ToListAsync();
+
+            var credentialByAccountId = credentials
+                .GroupBy(credential => credential.AccountId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new
+                    {
+                        Phone = group
+                            .Where(credential => string.Equals(credential.Type, "phone", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault(),
+                        Email = group
+                            .Where(credential => string.Equals(credential.Type, "email", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault()
+                                ?? group
+                                    .Where(credential => string.Equals(credential.Type, "google", StringComparison.OrdinalIgnoreCase))
+                                    .Select(credential => credential.GoogleEmail)
+                                    .FirstOrDefault()
+                    });
+
+            var primaryAssignmentByUserId = assignmentRows
+                .GroupBy(assignment => assignment.UserId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(assignment => assignment.IsOwner)
+                        .ThenByDescending(assignment => assignment.AssignedAt)
+                        .First());
+
+            return profiles
+                .OrderBy(profile => profile.FullName)
+                .Select(profile =>
+                {
+                    credentialByAccountId.TryGetValue(profile.AccountId, out var credentialInfo);
+                    primaryAssignmentByUserId.TryGetValue(profile.ProfileId, out var assignmentInfo);
+
+                    return new NotificationRecipientDto
+                    {
+                        ProfileId = profile.ProfileId,
+                        FullName = profile.FullName,
+                        Phone = credentialInfo?.Phone,
+                        Email = credentialInfo?.Email,
+                        IsOwner = assignmentInfo?.IsOwner ?? false
+                    };
+                })
+                .ToList();
+        }
+
+        private async Task<List<NotificationRecipientDto>> GetAllLocationOwnersAsync()
+        {
+            var assignmentRows = await _context.UserLocationAssignments
+                .AsNoTracking()
+                .Where(assignment => assignment.IsOwner && (assignment.IsActive == null || assignment.IsActive == true))
+                .Select(assignment => new
+                {
+                    assignment.UserId,
+                    assignment.IsOwner,
+                    assignment.AssignedAt
+                })
+                .ToListAsync();
+
+            if (assignmentRows.Count == 0)
+            {
+                return new List<NotificationRecipientDto>();
+            }
+
+            var profileIds = assignmentRows
+                .Select(assignment => assignment.UserId)
+                .Distinct()
+                .ToList();
+
+            var profiles = await _context.Profiles
+                .AsNoTracking()
+                .Where(profile => profileIds.Contains(profile.ProfileId))
+                .Select(profile => new
+                {
+                    profile.ProfileId,
+                    profile.AccountId,
+                    profile.FullName
+                })
+                .ToListAsync();
+
+            var accountIds = profiles
+                .Select(profile => profile.AccountId)
+                .Distinct()
+                .ToList();
+
+            var credentials = await _context.Credentials
+                .AsNoTracking()
+                .Where(credential => accountIds.Contains(credential.AccountId))
+                .Select(credential => new
+                {
+                    credential.AccountId,
+                    credential.Type,
+                    credential.Identifier,
+                    credential.GoogleEmail
+                })
+                .ToListAsync();
+
+            var credentialByAccountId = credentials
+                .GroupBy(credential => credential.AccountId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new
+                    {
+                        Phone = group
+                            .Where(credential => string.Equals(credential.Type, "phone", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault(),
+                        Email = group
+                            .Where(credential => string.Equals(credential.Type, "email", StringComparison.OrdinalIgnoreCase))
+                            .Select(credential => credential.Identifier)
+                            .FirstOrDefault()
+                                ?? group
+                                    .Where(credential => string.Equals(credential.Type, "google", StringComparison.OrdinalIgnoreCase))
+                                    .Select(credential => credential.GoogleEmail)
+                                    .FirstOrDefault()
+                    });
+
+            var primaryAssignmentByUserId = assignmentRows
+                .GroupBy(assignment => assignment.UserId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(assignment => assignment.IsOwner)
+                        .ThenByDescending(assignment => assignment.AssignedAt)
+                        .First());
+
+            return profiles
+                .OrderBy(profile => profile.FullName)
+                .Select(profile =>
+                {
+                    credentialByAccountId.TryGetValue(profile.AccountId, out var credentialInfo);
+                    primaryAssignmentByUserId.TryGetValue(profile.ProfileId, out var assignmentInfo);
+
+                    return new NotificationRecipientDto
+                    {
+                        ProfileId = profile.ProfileId,
+                        FullName = profile.FullName,
+                        Phone = credentialInfo?.Phone,
+                        Email = credentialInfo?.Email,
+                        IsOwner = assignmentInfo?.IsOwner ?? true
+                    };
+                })
+                .ToList();
         }
 
         private async Task<Dictionary<Guid, Dictionary<string, string>>> BuildRecipientTemplateDataAsync(

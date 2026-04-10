@@ -167,7 +167,14 @@ namespace BizFlow.Application.Common.Constants
         public const string NotificationTemplateSaved = "NOTIFICATION_TEMPLATE_SAVED";
         public const string NotificationTemplateUpdated = "NOTIFICATION_TEMPLATE_UPDATED";
         public const string NotificationDispatchCreated = "NOTIFICATION_DISPATCH_CREATED";
+        public const string NotificationDispatchCancelled = "NOTIFICATION_DISPATCH_CANCELLED";
         public const string NotificationDispatchProcessed = "NOTIFICATION_DISPATCH_PROCESSED";
+        public const string NotificationDispatchCannotCancel = "NOTIFICATION_DISPATCH_CANNOT_CANCEL";
+        public const string NotificationRecipientGroupInvalid = "NOTIFICATION_RECIPIENT_GROUP_INVALID";
+        public const string NotificationRecipientLocationRequired = "NOTIFICATION_RECIPIENT_LOCATION_REQUIRED";
+        public const string NotificationRecipientSelectionConflict = "NOTIFICATION_RECIPIENT_SELECTION_CONFLICT";
+        public const string NotificationRecipientGroupEmpty = "NOTIFICATION_RECIPIENT_GROUP_EMPTY";
+        public const string NotificationScheduledAtMustBeFuture = "NOTIFICATION_SCHEDULED_AT_MUST_BE_FUTURE";
 
         // ============ PRODUCT ============
         public const string ProductDuplicateUnitInPriceTiers = "PRODUCT_DUPLICATE_UNIT_IN_PRICE_TIERS";

@@ -22,7 +22,11 @@ namespace BizFlow.Application.Interfaces.Services
         Task<NotificationTemplateDto> UpsertTemplateAsync(string eventCode, UpsertNotificationTemplateRequest request);
         Task<NotificationTemplateDto> ToggleTemplateAsync(string eventCode, bool isActive);
 
+        Task<List<BusinessLocationSummaryDto>> GetBusinessLocationsAsync();
+        Task<NotificationRecipientGroupPreviewDto> GetRecipientGroupPreviewAsync(int businessLocationId, string recipientGroupType);
+        Task<NotificationRecipientGroupPreviewDto> GetAllLocationOwnersPreviewAsync();
         Task<NotificationDispatchDto> CreateDispatchAsync(Guid createdByUserId, CreateNotificationDispatchRequest request);
+        Task<NotificationDispatchDto> CancelDispatchAsync(long dispatchId);
         Task ProcessDispatchAsync(long dispatchId, CancellationToken cancellationToken = default);
         Task ProcessDueDispatchesAsync(CancellationToken cancellationToken = default);
         Task ProcessNotificationOutboxAsync(CancellationToken cancellationToken = default);
