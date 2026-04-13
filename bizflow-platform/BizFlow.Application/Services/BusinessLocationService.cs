@@ -116,7 +116,7 @@ namespace BizFlow.Application.Services
 
         public async Task AddEmployeesToLocationAsync(Guid ownerId, int locationId, List<Guid> employeeIds)
         {
-            await GetLocationAsOwnerOrThrowAsync(ownerId, locationId);
+            await EnsureOwnershipAsync(ownerId, locationId);
 
             await _unitOfWork.ExecuteResilientAsync(async _ =>
             {
@@ -126,8 +126,7 @@ namespace BizFlow.Application.Services
 
         public async Task RemoveEmployeeFromLocationAsync(Guid ownerId, int locationId, Guid employeeId)
         {
-            await GetLocationAsOwnerOrThrowAsync(ownerId, locationId);
-
+            await EnsureOwnershipAsync(ownerId, locationId);
             await _unitOfWork.BusinessLocations.RemoveEmployeeFromLocationAsync(locationId, employeeId);
             await _unitOfWork.SaveChangesAsync();
         }

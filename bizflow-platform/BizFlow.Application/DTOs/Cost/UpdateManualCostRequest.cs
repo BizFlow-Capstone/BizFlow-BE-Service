@@ -18,7 +18,7 @@ namespace BizFlow.Application.DTOs.Cost
         /// <summary>
         /// Cost amount (positive).
         /// </summary>
-        [Range(0.01, double.MaxValue)]
+        [Range(0.00, double.MaxValue)]
         public decimal Amount { get; set; }
 
         /// <summary>
