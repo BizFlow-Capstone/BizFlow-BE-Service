@@ -44,6 +44,93 @@ namespace BizFlow.Api.Controllers.Notification
             return Ok(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
+        [HttpGet("recipient-modes")]
+        [SwaggerOperation(Summary = "Get available recipient selection modes", Description = "Returns list of recipient modes for UI dropdown")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetRecipientModes()
+        {
+            var modes = new List<RecipientModeDto>
+            {
+                new RecipientModeDto
+                {
+                    Id = "ALL_USERS",
+                    Label = "Tất cả người dùng",
+                    Description = "Gửi cho tất cả mọi người trong hệ thống"
+                },
+                new RecipientModeDto
+                {
+                    Id = "ALL_LOCATION_OWNERS",
+                    Label = "Tất cả chủ location",
+                    Description = "Gửi cho tất cả chủ kinh doanh"
+                },
+                new RecipientModeDto
+                {
+                    Id = "LOCATION_OWNER",
+                    Label = "Chủ location",
+                    Description = "Gửi cho chủ của location được chọn"
+                },
+                new RecipientModeDto
+                {
+                    Id = "LOCATION_EMPLOYEES",
+                    Label = "Nhân viên",
+                    Description = "Gửi cho nhân viên của location được chọn"
+                },
+                new RecipientModeDto
+                {
+                    Id = "LOCATION_OWNER_AND_EMPLOYEES",
+                    Label = "Chủ + Nhân viên",
+                    Description = "Gửi cho cả chủ và nhân viên của location được chọn"
+                },
+                new RecipientModeDto
+                {
+                    Id = "SPECIFIC_USERS",
+                    Label = "Người dùng cụ thể",
+                    Description = "Gửi cho những người được chọn"
+                }
+            };
+            return Ok(modes, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("recipient-groups/all-location-owners")]
+        [SwaggerOperation(Summary = "Preview all location owners", Description = "Get list of all business location owners")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllLocationOwnersPreview()
+        {
+            var result = await _notificationService.GetAllLocationOwnersPreviewAsync();
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("locations")]
+        [SwaggerOperation(Summary = "List active business locations", Description = "Returns all active business locations for selection in CMS dispatch form")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetBusinessLocations()
+        {
+            var result = await _notificationService.GetBusinessLocationsAsync();
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("recipient-groups/locations/{locationId:int}")]
+        [SwaggerOperation(Summary = "Preview recipients by location group", Description = "Supported group types: LOCATION_OWNER, LOCATION_EMPLOYEES, LOCATION_OWNER_AND_EMPLOYEES")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetRecipientGroupPreview(int locationId, [FromQuery] string recipientGroupType)
+        {
+            try
+            {
+                var result = await _notificationService.GetRecipientGroupPreviewAsync(locationId, recipientGroupType);
+                return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+            }
+            catch (BadRequestException ex)
+            {
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(ex.MessageKey, ex.Args);
+            }
+        }
+
         [HttpGet("templates/{eventCode}")]
         [SwaggerOperation(Summary = "Get notification template by event code")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -108,6 +195,29 @@ namespace BizFlow.Api.Controllers.Notification
                 var createdByUserId = User.GetRequiredUserId();
                 var result = await _notificationService.CreateDispatchAsync(createdByUserId, request);
                 return Ok(result, MessageKeys.NotificationDispatchCreated);
+            }
+            catch (BadRequestException ex)
+            {
+                return BadRequest(ex.MessageKey, ex.Errors, ex.Args);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(ex.MessageKey, ex.Args);
+            }
+        }
+
+        [HttpPost("dispatches/{dispatchId:long}/cancel")]
+        [Authorize]
+        [SwaggerOperation(Summary = "Cancel a scheduled notification dispatch before it is sent")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CancelDispatch(long dispatchId)
+        {
+            try
+            {
+                var result = await _notificationService.CancelDispatchAsync(dispatchId);
+                return Ok(result, MessageKeys.NotificationDispatchCancelled);
             }
             catch (BadRequestException ex)
             {

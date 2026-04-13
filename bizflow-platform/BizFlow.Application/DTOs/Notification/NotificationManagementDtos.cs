@@ -86,8 +86,28 @@ namespace BizFlow.Application.DTOs.Notification
         public string? TargetScreen { get; set; }
         public string? ActionPayloadJson { get; set; }
         public bool SendToAllUsers { get; set; }
+        public string? RecipientGroupType { get; set; }
+        public int? BusinessLocationId { get; set; }
         public List<Guid>? RecipientUserIds { get; set; }
         public DateTime? ScheduledAt { get; set; }
+    }
+
+    public class NotificationRecipientGroupPreviewDto
+    {
+        public int BusinessLocationId { get; set; }
+        public string LocationName { get; set; } = string.Empty;
+        public string RecipientGroupType { get; set; } = string.Empty;
+        public int TotalRecipients { get; set; }
+        public List<NotificationRecipientDto> Recipients { get; set; } = new();
+    }
+
+    public class NotificationRecipientDto
+    {
+        public Guid ProfileId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public bool IsOwner { get; set; }
     }
 
     public class NotificationDispatchDto
@@ -142,5 +162,19 @@ namespace BizFlow.Application.DTOs.Notification
     public class NotificationUnreadCountDto
     {
         public int UnreadCount { get; set; }
+    }
+
+    public class RecipientModeDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    public class BusinessLocationSummaryDto
+    {
+        public int BusinessLocationId { get; set; }
+        public string LocationName { get; set; } = string.Empty;
+        public string? City { get; set; }
     }
 }
