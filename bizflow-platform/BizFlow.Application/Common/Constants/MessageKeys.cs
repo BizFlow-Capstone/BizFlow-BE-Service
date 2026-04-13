@@ -118,6 +118,12 @@ namespace BizFlow.Application.Common.Constants
         /// <summary>Role <c>consultant</c> missing from database.</summary>
         public const string ConsultantRoleNotFound = "AUTH_CONSULTANT_ROLE_NOT_FOUND";
 
+        /// <summary>Target account is not a consultant; admin delete-consultant only works on consultant accounts.</summary>
+        public const string AccountIsNotConsultant = "AUTH_ACCOUNT_IS_NOT_CONSULTANT";
+
+        /// <summary>Admin successfully deleted a consultant account.</summary>
+        public const string ConsultantDeleted = "AUTH_CONSULTANT_DELETED";
+
         /// <summary>Validation errors for profile info (fullName, taxCode, ...).</summary>
         public const string ProfileFullNameRequired = "AUTH_PROFILE_FULLNAME_REQUIRED";
         public const string ProfileFullNameTooLong = "AUTH_PROFILE_FULLNAME_TOO_LONG";
@@ -191,6 +197,7 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportProductNotFound = "IMPORT_PRODUCT_NOT_FOUND";
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
+        public const string ImportItemsRequiredOnConfirm = "IMPORT_ITEMS_REQUIRED_ON_CONFIRM";
         public const string LowStockConfirmRequired = "LOW_STOCK_CONFIRM_REQUIRED";
         public const string OrderPaymentAmountMismatch = "ORDER_PAYMENT_AMOUNT_MISMATCH";
         public const string OrderLocationChangeNotAllowed = "ORDER_LOCATION_CHANGE_NOT_ALLOWED";

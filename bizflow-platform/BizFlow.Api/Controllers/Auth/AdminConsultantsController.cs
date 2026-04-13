@@ -54,4 +54,34 @@ public class AdminConsultantsController : BaseApiController
             return InternalServerError(ex);
         }
     }
+
+    /// <summary>Soft-delete a consultant account. Only consultant accounts can be deleted via this endpoint.</summary>
+    [HttpDelete("{accountId:guid}")]
+    public async Task<IActionResult> DeleteConsultant(Guid accountId)
+    {
+        User.EnsureAdminRole();
+
+        try
+        {
+            await _authService.DeleteConsultantByAdminAsync(accountId);
+            Logger.LogInformation("Admin deleted consultant. AccountId={AccountId}", accountId);
+            return Ok(MessageKeys.ConsultantDeleted);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(MessageKeys.AccountNotFound);
+        }
+        catch (InvalidOperationException ex) when (ex.Message == MessageKeys.AccountIsNotConsultant)
+        {
+            return BadRequest(MessageKeys.AccountIsNotConsultant);
+        }
+        catch (InvalidOperationException ex) when (ex.Message == MessageKeys.AccountInactiveOrDeleted)
+        {
+            return BadRequest(MessageKeys.AccountInactiveOrDeleted);
+        }
+        catch (Exception ex)
+        {
+            return InternalServerError(ex);
+        }
+    }
 }

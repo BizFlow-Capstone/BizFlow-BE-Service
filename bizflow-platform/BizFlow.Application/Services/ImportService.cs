@@ -77,6 +77,9 @@ namespace BizFlow.Application.Services
             if (!request.SaveAsDraft && !request.ReceivedAt.HasValue)
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
 
+            if (!request.SaveAsDraft && (request.Items == null || request.Items.Count == 0))
+                throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
+
             // Validate and build items
             var (items, totalAmount) = await BuildImportItemsAsync(request.BusinessLocationId, request.Items);
 
@@ -194,6 +197,9 @@ namespace BizFlow.Application.Services
 
             if (!request.ReceivedAt.HasValue)
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
+
+            if (import.ProductsImports == null || import.ProductsImports.Count == 0)
+                throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
 
             // Add quantity to product stock and update CostPrice
             await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId, import.Note);

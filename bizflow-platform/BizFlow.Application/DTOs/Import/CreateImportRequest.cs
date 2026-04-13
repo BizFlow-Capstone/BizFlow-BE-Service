@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BizFlow.Application.DTOs.Import
 {
     public class CreateImportRequest
@@ -7,6 +9,7 @@ namespace BizFlow.Application.DTOs.Import
         /// </summary>
         public string ImportType { get; set; } = null!;
 
+        [Required, Range(1, int.MaxValue)]
         public int BusinessLocationId { get; set; }
 
         public string? Supplier { get; set; }

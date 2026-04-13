@@ -100,6 +100,18 @@ namespace BizFlow.Application.Services
             if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            if (!string.IsNullOrWhiteSpace(request.CostType))
+            {
+                var normalizedCostType = request.CostType.Trim().ToLower();
+                if (!CostType.IsValid(normalizedCostType))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                if (normalizedCostType == CostType.Import)
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                cost.CostType = normalizedCostType;
+            }
+
             string? normalizedPaymentMethod = null;
             if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
             {

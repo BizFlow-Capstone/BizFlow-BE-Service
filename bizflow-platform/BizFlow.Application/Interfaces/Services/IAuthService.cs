@@ -103,5 +103,10 @@ namespace BizFlow.Application.Interfaces.Services
         /// Admin-only: create consultant (email + random password, welcome email). Does not return the password.
         /// </summary>
         Task<CreateConsultantResponse> CreateConsultantByAdminAsync(string email, string? fullName, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Admin-only: soft-delete a consultant account. Rejects if the target account is not a consultant.
+        /// </summary>
+        Task DeleteConsultantByAdminAsync(Guid accountId);
     }
 }

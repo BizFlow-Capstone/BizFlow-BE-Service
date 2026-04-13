@@ -888,6 +888,37 @@ namespace BizFlow.Infrastructure.Services
                 refreshTokensRevoked);
         }
 
+        public async Task DeleteConsultantByAdminAsync(Guid accountId)
+        {
+            var account = await _db.Accounts
+                .Include(a => a.Role)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId)
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
+
+            if (!string.Equals(account.Role.Name, ConsultantRoleName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(MessageKeys.AccountIsNotConsultant);
+            }
+
+            if (account.IsActive == false || account.DeletedAt != null)
+            {
+                _logger.LogWarning("Admin delete consultant rejected for inactive/deleted account. AccountId={AccountId}", accountId);
+                throw new InvalidOperationException(MessageKeys.AccountInactiveOrDeleted);
+            }
+
+            account.IsActive = false;
+            account.DeletedAt = DateTime.UtcNow;
+            account.UpdatedAt = DateTime.UtcNow;
+
+            var refreshTokensRevoked = await MarkAllRefreshTokensRevokedAsync(accountId);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Consultant soft-deleted by admin; Hangfire will hard-delete after retention. AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
+                accountId,
+                refreshTokensRevoked);
+        }
+
         public async Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId)
         {
             var credentials = await _db.Credentials

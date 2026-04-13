@@ -5,6 +5,12 @@ namespace BizFlow.Application.DTOs.Cost
     public class UpdateManualCostRequest
     {
         /// <summary>
+        /// Cost type (see CostType enum). Cannot be 'import'.
+        /// </summary>
+        [MaxLength(30)]
+        public string? CostType { get; set; }
+
+        /// <summary>
         /// FK to BusinessTypes — related business sector (optional)
         /// </summary>
         public Guid? BusinessTypeId { get; set; }
