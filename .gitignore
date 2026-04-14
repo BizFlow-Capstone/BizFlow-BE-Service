@@ -14,6 +14,7 @@ docker-compose.override.yml
 .env.prod
 uat.env
 prod.env
+database/scripts/aiven.env
 
 # Firebase credentials (local only)
 docker/credentials/*.json

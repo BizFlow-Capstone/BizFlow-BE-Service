@@ -5,6 +5,9 @@
 -- 2) Close outdated open-ended rows to keep history consistent.
 -- =============================================
 
+-- Aiven: disable primary key requirement for temp tables (session-scoped)
+SET SESSION sql_require_primary_key = 0;
+
 -- Active ruleset and effective date baseline
 SET @activeRulesetId := (
     SELECT RulesetId
@@ -113,6 +116,9 @@ DROP TEMPORARY TABLE IF EXISTS tmp_business_type_tax_target;
 DROP TEMPORARY TABLE IF EXISTS tmp_reconciled_rates;
 DROP TEMPORARY TABLE IF EXISTS tmp_business_type_mapping;
 DROP TEMPORARY TABLE IF EXISTS tmp_used_business_types;
+
+-- Restore primary key requirement
+SET SESSION sql_require_primary_key = 1;
 
 -- =============================================
 -- Insert migration history

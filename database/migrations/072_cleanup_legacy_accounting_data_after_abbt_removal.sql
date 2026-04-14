@@ -14,7 +14,14 @@ DROP TABLE IF EXISTS AccountingBookBusinessTypes;
 
 -- 1) Build duplicate book map: keep newest BookId for each (Location, Period, TemplateVersion)
 DROP TEMPORARY TABLE IF EXISTS tmp_book_keep_map;
-CREATE TEMPORARY TABLE tmp_book_keep_map AS
+CREATE TEMPORARY TABLE tmp_book_keep_map (
+    OldBookId BIGINT NOT NULL,
+    KeepBookId BIGINT NOT NULL,
+    PRIMARY KEY (OldBookId),
+    KEY idx_tmp_book_keep_keep (KeepBookId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tmp_book_keep_map (OldBookId, KeepBookId)
 SELECT
     b.BookId AS OldBookId,
     d.KeepBookId
@@ -34,9 +41,6 @@ JOIN (
    AND d.PeriodId = b.PeriodId
    AND d.TemplateVersionId = b.TemplateVersionId
 WHERE b.BookId <> d.KeepBookId;
-
-CREATE INDEX idx_tmp_book_keep_old ON tmp_book_keep_map (OldBookId);
-CREATE INDEX idx_tmp_book_keep_keep ON tmp_book_keep_map (KeepBookId);
 
 -- 2) Re-link exports from old books to kept books
 UPDATE AccountingExports e

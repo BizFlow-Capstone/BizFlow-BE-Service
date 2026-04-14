@@ -1,0 +1,36 @@
+# =============================================================================
+# BizFlow Docker Compose - VPS overrides
+# =============================================================================
+# Purpose:
+# - Pull images from Docker Hub instead of building on VPS
+# - Disable local nginx service because Nginx Proxy Manager runs separately
+# - Keep AI internal-only while allowing NPM -> API through shared external network
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.vps.yml --env-file .env.prod --profile ai pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.vps.yml --env-file .env.prod --profile ai up -d
+# =============================================================================
+
+services:
+  nginx:
+    # Disable this service by default on VPS (NPM already handles 80/443)
+    profiles: ["disabled"]
+
+  bizflow-api:
+    image: ${DOCKERHUB_USER}/bizflow-api:${IMAGE_TAG}
+    build: null
+    expose:
+      - "8080"
+    restart: unless-stopped
+    networks:
+      - bizflow-network
+      - bizflow-public
+
+  bizflow-ai:
+    image: ${DOCKERHUB_USER}/bizflow-ai:${IMAGE_TAG}
+    build: null
+    restart: unless-stopped
+
+networks:
+  bizflow-public:
+    external: true

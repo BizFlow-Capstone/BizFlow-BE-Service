@@ -65,6 +65,9 @@ PREPARE stmt_add_fk_revenue_business_type FROM @sql_add_fk_revenue_business_type
 EXECUTE stmt_add_fk_revenue_business_type;
 DEALLOCATE PREPARE stmt_add_fk_revenue_business_type;
 
+-- Aiven: disable primary key requirement for temp tables (session-scoped)
+SET SESSION sql_require_primary_key = 0;
+
 -- 4) Backfill from Order -> OrderDetails -> SaleItems -> Products when OrderId is available
 DROP TEMPORARY TABLE IF EXISTS tmp_revenue_bt_from_order;
 CREATE TEMPORARY TABLE tmp_revenue_bt_from_order AS
@@ -164,6 +167,9 @@ WHERE ExpressionJson LIKE '%"TaxType"%PIT_M1%';
 -- Cleanup temp tables
 DROP TEMPORARY TABLE IF EXISTS tmp_location_default_bt;
 DROP TEMPORARY TABLE IF EXISTS tmp_revenue_bt_from_order;
+
+-- Restore primary key requirement
+SET SESSION sql_require_primary_key = 1;
 
 -- =============================================
 -- Insert migration history

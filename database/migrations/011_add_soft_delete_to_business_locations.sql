@@ -6,33 +6,38 @@
 -- ADD IsDeleted COLUMN TO BusinessLocations
 -- =============================================
 
--- Check if column exists before adding (idempotent)
-SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-    WHERE TABLE_SCHEMA = 'bizflow_db' 
+-- Use stored procedure to handle conditional logic
+DROP PROCEDURE IF EXISTS bizflow_migration_011;
+
+DELIMITER $$
+CREATE PROCEDURE bizflow_migration_011()
+BEGIN
+    DECLARE col_exists INT DEFAULT 0;
+    
+    -- Check if column already exists
+    SELECT COUNT(*) INTO col_exists 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
     AND TABLE_NAME = 'BusinessLocations' 
-    AND COLUMN_NAME = 'IsDeleted');
+    AND COLUMN_NAME = 'IsDeleted';
+    
+    -- Only add column if it doesn't exist
+    IF col_exists = 0 THEN
+        ALTER TABLE BusinessLocations 
+        ADD COLUMN IsDeleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Soft delete flag' AFTER IsActive;
+        
+        ALTER TABLE BusinessLocations 
+        ADD INDEX idx_business_location_is_deleted (IsDeleted);
+    END IF;
+END$$
 
-SET @sql_add_col = IF(@col_exists = 0,
-    'ALTER TABLE BusinessLocations ADD COLUMN IsDeleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT ''Soft delete flag'' AFTER IsActive',
-    'SELECT "Column IsDeleted already exists in BusinessLocations" AS Info');
+DELIMITER ;
 
-PREPARE stmt FROM @sql_add_col;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+-- Call the procedure
+CALL bizflow_migration_011();
 
--- Add index for IsDeleted if not exists
-SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
-    WHERE TABLE_SCHEMA = 'bizflow_db' 
-    AND TABLE_NAME = 'BusinessLocations' 
-    AND INDEX_NAME = 'idx_business_location_is_deleted');
-
-SET @sql_add_idx = IF(@idx_exists = 0,
-    'ALTER TABLE BusinessLocations ADD INDEX idx_business_location_is_deleted (IsDeleted)',
-    'SELECT "Index idx_business_location_is_deleted already exists" AS Info');
-
-PREPARE stmt FROM @sql_add_idx;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+-- Cleanup
+DROP PROCEDURE IF EXISTS bizflow_migration_011;
 
 -- Insert this migration
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion) 

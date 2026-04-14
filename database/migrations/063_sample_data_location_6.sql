@@ -3,6 +3,20 @@
 
 SET @createdBy = 'ff45309c-7b0b-4012-933b-042405d75685';
 
+DROP PROCEDURE IF EXISTS bizflow_migration_063;
+DELIMITER $$
+CREATE PROCEDURE bizflow_migration_063()
+BEGIN
+	DECLARE location_exists INT DEFAULT 0;
+
+	SELECT COUNT(*) INTO location_exists
+	FROM BusinessLocations
+	WHERE BusinessLocationId = 6;
+
+	IF location_exists = 0 THEN
+		SELECT 'Skipping sample data for location 6 because BusinessLocations.BusinessLocationId=6 does not exist' AS Info;
+	ELSE
+
 -- ─────────────────────────────────────────────────────
 -- 1. REVENUES (20 entries, Q1/2026)
 -- ─────────────────────────────────────────────────────
@@ -100,6 +114,13 @@ INSERT INTO GeneralLedgerEntries (BusinessLocationId, EntryDate, DebitAmount, Cr
 -- ─────────────────────────────────────────────────────
 UPDATE AccountingPeriods SET Status = 'open'
 WHERE PeriodId = 1 AND BusinessLocationId = 6;
+
+	END IF;
+END$$
+DELIMITER ;
+
+CALL bizflow_migration_063();
+DROP PROCEDURE IF EXISTS bizflow_migration_063;
 
 -- =============================================
 -- Insert migration history

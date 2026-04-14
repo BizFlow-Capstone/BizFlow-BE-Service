@@ -15,10 +15,17 @@ SET @activeRulesetId := (
 );
 
 -- Distinct business types that are actually used by non-deleted products
-CREATE TEMPORARY TABLE tmp_used_business_types AS
+DROP TEMPORARY TABLE IF EXISTS tmp_used_business_types;
+CREATE TEMPORARY TABLE tmp_used_business_types (
+        BusinessTypeId CHAR(36) NOT NULL,
+        PRIMARY KEY (BusinessTypeId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tmp_used_business_types (BusinessTypeId)
 SELECT DISTINCT p.BusinessTypeId
 FROM Products p
-WHERE p.DeletedAt IS NULL;
+WHERE p.DeletedAt IS NULL
+    AND p.BusinessTypeId IS NOT NULL;
 
 -- Map legacy business type codes to canonical TT152 categories
 CREATE TEMPORARY TABLE tmp_business_type_mapping (
@@ -34,7 +41,15 @@ INSERT INTO tmp_business_type_mapping (LegacyCode, CanonicalCode) VALUES
 ('BEAUTY', 'bt-service');
 
 -- Build reconciled rates for product-used business types from canonical TT152 rates
-CREATE TEMPORARY TABLE tmp_reconciled_rates AS
+DROP TEMPORARY TABLE IF EXISTS tmp_reconciled_rates;
+CREATE TEMPORARY TABLE tmp_reconciled_rates (
+    TargetBusinessTypeId CHAR(36) NOT NULL,
+    TaxType VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    TaxRate DECIMAL(5,4) NOT NULL,
+    PRIMARY KEY (TargetBusinessTypeId, TaxType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tmp_reconciled_rates (TargetBusinessTypeId, TaxType, TaxRate)
 SELECT
     btLegacy.BusinessTypeId AS TargetBusinessTypeId,
     (itr.TaxType COLLATE utf8mb4_unicode_ci) AS TaxType,
