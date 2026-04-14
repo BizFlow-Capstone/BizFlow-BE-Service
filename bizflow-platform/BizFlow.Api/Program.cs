@@ -36,6 +36,36 @@ var builder = WebApplication.CreateBuilder(args);
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
+// Pre-create hf_DistributedLock with PRIMARY KEY before Hangfire initializes.
+// Aiven (and some managed MySQL) enforces sql_require_primary_key; Hangfire.MySql v2
+// generates this table without a PK, causing schema bootstrap to fail on those hosts.
+// Using IF NOT EXISTS makes this a no-op on subsequent startups.
+if (isHangfireEnabled)
+{
+    try
+    {
+        using var preConn = new MySqlConnection(defaultConnectionString);
+        await preConn.OpenAsync();
+        using var preCmd = preConn.CreateCommand();
+        // Hangfire.MySql v2 requires: Resource (PK), CreatedAt, ExpireAt.
+        // Aiven enforces sql_require_primary_key so we must create with an explicit PK.
+        preCmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS `hf_DistributedLock` (
+              `Resource` varchar(100) NOT NULL,
+              `CreatedAt` datetime NOT NULL,
+              `ExpireAt` datetime NOT NULL,
+              CONSTRAINT `PK_HangFire_DistributedLock` PRIMARY KEY (`Resource`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """;
+        await preCmd.ExecuteNonQueryAsync();
+    }
+    catch (Exception ex)
+    {
+        // Non-fatal: log and let Hangfire surface the real error if table truly can't be created
+        Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
+    }
+}
+
 // Hangfire Configuration
 if (isHangfireEnabled)
 {
