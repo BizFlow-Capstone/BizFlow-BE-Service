@@ -17,7 +17,7 @@ services:
     profiles: ["disabled"]
 
   bizflow-api:
-    image: ${DOCKERHUB_USER}/bizflow-api:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/bizflow-api:${IMAGE_TAG}
     build: null
     expose:
       - "8080"
@@ -27,7 +27,7 @@ services:
       - bizflow-public
 
   bizflow-ai:
-    image: ${DOCKERHUB_USER}/bizflow-ai:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/bizflow-ai:${IMAGE_TAG}
     build: null
     restart: unless-stopped
 
