@@ -3,40 +3,38 @@
 # =============================================================================
 # Extends docker-compose.yml for the production environment on the VPS.
 # Database is hosted externally on Aiven.io — no local MySQL container.
+# Reverse proxy is handled by Nginx Proxy Manager (separate stack at /opt/bizflow/nginx-proxy-manager).
 #
-# Usage (on VPS):
+# Pre-requisites on VPS (one-time):
+#   docker network create proxy-network
+#   git clone <BE-repo> /opt/bizflow/bizflow-app
+#   cp docker/credentials/* /opt/bizflow/bizflow-app/docker/credentials/
+#   nano /opt/bizflow/bizflow-app/.env.prod       # fill in all secrets
+#
+# Usage (on VPS — initial deploy):
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod pull && \
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d  # rolling update
+#
+# With AI service:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod --profile ai up -d
+#
+# Rolling update (done automatically by CI/CD):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod pull bizflow-api
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d --no-build bizflow-api
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # Nginx — reverse proxy + SSL termination
-  # SSL certs are managed by Certbot (Let's Encrypt) on the VPS host.
-  # Run once to obtain cert: certbot certonly --standalone -d your-domain.com
-  # ---------------------------------------------------------------------------
-  nginx:
-    image: nginx:alpine
-    container_name: bizflow-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro      # Let's Encrypt certs from host
-    depends_on:
-      - bizflow-api
-    networks:
-      - bizflow-network
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # API — production settings
-  # No direct port exposure; traffic flows through Nginx only.
+  # API — pre-built image from Docker Hub
+  # Joined to proxy-network so Nginx Proxy Manager can route traffic.
+  # Image: <DOCKERHUB_USERNAME>/bizflow-api  (set DOCKERHUB_USERNAME in .env.prod)
   # ---------------------------------------------------------------------------
   bizflow-api:
+    image: ${DOCKERHUB_USERNAME}/bizflow-api:${IMAGE_TAG:-latest}
+    build: null                             # override build from base — use pre-built image only
     restart: unless-stopped
+    networks:
+      - bizflow-network
+      - proxy-network             # NPM routes to this container via this network
     deploy:
       resources:
         limits:
@@ -45,13 +43,23 @@ services:
           memory: 256M
 
   # ---------------------------------------------------------------------------
-  # AI Service — production settings (start with --profile ai)
+  # AI Service — pre-built image from Docker Hub (start with --profile ai)
+  # Internal only — NOT joined to proxy-network (container-to-container only).
+  # Image: <DOCKERHUB_USERNAME>/bizflow-ai  (set DOCKERHUB_USERNAME in .env.prod)
   # ---------------------------------------------------------------------------
   bizflow-ai:
+    image: ${DOCKERHUB_USERNAME}/bizflow-ai:${IMAGE_TAG:-latest}
+    build: null                             # override build from base — use pre-built image only
     restart: unless-stopped
+    networks:
+      - bizflow-network           # internal only — BE calls AI via this network
     deploy:
       resources:
         limits:
           memory: 1G
         reservations:
           memory: 512M
+
+networks:
+  proxy-network:
+    external: true

@@ -29,6 +29,9 @@ INSERT INTO tmp_legacy_to_canonical (LegacyCode, CanonicalCode) VALUES
 ('RESTAURANT', 'bt-fnb'),
 ('BEAUTY', 'bt-service');
 
+-- Aiven: disable primary key requirement for temp tables (session-scoped)
+SET SESSION sql_require_primary_key = 0;
+
 -- Build rates for ALL legacy business types (not just those with Products)
 CREATE TEMPORARY TABLE tmp_missing_rates AS
 SELECT
@@ -67,6 +70,9 @@ WHERE @activeRulesetId IS NOT NULL;
 -- Cleanup
 DROP TEMPORARY TABLE IF EXISTS tmp_missing_rates;
 DROP TEMPORARY TABLE IF EXISTS tmp_legacy_to_canonical;
+
+-- Restore primary key requirement
+SET SESSION sql_require_primary_key = 1;
 
 -- =============================================
 -- Insert migration history

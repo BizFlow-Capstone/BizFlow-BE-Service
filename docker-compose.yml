@@ -23,6 +23,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
       - ASPNETCORE_URLS=http://+:8080
+      # Suppress the third-party AutoMapper license warning while keeping real errors visible.
+      - Logging__LogLevel__LuckyPennySoftware.AutoMapper.License=${AUTOMAPPER_LICENSE_LOG_LEVEL:-Error}
       # Database — injected from .env file
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
       # JWT

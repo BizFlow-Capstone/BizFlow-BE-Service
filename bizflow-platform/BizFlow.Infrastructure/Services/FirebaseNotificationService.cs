@@ -20,8 +20,9 @@ namespace BizFlow.Infrastructure.Services
 {
     public class FirebaseNotificationService : INotificationService
     {
-        private static readonly HashSet<string> SupportedNavigationActionTypes = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> SupportedActionTypes = new(StringComparer.OrdinalIgnoreCase)
         {
+            "NONE",
             "NAVIGATE",
             "NAVIGATE_TO_SCREEN"
         };
@@ -327,6 +328,7 @@ namespace BizFlow.Infrastructure.Services
                         ? "Bạn không còn làm việc tại địa điểm kinh doanh này."
                         : $"Bạn không còn làm việc tại {businessName}."),
                 TemplateData = data,
+                ActionType = "NONE",
                 SendToAllUsers = false,
                 RecipientUserIds = new List<Guid> { employeeId }
             });
@@ -674,6 +676,13 @@ namespace BizFlow.Infrastructure.Services
             var targetScreen = NormalizeNullable(request.TargetScreen) ?? template?.DefaultTargetScreen;
             var actionPayloadJson = NormalizeActionPayloadJsonOrNull(request.ActionPayloadJson) ?? template?.DefaultActionPayloadJson;
             var dataJson = NormalizeJsonOrNull(request.DataJson);
+
+            // Explicit NONE must disable navigation fields even if template defaults still carry them.
+            if (string.Equals(actionType, "NONE", StringComparison.OrdinalIgnoreCase))
+            {
+                targetScreen = null;
+                actionPayloadJson = null;
+            }
 
             ValidateActionConfiguration(actionType, targetScreen, actionPayloadJson, "actionType", "targetScreen", "actionPayloadJson");
             targetScreen = CanonicalizeTargetScreen(targetScreen);
@@ -1895,9 +1904,19 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 return;
             }
 
-            if (!SupportedNavigationActionTypes.Contains(actionType))
+            if (!SupportedActionTypes.Contains(actionType))
             {
                 throw new BadRequestException(MessageKeys.BadRequest, new { field = actionFieldName });
+            }
+
+            if (actionType.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(targetScreen) || !string.IsNullOrWhiteSpace(actionPayloadJson))
+                {
+                    throw new BadRequestException(MessageKeys.BadRequest, new { field = actionFieldName });
+                }
+
+                return;
             }
 
             if (string.IsNullOrWhiteSpace(targetScreen) && string.IsNullOrWhiteSpace(actionPayloadJson))

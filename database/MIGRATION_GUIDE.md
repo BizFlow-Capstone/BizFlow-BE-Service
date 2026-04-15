@@ -109,6 +109,36 @@ Sẽ hiển thị:
 
 ---
 
+### 5️⃣ Chạy migration cho Aiven (database online)
+
+```bash
+cd database\scripts
+
+# Tạo file config local (không commit)
+copy aiven.env.example aiven.env
+
+# Sửa thông tin kết nối theo Aiven Console
+# AIVEN_DB_HOST, AIVEN_DB_PORT, AIVEN_DB_NAME,
+# AIVEN_DB_USER, AIVEN_DB_PASSWORD
+
+# Chạy test 1 migration
+run_migration_aiven.bat ..\migrations\004_create_user_table.sql
+
+# Hoặc auto apply các migration mới
+apply_new_migrations_aiven.bat
+
+# Xem trạng thái DB Aiven
+view_database_aiven.bat
+```
+
+**Lưu ý:**
+- Script Aiven tách biệt hoàn toàn với script local Docker.
+- Script Aiven không dùng `docker exec bizflow-mysql`; kết nối trực tiếp tới Aiven bằng `mysql client`.
+- Script Aiven tự động tìm `mysql.exe` ở PATH hoặc đường dẫn mặc định MySQL Server trên Windows.
+- Nếu máy cài custom path, set thêm `AIVEN_MYSQL_CLIENT_PATH` trong `aiven.env`.
+
+---
+
 ## 🛠️ Chi tiết các Scripts
 
 ### 1. `apply_new_migrations.bat` - Tự động áp dụng migrations mới
@@ -403,6 +433,70 @@ view_database.bat
 
 ---
 
+### 7. `load_aiven_env.bat` - Nạp cấu hình Aiven từ file
+
+**Mô tả:**
+- Đọc file `aiven.env`
+- Validate các biến bắt buộc (`AIVEN_DB_HOST`, `AIVEN_DB_NAME`, `AIVEN_DB_USER`, `AIVEN_DB_PASSWORD`)
+- Set default nếu thiếu (`AIVEN_DB_PORT=3306`, `AIVEN_DB_SSL_MODE=REQUIRED`)
+
+**Cách dùng:**
+- Script này được gọi nội bộ bởi các script Aiven, không cần chạy trực tiếp.
+
+---
+
+### 8. `apply_new_migrations_aiven.bat` - Auto apply migration mới lên Aiven
+
+**Mô tả:**
+- So sánh file SQL trong `database/migrations/` với `__MigrationHistory` trên Aiven
+- Chỉ chạy những migration chưa tồn tại trên Aiven
+- Chạy theo thứ tự tên file (001, 002, 003...)
+
+**Cách dùng:**
+```bash
+cd database\scripts
+apply_new_migrations_aiven.bat
+```
+
+**Khi nào dùng:**
+- Deploy schema lên môi trường online Aiven
+- Đồng bộ Aiven sau khi merge migration mới
+
+---
+
+### 9. `run_migration_aiven.bat` - Chạy 1 migration cụ thể lên Aiven
+
+**Mô tả:**
+- Chạy thủ công 1 file migration lên Aiven
+- Phù hợp để test từng migration trước khi auto apply hàng loạt
+
+**Cách dùng:**
+```bash
+cd database\scripts
+run_migration_aiven.bat ..\migrations\004_create_user_table.sql
+```
+
+**Tip:**
+- Có thể chạy `run_migration_aiven.bat` không truyền tham số, script sẽ hỏi đường dẫn file migration.
+- Khi script hỏi, có thể nhập mỗi tên file như `001_create_initial_schema.sql`, script sẽ tự tìm trong `database/migrations/`.
+
+---
+
+### 10. `view_database_aiven.bat` - Xem thông tin DB trên Aiven
+
+**Mô tả:**
+- Hiển thị danh sách tables
+- Hiển thị `__MigrationHistory`
+- Hiển thị estimated row count theo từng bảng
+
+**Cách dùng:**
+```bash
+cd database\scripts
+view_database_aiven.bat
+```
+
+---
+
 ## 📏 Quy tắc đặt tên file migration
 
 **Format:** `{số}_{action}_{object}.sql`
@@ -476,6 +570,26 @@ docker-compose down
 docker volume rm bizflow-be-service_mysql_data
 docker-compose up -d
 ```
+
+### "mysql client not found in PATH" (Aiven scripts)
+```bash
+# Cài MySQL client (Windows)
+# Ví dụ cài qua MySQL Installer hoặc Workbench
+
+# Kiểm tra lại
+mysql --version
+```
+
+### "SSL connection error" khi chạy Aiven
+```bash
+# Trong aiven.env, thử để SSL mode mặc định
+AIVEN_DB_SSL_MODE=REQUIRED
+
+# Nếu cần verify CA nghiêm ngặt, thêm đường dẫn CA cert
+AIVEN_DB_SSL_CA=C:\path\to\aiven-ca.pem
+```
+
+Lưu ý: `AIVEN_DB_SSL_CA` phải là đường dẫn file `.pem`, không dán trực tiếp nội dung certificate vào `aiven.env`.
 
 ---
 
@@ -578,6 +692,23 @@ scaffold_entities.bat
 # 4. Build
 cd ..\..\bizflow-platform
 dotnet build
+```
+
+**Developer C (apply lên Aiven):**
+```bash
+# 1. Pull code mới
+git pull
+
+# 2. Cập nhật thông tin Aiven local-only
+cd database\scripts
+copy aiven.env.example aiven.env
+# chỉnh các biến kết nối trong aiven.env
+
+# 3. Apply migration lên Aiven
+apply_new_migrations_aiven.bat
+
+# 4. Kiểm tra lại migration history
+view_database_aiven.bat
 ```
 
 ---
