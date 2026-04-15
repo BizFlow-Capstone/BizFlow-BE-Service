@@ -58,12 +58,23 @@ if (isHangfireEnabled)
             """;
         await preCmd.ExecuteNonQueryAsync();
 
-        // Clean up ALL distributed locks on startup.
-        // Hangfire.MySql uses INSERT (not UPSERT); if the previous instance crashed,
-        // orphaned rows cause "Duplicate entry" on the next acquire attempt.
-        // At startup no valid lock holder exists, so every row is stale.
+        // Clean up only TTL-expired distributed locks on startup.
+        // Hangfire.MySqlStorage v2 uses INSERT…SELECT…WHERE NOT EXISTS (non-atomic),
+        // so a lock left by a crashed instance causes "Duplicate entry" on the next
+        // acquire.  Hangfire Core passes a 1-minute acquisition timeout, meaning any
+        // lock older than 60 s is logically expired.  We use a 2-minute cutoff:
+        //   - Stale crash-survivor rows (> 2 min) are deleted here.
+        //   - Recently-expired rows (60-120 s) the library handles itself via its
+        //     WHERE CreatedAt > @expired predicate.
+        //   - Valid locks held by a concurrently-running instance (< 60 s) are
+        //     intentionally preserved to avoid the duplicate-key race on rolling
+        //     restarts / hot-reload.
         using var cleanCmd = preConn.CreateCommand();
-        cleanCmd.CommandText = "DELETE FROM `hf_DistributedLock`";
+        cleanCmd.CommandText = """
+            DELETE FROM `hf_DistributedLock`
+            WHERE CreatedAt < @cutoff
+            """;
+        cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
         var deleted = await cleanCmd.ExecuteNonQueryAsync();
         if (deleted > 0)
             Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
@@ -93,8 +104,18 @@ if (isHangfireEnabled)
             )
         ));
 
-    // Add the processing server as IHostedService
-    builder.Services.AddHangfireServer();
+    // Add the processing server as IHostedService.
+    // SchedulePollingInterval (default 15 s) controls how often RecurringJobScheduler
+    // tries to acquire `recurring-jobs:lock`.  Increasing it reduces the probability
+    // of the concurrent-INSERT race in Hangfire.MySqlStorage v2's non-atomic lock
+    // acquisition, without materially affecting job schedule accuracy.
+    builder.Services.AddHangfireServer(options =>
+    {
+        options.SchedulePollingInterval = TimeSpan.FromSeconds(60);
+        options.HeartbeatInterval       = TimeSpan.FromSeconds(30);
+        options.ServerTimeout           = TimeSpan.FromMinutes(5);
+        options.ShutdownTimeout         = TimeSpan.FromSeconds(30);
+    });
 }
 
 // Add services to the container.
