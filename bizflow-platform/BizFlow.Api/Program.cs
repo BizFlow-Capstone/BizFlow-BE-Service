@@ -57,6 +57,15 @@ if (isHangfireEnabled)
             ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci
             """;
         await preCmd.ExecuteNonQueryAsync();
+
+        // Clean up stale distributed locks left from previous crash/restart.
+        // Hangfire uses INSERT (not UPSERT) so an orphaned row causes a duplicate-PK error
+        // the next time it tries to acquire the same lock (e.g. 'recurring-jobs:lock').
+        using var cleanCmd = preConn.CreateCommand();
+        cleanCmd.CommandText = "DELETE FROM `hf_DistributedLock` WHERE `ExpireAt` <= NOW()";
+        var deleted = await cleanCmd.ExecuteNonQueryAsync();
+        if (deleted > 0)
+            Console.WriteLine($"[Hangfire startup] Removed {deleted} expired distributed lock(s).");
     }
     catch (Exception ex)
     {
@@ -77,7 +86,8 @@ if (isHangfireEnabled)
                 defaultConnectionString!,
                 new MySqlStorageOptions
                 {
-                    TablesPrefix = "hf_"
+                    TablesPrefix = "hf_",
+                    DashboardJobListLimit = 10000,
                 }
             )
         ));
