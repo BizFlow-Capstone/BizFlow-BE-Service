@@ -87,12 +87,14 @@ jobs:
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
               --env-file .env.prod \
               pull bizflow-api
 
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
               --env-file .env.prod \
               up -d --no-build bizflow-api
 

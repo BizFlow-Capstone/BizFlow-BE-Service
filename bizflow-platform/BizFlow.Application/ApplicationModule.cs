@@ -21,14 +21,13 @@ namespace BizFlow.Application
             builder.Register(context =>
             {
                 var profiles = context.Resolve<IEnumerable<Profile>>();
-                var loggerFactory = context.Resolve<Microsoft.Extensions.Logging.ILoggerFactory>();
                 var config = new MapperConfiguration(cfg =>
                 {
                     foreach (var profile in profiles)
                     {
                         cfg.AddProfile(profile);
                     }
-                }, loggerFactory);
+                });
                 return config.CreateMapper();
             }).As<IMapper>().InstancePerLifetimeScope();
             
