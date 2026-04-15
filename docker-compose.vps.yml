@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     networks:
       - bizflow-network
-      - bizflow-public
+      - proxy-network
 
   bizflow-ai:
     image: ${DOCKERHUB_USERNAME}/bizflow-ai:${IMAGE_TAG}
@@ -32,5 +32,5 @@ services:
     restart: unless-stopped
 
 networks:
-  bizflow-public:
+  proxy-network:
     external: true
