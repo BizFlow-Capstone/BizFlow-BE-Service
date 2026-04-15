@@ -480,7 +480,11 @@ if (isHangfireEnabled)
     {
         Authorization = app.Environment.IsDevelopment()
             ? [new AllowHangfireDashboardAuthorizationFilter()]
-            : [new LocalRequestsOnlyAuthorizationFilter()]
+            : [new AdminJwtHangfireDashboardAuthorizationFilter(
+                jwtSettings.Secret,
+                jwtSettings.Issuer,
+                jwtSettings.Audience
+              )]
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
