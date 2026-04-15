@@ -4,6 +4,7 @@ using BizFlow.Application.DTOs.Employee;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace BizFlow.Application.Services
 {
@@ -11,13 +12,16 @@ namespace BizFlow.Application.Services
     {
         private readonly IEmployeeRepository _employeeRepository;
         private readonly INotificationService _notificationService;
+        private readonly ILogger<EmployeeService> _logger;
 
         public EmployeeService(
             IEmployeeRepository employeeRepository,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ILogger<EmployeeService> logger)
         {
             _employeeRepository = employeeRepository;
             _notificationService = notificationService;
+            _logger = logger;
         }
 
         public async Task<IEnumerable<UserSearchResultDto>> SearchUserByContactAsync(Guid ownerId, string query)
@@ -96,7 +100,20 @@ namespace BizFlow.Application.Services
             hire.EndAt = DateTime.UtcNow;
 
             await _employeeRepository.SaveChangesAsync();
-            await _notificationService.NotifyEmployeeRemovedAsync(employeeId, string.Empty);
+
+            // Deletion state must be persisted even if downstream notification dispatch fails.
+            try
+            {
+                await _notificationService.NotifyEmployeeRemovedAsync(employeeId, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "NotifyEmployeeRemovedAsync failed after employee removal. ownerId={OwnerId}, employeeId={EmployeeId}",
+                    ownerId,
+                    employeeId);
+            }
         }
 
         public async Task<IEnumerable<EmployeeInvitationDto>> GetPendingInvitationsAsync(Guid employeeId)
