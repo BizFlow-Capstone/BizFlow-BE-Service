@@ -47,15 +47,14 @@ if (isHangfireEnabled)
         using var preConn = new MySqlConnection(defaultConnectionString);
         await preConn.OpenAsync();
         using var preCmd = preConn.CreateCommand();
-        // Hangfire.MySql v2 requires: Resource (PK), CreatedAt, ExpireAt.
+        // Hangfire.MySqlStorage v2.0.3 schema: Resource + CreatedAt(6), NO ExpireAt.
         // Aiven enforces sql_require_primary_key so we must create with an explicit PK.
         preCmd.CommandText = """
             CREATE TABLE IF NOT EXISTS `hf_DistributedLock` (
               `Resource` varchar(100) NOT NULL,
-              `CreatedAt` datetime NOT NULL,
-              `ExpireAt` datetime NOT NULL,
-              CONSTRAINT `PK_HangFire_DistributedLock` PRIMARY KEY (`Resource`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+              `CreatedAt` datetime(6) NOT NULL,
+              PRIMARY KEY (`Resource`)
+            ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci
             """;
         await preCmd.ExecuteNonQueryAsync();
     }
