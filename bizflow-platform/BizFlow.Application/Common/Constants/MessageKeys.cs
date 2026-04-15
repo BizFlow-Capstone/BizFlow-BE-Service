@@ -109,19 +109,10 @@ namespace BizFlow.Application.Common.Constants
         public const string AdminCannotManageAdminAccount = "AUTH_ADMIN_CANNOT_MANAGE_ADMIN_ACCOUNT";
         public const string AdminForgotPasswordNotAllowed = "AUTH_ADMIN_FORGOT_PASSWORD_NOT_ALLOWED";
 
-        /// <summary>Consultant accounts are email-only; phone linking is not allowed.</summary>
         public const string ConsultantCannotLinkPhone = "AUTH_CONSULTANT_CANNOT_LINK_PHONE";
-
-        /// <summary>Admin created a consultant account (welcome email sent or attempted).</summary>
         public const string ConsultantCreated = "AUTH_CONSULTANT_CREATED";
-
-        /// <summary>Role <c>consultant</c> missing from database.</summary>
         public const string ConsultantRoleNotFound = "AUTH_CONSULTANT_ROLE_NOT_FOUND";
-
-        /// <summary>Target account is not a consultant; admin delete-consultant only works on consultant accounts.</summary>
         public const string AccountIsNotConsultant = "AUTH_ACCOUNT_IS_NOT_CONSULTANT";
-
-        /// <summary>Admin successfully deleted a consultant account.</summary>
         public const string ConsultantDeleted = "AUTH_CONSULTANT_DELETED";
 
         /// <summary>Validation errors for profile info (fullName, taxCode, ...).</summary>

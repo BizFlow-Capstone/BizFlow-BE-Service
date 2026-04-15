@@ -19,13 +19,13 @@ namespace BizFlow.Application.DTOs.Otp
     /// <summary>Request body for <c>POST /api/auth/forgot-password/verify-otp</c>.</summary>
     public class VerifyOtpRequest
     {
-        [Required]
         [EmailAddress]
-        public string Email { get; set; } = null!;
+        public string? Email { get; set; }
 
-        [Required]
         [RegularExpression("^[0-9]{6}$", ErrorMessage = "OTP must be 6 digits")]
-        public string OtpCode { get; set; } = null!;
+        public string? OtpCode { get; set; }
+
+        public string? FirebaseIdToken { get; set; }
     }
 
     public class VerifyOtpResponse

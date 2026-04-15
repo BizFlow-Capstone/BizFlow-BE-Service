@@ -90,9 +90,19 @@ namespace BizFlow.Application.Interfaces.Services
         Task<FirebaseCustomTokenResponse> CreateFirebaseCustomTokenAsync(Guid profileId);
 
         /// <summary>
+        /// Verify forgot-password request by either email OTP or Firebase phone token.
+        /// </summary>
+        Task<VerifyOtpResponse> VerifyOtpForPasswordResetAsync(VerifyOtpRequest request, CancellationToken ct = default);
+
+        /// <summary>
         /// Consume email OTP and return a password-reset access JWT (no refresh token). Forgot-password flow.
         /// </summary>
         Task<VerifyOtpResponse> VerifyEmailOtpForPasswordResetAsync(string email, string otpCode, CancellationToken ct = default);
+
+        /// <summary>
+        /// Verify Firebase phone auth token and return a password-reset access JWT (no refresh token). Forgot-password flow.
+        /// </summary>
+        Task<VerifyOtpResponse> VerifyFirebaseOtpForPasswordResetAsync(string firebaseIdToken, CancellationToken ct = default);
 
         /// <summary>
         /// Set a new password after forgot-password OTP; revokes all refresh tokens. Caller must use password-reset JWT.

@@ -163,8 +163,15 @@ namespace BizFlow.Api.Controllers.Auth
         [AllowAnonymous]
         public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
         {
-            var result = await _authService.VerifyEmailOtpForPasswordResetAsync(request.Email, request.OtpCode, ct);
-            return Ok(result, MessageKeys.OtpVerified);
+            try
+            {
+                var result = await _authService.VerifyOtpForPasswordResetAsync(request, ct);
+                return Ok(result, MessageKeys.OtpVerified);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.InvalidFirebaseToken);
+            }
         }
 
         /// <summary>Step 3: reset password using password-reset JWT from verify-otp.</summary>

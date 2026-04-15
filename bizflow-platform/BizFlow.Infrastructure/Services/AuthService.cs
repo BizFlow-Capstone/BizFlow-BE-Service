@@ -39,6 +39,7 @@ namespace BizFlow.Infrastructure.Services
 
         private const string DefaultRoleName = "user";
         private const string ConsultantRoleName = "consultant";
+        private const string AdminRoleName = "admin";
         private const string ConsultantWelcomeTemplateAlias = "consultant-welcome";
 
         public AuthService(
@@ -475,13 +476,100 @@ namespace BizFlow.Infrastructure.Services
         public async Task<VerifyOtpResponse> VerifyEmailOtpForPasswordResetAsync(string email, string otpCode, CancellationToken ct = default)
         {
             var verified = await _otpService.VerifyEmailOtpForPasswordResetAsync(email, otpCode, ct);
+            return BuildPasswordResetVerifyResponse(verified.AccountId, verified.ProfileId, verified.RoleName, verified.PasswordResetNonce);
+        }
+
+        public async Task<VerifyOtpResponse> VerifyOtpForPasswordResetAsync(VerifyOtpRequest request, CancellationToken ct = default)
+        {
+            if (request == null)
+            {
+                throw new BadRequestException(MessageKeys.ValidationError);
+            }
+
+            var hasFirebaseToken = !string.IsNullOrWhiteSpace(request.FirebaseIdToken);
+            var hasEmailOrOtp = !string.IsNullOrWhiteSpace(request.Email) || !string.IsNullOrWhiteSpace(request.OtpCode);
+
+            if (hasFirebaseToken && hasEmailOrOtp)
+            {
+                throw new BadRequestException(MessageKeys.ValidationError);
+            }
+
+            if (hasFirebaseToken)
+            {
+                return await VerifyFirebaseOtpForPasswordResetAsync(request.FirebaseIdToken!, ct);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.OtpCode))
+            {
+                throw new BadRequestException(MessageKeys.ValidationError);
+            }
+
+            return await VerifyEmailOtpForPasswordResetAsync(request.Email, request.OtpCode, ct);
+        }
+
+        public async Task<VerifyOtpResponse> VerifyFirebaseOtpForPasswordResetAsync(string firebaseIdToken, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(firebaseIdToken))
+            {
+                throw new ArgumentException(MessageKeys.FirebaseIdTokenRequired, nameof(firebaseIdToken));
+            }
+
+            var verifiedPhone = await VerifyFirebasePhoneTokenAsync(firebaseIdToken);
+            var normalizedPhone = NormalizeVietnamPhone(verifiedPhone);
+
+            var credential = await _db.Credentials
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Profile)
+                .Include(c => c.Account)
+                    .ThenInclude(a => a.Role)
+                .FirstOrDefaultAsync(
+                    c => c.Type == "phone" && c.Identifier == normalizedPhone,
+                    ct);
+
+            if (credential == null)
+            {
+                throw new BadRequestException(MessageKeys.OtpInvalidOrExpired);
+            }
+
+            var account = credential.Account;
+            if (string.Equals(account.Role.Name, AdminRoleName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException(MessageKeys.AdminForgotPasswordNotAllowed);
+            }
+
+            if (account.IsActive == false || account.DeletedAt != null)
+            {
+                throw new UnauthorizedException(MessageKeys.AccountInactiveOrDeleted);
+            }
+
+            var profile = account.Profile
+                ?? throw new BadRequestException(MessageKeys.AccountHasNoProfile);
+
+            var nonce = Guid.NewGuid();
+            account.PasswordResetNonce = nonce;
+            account.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Firebase phone token verified for password reset. AccountId={AccountId}", account.AccountId);
 
             var accessToken = _jwtService.GenerateAccessToken(
-                verified.AccountId,
-                verified.ProfileId,
-                verified.RoleName,
+                account.AccountId,
+                profile.ProfileId,
+                account.Role.Name,
                 forPasswordReset: true,
-                passwordResetNonce: verified.PasswordResetNonce);
+                passwordResetNonce: nonce);
+
+            return new VerifyOtpResponse { Verified = true, AccessToken = accessToken };
+        }
+
+        private VerifyOtpResponse BuildPasswordResetVerifyResponse(Guid accountId, Guid profileId, string roleName, Guid passwordResetNonce)
+        {
+            var accessToken = _jwtService.GenerateAccessToken(
+                accountId,
+                profileId,
+                roleName,
+                forPasswordReset: true,
+                passwordResetNonce: passwordResetNonce);
 
             return new VerifyOtpResponse { Verified = true, AccessToken = accessToken };
         }
