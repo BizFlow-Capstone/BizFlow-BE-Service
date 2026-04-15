@@ -47,17 +47,26 @@ if (isHangfireEnabled)
         using var preConn = new MySqlConnection(defaultConnectionString);
         await preConn.OpenAsync();
         using var preCmd = preConn.CreateCommand();
-        // Hangfire.MySql v2 requires: Resource (PK), CreatedAt, ExpireAt.
+        // Hangfire.MySqlStorage v2.0.3 schema: Resource + CreatedAt(6), NO ExpireAt.
         // Aiven enforces sql_require_primary_key so we must create with an explicit PK.
         preCmd.CommandText = """
             CREATE TABLE IF NOT EXISTS `hf_DistributedLock` (
               `Resource` varchar(100) NOT NULL,
-              `CreatedAt` datetime NOT NULL,
-              `ExpireAt` datetime NOT NULL,
-              CONSTRAINT `PK_HangFire_DistributedLock` PRIMARY KEY (`Resource`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+              `CreatedAt` datetime(6) NOT NULL,
+              PRIMARY KEY (`Resource`)
+            ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci
             """;
         await preCmd.ExecuteNonQueryAsync();
+
+        // Clean up ALL distributed locks on startup.
+        // Hangfire.MySql uses INSERT (not UPSERT); if the previous instance crashed,
+        // orphaned rows cause "Duplicate entry" on the next acquire attempt.
+        // At startup no valid lock holder exists, so every row is stale.
+        using var cleanCmd = preConn.CreateCommand();
+        cleanCmd.CommandText = "DELETE FROM `hf_DistributedLock`";
+        var deleted = await cleanCmd.ExecuteNonQueryAsync();
+        if (deleted > 0)
+            Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
     }
     catch (Exception ex)
     {
@@ -78,7 +87,8 @@ if (isHangfireEnabled)
                 defaultConnectionString!,
                 new MySqlStorageOptions
                 {
-                    TablesPrefix = "hf_"
+                    TablesPrefix = "hf_",
+                    DashboardJobListLimit = 10000,
                 }
             )
         ));
@@ -480,7 +490,11 @@ if (isHangfireEnabled)
     {
         Authorization = app.Environment.IsDevelopment()
             ? [new AllowHangfireDashboardAuthorizationFilter()]
-            : [new LocalRequestsOnlyAuthorizationFilter()]
+            : [new AdminJwtHangfireDashboardAuthorizationFilter(
+                jwtSettings.Secret,
+                jwtSettings.Issuer,
+                jwtSettings.Audience
+              )]
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).

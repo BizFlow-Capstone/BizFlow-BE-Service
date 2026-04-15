@@ -18,6 +18,10 @@ public class JwtAuthenticationMiddleware
     {
         await _next(context);
 
+        // Skip Hangfire dashboard — it manages its own auth/redirect
+        if (context.Request.Path.StartsWithSegments("/hangfire"))
+            return;
+
         // Only handle 401 responses that have not started writing a body
         if (context.Response.StatusCode == 401 && !context.Response.HasStarted)
         {
