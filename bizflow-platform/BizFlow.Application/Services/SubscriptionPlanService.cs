@@ -730,7 +730,11 @@ namespace BizFlow.Application.Services
         {
             return plan.PlanFeatures.Select(pf => new PlanFeatureDto
             {
-                FeatureDescription = pf.Feature.Description ?? string.Empty
+                FeatureId = pf.FeatureId,
+                FeatureCode = pf.Feature?.FeatureCode ?? string.Empty,
+                FeatureName = pf.Feature?.Name ?? string.Empty,
+                UsageLimit = pf.UsageLimit,
+                FeatureDescription = pf.Feature?.Description ?? string.Empty
             }).ToList();
         }
     }
