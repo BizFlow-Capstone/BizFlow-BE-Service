@@ -58,14 +58,15 @@ if (isHangfireEnabled)
             """;
         await preCmd.ExecuteNonQueryAsync();
 
-        // Clean up stale distributed locks left from previous crash/restart.
-        // Hangfire uses INSERT (not UPSERT) so an orphaned row causes a duplicate-PK error
-        // the next time it tries to acquire the same lock (e.g. 'recurring-jobs:lock').
+        // Clean up ALL distributed locks on startup.
+        // Hangfire.MySql uses INSERT (not UPSERT); if the previous instance crashed,
+        // orphaned rows cause "Duplicate entry" on the next acquire attempt.
+        // At startup no valid lock holder exists, so every row is stale.
         using var cleanCmd = preConn.CreateCommand();
-        cleanCmd.CommandText = "DELETE FROM `hf_DistributedLock` WHERE `ExpireAt` <= NOW()";
+        cleanCmd.CommandText = "DELETE FROM `hf_DistributedLock`";
         var deleted = await cleanCmd.ExecuteNonQueryAsync();
         if (deleted > 0)
-            Console.WriteLine($"[Hangfire startup] Removed {deleted} expired distributed lock(s).");
+            Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
     }
     catch (Exception ex)
     {
