@@ -18,9 +18,12 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<List<UserSearchResultDto>> SearchByContactAsync(Guid ownerId, string query, int limit = 10)
         {
             query = query.Trim();
+            var excludedRoleNames = new[] { "admin", "consultant" };
 
             var matchedProfiles = await _context.Profiles
                 .Where(profile => profile.ProfileId != ownerId)
+                .Where(profile => profile.Account.IsActive == true && profile.Account.DeletedAt == null)
+                .Where(profile => !excludedRoleNames.Contains(profile.Account.Role.Name.ToLower()))
                 .Where(profile => _context.Credentials.Any(credential =>
                     credential.AccountId == profile.AccountId &&
                     (credential.Type == "phone" || credential.Type == "email") &&
