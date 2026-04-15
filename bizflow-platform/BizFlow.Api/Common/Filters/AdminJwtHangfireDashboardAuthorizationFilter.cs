@@ -59,8 +59,9 @@ public sealed class AdminJwtHangfireDashboardAuthorizationFilter : IDashboardAut
 
             var jwt = (JwtSecurityToken)validatedToken;
             return jwt.Claims.Any(c =>
-                c.Type is "role" or "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
-                && c.Value == "Admin");
+                (string.Equals(c.Type, "role", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(c.Type, "http://schemas.microsoft.com/ws/2008/06/identity/claims/role", StringComparison.OrdinalIgnoreCase))
+                && string.Equals(c.Value, "admin", StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
