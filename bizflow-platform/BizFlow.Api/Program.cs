@@ -479,7 +479,9 @@ app.UseSwaggerUI(c =>
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "bizflow-api" }))
    .ExcludeFromDescription();
 
-app.UseHttpsRedirection();
+// NOTE: UseHttpsRedirection removed — HTTPS termination is handled by Nginx Proxy Manager.
+// Keeping it would cause redirect loops since NPM forwards requests as HTTP internally.
+
 // Hangfire HTML pages are sensitive to middleware caching/compression.
 // Exclude /hangfire endpoints to avoid "ERR_CONTENT_DECODING_FAILED" in browser.
 app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
