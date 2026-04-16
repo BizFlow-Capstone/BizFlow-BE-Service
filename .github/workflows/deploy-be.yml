@@ -86,10 +86,31 @@ jobs:
             git checkout deployment
             git reset --hard origin/deployment
 
-            # Best-effort: create AI tables (via alembic) before BE SQL migrations
-            # so that migration 108 (which seeds ai_* tables) can succeed.
-            # Non-fatal: if the AI image is not yet published, skip and continue.
-            # Migration 108 itself is also wrapped in IF EXISTS so it self-skips.
+            # ── Step 1: Start MySQL and wait until healthy ─────────────────────
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
+              --env-file .env.prod \
+              up -d mysql
+
+            echo "[deploy] Waiting for MySQL to be healthy..."
+            for i in $(seq 1 30); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' bizflow-mysql 2>/dev/null || echo "missing")
+              if [ "$STATUS" = "healthy" ]; then
+                echo "[deploy] MySQL is healthy."
+                break
+              fi
+              echo "[deploy] MySQL status: $STATUS — waiting 5s ($i/30)..."
+              sleep 5
+            done
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' bizflow-mysql 2>/dev/null || echo "missing")
+            if [ "$STATUS" != "healthy" ]; then
+              echo "[error] MySQL did not become healthy in time." && exit 1
+            fi
+
+            # ── Step 2: Best-effort alembic to create AI tables early ──────────
+            # Non-fatal: migration 108 self-skips via IF EXISTS if AI tables absent.
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
@@ -104,13 +125,13 @@ jobs:
               -f docker-compose.vps.yml \
               --env-file .env.prod \
               --profile ai \
-              run --rm -T --no-deps bizflow-ai \
+              run --rm -T bizflow-ai \
               alembic upgrade head || echo "[warn] AI alembic migration skipped or failed — migration 108 will self-skip"
 
-            # Apply any pending database migrations BEFORE restarting the API
+            # ── Step 3: Apply any pending BE SQL migrations ─────────────────────
             bash docker/scripts/run-migrations.sh
 
-            # Pull new image then restart only the API (zero-downtime)
+            # ── Step 4: Pull new API image and restart ──────────────────────────
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
