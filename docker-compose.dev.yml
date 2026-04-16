@@ -96,6 +96,12 @@ services:
     volumes:
       - ./bizflow-platform:/src
       - ./docker/credentials:/src/credentials:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     depends_on:
       mysql:
         condition: service_healthy
@@ -111,6 +117,12 @@ services:
       - "5050:5000"
     volumes:
       - ../BizFlow-AI-Service:/app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     depends_on:
       mysql:
         condition: service_healthy

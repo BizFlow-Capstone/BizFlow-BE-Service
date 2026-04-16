@@ -468,16 +468,16 @@ catch (Exception ex)
 app.UseGlobalExceptionMiddleware();
 app.UseMiddleware<CharsetMiddleware>();
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "BizFlow Platform API v1");
-        c.RoutePrefix = "swagger";
-        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-    });
-}
+    c.SwaggerEndpoint("/swagger/swagger.json", "BizFlow Platform API v1");
+    c.RoutePrefix = "swagger";
+    c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+});
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "bizflow-api" }))
+   .ExcludeFromDescription();
 
 app.UseHttpsRedirection();
 // Hangfire HTML pages are sensitive to middleware caching/compression.
