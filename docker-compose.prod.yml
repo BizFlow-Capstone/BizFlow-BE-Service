@@ -107,16 +107,6 @@ services:
         reservations:
           memory: 512M
 
-  # ---------------------------------------------------------------------------
-  # RabbitMQ — production hardening
-  # Keep AMQP internal-only (no host publish on 5672) to avoid Internet scans.
-  # Expose management UI on localhost only for SSH tunnel / on-host admin use.
-  # ---------------------------------------------------------------------------
-  rabbitmq:
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
-
 networks:
   proxy-network:
     external: true
