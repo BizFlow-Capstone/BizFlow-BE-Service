@@ -27,8 +27,10 @@ if not "%AIVEN_DB_SSL_CA%"=="" (
     set "SSL_CA_ARG=--ssl-ca=""%AIVEN_DB_SSL_CA%"""
 )
 
+set "MYSQL_INIT_SQL=SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci; SET SESSION collation_connection='utf8mb4_unicode_ci'"
+
 set "TEMP_FILE=%TEMP%\aiven_applied_migrations_%RANDOM%%RANDOM%.txt"
-"%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% -N -e "SELECT MigrationId FROM __MigrationHistory" "%AIVEN_DB_NAME%" 2>nul > "%TEMP_FILE%"
+"%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% --init-command="%MYSQL_INIT_SQL%" -B -N --raw -e "SELECT MigrationId FROM __MigrationHistory" "%AIVEN_DB_NAME%" 2>nul > "%TEMP_FILE%"
 if errorlevel 1 (
     type nul > "%TEMP_FILE%"
 )
@@ -71,10 +73,10 @@ echo ================================================
 echo.
 
 for /f "delims=" %%f in ('dir /b /on "%MIGRATIONS_DIR%\*.sql"') do (
-    "%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% -N -e "SELECT COUNT(*) FROM __MigrationHistory WHERE MigrationId='%%~nf'" "%AIVEN_DB_NAME%" 2>nul | findstr /X "1" >nul
+    "%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% --init-command="%MYSQL_INIT_SQL%" -B -N --raw -e "SELECT COUNT(*) FROM __MigrationHistory WHERE MigrationId='%%~nf'" "%AIVEN_DB_NAME%" 2>nul | findstr /X "1" >nul
     if errorlevel 1 (
         echo [RUNNING] Applying migration: %%f...
-        "%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% "%AIVEN_DB_NAME%" < "%MIGRATIONS_DIR%\%%f"
+        "%MYSQL_CLIENT%" --default-character-set=utf8mb4 -h "%AIVEN_DB_HOST%" -P %AIVEN_DB_PORT% -u "%AIVEN_DB_USER%" -p"%AIVEN_DB_PASSWORD%" --ssl-mode=%AIVEN_DB_SSL_MODE% %SSL_CA_ARG% --init-command="%MYSQL_INIT_SQL%" "%AIVEN_DB_NAME%" < "%MIGRATIONS_DIR%\%%f"
         if errorlevel 1 (
             echo [ERROR] Failed to apply migration: %%f
             echo Please check SQL and connection settings in aiven.env

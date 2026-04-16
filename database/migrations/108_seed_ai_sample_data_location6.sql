@@ -15,6 +15,18 @@
 -- Date: 2026-04-07
 -- ================================================================
 
+-- ── Guard: chỉ seed nếu AI tables đã được tạo bởi alembic ─────────────────
+DROP PROCEDURE IF EXISTS bizflow_migration_108;
+DELIMITER $$
+CREATE PROCEDURE bizflow_migration_108()
+BEGIN
+    -- Kiểm tra bảng ai_reorder_suggestions tồn tại chưa (alembic tạo trước)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = 'ai_reorder_suggestions'
+    ) THEN
+
 -- ── 1. AI REORDER SUGGESTIONS ─────────────────────────────────────────────
 -- Urgency logic: days_until_stockout <= 7 → HIGH, <= 14 → MEDIUM, > 14 → LOW
 -- Product 14 (Mì Tôm): bán ~120 gói/ngày → hết hàng 400/120 ≈ 3 ngày → HIGH
@@ -94,3 +106,12 @@ VALUES
 INSERT INTO __MigrationHistory (MigrationId, ProductVersion)
 VALUES ('108_seed_ai_sample_data_location6', '1.0.0')
 ON DUPLICATE KEY UPDATE ProductVersion = ProductVersion;
+
+    ELSE
+        -- Không ghi __MigrationHistory → run-migrations.sh sẽ thử lại sau khi AI deploy
+        SELECT 'SKIP migration 108: AI tables not yet created. Will retry after bizflow-ai is deployed.' AS Info;
+    END IF;
+END$$
+DELIMITER ;
+CALL bizflow_migration_108();
+DROP PROCEDURE IF EXISTS bizflow_migration_108;

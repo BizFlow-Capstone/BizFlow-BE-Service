@@ -86,15 +86,17 @@ jobs:
             git checkout deployment
             git reset --hard origin/deployment
 
-            # Ensure AI schema exists before BE SQL migrations
-            # (migration 108 seeds into ai_* tables).
+            # Best-effort: create AI tables (via alembic) before BE SQL migrations
+            # so that migration 108 (which seeds ai_* tables) can succeed.
+            # Non-fatal: if the AI image is not yet published, skip and continue.
+            # Migration 108 itself is also wrapped in IF EXISTS so it self-skips.
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
               -f docker-compose.vps.yml \
               --env-file .env.prod \
               --profile ai \
-              pull bizflow-ai
+              pull bizflow-ai || echo "[warn] Could not pull bizflow-ai image — skipping AI schema migration"
 
             docker compose \
               -f docker-compose.yml \
@@ -103,7 +105,7 @@ jobs:
               --env-file .env.prod \
               --profile ai \
               run --rm -T --no-deps bizflow-ai \
-              alembic upgrade head
+              alembic upgrade head || echo "[warn] AI alembic migration skipped or failed — migration 108 will self-skip"
 
             # Apply any pending database migrations BEFORE restarting the API
             bash docker/scripts/run-migrations.sh
