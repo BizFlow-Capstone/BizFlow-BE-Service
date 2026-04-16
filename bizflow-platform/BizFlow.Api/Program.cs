@@ -36,6 +36,62 @@ var builder = WebApplication.CreateBuilder(args);
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
+// Guard against partial Hangfire schema (e.g. container crashed mid-install).
+// If some but not all 12 hf_* tables exist, the installer skips creation and the
+// app crashes on RecurringJob calls. Drop everything so the installer re-runs cleanly.
+// If the full schema is present, just clean stale distributed locks from crashes.
+if (isHangfireEnabled)
+{
+    try
+    {
+        using var preConn = new MySqlConnection(defaultConnectionString);
+        await preConn.OpenAsync();
+
+        using var checkCmd = preConn.CreateCommand();
+        checkCmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'hf\_%'
+            """;
+        var tableCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
+
+        if (tableCount > 0 && tableCount < 12)
+        {
+            Console.WriteLine($"[Hangfire startup] Partial schema detected ({tableCount}/12 tables) — dropping all hf_* tables for clean re-install.");
+            using var listCmd = preConn.CreateCommand();
+            listCmd.CommandText = """
+                SELECT GROUP_CONCAT('`', TABLE_NAME, '`')
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'hf\_%'
+                """;
+            var tableList = (string?)await listCmd.ExecuteScalarAsync();
+            if (!string.IsNullOrEmpty(tableList))
+            {
+                using var dropCmd = preConn.CreateCommand();
+                dropCmd.CommandText = $"DROP TABLE {tableList}";
+                await dropCmd.ExecuteNonQueryAsync();
+            }
+        }
+        else if (tableCount == 12)
+        {
+            // Full schema — clean stale locks left by a previous crash.
+            using var cleanCmd = preConn.CreateCommand();
+            cleanCmd.CommandText = """
+                DELETE FROM `hf_DistributedLock`
+                WHERE CreatedAt < @cutoff
+                """;
+            cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
+            var deleted = await cleanCmd.ExecuteNonQueryAsync();
+            if (deleted > 0)
+                Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
+        }
+        // tableCount == 0 → first startup, installer will create everything.
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
+    }
+}
+
 // Hangfire Configuration
 if (isHangfireEnabled)
 {
@@ -457,7 +513,8 @@ if (isHangfireEnabled)
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
-    RecurringJob.RemoveIfExists("subscription-free-backfill-monthly");
+    try { RecurringJob.RemoveIfExists("subscription-free-backfill-monthly"); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "[Hangfire] Failed to remove stale recurring job"); }
 
     // Schedule Recurring Job
     RecurringJob.AddOrUpdate<ImageCleanupJob>(
