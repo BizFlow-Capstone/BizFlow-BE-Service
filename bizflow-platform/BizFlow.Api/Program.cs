@@ -36,52 +36,58 @@ var builder = WebApplication.CreateBuilder(args);
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
-// Pre-create hf_DistributedLock with PRIMARY KEY before Hangfire initializes.
-// Aiven (and some managed MySQL) enforces sql_require_primary_key; Hangfire.MySql v2
-// generates this table without a PK, causing schema bootstrap to fail on those hosts.
-// Using IF NOT EXISTS makes this a no-op on subsequent startups.
+// Guard against partial Hangfire schema (e.g. container crashed mid-install).
+// If some but not all 12 hf_* tables exist, the installer skips creation and the
+// app crashes on RecurringJob calls. Drop everything so the installer re-runs cleanly.
+// If the full schema is present, just clean stale distributed locks from crashes.
 if (isHangfireEnabled)
 {
     try
     {
         using var preConn = new MySqlConnection(defaultConnectionString);
         await preConn.OpenAsync();
-        using var preCmd = preConn.CreateCommand();
-        // Hangfire.MySqlStorage v2.0.3 schema: Resource + CreatedAt(6), NO ExpireAt.
-        // Aiven enforces sql_require_primary_key so we must create with an explicit PK.
-        preCmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS `hf_DistributedLock` (
-              `Resource` varchar(100) NOT NULL,
-              `CreatedAt` datetime(6) NOT NULL,
-              PRIMARY KEY (`Resource`)
-            ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci
-            """;
-        await preCmd.ExecuteNonQueryAsync();
 
-        // Clean up only TTL-expired distributed locks on startup.
-        // Hangfire.MySqlStorage v2 uses INSERT…SELECT…WHERE NOT EXISTS (non-atomic),
-        // so a lock left by a crashed instance causes "Duplicate entry" on the next
-        // acquire.  Hangfire Core passes a 1-minute acquisition timeout, meaning any
-        // lock older than 60 s is logically expired.  We use a 2-minute cutoff:
-        //   - Stale crash-survivor rows (> 2 min) are deleted here.
-        //   - Recently-expired rows (60-120 s) the library handles itself via its
-        //     WHERE CreatedAt > @expired predicate.
-        //   - Valid locks held by a concurrently-running instance (< 60 s) are
-        //     intentionally preserved to avoid the duplicate-key race on rolling
-        //     restarts / hot-reload.
-        using var cleanCmd = preConn.CreateCommand();
-        cleanCmd.CommandText = """
-            DELETE FROM `hf_DistributedLock`
-            WHERE CreatedAt < @cutoff
+        using var checkCmd = preConn.CreateCommand();
+        checkCmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'hf\_%'
             """;
-        cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
-        var deleted = await cleanCmd.ExecuteNonQueryAsync();
-        if (deleted > 0)
-            Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
+        var tableCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
+
+        if (tableCount > 0 && tableCount < 12)
+        {
+            Console.WriteLine($"[Hangfire startup] Partial schema detected ({tableCount}/12 tables) — dropping all hf_* tables for clean re-install.");
+            using var listCmd = preConn.CreateCommand();
+            listCmd.CommandText = """
+                SELECT GROUP_CONCAT('`', TABLE_NAME, '`')
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'hf\_%'
+                """;
+            var tableList = (string?)await listCmd.ExecuteScalarAsync();
+            if (!string.IsNullOrEmpty(tableList))
+            {
+                using var dropCmd = preConn.CreateCommand();
+                dropCmd.CommandText = $"DROP TABLE {tableList}";
+                await dropCmd.ExecuteNonQueryAsync();
+            }
+        }
+        else if (tableCount == 12)
+        {
+            // Full schema — clean stale locks left by a previous crash.
+            using var cleanCmd = preConn.CreateCommand();
+            cleanCmd.CommandText = """
+                DELETE FROM `hf_DistributedLock`
+                WHERE CreatedAt < @cutoff
+                """;
+            cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
+            var deleted = await cleanCmd.ExecuteNonQueryAsync();
+            if (deleted > 0)
+                Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
+        }
+        // tableCount == 0 → first startup, installer will create everything.
     }
     catch (Exception ex)
     {
-        // Non-fatal: log and let Hangfire surface the real error if table truly can't be created
         Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
     }
 }
@@ -98,24 +104,13 @@ if (isHangfireEnabled)
                 defaultConnectionString!,
                 new MySqlStorageOptions
                 {
-                    TablesPrefix = "hf_",
-                    DashboardJobListLimit = 10000,
+                    TablesPrefix = "hf_"
                 }
             )
         ));
 
-    // Add the processing server as IHostedService.
-    // SchedulePollingInterval (default 15 s) controls how often RecurringJobScheduler
-    // tries to acquire `recurring-jobs:lock`.  Increasing it reduces the probability
-    // of the concurrent-INSERT race in Hangfire.MySqlStorage v2's non-atomic lock
-    // acquisition, without materially affecting job schedule accuracy.
-    builder.Services.AddHangfireServer(options =>
-    {
-        options.SchedulePollingInterval = TimeSpan.FromSeconds(60);
-        options.HeartbeatInterval       = TimeSpan.FromSeconds(30);
-        options.ServerTimeout           = TimeSpan.FromMinutes(5);
-        options.ShutdownTimeout         = TimeSpan.FromSeconds(30);
-    });
+    // Add the processing server as IHostedService
+    builder.Services.AddHangfireServer();
 }
 
 // Add services to the container.
@@ -481,7 +476,12 @@ app.UseSwaggerUI(c =>
     c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
 });
 
-app.UseHttpsRedirection();
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "bizflow-api" }))
+   .ExcludeFromDescription();
+
+// NOTE: UseHttpsRedirection removed — HTTPS termination is handled by Nginx Proxy Manager.
+// Keeping it would cause redirect loops since NPM forwards requests as HTTP internally.
+
 // Hangfire HTML pages are sensitive to middleware caching/compression.
 // Exclude /hangfire endpoints to avoid "ERR_CONTENT_DECODING_FAILED" in browser.
 app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/hangfire"), app =>
@@ -507,19 +507,17 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 if (isHangfireEnabled)
 {
     // Hangfire Dashboard
+    // Dev: allow all (no auth). Prod: require valid admin JWT via cookie "HangfireToken" or Authorization header.
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {
         Authorization = app.Environment.IsDevelopment()
             ? [new AllowHangfireDashboardAuthorizationFilter()]
-            : [new AdminJwtHangfireDashboardAuthorizationFilter(
-                jwtSettings.Secret,
-                jwtSettings.Issuer,
-                jwtSettings.Audience
-              )]
+            : [new AdminJwtHangfireDashboardAuthorizationFilter(jwtSettings.Secret, jwtSettings.Issuer, jwtSettings.Audience)]
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
-    RecurringJob.RemoveIfExists("subscription-free-backfill-monthly");
+    try { RecurringJob.RemoveIfExists("subscription-free-backfill-monthly"); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "[Hangfire] Failed to remove stale recurring job"); }
 
     // Schedule Recurring Job
     RecurringJob.AddOrUpdate<ImageCleanupJob>(

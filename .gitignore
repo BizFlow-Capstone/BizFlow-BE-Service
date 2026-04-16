@@ -19,6 +19,9 @@ database/scripts/aiven.env
 # Firebase credentials (local only)
 docker/credentials/*.json
 
+# Dozzle users file contain bcrypt hash
+docker/dozzle/users.yml
+
 # Backup files
 *.sql.gz
 *.sql.backup
