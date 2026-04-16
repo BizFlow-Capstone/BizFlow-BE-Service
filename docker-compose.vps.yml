@@ -68,6 +68,35 @@ services:
     networks:
       - proxy-network
 
+  # ---------------------------------------------------------------------------
+  # Adminer — lightweight web-based DB management UI
+  # Exposed internally only; NPM proxies it to https://db.bizflow.asia (or similar)
+  # Profile: "tools" — only started when explicitly enabled
+  # ---------------------------------------------------------------------------
+  adminer:
+    image: adminer:latest
+    container_name: bizflow-adminer
+    profiles:
+      - tools
+    restart: unless-stopped
+    environment:
+      - ADMINER_DEFAULT_SERVER=mysql
+      - ADMINER_DESIGN=dracula
+    expose:
+      - "8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - bizflow-network
+      - proxy-network
+
 networks:
   proxy-network:
     external: true
