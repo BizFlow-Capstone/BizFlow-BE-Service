@@ -552,6 +552,9 @@ public class AdminAccountingService : IAdminAccountingService
         if (request.BusinessLocationId <= 0)
             throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be greater than 0");
 
+        if (request.BusinessLocationId != 6)
+            throw new BadRequestException(MessageKeys.BadRequest, "Admin chỉ được phép test với BusinessLocationId = 6");
+
         if (request.PeriodId <= 0)
             throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be greater than 0");
 
@@ -740,6 +743,9 @@ public class AdminAccountingService : IAdminAccountingService
             throw new BadRequestException(MessageKeys.BadRequest, "FormulaId must be > 0");
         if (request.BusinessLocationId <= 0)
             throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+
+        if (request.BusinessLocationId != 6)
+            throw new BadRequestException(MessageKeys.BadRequest, "Admin chỉ được phép test với BusinessLocationId = 6");
         if (request.PeriodId <= 0)
             throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
         if (request.RulesetId <= 0)

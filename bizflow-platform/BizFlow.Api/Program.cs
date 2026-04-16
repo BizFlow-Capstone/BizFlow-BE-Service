@@ -507,11 +507,12 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 if (isHangfireEnabled)
 {
     // Hangfire Dashboard
+    // Dev: allow all (no auth). Prod: require valid admin JWT via cookie "HangfireToken" or Authorization header.
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {
         Authorization = app.Environment.IsDevelopment()
             ? [new AllowHangfireDashboardAuthorizationFilter()]
-            : [new LocalRequestsOnlyAuthorizationFilter()]
+            : [new AdminJwtHangfireDashboardAuthorizationFilter(jwtSettings.Secret, jwtSettings.Issuer, jwtSettings.Audience)]
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
