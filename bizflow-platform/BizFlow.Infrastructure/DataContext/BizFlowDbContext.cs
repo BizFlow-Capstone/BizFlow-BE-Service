@@ -108,30 +108,20 @@ public partial class BizFlowDbContext : DbContext
 
         modelBuilder.Entity<OtpCode>(entity =>
         {
-            entity.ToTable("otp_codes");
+            entity.ToTable("OtpCodes");
 
             entity.HasKey(e => e.Id).HasName("PRIMARY");
 
             entity.HasIndex(e => e.Email, "idx_otp_codes_email");
             entity.HasIndex(e => e.ExpiredAt, "idx_otp_codes_expired_at");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Email)
-                .HasMaxLength(255)
-                .HasColumnName("email");
-            entity.Property(e => e.Code)
-                .HasMaxLength(10)
-                .HasColumnName("code");
+            entity.Property(e => e.Email).HasMaxLength(255);
+            entity.Property(e => e.Code).HasMaxLength(10);
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnName("created_at")
                 .HasColumnType("datetime");
-            entity.Property(e => e.ExpiredAt)
-                .HasColumnName("expired_at")
-                .HasColumnType("datetime");
-            entity.Property(e => e.IsUsed)
-                .HasDefaultValueSql("'0'")
-                .HasColumnName("is_used");
+            entity.Property(e => e.ExpiredAt).HasColumnType("datetime");
+            entity.Property(e => e.IsUsed).HasDefaultValueSql("'0'");
         });
 
         modelBuilder.Entity<Account>(entity =>
@@ -153,7 +143,6 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");
             entity.Property(e => e.PasswordResetNonce)
-                .HasColumnName("password_reset_nonce")
                 .HasComment("Single-use forgot-password JWT; cleared after reset")
                 .HasColumnType("char(36)")
                 .IsUnicode(false);
