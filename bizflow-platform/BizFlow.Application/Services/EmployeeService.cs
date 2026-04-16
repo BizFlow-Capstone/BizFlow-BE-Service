@@ -10,16 +10,16 @@ namespace BizFlow.Application.Services
 {
     public class EmployeeService : IEmployeeService
     {
-        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationService _notificationService;
         private readonly ILogger<EmployeeService> _logger;
 
         public EmployeeService(
-            IEmployeeRepository employeeRepository,
+            IUnitOfWork unitOfWork,
             INotificationService notificationService,
             ILogger<EmployeeService> logger)
         {
-            _employeeRepository = employeeRepository;
+            _unitOfWork = unitOfWork;
             _notificationService = notificationService;
             _logger = logger;
         }
@@ -31,7 +31,7 @@ namespace BizFlow.Application.Services
                 return Enumerable.Empty<UserSearchResultDto>();
             }
 
-            return await _employeeRepository.SearchByContactAsync(ownerId, query.Trim());
+            return await _unitOfWork.Employees.SearchByContactAsync(ownerId, query.Trim());
         }
 
         public async Task<HireDto> InviteEmployeeAsync(Guid ownerId, Guid employeeId)
@@ -41,13 +41,13 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.BadRequest);
             }
 
-            var profileExists = await _employeeRepository.ProfileExistsAsync(employeeId);
+            var profileExists = await _unitOfWork.Employees.ProfileExistsAsync(employeeId);
             if (!profileExists)
             {
                 throw new NotFoundException(MessageKeys.UserNotFound);
             }
 
-            var existingHire = await _employeeRepository.GetOpenHireAsync(ownerId, employeeId);
+            var existingHire = await _unitOfWork.Employees.GetOpenHireAsync(ownerId, employeeId);
             if (existingHire != null)
             {
                 if (existingHire.Status == "pending" || existingHire.Status == "accepted")
@@ -67,7 +67,7 @@ namespace BizFlow.Application.Services
                 EndAt = null
             };
 
-            var created = await _employeeRepository.CreateHireAsync(hire);
+            var created = await _unitOfWork.Employees.CreateHireAsync(hire);
 
             await _notificationService.SendEmployeeInviteAsync(employeeId, string.Empty);
 
@@ -83,13 +83,13 @@ namespace BizFlow.Application.Services
 
         public async Task RemoveEmployeeAsync(Guid ownerId, Guid employeeId)
         {
-            var hire = await _employeeRepository.GetActiveHireAsync(ownerId, employeeId);
+            var hire = await _unitOfWork.Employees.GetActiveHireAsync(ownerId, employeeId);
             if (hire == null)
             {
                 throw new NotFoundException(MessageKeys.UserNotFound);
             }
 
-            var hasActiveAssignments = await _employeeRepository.HasActiveAssignmentsAsync(employeeId);
+            var hasActiveAssignments = await _unitOfWork.Employees.HasActiveAssignmentsAsync(employeeId);
             if (hasActiveAssignments)
             {
                 throw new BadRequestException(MessageKeys.EmployeeHasActiveAssignments);
@@ -99,7 +99,7 @@ namespace BizFlow.Application.Services
             hire.Status = "inactive";
             hire.EndAt = DateTime.UtcNow;
 
-            await _employeeRepository.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
 
             // Deletion state must be persisted even if downstream notification dispatch fails.
             try
@@ -118,12 +118,12 @@ namespace BizFlow.Application.Services
 
         public async Task<IEnumerable<EmployeeInvitationDto>> GetPendingInvitationsAsync(Guid employeeId)
         {
-            return await _employeeRepository.GetPendingInvitationsAsync(employeeId);
+            return await _unitOfWork.Employees.GetPendingInvitationsAsync(employeeId);
         }
 
         public async Task AcceptInvitationAsync(Guid employeeId, int hireId)
         {
-            var invitation = await _employeeRepository.GetPendingInvitationByIdAsync(employeeId, hireId);
+            var invitation = await _unitOfWork.Employees.GetPendingInvitationByIdAsync(employeeId, hireId);
             if (invitation == null)
             {
                 throw new NotFoundException(MessageKeys.NotFound);
@@ -133,12 +133,12 @@ namespace BizFlow.Application.Services
             invitation.Status = "accepted";
             invitation.StartAt = DateTime.UtcNow;
             invitation.EndAt = null;
-            await _employeeRepository.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
 
         public async Task RejectInvitationAsync(Guid employeeId, int hireId)
         {
-            var invitation = await _employeeRepository.GetPendingInvitationByIdAsync(employeeId, hireId);
+            var invitation = await _unitOfWork.Employees.GetPendingInvitationByIdAsync(employeeId, hireId);
             if (invitation == null)
             {
                 throw new NotFoundException(MessageKeys.NotFound);
@@ -146,7 +146,7 @@ namespace BizFlow.Application.Services
 
             invitation.Status = "rejected";
             invitation.IsActive = false;
-            await _employeeRepository.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
     }
 }

@@ -16,6 +16,7 @@ namespace BizFlow.Infrastructure.Repositories
             IBusinessLocationRepository businessLocationRepository,
             IAccountingPeriodRepository accountingPeriodRepository,
             IHireRepository hireRepository,
+            IEmployeeRepository employeeRepository,
             IProductRepository productRepository,
             IImportRepository importRepository,
             IImportSchemaRepository importSchemaRepository,
@@ -41,6 +42,7 @@ namespace BizFlow.Infrastructure.Repositories
             IStockMovementRepository stockMovementRepository,
             IAccountRepository accountRepository,
             IOtpCodeRepository otpCodeRepository,
+            INotificationRepository notificationRepository,
             IAiRevenueForecastRepository aiRevenueForecastRepository,
             IAiAnomalyAlertRepository aiAnomalyAlertRepository,
             IAiReorderSuggestionRepository aiReorderSuggestionRepository,
@@ -52,6 +54,7 @@ namespace BizFlow.Infrastructure.Repositories
             BusinessLocations = businessLocationRepository;
             AccountingPeriods = accountingPeriodRepository;
             Hires = hireRepository;
+            Employees = employeeRepository;
             Products = productRepository;
             Imports = importRepository;
             ImportSchemas = importSchemaRepository;
@@ -77,6 +80,7 @@ namespace BizFlow.Infrastructure.Repositories
             StockMovements = stockMovementRepository;
             Accounts = accountRepository;
             OtpCodes = otpCodeRepository;
+            Notifications = notificationRepository;
             AiRevenueForecasts = aiRevenueForecastRepository;
             AiAnomalyAlerts = aiAnomalyAlertRepository;
             AiReorderSuggestions = aiReorderSuggestionRepository;
@@ -88,6 +92,7 @@ namespace BizFlow.Infrastructure.Repositories
         public IBusinessLocationRepository BusinessLocations { get; set; }
         public IAccountingPeriodRepository AccountingPeriods { get; set; }
         public IHireRepository Hires { get; set; }
+        public IEmployeeRepository Employees { get; set; }
         public IProductRepository Products { get; set; }
         public IImportRepository Imports { get; set; }
         public IImportSchemaRepository ImportSchemas { get; set; }
@@ -115,6 +120,7 @@ namespace BizFlow.Infrastructure.Repositories
         public IStockMovementRepository StockMovements { get; set; }
         public IAccountRepository Accounts { get; set; }
         public IOtpCodeRepository OtpCodes { get; set; }
+        public INotificationRepository Notifications { get; set; }
 
         // ── AI Module ──
         public IAiRevenueForecastRepository AiRevenueForecasts { get; set; }

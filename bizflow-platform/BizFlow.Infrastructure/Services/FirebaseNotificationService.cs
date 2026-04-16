@@ -1,11 +1,11 @@
-using BizFlow.Application.Common.Constants;
+﻿using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Notification;
+using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Domain.Entities;
-using BizFlow.Infrastructure.DataContext;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
@@ -60,8 +60,7 @@ namespace BizFlow.Infrastructure.Services
         };
 
         private static readonly Regex TemplatePlaceholderRegex = new("\\{(\\w+)\\}", RegexOptions.Compiled);
-
-        private readonly BizFlowDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<FirebaseNotificationService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IMessageService _messageService;
@@ -69,14 +68,14 @@ namespace BizFlow.Infrastructure.Services
         private readonly INotificationRealtimePublisher? _realtimePublisher;
 
         public FirebaseNotificationService(
-            BizFlowDbContext context,
+            IUnitOfWork unitOfWork,
             ILogger<FirebaseNotificationService> logger,
             IConfiguration configuration,
             IMessageService messageService,
             IPublishEndpoint? publishEndpoint = null,
             INotificationRealtimePublisher? realtimePublisher = null)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _logger = logger;
             _configuration = configuration;
             _messageService = messageService;
@@ -105,18 +104,15 @@ namespace BizFlow.Infrastructure.Services
                 ? null
                 : deviceName.Trim();
 
-            var strategy = _context.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await _unitOfWork.ExecuteResilientAsync(async ct =>
             {
-                await using var transaction = await _context.Database.BeginTransactionAsync();
-
-                await _context.DeviceTokens
+                await _unitOfWork.Notifications.DeviceTokens
                     .Where(deviceToken => deviceToken.Token == normalizedToken && deviceToken.IsActive == true)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(deviceToken => deviceToken.IsActive, false)
                         .SetProperty(deviceToken => deviceToken.LastUsedAt, now));
 
-                var updatedRows = await _context.DeviceTokens
+                var updatedRows = await _unitOfWork.Notifications.DeviceTokens
                     .Where(deviceToken => deviceToken.ProfileId == userId && deviceToken.Token == normalizedToken)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(deviceToken => deviceToken.IsActive, true)
@@ -126,7 +122,7 @@ namespace BizFlow.Infrastructure.Services
 
                 if (updatedRows == 0)
                 {
-                    _context.DeviceTokens.Add(new DeviceToken
+                    await _unitOfWork.Notifications.AddDeviceTokenAsync(new DeviceToken
                     {
                         DeviceTokenId = Guid.NewGuid(),
                         ProfileId = userId,
@@ -140,11 +136,11 @@ namespace BizFlow.Infrastructure.Services
 
                     try
                     {
-                        await _context.SaveChangesAsync();
+                        await _unitOfWork.SaveChangesAsync(ct);
                     }
                     catch (DbUpdateException)
                     {
-                        await _context.DeviceTokens
+                        await _unitOfWork.Notifications.DeviceTokens
                             .Where(deviceToken => deviceToken.ProfileId == userId && deviceToken.Token == normalizedToken)
                             .ExecuteUpdateAsync(setters => setters
                                 .SetProperty(deviceToken => deviceToken.IsActive, true)
@@ -154,7 +150,6 @@ namespace BizFlow.Infrastructure.Services
                     }
                 }
 
-                await transaction.CommitAsync();
             });
         }
 
@@ -165,7 +160,7 @@ namespace BizFlow.Infrastructure.Services
                 return;
             }
 
-            var existing = await _context.DeviceTokens
+            var existing = await _unitOfWork.Notifications.DeviceTokens
                 .FirstOrDefaultAsync(deviceToken => deviceToken.ProfileId == userId && deviceToken.Token == token.Trim());
 
             if (existing == null)
@@ -175,7 +170,7 @@ namespace BizFlow.Infrastructure.Services
 
             existing.IsActive = false;
             existing.LastUsedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
 
         public async Task SendToAllDevicesAsync(Guid userId, string title, string body)
@@ -279,7 +274,7 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task SendEmployeeInviteAsync(Guid employeeId, string ownerName)
         {
-            var employeeName = await _context.Profiles
+            var employeeName = await _unitOfWork.Notifications.Profiles
                 .AsNoTracking()
                 .Where(profile => profile.ProfileId == employeeId)
                 .Select(profile => profile.FullName)
@@ -312,7 +307,7 @@ namespace BizFlow.Infrastructure.Services
                 ["BusinessName"] = businessName
             };
 
-            var hasActiveTemplate = await _context.NotificationTemplates
+            var hasActiveTemplate = await _unitOfWork.Notifications.NotificationTemplates
                 .AsNoTracking()
                 .AnyAsync(notificationTemplate =>
                     notificationTemplate.EventCode == "EMPLOYEE_REMOVED" && notificationTemplate.IsActive);
@@ -526,7 +521,7 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task<IEnumerable<NotificationTemplateDto>> GetTemplatesAsync()
         {
-            var templates = await _context.NotificationTemplates
+            var templates = await _unitOfWork.Notifications.NotificationTemplates
                 .AsNoTracking()
                 .OrderBy(notificationTemplate => notificationTemplate.EventCode)
                 .ToListAsync();
@@ -538,7 +533,7 @@ namespace BizFlow.Infrastructure.Services
         {
             var normalizedEventCode = NormalizeEventCode(eventCode);
 
-            var template = await _context.NotificationTemplates
+            var template = await _unitOfWork.Notifications.NotificationTemplates
                 .AsNoTracking()
                 .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
 
@@ -550,7 +545,7 @@ namespace BizFlow.Infrastructure.Services
             var normalizedEventCode = NormalizeEventCode(eventCode);
             ValidateTemplateRequest(request);
 
-            var template = await _context.NotificationTemplates
+            var template = await _unitOfWork.Notifications.NotificationTemplates
                 .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
 
             if (template == null)
@@ -570,7 +565,7 @@ namespace BizFlow.Infrastructure.Services
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                _context.NotificationTemplates.Add(template);
+                await _unitOfWork.Notifications.AddNotificationTemplateAsync(template);
             }
             else
             {
@@ -584,7 +579,7 @@ namespace BizFlow.Infrastructure.Services
                 template.UpdatedAt = DateTime.UtcNow;
             }
 
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
             return MapTemplate(template);
         }
 
@@ -609,7 +604,7 @@ namespace BizFlow.Infrastructure.Services
                     new { detail = $"Cannot disable the '{normalizedEventCode}' notification template. This is a system event template — use the edit endpoint to update content only." });
             }
 
-            var template = await _context.NotificationTemplates
+            var template = await _unitOfWork.Notifications.NotificationTemplates
                 .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
 
             if (template == null)
@@ -620,7 +615,7 @@ namespace BizFlow.Infrastructure.Services
             template.IsActive = isActive;
             template.UpdatedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
             return MapTemplate(template);
         }
 
@@ -645,7 +640,7 @@ namespace BizFlow.Infrastructure.Services
             if (!string.IsNullOrWhiteSpace(request.EventCode))
             {
                 var normalizedEventCode = NormalizeEventCode(request.EventCode);
-                var anyTemplate = await _context.NotificationTemplates
+                var anyTemplate = await _unitOfWork.Notifications.NotificationTemplates
                     .FirstOrDefaultAsync(notificationTemplate => notificationTemplate.EventCode == normalizedEventCode);
 
                 if (anyTemplate != null && !anyTemplate.IsActive)
@@ -713,8 +708,8 @@ namespace BizFlow.Infrastructure.Services
                 UpdatedAt = now
             };
 
-            _context.NotificationDispatches.Add(dispatch);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Notifications.AddNotificationDispatchAsync(dispatch);
+            await _unitOfWork.SaveChangesAsync();
 
             if (!scheduledAt.HasValue)
             {
@@ -735,7 +730,7 @@ namespace BizFlow.Infrastructure.Services
                     new { detail = "Use GetAllLocationOwnersPreviewAsync for ALL_LOCATION_OWNERS mode" });
             }
 
-            var location = await _context.BusinessLocations
+            var location = await _unitOfWork.Notifications.BusinessLocations
                 .AsNoTracking()
                 .Where(businessLocation => businessLocation.BusinessLocationId == businessLocationId && businessLocation.DeletedAt == null)
                 .Select(businessLocation => new
@@ -778,7 +773,7 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task<List<BusinessLocationSummaryDto>> GetBusinessLocationsAsync()
         {
-            return await _context.BusinessLocations
+            return await _unitOfWork.Notifications.BusinessLocations
                 .AsNoTracking()
                 .Where(location => location.DeletedAt == null && (location.IsActive == null || location.IsActive == true))
                 .OrderBy(location => location.LocationName)
@@ -793,7 +788,7 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task<NotificationDispatchDto> CancelDispatchAsync(long dispatchId)
         {
-            var dispatch = await _context.NotificationDispatches
+            var dispatch = await _unitOfWork.Notifications.NotificationDispatches
                 .FirstOrDefaultAsync(entity => entity.NotificationDispatchId == dispatchId);
 
             if (dispatch == null)
@@ -809,7 +804,7 @@ namespace BizFlow.Infrastructure.Services
 
             dispatch.Status = "CANCELLED";
             dispatch.UpdatedAt = now;
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
 
             return MapDispatch(dispatch);
         }
@@ -818,7 +813,7 @@ namespace BizFlow.Infrastructure.Services
         {
             var now = DateTime.UtcNow;
 
-            var pendingDispatches = await _context.NotificationDispatches
+            var pendingDispatches = await _unitOfWork.Notifications.NotificationDispatches
                 .Where(dispatch => dispatch.Status == "PENDING" && dispatch.ScheduledAt != null && dispatch.ScheduledAt <= now)
                 .OrderBy(dispatch => dispatch.ScheduledAt)
                 .Take(100)
@@ -837,7 +832,7 @@ namespace BizFlow.Infrastructure.Services
 
         public async Task ProcessDispatchAsync(long dispatchId, CancellationToken cancellationToken = default)
         {
-            var dispatch = await _context.NotificationDispatches
+            var dispatch = await _unitOfWork.Notifications.NotificationDispatches
                 .FirstOrDefaultAsync(entity => entity.NotificationDispatchId == dispatchId, cancellationToken);
 
             if (dispatch == null)
@@ -863,12 +858,12 @@ namespace BizFlow.Infrastructure.Services
             var recipientUserIds = ParseRecipientUserIds(dispatch.RecipientUserIdsJson);
             await ExecuteDispatchAsync(dispatch, recipientUserIds, cancellationToken);
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
         public async Task ProcessNotificationOutboxAsync(CancellationToken cancellationToken = default)
         {
-            var outboxRows = await _context.NotificationOutboxMessages
+            var outboxRows = await _unitOfWork.Notifications.NotificationOutboxMessages
                 .Where(message => message.Status == "PENDING" || (message.Status == "FAILED" && message.RetryCount < 5))
                 .OrderBy(message => message.CreatedAt)
                 .Take(100)
@@ -910,15 +905,20 @@ namespace BizFlow.Infrastructure.Services
 
             if (outboxRows.Count > 0)
             {
-                await _context.SaveChangesAsync(cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
 
         public async Task ArchiveExpiredNotificationsAsync(CancellationToken cancellationToken = default)
         {
-            await _context.Database.ExecuteSqlRawAsync(@"
-DELETE FROM UserNotifications
-WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToken);
+            var cutoffUtc = DateTime.UtcNow.AddDays(-90);
+            await _unitOfWork.ExecuteResilientPurgeAsync(async ct =>
+            {
+                await _unitOfWork.Notifications.UserNotifications
+                    .Where(userNotification => userNotification.CreatedAt < cutoffUtc)
+                    .ExecuteDeleteAsync(ct);
+                return true;
+            }, cancellationToken);
         }
 
         public async Task<PaginatedResponse<NotificationDispatchDto>> GetDispatchesAsync(NotificationDispatchQueryParams query)
@@ -926,7 +926,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = Math.Min(query.PageSize ?? 20, 100);
 
-            var dispatchQuery = _context.NotificationDispatches.AsNoTracking().AsQueryable();
+            var dispatchQuery = _unitOfWork.Notifications.NotificationDispatches.AsNoTracking().AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(query.Status))
             {
@@ -960,7 +960,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = Math.Min(query.PageSize ?? 20, 100);
 
-            var notificationQuery = _context.UserNotifications
+            var notificationQuery = _unitOfWork.Notifications.UserNotifications
                 .AsNoTracking()
                 .Where(userNotification => userNotification.UserId == userId);
 
@@ -998,7 +998,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         public async Task<UserNotificationDto?> GetUserNotificationDetailAsync(Guid userId, long userNotificationId)
         {
-            var userNotification = await _context.UserNotifications
+            var userNotification = await _unitOfWork.Notifications.UserNotifications
                 .AsNoTracking()
                 .FirstOrDefaultAsync(notification => notification.UserId == userId && notification.UserNotificationId == userNotificationId);
 
@@ -1007,14 +1007,14 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         public async Task<int> GetUnreadCountAsync(Guid userId)
         {
-            return await _context.UserNotifications
+            return await _unitOfWork.Notifications.UserNotifications
                 .AsNoTracking()
                 .CountAsync(userNotification => userNotification.UserId == userId && userNotification.ReadAt == null);
         }
 
         public async Task<bool> MarkAsReadAsync(Guid userId, long userNotificationId)
         {
-            var updatedRows = await _context.UserNotifications
+            var updatedRows = await _unitOfWork.Notifications.UserNotifications
                 .Where(userNotification => userNotification.UserId == userId && userNotification.UserNotificationId == userNotificationId && userNotification.ReadAt == null)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(userNotification => userNotification.ReadAt, DateTime.UtcNow));
 
@@ -1023,7 +1023,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         public async Task<int> MarkAllAsReadAsync(Guid userId)
         {
-            return await _context.UserNotifications
+            return await _unitOfWork.Notifications.UserNotifications
                 .Where(userNotification => userNotification.UserId == userId && userNotification.ReadAt == null)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(userNotification => userNotification.ReadAt, DateTime.UtcNow));
         }
@@ -1058,7 +1058,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                     CreatedAt = now
                 };
 
-                _context.Notifications.Add(notificationRecord);
+                await _unitOfWork.Notifications.AddNotificationRecordAsync(notificationRecord);
 
                 var recipientTemplateDataMap = await BuildRecipientTemplateDataAsync(recipientUserIds, cancellationToken);
 
@@ -1086,8 +1086,8 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                     };
                 }).ToList();
 
-                _context.UserNotifications.AddRange(notifications);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _unitOfWork.Notifications.AddUserNotificationsAsync(notifications);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 foreach (var notification in notifications)
                 {
@@ -1127,7 +1127,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         private async Task EnqueueDispatchAsync(long dispatchId, CancellationToken cancellationToken)
         {
-            var markedRows = await _context.NotificationDispatches
+            var markedRows = await _unitOfWork.Notifications.NotificationDispatches
                 .Where(dispatch => dispatch.NotificationDispatchId == dispatchId && dispatch.Status == "PENDING")
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(dispatch => dispatch.Status, "PROCESSING")
@@ -1138,7 +1138,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 return;
             }
 
-            _context.NotificationOutboxMessages.Add(new NotificationOutboxMessage
+            await _unitOfWork.Notifications.AddNotificationOutboxMessageAsync(new NotificationOutboxMessage
             {
                 EventType = nameof(NotificationDispatchRequestedEvent),
                 PayloadJson = JsonSerializer.Serialize(new { dispatchId }),
@@ -1147,7 +1147,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 CreatedAt = DateTime.UtcNow
             });
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await ProcessNotificationOutboxAsync(cancellationToken);
         }
 
@@ -1318,7 +1318,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
             if (sendToAllUsers)
             {
-                var allUserIds = await _context.Profiles
+                var allUserIds = await _unitOfWork.Notifications.Profiles
                     .AsNoTracking()
                     .Select(profile => profile.ProfileId)
                     .ToListAsync();
@@ -1369,7 +1369,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 throw new BadRequestException(MessageKeys.BadRequest, new { field = "recipientUserIds" });
             }
 
-            var existingIds = await _context.Profiles
+            var existingIds = await _unitOfWork.Notifications.Profiles
                 .AsNoTracking()
                 .Where(profile => requestedIds.Contains(profile.ProfileId))
                 .Select(profile => profile.ProfileId)
@@ -1385,7 +1385,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         private async Task<List<NotificationRecipientDto>> GetLocationRecipientRowsAsync(int businessLocationId, string recipientGroupType)
         {
-            var locationExists = await _context.BusinessLocations
+            var locationExists = await _unitOfWork.Notifications.BusinessLocations
                 .AsNoTracking()
                 .AnyAsync(businessLocation => businessLocation.BusinessLocationId == businessLocationId && businessLocation.DeletedAt == null);
 
@@ -1394,7 +1394,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 throw new NotFoundException(MessageKeys.NotFound);
             }
 
-            var assignmentQuery = _context.UserLocationAssignments
+            var assignmentQuery = _unitOfWork.Notifications.UserLocationAssignments
                 .AsNoTracking()
                 .Where(assignment => assignment.BusinessLocationId == businessLocationId && (assignment.IsActive == null || assignment.IsActive == true));
 
@@ -1425,7 +1425,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 .Distinct()
                 .ToList();
 
-            var profiles = await _context.Profiles
+            var profiles = await _unitOfWork.Notifications.Profiles
                 .AsNoTracking()
                 .Where(profile => profileIds.Contains(profile.ProfileId))
                 .Select(profile => new
@@ -1441,7 +1441,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 .Distinct()
                 .ToList();
 
-            var credentials = await _context.Credentials
+            var credentials = await _unitOfWork.Notifications.Credentials
                 .AsNoTracking()
                 .Where(credential => accountIds.Contains(credential.AccountId))
                 .Select(credential => new
@@ -1503,7 +1503,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         private async Task<List<NotificationRecipientDto>> GetAllLocationOwnersAsync()
         {
-            var assignmentRows = await _context.UserLocationAssignments
+            var assignmentRows = await _unitOfWork.Notifications.UserLocationAssignments
                 .AsNoTracking()
                 .Where(assignment => assignment.IsOwner && (assignment.IsActive == null || assignment.IsActive == true))
                 .Select(assignment => new
@@ -1524,7 +1524,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 .Distinct()
                 .ToList();
 
-            var profiles = await _context.Profiles
+            var profiles = await _unitOfWork.Notifications.Profiles
                 .AsNoTracking()
                 .Where(profile => profileIds.Contains(profile.ProfileId))
                 .Select(profile => new
@@ -1540,7 +1540,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                 .Distinct()
                 .ToList();
 
-            var credentials = await _context.Credentials
+            var credentials = await _unitOfWork.Notifications.Credentials
                 .AsNoTracking()
                 .Where(credential => accountIds.Contains(credential.AccountId))
                 .Select(credential => new
@@ -1604,7 +1604,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
             List<Guid> recipientUserIds,
             CancellationToken cancellationToken)
         {
-            var profiles = await _context.Profiles
+            var profiles = await _unitOfWork.Notifications.Profiles
                 .AsNoTracking()
                 .Where(profile => recipientUserIds.Contains(profile.ProfileId))
                 .Select(profile => new
@@ -1624,7 +1624,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
             if (accountIds.Count > 0)
             {
-                var rawCredentials = await _context.Credentials
+                var rawCredentials = await _unitOfWork.Notifications.Credentials
                     .AsNoTracking()
                     .Where(credential => accountIds.Contains(credential.AccountId))
                     .Select(credential => new
@@ -1661,7 +1661,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
                                     .FirstOrDefault()
                     });
 
-            var recipientAssignments = await _context.UserLocationAssignments
+            var recipientAssignments = await _unitOfWork.Notifications.UserLocationAssignments
                 .AsNoTracking()
                 .Where(assignment => recipientUserIds.Contains(assignment.UserId) && (assignment.IsActive == null || assignment.IsActive == true))
                 .Select(assignment => new
@@ -1689,7 +1689,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
             var businessLocationById = locationIds.Count == 0
                 ? new Dictionary<int, (string LocationName, string? Phone, string? Email)>()
-                : await _context.BusinessLocations
+                : await _unitOfWork.Notifications.BusinessLocations
                     .AsNoTracking()
                     .Where(location => locationIds.Contains(location.BusinessLocationId))
                     .Select(location => new
@@ -1708,7 +1708,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
             if (locationIds.Count > 0)
             {
-                var ownerAssignmentRows = await _context.UserLocationAssignments
+                var ownerAssignmentRows = await _unitOfWork.Notifications.UserLocationAssignments
                     .AsNoTracking()
                     .Where(assignment => locationIds.Contains(assignment.BusinessLocationId)
                         && assignment.IsOwner
@@ -1737,7 +1737,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
             var ownerNameByUserId = ownerUserIds.Count == 0
                 ? new Dictionary<Guid, string>()
-                : await _context.Profiles
+                : await _unitOfWork.Notifications.Profiles
                     .AsNoTracking()
                     .Where(profile => ownerUserIds.Contains(profile.ProfileId))
                     .Select(profile => new { profile.ProfileId, profile.FullName })
@@ -2126,7 +2126,7 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
 
         private async Task<List<string>> GetActiveTokensByProfileIdAsync(Guid profileId)
         {
-            return await _context.DeviceTokens
+            return await _unitOfWork.Notifications.DeviceTokens
                 .Where(deviceToken => deviceToken.ProfileId == profileId && deviceToken.IsActive == true)
                 .Select(deviceToken => deviceToken.Token)
                 .ToListAsync();
@@ -2250,3 +2250,4 @@ WHERE CreatedAt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY);", cancellationToke
         }
     }
 }
+

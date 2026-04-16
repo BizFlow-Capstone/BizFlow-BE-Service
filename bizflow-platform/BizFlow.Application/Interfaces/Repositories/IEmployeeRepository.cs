@@ -15,6 +15,5 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<bool> HasActiveAssignmentsAsync(Guid employeeId);
         Task<List<EmployeeInvitationDto>> GetPendingInvitationsAsync(Guid employeeId);
         Task<Hire?> GetPendingInvitationByIdAsync(Guid employeeId, int hireId);
-        Task SaveChangesAsync();
     }
 }
