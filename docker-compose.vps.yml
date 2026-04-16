@@ -110,4 +110,4 @@ networks:
     external: true
 
   bizflow-network:
-    name: bizflow-network
+    external: true
