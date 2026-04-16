@@ -36,39 +36,21 @@ var builder = WebApplication.CreateBuilder(args);
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
-// Pre-create hf_DistributedLock with PRIMARY KEY before Hangfire initializes.
-// Aiven (and some managed MySQL) enforces sql_require_primary_key; Hangfire.MySql v2
-// generates this table without a PK, causing schema bootstrap to fail on those hosts.
-// Using IF NOT EXISTS makes this a no-op on subsequent startups.
+// On startup, clean up any stale Hangfire distributed locks left by a crashed instance.
+// Hangfire.MySqlStorage v2 uses a non-atomic INSERT…SELECT…WHERE NOT EXISTS, so a lock
+// row left by a crash causes "Duplicate entry" on the next acquire.
+// NOTE: This runs BEFORE Hangfire initialises its schema. On a brand-new DB the table
+// won't exist yet → the DELETE will throw and be caught silently; Hangfire then creates
+// all its tables (including hf_DistributedLock) on first startup.
+// IMPORTANT: Do NOT pre-create hf_DistributedLock here. Hangfire.MySql's installer
+// checks for that table to decide whether to create ALL tables. Pre-creating it would
+// cause every other hf_* table to be skipped.
 if (isHangfireEnabled)
 {
     try
     {
         using var preConn = new MySqlConnection(defaultConnectionString);
         await preConn.OpenAsync();
-        using var preCmd = preConn.CreateCommand();
-        // Hangfire.MySqlStorage v2.0.3 schema: Resource + CreatedAt(6), NO ExpireAt.
-        // Aiven enforces sql_require_primary_key so we must create with an explicit PK.
-        preCmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS `hf_DistributedLock` (
-              `Resource` varchar(100) NOT NULL,
-              `CreatedAt` datetime(6) NOT NULL,
-              PRIMARY KEY (`Resource`)
-            ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci
-            """;
-        await preCmd.ExecuteNonQueryAsync();
-
-        // Clean up only TTL-expired distributed locks on startup.
-        // Hangfire.MySqlStorage v2 uses INSERT…SELECT…WHERE NOT EXISTS (non-atomic),
-        // so a lock left by a crashed instance causes "Duplicate entry" on the next
-        // acquire.  Hangfire Core passes a 1-minute acquisition timeout, meaning any
-        // lock older than 60 s is logically expired.  We use a 2-minute cutoff:
-        //   - Stale crash-survivor rows (> 2 min) are deleted here.
-        //   - Recently-expired rows (60-120 s) the library handles itself via its
-        //     WHERE CreatedAt > @expired predicate.
-        //   - Valid locks held by a concurrently-running instance (< 60 s) are
-        //     intentionally preserved to avoid the duplicate-key race on rolling
-        //     restarts / hot-reload.
         using var cleanCmd = preConn.CreateCommand();
         cleanCmd.CommandText = """
             DELETE FROM `hf_DistributedLock`
@@ -81,7 +63,7 @@ if (isHangfireEnabled)
     }
     catch (Exception ex)
     {
-        // Non-fatal: log and let Hangfire surface the real error if table truly can't be created
+        // Non-fatal: table may not exist yet on first startup — Hangfire will create it.
         Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
     }
 }
