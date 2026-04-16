@@ -13,6 +13,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IBusinessLocationRepository BusinessLocations { get; }
         IAccountingPeriodRepository AccountingPeriods { get; }
         IHireRepository Hires { get; }
+        IEmployeeRepository Employees { get; }
         IProductRepository Products { get; }
         IImportRepository Imports { get; }
         IImportSchemaRepository ImportSchemas { get; }
@@ -40,6 +41,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         IStockMovementRepository StockMovements { get; }
         IAccountRepository Accounts { get; }
         IOtpCodeRepository OtpCodes { get; }
+        INotificationRepository Notifications { get; }
 
         // ── AI Module (read-only from .NET side) ──
         IAiRevenueForecastRepository AiRevenueForecasts { get; }
