@@ -49,7 +49,7 @@ services:
   # Exposed internally only; NPM proxies it to https://logs.bizflow.asia (or similar)
   # ---------------------------------------------------------------------------
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:v10.3.3
     container_name: bizflow-dozzle
     restart: unless-stopped
     environment:
