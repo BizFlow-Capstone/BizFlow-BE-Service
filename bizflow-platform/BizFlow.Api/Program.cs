@@ -66,6 +66,43 @@ if (isHangfireEnabled)
         // Non-fatal: table may not exist yet on first startup — Hangfire will create it.
         Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
     }
+
+    // Hangfire.MySql's installer checks only hf_DistributedLock to decide whether to
+    // create ALL tables. If that table exists but hf_Hash (or others) doesn't, the
+    // installer skips creation and the app crashes at RecurringJob calls.
+    // Fix: detect the inconsistency and drop hf_DistributedLock so installer re-runs.
+    try
+    {
+        using var schemaConn = new MySqlConnection(defaultConnectionString);
+        await schemaConn.OpenAsync();
+
+        using var checkCmd = schemaConn.CreateCommand();
+        checkCmd.CommandText = """
+            SELECT
+                (SELECT COUNT(*) FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_DistributedLock') AS has_lock,
+                (SELECT COUNT(*) FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_Hash') AS has_hash
+            """;
+        using var reader = await checkCmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            var hasLock = reader.GetInt32("has_lock") > 0;
+            var hasHash = reader.GetInt32("has_hash") > 0;
+            if (hasLock && !hasHash)
+            {
+                reader.Close();
+                using var dropCmd = schemaConn.CreateCommand();
+                dropCmd.CommandText = "DROP TABLE IF EXISTS `hf_DistributedLock`";
+                await dropCmd.ExecuteNonQueryAsync();
+                Console.WriteLine("[Hangfire startup] Dropped orphan hf_DistributedLock so installer will re-create all tables.");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[Hangfire schema-check warning] {ex.Message}");
+    }
 }
 
 // Hangfire Configuration
@@ -501,7 +538,10 @@ if (isHangfireEnabled)
     });
 
     // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
-    RecurringJob.RemoveIfExists("subscription-free-backfill-monthly");
+    // Wrapped in try-catch: if Hangfire tables are still incomplete after installer,
+    // this must not take down the entire application.
+    try { RecurringJob.RemoveIfExists("subscription-free-backfill-monthly"); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "Failed to remove stale recurring job — Hangfire tables may be incomplete"); }
 
     // Schedule Recurring Job
     RecurringJob.AddOrUpdate<ImageCleanupJob>(
