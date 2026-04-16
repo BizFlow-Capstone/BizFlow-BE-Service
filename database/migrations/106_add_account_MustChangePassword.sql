@@ -4,7 +4,7 @@
 ALTER TABLE Accounts
     ADD COLUMN `MustChangePassword` TINYINT(1) NOT NULL DEFAULT 0
         COMMENT 'Prompt client to change password until cleared'
-        AFTER password_reset_nonce;
+        AFTER PasswordResetNonce;
 
 INSERT IGNORE INTO __MigrationHistory (MigrationId, ProductVersion)
 VALUES ('106_add_account_MustChangePassword', '1.0.0')

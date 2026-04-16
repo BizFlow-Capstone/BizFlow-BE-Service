@@ -2,7 +2,107 @@
 -- Covers 5 business types: Beauty Salon, Dịch vụ, Grocery Store, Phân phối, Restaurant & Cafe
 -- Revenues + Costs both carry BusinessTypeId for per-industry tax calculation
 
-SET @createdBy  = 'ff45309c-7b0b-4012-933b-042405d75685';
+-- Normalize session collation to avoid cross-version collation conflicts.
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET SESSION collation_connection = 'utf8mb4_unicode_ci';
+
+SET @seed_profile_id = 'ff45309c-7b0b-4012-933b-042405d75685';
+SET @seed_account_id = 'ff45309c-7b0b-4012-933b-042405d75685';
+SET @seed_credential_id = 'ff45309c-7b0b-4012-933b-042405d75686';
+SET @seed_email = 'seed.location6@bizflow.local';
+SET @seed_full_name = 'Seed Operator Location 6';
+SET @seed_password_hash = '$2a$12$ZXWiNvtS/vwl4JJWmso.j.pNoFbpI9gLDWpiPFaWny45pR0aIIaea';
+
+SET @target_location_id = 6;
+SET @seed_role_id = (
+    SELECT RoleId
+    FROM Roles
+    WHERE Name COLLATE utf8mb4_unicode_ci = 'user' COLLATE utf8mb4_unicode_ci
+    LIMIT 1
+);
+SET @seed_role_id = IFNULL(@seed_role_id, (SELECT RoleId FROM Roles LIMIT 1));
+
+INSERT INTO Accounts (AccountId, RoleId, PasswordHash, IsActive, LastLoginAt, CreatedAt, UpdatedAt, DeletedAt)
+SELECT @seed_account_id, @seed_role_id, @seed_password_hash, TRUE, NULL, NOW(), NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Accounts
+    WHERE AccountId = @seed_account_id
+);
+
+UPDATE Accounts
+SET RoleId = COALESCE(@seed_role_id, RoleId),
+    IsActive = TRUE,
+    DeletedAt = NULL,
+    UpdatedAt = NOW()
+WHERE AccountId = @seed_account_id;
+
+INSERT INTO Profiles (ProfileId, AccountId, FullName, AvatarUrl, TaxCode, UpdatedAt)
+SELECT @seed_profile_id, @seed_account_id, @seed_full_name, NULL, NULL, NOW()
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Profiles
+    WHERE ProfileId = @seed_profile_id
+);
+
+UPDATE Profiles
+SET FullName = @seed_full_name,
+    UpdatedAt = NOW()
+WHERE ProfileId = @seed_profile_id;
+
+INSERT INTO Credentials (CredentialId, AccountId, Type, Identifier, EmailVerified, GoogleEmail, CreatedAt)
+SELECT @seed_credential_id, @seed_account_id, 'email', @seed_email, TRUE, NULL, NOW()
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Credentials
+    WHERE Type = 'email'
+      AND Identifier COLLATE utf8mb4_unicode_ci = @seed_email COLLATE utf8mb4_unicode_ci
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM Credentials
+    WHERE AccountId = @seed_account_id
+      AND Type = 'email'
+);
+
+INSERT INTO BusinessLocations (
+    BusinessLocationId,
+    LocationName,
+    Address,
+    Status,
+    IsActive,
+    TaxCode,
+    CreatedAt,
+    UpdatedAt,
+    DeletedAt
+)
+SELECT
+    @target_location_id,
+    'BizFlow Sample Location 6',
+    'Sample address for location 6',
+    'active',
+    TRUE,
+    'TAX-LOC6-SEED',
+    NOW(),
+    NOW(),
+    NULL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM BusinessLocations
+    WHERE BusinessLocationId = @target_location_id
+);
+
+INSERT INTO UserLocationAssignments (UserId, BusinessLocationId, IsOwner, IsActive, AssignedAt, UnassignedAt)
+SELECT @seed_profile_id, @target_location_id, TRUE, TRUE, NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM UserLocationAssignments
+    WHERE BusinessLocationId = @target_location_id
+      AND IsOwner = TRUE
+      AND IsActive = TRUE
+);
+
+SET @createdBy  = @seed_profile_id;
 SET @beautyId   = '650e8400-e29b-41d4-a716-446655440004'; -- Beauty Salon
 SET @serviceId  = '11111111-1111-1111-1111-111111111002'; -- Dịch vụ
 SET @groceryId  = '650e8400-e29b-41d4-a716-446655440003'; -- Grocery Store

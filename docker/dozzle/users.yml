@@ -1,0 +1,7 @@
+users:
+  # Thay "REPLACE_WITH_BCRYPT_HASH" bằng hash sinh ra từ lệnh:
+  #   docker run amir20/dozzle generate --password "your_password_here"
+  admin:
+    name: "BizFlow Admin"
+    password: "REPLACE_WITH_BCRYPT_HASH"
+    email: "admin@bizflow.asia"

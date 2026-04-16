@@ -31,6 +31,25 @@ services:
     build: null
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Dozzle — container log viewer
+  # Auth: simple login via docker/dozzle/users.yml
+  # Exposed internally only; NPM proxies it to https://logs.bizflow.asia (or similar)
+  # ---------------------------------------------------------------------------
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: bizflow-dozzle
+    restart: unless-stopped
+    environment:
+      - DOZZLE_AUTH_PROVIDER=simple
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/dozzle/users.yml:/data/users.yml:ro
+    expose:
+      - "8080"
+    networks:
+      - proxy-network
+
 networks:
   proxy-network:
     external: true

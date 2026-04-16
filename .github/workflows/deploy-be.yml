@@ -86,6 +86,28 @@ jobs:
             git checkout deployment
             git reset --hard origin/deployment
 
+            # Ensure AI schema exists before BE SQL migrations
+            # (migration 108 seeds into ai_* tables).
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
+              --env-file .env.prod \
+              --profile ai \
+              pull bizflow-ai
+
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
+              --env-file .env.prod \
+              --profile ai \
+              run --rm -T --no-deps bizflow-ai \
+              alembic upgrade head
+
+            # Apply any pending database migrations BEFORE restarting the API
+            bash docker/scripts/run-migrations.sh
+
             # Pull new image then restart only the API (zero-downtime)
             docker compose \
               -f docker-compose.yml \

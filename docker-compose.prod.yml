@@ -2,7 +2,7 @@
 # BizFlow Docker Compose - PRODUCTION overrides
 # =============================================================================
 # Extends docker-compose.yml for the production environment on the VPS.
-# Database is hosted externally on Aiven.io — no local MySQL container.
+# MySQL runs as a container on the same VPS.
 # Reverse proxy is handled by Nginx Proxy Manager (separate stack at /opt/bizflow/nginx-proxy-manager).
 #
 # Pre-requisites on VPS (one-time):
@@ -24,14 +24,47 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # MySQL — self-hosted on VPS
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: bizflow-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
+      MYSQL_USER: ${MYSQL_USER:-bizflow_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    networks:
+      - bizflow-network
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
   # API — pre-built image from Docker Hub
   # Joined to proxy-network so Nginx Proxy Manager can route traffic.
-  # Image: <DOCKERHUB_USERNAME>/bizflow-api  (set DOCKERHUB_USERNAME in .env.prod)
   # ---------------------------------------------------------------------------
   bizflow-api:
     image: ${DOCKERHUB_USERNAME}/bizflow-api:${IMAGE_TAG:-latest}
     build: null                             # override build from base — use pre-built image only
     restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - bizflow-network
       - proxy-network             # NPM routes to this container via this network
@@ -45,12 +78,14 @@ services:
   # ---------------------------------------------------------------------------
   # AI Service — pre-built image from Docker Hub (start with --profile ai)
   # Internal only — NOT joined to proxy-network (container-to-container only).
-  # Image: <DOCKERHUB_USERNAME>/bizflow-ai  (set DOCKERHUB_USERNAME in .env.prod)
   # ---------------------------------------------------------------------------
   bizflow-ai:
     image: ${DOCKERHUB_USERNAME}/bizflow-ai:${IMAGE_TAG:-latest}
     build: null                             # override build from base — use pre-built image only
     restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - bizflow-network           # internal only — BE calls AI via this network
     deploy:
@@ -63,3 +98,6 @@ services:
 networks:
   proxy-network:
     external: true
+
+volumes:
+  mysql_data:
