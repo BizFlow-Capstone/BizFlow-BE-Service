@@ -34,7 +34,6 @@ using MySqlConnector;
 var builder = WebApplication.CreateBuilder(args);
 
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out var hangfireDisableReason);
 
 // On startup, clean up any stale Hangfire distributed locks left by a crashed instance.
 // Hangfire.MySqlStorage v2 uses a non-atomic INSERT…SELECT…WHERE NOT EXISTS, so a lock
@@ -45,97 +44,87 @@ var isHangfireEnabled = IsHangfireStorageReachable(defaultConnectionString, out 
 // IMPORTANT: Do NOT pre-create hf_DistributedLock here. Hangfire.MySql's installer
 // checks for that table to decide whether to create ALL tables. Pre-creating it would
 // cause every other hf_* table to be skipped.
-if (isHangfireEnabled)
+// Clean up stale Hangfire distributed locks left by a crashed instance.
+// Hangfire.MySqlStorage v2 uses a non-atomic INSERT…SELECT…WHERE NOT EXISTS, so a lock
+// row left by a crash causes "Duplicate entry" on the next acquire.
+try
 {
-    try
-    {
-        using var preConn = new MySqlConnection(defaultConnectionString);
-        await preConn.OpenAsync();
-        using var cleanCmd = preConn.CreateCommand();
-        cleanCmd.CommandText = """
-            DELETE FROM `hf_DistributedLock`
-            WHERE CreatedAt < @cutoff
-            """;
-        cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
-        var deleted = await cleanCmd.ExecuteNonQueryAsync();
-        if (deleted > 0)
-            Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
-    }
-    catch (Exception ex)
-    {
-        // Non-fatal: table may not exist yet on first startup — Hangfire will create it.
-        Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
-    }
+    using var preConn = new MySqlConnection(defaultConnectionString);
+    await preConn.OpenAsync();
 
-    // Hangfire.MySql's installer checks only hf_DistributedLock to decide whether to
-    // create ALL tables. If that table exists but hf_Hash (or others) doesn't, the
-    // installer skips creation and the app crashes at RecurringJob calls.
-    // Fix: detect the inconsistency and drop hf_DistributedLock so installer re-runs.
-    try
+    // If hf_DistributedLock exists but hf_Hash doesn't, the Hangfire installer
+    // will skip table creation and the app crashes. Drop the orphan table so
+    // the installer re-runs.
+    using var checkCmd = preConn.CreateCommand();
+    checkCmd.CommandText = """
+        SELECT
+            (SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_DistributedLock') AS has_lock,
+            (SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_Hash') AS has_hash
+        """;
+    using var reader = await checkCmd.ExecuteReaderAsync();
+    if (await reader.ReadAsync())
     {
-        using var schemaConn = new MySqlConnection(defaultConnectionString);
-        await schemaConn.OpenAsync();
-
-        using var checkCmd = schemaConn.CreateCommand();
-        checkCmd.CommandText = """
-            SELECT
-                (SELECT COUNT(*) FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_DistributedLock') AS has_lock,
-                (SELECT COUNT(*) FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hf_Hash') AS has_hash
-            """;
-        using var reader = await checkCmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        var hasLock = reader.GetInt32("has_lock") > 0;
+        var hasHash = reader.GetInt32("has_hash") > 0;
+        if (hasLock && !hasHash)
         {
-            var hasLock = reader.GetInt32("has_lock") > 0;
-            var hasHash = reader.GetInt32("has_hash") > 0;
-            if (hasLock && !hasHash)
-            {
-                reader.Close();
-                using var dropCmd = schemaConn.CreateCommand();
-                dropCmd.CommandText = "DROP TABLE IF EXISTS `hf_DistributedLock`";
-                await dropCmd.ExecuteNonQueryAsync();
-                Console.WriteLine("[Hangfire startup] Dropped orphan hf_DistributedLock so installer will re-create all tables.");
-            }
+            reader.Close();
+            using var dropCmd = preConn.CreateCommand();
+            dropCmd.CommandText = "DROP TABLE IF EXISTS `hf_DistributedLock`";
+            await dropCmd.ExecuteNonQueryAsync();
+            Console.WriteLine("[Hangfire startup] Dropped orphan hf_DistributedLock so installer will re-create all tables.");
+        }
+        else if (hasLock)
+        {
+            reader.Close();
+            using var cleanCmd = preConn.CreateCommand();
+            cleanCmd.CommandText = """
+                DELETE FROM `hf_DistributedLock`
+                WHERE CreatedAt < @cutoff
+                """;
+            cleanCmd.Parameters.AddWithValue("cutoff", DateTime.UtcNow.AddMinutes(-2));
+            var deleted = await cleanCmd.ExecuteNonQueryAsync();
+            if (deleted > 0)
+                Console.WriteLine($"[Hangfire startup] Removed {deleted} stale distributed lock(s).");
         }
     }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"[Hangfire schema-check warning] {ex.Message}");
-    }
+}
+catch (Exception ex)
+{
+    // Non-fatal: tables may not exist yet on first startup — Hangfire will create them.
+    Console.Error.WriteLine($"[Hangfire pre-migration warning] {ex.Message}");
 }
 
 // Hangfire Configuration
-if (isHangfireEnabled)
-{
-    builder.Services.AddHangfire(configuration => configuration
-        .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
-        .UseSimpleAssemblyNameTypeSerializer()
-        .UseRecommendedSerializerSettings()
-        .UseStorage(
-            new MySqlStorage(
-                defaultConnectionString!,
-                new MySqlStorageOptions
-                {
-                    TablesPrefix = "hf_",
-                    DashboardJobListLimit = 10000,
-                }
-            )
-        ));
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseStorage(
+        new MySqlStorage(
+            defaultConnectionString!,
+            new MySqlStorageOptions
+            {
+                TablesPrefix = "hf_",
+                DashboardJobListLimit = 10000,
+            }
+        )
+    ));
 
-    // Add the processing server as IHostedService.
-    // SchedulePollingInterval (default 15 s) controls how often RecurringJobScheduler
-    // tries to acquire `recurring-jobs:lock`.  Increasing it reduces the probability
-    // of the concurrent-INSERT race in Hangfire.MySqlStorage v2's non-atomic lock
-    // acquisition, without materially affecting job schedule accuracy.
-    builder.Services.AddHangfireServer(options =>
-    {
-        options.SchedulePollingInterval = TimeSpan.FromSeconds(60);
-        options.HeartbeatInterval       = TimeSpan.FromSeconds(30);
-        options.ServerTimeout           = TimeSpan.FromMinutes(5);
-        options.ShutdownTimeout         = TimeSpan.FromSeconds(30);
-    });
-}
+// Add the processing server as IHostedService.
+// SchedulePollingInterval (default 15 s) controls how often RecurringJobScheduler
+// tries to acquire `recurring-jobs:lock`.  Increasing it reduces the probability
+// of the concurrent-INSERT race in Hangfire.MySqlStorage v2's non-atomic lock
+// acquisition, without materially affecting job schedule accuracy.
+builder.Services.AddHangfireServer(options =>
+{
+    options.SchedulePollingInterval = TimeSpan.FromSeconds(60);
+    options.HeartbeatInterval       = TimeSpan.FromSeconds(30);
+    options.ServerTimeout           = TimeSpan.FromMinutes(5);
+    options.ShutdownTimeout         = TimeSpan.FromSeconds(30);
+});
 
 // Add services to the container.
 
@@ -523,130 +512,114 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-if (isHangfireEnabled)
+// Hangfire Dashboard
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    // Hangfire Dashboard
-    app.UseHangfireDashboard("/hangfire", new DashboardOptions
-    {
-        Authorization = app.Environment.IsDevelopment()
-            ? [new AllowHangfireDashboardAuthorizationFilter()]
-            : [new AdminJwtHangfireDashboardAuthorizationFilter(
-                jwtSettings.Secret,
-                jwtSettings.Issuer,
-                jwtSettings.Audience
-              )]
-    });
+    Authorization = app.Environment.IsDevelopment()
+        ? [new AllowHangfireDashboardAuthorizationFilter()]
+        : [new AdminJwtHangfireDashboardAuthorizationFilter(
+            jwtSettings.Secret,
+            jwtSettings.Issuer,
+            jwtSettings.Audience
+          )]
+});
 
-    // Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
-    // Wrapped in try-catch: if Hangfire tables are still incomplete after installer,
-    // this must not take down the entire application.
-    try { RecurringJob.RemoveIfExists("subscription-free-backfill-monthly"); }
-    catch (Exception ex) { app.Logger.LogWarning(ex, "Failed to remove stale recurring job — Hangfire tables may be incomplete"); }
+// Remove recurring entries whose job types were deleted (avoids TypeLoadException on trigger).
+try { RecurringJob.RemoveIfExists("subscription-free-backfill-monthly"); }
+catch (Exception ex) { app.Logger.LogWarning(ex, "Failed to remove stale recurring job"); }
 
-    // Schedule Recurring Job
-    RecurringJob.AddOrUpdate<ImageCleanupJob>(
-        "image-cleanup",
-        job => job.ExecuteAsync(),
-         "5 17 * * *" // 17:05 Vietnam time (UTC+7)
-                      //"5 17 * * *", // Every day at 17:05 Vietnam time (UTC+7)
-                      //TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time") // Use "SE Asia Standard Time" for Vietnam time
-                      // "* * * * *" // Every minute
-    );
+// Schedule Recurring Jobs
+RecurringJob.AddOrUpdate<ImageCleanupJob>(
+    "image-cleanup",
+    job => job.ExecuteAsync(),
+    "5 17 * * *"); // 17:05 Vietnam time (UTC+7)
 
-    RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
-        "subscription-expiry-check",
-        job => job.ExecuteAsync(),
-        "0 * * * *");
+RecurringJob.AddOrUpdate<SubscriptionExpiryCheckJob>(
+    "subscription-expiry-check",
+    job => job.ExecuteAsync(),
+    "0 * * * *");
 
-    RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
-        "subscription-reminder",
-        job => job.ExecuteAsync(),
-        "0 1 * * *");
+RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
+    "subscription-reminder",
+    job => job.ExecuteAsync(),
+    "0 1 * * *");
 
-    RecurringJob.AddOrUpdate<UsageSnapshotJob>(
-        "usage-snapshot",
-        job => job.ExecuteAsync(),
-        "0 17 * * *");
+RecurringJob.AddOrUpdate<UsageSnapshotJob>(
+    "usage-snapshot",
+    job => job.ExecuteAsync(),
+    "0 17 * * *");
 
-    RecurringJob.AddOrUpdate<FirestoreSyncJob>(
-        "firestore-sync",
-        job => job.ExecuteAsync(),
-        "0 */6 * * *");
+RecurringJob.AddOrUpdate<FirestoreSyncJob>(
+    "firestore-sync",
+    job => job.ExecuteAsync(),
+    "0 */6 * * *");
 
-    RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
-        "stale-txn-cleanup",
-        job => job.ExecuteAsync(),
-        "30 3 * * *");
+RecurringJob.AddOrUpdate<StaleTransactionCleanupJob>(
+    "stale-txn-cleanup",
+    job => job.ExecuteAsync(),
+    "30 3 * * *");
 
-    RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
-        "stripe-pending-reconcile",
-        job => job.ExecuteAsync(),
-        "*/15 * * * *");
+RecurringJob.AddOrUpdate<StripePendingReconcileJob>(
+    "stripe-pending-reconcile",
+    job => job.ExecuteAsync(),
+    "*/15 * * * *");
 
-    RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
-        "stripe-refund-reconcile",
-        job => job.ExecuteAsync(),
-        "7 */2 * * *");
+RecurringJob.AddOrUpdate<StripeRefundReconcileJob>(
+    "stripe-refund-reconcile",
+    job => job.ExecuteAsync(),
+    "7 */2 * * *");
 
-    // Reconcile effective price by discount window and sync Stripe Price daily at 01:00 UTC.
-    RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
-        "subscription-plan-stripe-catalog-sync",
-        job => job.ExecuteAsync(),
-        "0 1 * * *");
-    RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
-        "scheduled-notification-dispatch",
-        job => job.ExecuteAsync(),
-        "* * * * *"
-    );
+// Reconcile effective price by discount window and sync Stripe Price daily at 01:00 UTC.
+RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
+    "subscription-plan-stripe-catalog-sync",
+    job => job.ExecuteAsync(),
+    "0 1 * * *");
 
-    RecurringJob.AddOrUpdate<NotificationOutboxJob>(
-        "notification-outbox",
-        job => job.ExecuteAsync(),
-        "* * * * *"
-    );
+RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
+    "scheduled-notification-dispatch",
+    job => job.ExecuteAsync(),
+    "* * * * *");
 
-    RecurringJob.AddOrUpdate<NotificationRetentionJob>(
-        "notification-retention",
-        job => job.ExecuteAsync(),
-        "0 2 * * *"
-    );
+RecurringJob.AddOrUpdate<NotificationOutboxJob>(
+    "notification-outbox",
+    job => job.ExecuteAsync(),
+    "* * * * *");
 
-    RecurringJob.AddOrUpdate<OtpCleanupJob>(
-        "otp-cleanup",
-        job => job.ExecuteAsync(),
-        "0 * * * *" // Hourly
-    );
+RecurringJob.AddOrUpdate<NotificationRetentionJob>(
+    "notification-retention",
+    job => job.ExecuteAsync(),
+    "0 2 * * *");
 
-    RecurringJob.AddOrUpdate<AccountHardDeleteJob>(
-        "account-hard-delete",
-        job => job.ExecuteAsync(),
-        "15 * * * *");
+RecurringJob.AddOrUpdate<OtpCleanupJob>(
+    "otp-cleanup",
+    job => job.ExecuteAsync(),
+    "0 * * * *"); // Hourly
 
-    // ── AI Nightly Jobs ──────────────────────────────────────────
-    RecurringJob.AddOrUpdate<AiForecastJob>(
-        "ai-forecast",
-        job => job.ExecuteAsync(),
-        "0 18 * * *"); // 01:00 Vietnam time (UTC+7)
+RecurringJob.AddOrUpdate<AccountHardDeleteJob>(
+    "account-hard-delete",
+    job => job.ExecuteAsync(),
+    "15 * * * *");
 
-    RecurringJob.AddOrUpdate<AiAnomalyPatternJob>(
-        "ai-anomaly-pattern",
-        job => job.ExecuteAsync(),
-        "0 19 * * *"); // 02:00 Vietnam time (UTC+7)
+// ── AI Nightly Jobs ──────────────────────────────────────────
+RecurringJob.AddOrUpdate<AiForecastJob>(
+    "ai-forecast",
+    job => job.ExecuteAsync(),
+    "0 18 * * *"); // 01:00 Vietnam time (UTC+7)
 
-    RecurringJob.AddOrUpdate<AiReorderJob>(
-        "ai-reorder",
-        job => job.ExecuteAsync(),
-        "0 20 * * *"); // 03:00 Vietnam time (UTC+7)
+RecurringJob.AddOrUpdate<AiAnomalyPatternJob>(
+    "ai-anomaly-pattern",
+    job => job.ExecuteAsync(),
+    "0 19 * * *"); // 02:00 Vietnam time (UTC+7)
 
-    RecurringJob.AddOrUpdate<AiProductInsightsJob>(
-        "ai-product-insights",
-        job => job.ExecuteAsync(),
-        "30 20 * * *"); // 03:30 Vietnam time (UTC+7)
-}
-else
-{
-    app.Logger.LogWarning("Hangfire is disabled: {Reason}", hangfireDisableReason);
-}
+RecurringJob.AddOrUpdate<AiReorderJob>(
+    "ai-reorder",
+    job => job.ExecuteAsync(),
+    "0 20 * * *"); // 03:00 Vietnam time (UTC+7)
+
+RecurringJob.AddOrUpdate<AiProductInsightsJob>(
+    "ai-product-insights",
+    job => job.ExecuteAsync(),
+    "30 20 * * *"); // 03:30 Vietnam time (UTC+7)
 
 // One-time startup backfill: ensure all profiles have an active subscription (free if missing).
 using (var startupScope = app.Services.CreateScope())
@@ -670,30 +643,3 @@ using (var startupScope = app.Services.CreateScope())
 }
 
 app.Run();
-
-static bool IsHangfireStorageReachable(string? connectionString, out string reason)
-{
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        reason = "ConnectionStrings:DefaultConnection is missing or empty.";
-        return false;
-    }
-
-    try
-    {
-        var connectionStringBuilder = new MySqlConnectionStringBuilder(connectionString)
-        {
-            ConnectionTimeout = 3
-        };
-
-        using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
-        connection.Open();
-        reason = string.Empty;
-        return true;
-    }
-    catch (Exception ex)
-    {
-        reason = $"unable to connect to MySQL ({ex.Message})";
-        return false;
-    }
-}
