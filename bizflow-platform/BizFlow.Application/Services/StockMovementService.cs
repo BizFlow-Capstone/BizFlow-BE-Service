@@ -12,7 +12,7 @@ namespace BizFlow.Application.Services
 
         public StockMovement CreateStockMovement(
             Product product,
-            int quantityDelta,
+            decimal quantityDelta,
             string? referenceType,
             long? referenceId,
             string? memo = null)

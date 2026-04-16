@@ -13,7 +13,7 @@ namespace BizFlow.Application.DTOs.Product
         public long ImportId { get; set; }
         public string? ImportCode { get; set; }
         public decimal CostPrice { get; set; }
-        public int Quantity { get; set; }
+        public decimal Quantity { get; set; }
         public decimal TotalPrice { get; set; }
         public string? Supplier { get; set; }
         public DateTime? ReceivedAt { get; set; }

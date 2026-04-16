@@ -509,7 +509,7 @@ namespace BizFlow.Application.Services
         /// Applies stock changes from current stock to target stock.
         /// Shared by Create/Update/Manual Adjust to keep stock behavior consistent.
         /// </summary>
-        private async Task ApplyStockToTargetAsync(Product product, int targetStock, decimal costPriceForIncrease, string? note = null)
+        private async Task ApplyStockToTargetAsync(Product product, decimal targetStock, decimal costPriceForIncrease, string? note = null)
         {
             var stockDiff = targetStock - product.Stock;
             if (stockDiff == 0)
@@ -528,7 +528,7 @@ namespace BizFlow.Application.Services
         /// - Increase: ImportService owns stock apply + stock movement creation.
         /// - Decrease: ProductService creates stock movement directly.
         /// </summary>
-        private async Task ApplyStockAdjustmentAsync(Product product, int stockDiff, decimal costPrice, string? note = null)
+        private async Task ApplyStockAdjustmentAsync(Product product, decimal stockDiff, decimal costPrice, string? note = null)
         {
             if (stockDiff > 0)
             {

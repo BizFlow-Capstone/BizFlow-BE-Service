@@ -14,10 +14,10 @@ namespace BizFlow.Application.DTOs.Import
         public long ProductId { get; set; }
         public string? ProductName { get; set; }
         public string? Sku { get; set; }
-        public int Quantity { get; set; }
+        public decimal Quantity { get; set; }
         public string? BaseUnit { get; set; }
         public decimal CostPrice { get; set; }
         public decimal TotalPrice { get; set; }
-        public int? CurrentStock { get; set; }
+        public decimal? CurrentStock { get; set; }
     }
 }

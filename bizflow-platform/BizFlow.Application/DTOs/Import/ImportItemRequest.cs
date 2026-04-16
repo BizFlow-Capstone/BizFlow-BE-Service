@@ -10,7 +10,7 @@ namespace BizFlow.Application.DTOs.Import
         /// <summary>
         /// Quantity in base unit
         /// </summary>
-        public int Quantity { get; set; }
+        public decimal Quantity { get; set; }
 
         /// <summary>
         /// Cost price per base unit

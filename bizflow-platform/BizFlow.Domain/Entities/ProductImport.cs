@@ -20,7 +20,7 @@ public partial class ProductImport
     /// <summary>
     /// Import quantity
     /// </summary>
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// Cost price per import unit

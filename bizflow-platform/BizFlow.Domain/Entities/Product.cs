@@ -37,7 +37,7 @@ public partial class Product
     /// <summary>
     /// Quantity in stock
     /// </summary>
-    public int Stock { get; set; }
+    public decimal Stock { get; set; }
 
     /// <summary>
     /// Unit of measurement

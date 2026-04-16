@@ -280,7 +280,7 @@ namespace BizFlow.Application.Services
 
         #region Command Methods
 
-        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice, string? memo = null)
+        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, decimal quantity, decimal costPrice, string? memo = null)
         {
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
