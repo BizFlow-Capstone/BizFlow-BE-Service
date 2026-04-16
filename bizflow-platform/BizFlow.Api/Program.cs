@@ -471,7 +471,7 @@ app.UseMiddleware<CharsetMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/swagger.json", "BizFlow Platform API v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "BizFlow Platform API v1");
     c.RoutePrefix = "swagger";
     c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
 });
