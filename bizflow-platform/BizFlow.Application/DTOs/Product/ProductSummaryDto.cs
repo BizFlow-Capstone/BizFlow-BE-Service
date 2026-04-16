@@ -13,7 +13,7 @@ namespace BizFlow.Application.DTOs.Product
         public string BusinessTypeName { get; set; } = null!;
         public decimal Price { get; set; }
         public bool TrackInventory { get; set; }
-        public int? Stock { get; set; }
+        public decimal? Stock { get; set; }
         public string Status { get; set; } = null!;
     }
 }

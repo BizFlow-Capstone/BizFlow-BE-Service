@@ -20,7 +20,7 @@ public partial class StockMovement
     /// <summary>
     /// Quantity moved (positive for IN, negative for OUT)
     /// </summary>
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// IMPORT, ORDER, ADJUSTMENT
@@ -40,7 +40,7 @@ public partial class StockMovement
     /// <summary>
     /// Stock balance after this movement
     /// </summary>
-    public int BalanceAfter { get; set; }
+    public decimal BalanceAfter { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

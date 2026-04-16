@@ -27,7 +27,7 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.Sku,
                     opt => opt.MapFrom(src => src.Product != null ? src.Product.Sku : null))
                 .ForMember(dest => dest.CurrentStock,
-                    opt => opt.MapFrom(src => src.Product != null ? src.Product.Stock : (int?)null));
+                    opt => opt.MapFrom(src => src.Product != null ? src.Product.Stock : (decimal?)null));
         }
     }
 }

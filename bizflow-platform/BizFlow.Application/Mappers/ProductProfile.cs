@@ -27,7 +27,7 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.BusinessTypeId, opt => opt.MapFrom(src => src.BusinessTypeId))
                 .ForMember(dest => dest.BusinessTypeName, opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : ""))
                 .ForMember(dest => dest.Stock, opt => opt.MapFrom(src =>
-                    (src.TrackInventory ?? true) ? src.Stock : (int?)null))
+                    (src.TrackInventory ?? true) ? src.Stock : (decimal?)null))
                 .ForMember(dest => dest.Price, opt => opt.MapFrom(src =>
                     src.SaleItems
                         .Where(s => s.Unit.ToLower() == src.Unit.ToLower())

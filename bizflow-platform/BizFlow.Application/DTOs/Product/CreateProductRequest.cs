@@ -37,7 +37,8 @@ namespace BizFlow.Application.DTOs.Product
         [Range(0, double.MaxValue)]
         public decimal CostPrice { get; set; }
 
-        public int Stock { get; set; } = 0;
+        [Range(0, double.MaxValue)]
+        public decimal Stock { get; set; } = 0;
 
         internal Stream? ImageStream { get; set; }
         internal string? ImageFileName { get; set; }

@@ -20,7 +20,7 @@ namespace BizFlow.Application.DTOs.Location
         [StringLength(100)]
         public string? City { get; set; }
 
-        [StringLength(10)]
+        [RegularExpression(@"^\d+$", ErrorMessage = "Phone must contain only digits")]
         public string? Phone { get; set; }
 
         [StringLength(50)]

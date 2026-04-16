@@ -1012,7 +1012,9 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("'active'")
                 .HasComment("Product sale status")
                 .HasColumnType("enum('active','inactive','discontinued')");
-            entity.Property(e => e.Stock).HasComment("Quantity in stock");
+            entity.Property(e => e.Stock)
+                .HasPrecision(15, 2)
+                .HasComment("Quantity in stock");
             entity.Property(e => e.TrackInventory)
                 .IsRequired()
                 .HasDefaultValueSql("'1'")
@@ -1054,7 +1056,9 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.ImportId).HasComment("FK to Imports");
             entity.Property(e => e.ProductId).HasComment("FK to Products");
-            entity.Property(e => e.Quantity).HasComment("Import quantity");
+            entity.Property(e => e.Quantity)
+                .HasPrecision(15, 2)
+                .HasComment("Import quantity");
             entity.Property(e => e.TotalPrice)
                 .HasPrecision(15, 2)
                 .HasComment("Total price");
@@ -1241,7 +1245,9 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.MovementType, "idx_stock_movement_type");
 
-            entity.Property(e => e.BalanceAfter).HasComment("Stock balance after this movement");
+            entity.Property(e => e.BalanceAfter)
+                .HasPrecision(15, 2)
+                .HasComment("Stock balance after this movement");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
@@ -1252,7 +1258,9 @@ public partial class BizFlowDbContext : DbContext
                 .HasMaxLength(50)
                 .HasComment("IN, OUT, ADJUSTMENT");
             entity.Property(e => e.ProductId).HasComment("FK to Products");
-            entity.Property(e => e.Quantity).HasComment("Quantity moved (positive for IN, negative for OUT)");
+            entity.Property(e => e.Quantity)
+                .HasPrecision(15, 2)
+                .HasComment("Quantity moved (positive for IN, negative for OUT)");
             entity.Property(e => e.ReferenceId).HasComment("ID of the reference entity (ImportId, OrderId, etc.)");
             entity.Property(e => e.ReferenceType)
                 .HasMaxLength(50)

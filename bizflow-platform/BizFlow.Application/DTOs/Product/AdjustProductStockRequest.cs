@@ -7,8 +7,8 @@ namespace BizFlow.Application.DTOs.Product
     /// </summary>
     public class AdjustProductStockRequest
     {
-        [Range(0, int.MaxValue)]
-        public int Stock { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal Stock { get; set; }
 
         [MaxLength(1000)]
         public string? Memo { get; set; }

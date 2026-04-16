@@ -42,7 +42,7 @@ namespace BizFlow.Application.Interfaces.Services
         /// Quantity can be 0 for cost-price-only updates.
         /// Returns created ImportId.
         /// </summary>
-        Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, int quantity, decimal costPrice, string? memo = null);
+        Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, decimal quantity, decimal costPrice, string? memo = null);
 
         /// <summary>
         /// Delete import.
