@@ -105,8 +105,6 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<NotificationOutboxJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<NotificationRetentionJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<OtpCleanupJob>().AsSelf().InstancePerDependency();
-            builder.RegisterType<AccountHardDeleteJob>().AsSelf().InstancePerDependency();
-
             // AI nightly jobs
             builder.RegisterType<AiForecastJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<AiAnomalyPatternJob>().AsSelf().InstancePerDependency();

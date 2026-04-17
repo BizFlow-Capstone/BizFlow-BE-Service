@@ -504,8 +504,7 @@ namespace BizFlow.Api.Controllers.Auth
         }
 
         /// <summary>
-        /// Soft-delete immediately; Hangfire purges the row and owned locations after <c>AccountPurge:RetentionDays</c>,
-        /// and nulls audit user ids on shared business rows (orders, costs, etc.).
+        /// Hard-delete account immediately (including owned data cleanup and audit FK anonymization).
         /// </summary>
         [HttpPost("delete-account")]
         [Authorize]

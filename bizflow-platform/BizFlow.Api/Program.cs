@@ -593,11 +593,6 @@ if (isHangfireEnabled)
         "0 * * * *" // Hourly
     );
 
-    RecurringJob.AddOrUpdate<AccountHardDeleteJob>(
-        "account-hard-delete",
-        job => job.ExecuteAsync(),
-        "15 * * * *");
-
     // ── AI Nightly Jobs ──────────────────────────────────────────
     RecurringJob.AddOrUpdate<AiForecastJob>(
         "ai-forecast",
