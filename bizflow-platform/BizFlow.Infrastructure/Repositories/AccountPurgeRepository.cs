@@ -17,17 +17,6 @@ public sealed class AccountPurgeRepository : IAccountPurgeRepository
         _logger = logger;
     }
 
-    public Task<List<Guid>> GetPendingPurgeAccountIdsAsync(DateTime eligibilityCutoffUtc, int take, CancellationToken ct = default)
-    {
-        var batch = Math.Max(1, take);
-        return _db.Accounts.AsNoTracking()
-            .Where(a => a.DeletedAt != null && a.DeletedAt <= eligibilityCutoffUtc)
-            .OrderBy(a => a.DeletedAt)
-            .Select(a => a.AccountId)
-            .Take(batch)
-            .ToListAsync(ct);
-    }
-
     public async Task<(bool Committed, Guid? PurgedProfileId)> TryPurgeOneAccountWithinTransactionAsync(
         Guid accountId,
         DateTime eligibilityCutoffUtc,

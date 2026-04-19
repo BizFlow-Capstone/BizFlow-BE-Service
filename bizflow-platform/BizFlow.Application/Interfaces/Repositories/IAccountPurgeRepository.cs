@@ -6,9 +6,6 @@ namespace BizFlow.Application.Interfaces.Repositories;
 /// </summary>
 public interface IAccountPurgeRepository
 {
-    /// <summary>Soft-deleted accounts ready for physical purge (by <c>DeletedAt</c> cutoff).</summary>
-    Task<List<Guid>> GetPendingPurgeAccountIdsAsync(DateTime eligibilityCutoffUtc, int take, CancellationToken ct = default);
-
     /// <summary>
     /// <c>Committed</c>: purge ran and transaction should commit.
     /// <c>PurgedProfileId</c>: profile id when a profile existed; <c>null</c> when orphan account only.

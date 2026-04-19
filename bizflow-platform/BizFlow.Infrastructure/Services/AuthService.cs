@@ -35,6 +35,7 @@ namespace BizFlow.Infrastructure.Services
         private readonly IOtpService _otpService;
         private readonly IEmailSender _emailSender;
         private readonly IOptions<AppPublicUrlsOptions> _appPublicUrls;
+        private readonly IAccountHardDeleteService _accountHardDeleteService;
         private readonly ILogger<AuthService> _logger;
 
         private const string DefaultRoleName = "user";
@@ -53,6 +54,7 @@ namespace BizFlow.Infrastructure.Services
             IOtpService otpService,
             IEmailSender emailSender,
             IOptions<AppPublicUrlsOptions> appPublicUrls,
+            IAccountHardDeleteService accountHardDeleteService,
             ILogger<AuthService> logger)
         {
             _db = db;
@@ -65,6 +67,7 @@ namespace BizFlow.Infrastructure.Services
             _otpService = otpService;
             _emailSender = emailSender;
             _appPublicUrls = appPublicUrls;
+            _accountHardDeleteService = accountHardDeleteService;
             _logger = logger;
         }
 
@@ -963,17 +966,13 @@ namespace BizFlow.Infrastructure.Services
                 throw new UnauthorizedAccessException(MessageKeys.CurrentPasswordIncorrect);
             }
 
-            account.IsActive = false;
-            account.DeletedAt = DateTime.UtcNow;
-            account.UpdatedAt = DateTime.UtcNow;
-
-            var refreshTokensRevoked = await MarkAllRefreshTokensRevokedAsync(accountId);
-            await _db.SaveChangesAsync();
+            var deleted = await _accountHardDeleteService.HardDeleteAccountNowAsync(accountId);
+            if (!deleted)
+                throw new KeyNotFoundException(MessageKeys.AccountNotFound);
 
             _logger.LogInformation(
-                "Account soft-deleted; Hangfire will hard-delete after retention. AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
-                accountId,
-                refreshTokensRevoked);
+                "Account hard-deleted immediately. AccountId={AccountId}",
+                accountId);
         }
 
         public async Task DeleteConsultantByAdminAsync(Guid accountId)

@@ -6,6 +6,9 @@ namespace BizFlow.Application.Interfaces.Services;
 /// </summary>
 public interface IAccountHardDeleteService
 {
-    /// <summary>Processes up to <c>BatchSize</c> candidates; returns how many were physically purged (committed).</summary>
-    Task<int> ProcessPendingHardDeletesAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Immediately hard-deletes one account in a resilient transaction.
+    /// Returns <c>true</c> when the account was physically removed.
+    /// </summary>
+    Task<bool> HardDeleteAccountNowAsync(Guid accountId, CancellationToken cancellationToken = default);
 }
