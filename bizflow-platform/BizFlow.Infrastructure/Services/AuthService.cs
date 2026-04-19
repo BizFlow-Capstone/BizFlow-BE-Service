@@ -429,6 +429,63 @@ namespace BizFlow.Infrastructure.Services
             }).ToList();
         }
 
+        public async Task<List<CredentialInfo>> LinkGoogleAsync(Guid accountId, string idToken)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                throw new ArgumentException(MessageKeys.IdTokenRequired, nameof(idToken));
+            }
+
+            var account = await _db.Accounts
+                .Include(a => a.Credentials)
+                .Include(a => a.Role)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId)
+                ?? throw new KeyNotFoundException(MessageKeys.AccountNotFound);
+
+            var alreadyLinked = account.Credentials.Any(c => c.Type == "google");
+            if (alreadyLinked)
+            {
+                throw new InvalidOperationException(MessageKeys.GoogleAlreadyLinked);
+            }
+
+            var payload = await VerifyGoogleTokenAsync(idToken);
+
+            var usedByOtherAccount = await _db.Credentials.AnyAsync(
+                c => c.Type == "google" && c.Identifier == payload.Subject && c.AccountId != accountId);
+            if (usedByOtherAccount)
+            {
+                throw new InvalidOperationException(MessageKeys.GoogleAlreadyExists);
+            }
+
+            var credential = new Credential
+            {
+                CredentialId = Guid.NewGuid(),
+                AccountId = accountId,
+                Type = "google",
+                Identifier = payload.Subject,
+                GoogleEmail = payload.Email,
+                EmailVerified = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            account.UpdatedAt = DateTime.UtcNow;
+            _db.Credentials.Add(credential);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Google linked successfully. AccountId={AccountId}, GoogleEmail={GoogleEmail}", accountId, payload.Email);
+
+            var credentials = await _db.Credentials
+                .Where(c => c.AccountId == accountId)
+                .ToListAsync();
+
+            return credentials.Select(c => new CredentialInfo
+            {
+                Type = c.Type,
+                Identifier = CredentialMasking.MaskIdentifier(c.Type, c.Identifier),
+                EmailVerified = c.Type == "email" ? c.EmailVerified : null
+            }).ToList();
+        }
+
         public async Task SetPasswordAsync(Guid accountId, string password)
         {
             ValidatePasswordOrThrow(password);

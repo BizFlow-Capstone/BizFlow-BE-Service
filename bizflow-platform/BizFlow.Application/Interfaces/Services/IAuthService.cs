@@ -30,6 +30,7 @@ namespace BizFlow.Application.Interfaces.Services
         /// Link phone credential to an existing account after Firebase Phone Auth OTP verification.
         /// </summary>
         Task<List<CredentialInfo>> LinkPhoneAsync(Guid accountId, string phone, string firebaseIdToken, string? password);
+        Task<List<CredentialInfo>> LinkGoogleAsync(Guid accountId, string idToken);
 
         /// <summary>
         /// Set password for an account (Google-only accounts that need a fallback credential).

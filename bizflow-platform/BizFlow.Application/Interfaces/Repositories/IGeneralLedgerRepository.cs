@@ -13,5 +13,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Dictionary<long, (int ReversalCount, long? LatestReversalEntryId)>> GetReversalSummaryAsOfAsync(
             IEnumerable<long> entryIds,
             DateOnly asOfDate);
+
+        // ── Formula Engine aggregation (avoids PageSize = int.MaxValue) ──
+        Task<decimal> AggregateByLocationAndPeriodAsync(
+            int locationId, DateOnly from, DateOnly to,
+            string aggType, string field,
+            string? moneyChannel, string? transactionType);
     }
 }

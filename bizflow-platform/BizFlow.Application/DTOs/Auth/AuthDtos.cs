@@ -153,6 +153,13 @@ namespace BizFlow.Application.DTOs.Auth
         public string? Password { get; set; }
     }
 
+    public class LinkGoogleRequest
+    {
+        [Required]
+        [MinLength(50)]
+        public string IdToken { get; set; } = null!;
+    }
+
     public class RefreshTokenRequest
     {
         [Required]

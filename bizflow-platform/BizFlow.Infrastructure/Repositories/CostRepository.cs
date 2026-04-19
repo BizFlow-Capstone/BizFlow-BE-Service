@@ -89,5 +89,39 @@ namespace BizFlow.Infrastructure.Repositories
                     && c.CostDate <= toDate)
                 .SumAsync(c => c.Amount, cancellationToken);
         }
+
+        public async Task<decimal> AggregateByLocationAndPeriodAsync(
+            int locationId, DateOnly from, DateOnly to,
+            string aggType)
+        {
+            var query = _db.Costs
+                .Where(c => c.BusinessLocationId == locationId
+                    && c.DeletedAt == null
+                    && c.CostDate >= from
+                    && c.CostDate <= to);
+
+            return aggType.ToUpper() switch
+            {
+                "SUM" => await query.SumAsync(c => c.Amount),
+                "AVG" => await query.AnyAsync() ? await query.AverageAsync(c => c.Amount) : 0m,
+                "COUNT" => await query.CountAsync(),
+                _ => 0m
+            };
+        }
+
+        public async Task<Dictionary<string, decimal>> SumGroupedByBusinessTypeAsync(
+            int locationId, DateOnly from, DateOnly to)
+        {
+            return await _db.Costs
+                .Where(c => c.BusinessLocationId == locationId
+                    && c.DeletedAt == null
+                    && c.BusinessTypeId.HasValue
+                    && c.CostDate >= from
+                    && c.CostDate <= to)
+                .GroupBy(c => c.BusinessTypeId!.Value)
+                .ToDictionaryAsync(
+                    g => g.Key.ToString(),
+                    g => g.Sum(c => c.Amount));
+        }
     }
 }

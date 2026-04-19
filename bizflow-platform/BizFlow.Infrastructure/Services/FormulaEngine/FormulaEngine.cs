@@ -1,4 +1,4 @@
-using BizFlow.Application.Interfaces.Repositories;
+﻿using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
@@ -75,45 +75,45 @@ public class FormulaEngine : IFormulaEngine
         }
 
         // 2. Reference to another formula result
-        if (node.TryGetProperty("ref", out var refNode))
+        if (node.TryGetProperty(AstNode.Ref, out var refNode))
         {
             var refCode = refNode.GetString()!;
             return resolved.TryGetValue(refCode, out var val) ? val : 0m;
         }
 
         // 3. Aggregate (SUM/AVG/COUNT from data source)
-        if (node.TryGetProperty("aggregate", out var aggregate))
+        if (node.TryGetProperty(AstNode.Aggregate, out _))
         {
             return await EvaluateAggregateAsync(ctx, node);
         }
 
         // 4. Lookup (EXTERNAL_LOOKUP)
-        if (node.TryGetProperty("lookup", out var lookup))
+        if (node.TryGetProperty(AstNode.Lookup, out var lookup))
         {
             return await EvaluateLookupAsync(ctx, lookup);
         }
 
         // 5. Binary operation (ADD, SUBTRACT, MULTIPLY, DIVIDE)
-        if (node.TryGetProperty("op", out var op))
+        if (node.TryGetProperty(AstNode.Op, out var op))
         {
             return await EvaluateOpAsync(ctx, resolved, node, op.GetString()!);
         }
 
         // 6. Function call (MAX, MIN, ABS)
-        if (node.TryGetProperty("fn", out var fn))
+        if (node.TryGetProperty(AstNode.Fn, out var fn))
         {
             return await EvaluateFnAsync(ctx, resolved, node, fn.GetString()!);
         }
 
-        // 7. foreach — iterate per industry/group, apply expression, reduce
-        if (node.TryGetProperty("foreach", out _))
+        // 7. foreach — iterate per group, apply expression, reduce
+        if (node.TryGetProperty(AstNode.Foreach, out _))
         {
             var (total, _) = await EvaluateForeachAsync(ctx, resolved, node);
             return total;
         }
 
         // 8. context — runtime values during foreach iteration
-        if (node.TryGetProperty("context", out var ctxProp))
+        if (node.TryGetProperty(AstNode.Context, out var ctxProp))
         {
             return ResolveContextValue(ctx, ctxProp.GetString());
         }
@@ -128,14 +128,13 @@ public class FormulaEngine : IFormulaEngine
     private async Task<decimal> EvaluateAggregateAsync(
         FormulaEvaluationContext ctx, JsonElement node)
     {
-        var aggType = node.GetProperty("aggregate").GetString()!; // SUM, AVG, COUNT
-        var source = node.GetProperty("source").GetString()!;     // revenues, costs, gl_entries, stock_movements
-        var field = node.GetProperty("field").GetString()!;       // Amount, DebitAmount, CreditAmount...
-        var scope = node.TryGetProperty("scope", out var s) ? s.GetString() : "location";
+        var aggType = node.GetProperty(AstNode.Aggregate).GetString()!;
+        var source = node.GetProperty(AstNode.Source).GetString()!;
+        var field = node.GetProperty(AstNode.Field).GetString()!;
 
         // Build filter from JSON
         var filters = new Dictionary<string, string>();
-        if (node.TryGetProperty("filter", out var filterNode))
+        if (node.TryGetProperty(AstNode.Filter, out var filterNode))
         {
             foreach (var prop in filterNode.EnumerateObject())
             {
@@ -146,17 +145,15 @@ public class FormulaEngine : IFormulaEngine
             }
         }
 
-        // Period filter for stock movements
-        var periodFilter = node.TryGetProperty("periodFilter", out var pf) ? pf.GetString() : "current";
-        var sign = node.TryGetProperty("sign", out var sg) ? sg.GetString() : null;
+        var periodFilter = node.TryGetProperty(AstNode.PeriodFilter, out var pf) ? pf.GetString() : PeriodFilter.Current;
+        var sign = node.TryGetProperty(AstNode.Sign, out var sg) ? sg.GetString() : null;
 
-        // Query data based on source
         return source switch
         {
-            "revenues" => await AggregateRevenuesAsync(ctx, aggType, field, filters),
-            "costs" => await AggregateCostsAsync(ctx, aggType, field, filters),
-            "gl_entries" => await AggregateGLAsync(ctx, aggType, field, filters),
-            "stock_movements" => await AggregateStockMovementsAsync(ctx, aggType, field, filters, periodFilter, sign),
+            AggSource.Revenues => await AggregateRevenuesAsync(ctx, aggType, field, filters),
+            AggSource.Costs => await AggregateCostsAsync(ctx, aggType, field, filters),
+            AggSource.GlEntries => await AggregateGLAsync(ctx, aggType, field, filters),
+            AggSource.StockMovements => await AggregateStockMovementsAsync(ctx, aggType, field, filters, periodFilter, sign),
             _ => 0m
         };
     }
@@ -166,37 +163,12 @@ public class FormulaEngine : IFormulaEngine
         string aggType, string field,
         Dictionary<string, string> filters)
     {
-        var query = new Application.DTOs.Revenue.RevenueQueryParams
-        {
-            BusinessLocationId = ctx.BusinessLocationId,
-            FromDate = ctx.PeriodStart,
-            ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
-
-        // RevenueType filter may contain multiple comma-separated values (e.g. "sale,manual").
-        // RevenueQueryParams only supports a single value, so we filter in-memory for multi-value.
         var revenueTypes = filters.TryGetValue("RevenueType", out var rt)
             ? rt.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : Array.Empty<string>();
 
-        if (revenueTypes.Length == 1)
-            query.RevenueType = revenueTypes[0];
-
-        var (items, _) = await _uow.Revenues.SearchAsync(query);
-        var list = items.Where(r => r.DeletedAt == null).ToList();
-
-        if (revenueTypes.Length > 1)
-            list = list.Where(r => revenueTypes.Contains(r.RevenueType, StringComparer.OrdinalIgnoreCase)).ToList();
-
-        return aggType.ToUpper() switch
-        {
-            "SUM" => list.Sum(r => GetRevenueFieldValue(r, field)),
-            "AVG" => list.Count > 0 ? list.Average(r => GetRevenueFieldValue(r, field)) : 0m,
-            "COUNT" => list.Count,
-            _ => 0m
-        };
+        return await _uow.Revenues.AggregateByLocationAndPeriodAsync(
+            ctx.BusinessLocationId, ctx.PeriodStart, ctx.PeriodEnd, aggType, revenueTypes);
     }
 
     private async Task<decimal> AggregateCostsAsync(
@@ -204,25 +176,8 @@ public class FormulaEngine : IFormulaEngine
         string aggType, string field,
         Dictionary<string, string> filters)
     {
-        var query = new Application.DTOs.Cost.CostQueryParams
-        {
-            BusinessLocationId = ctx.BusinessLocationId,
-            FromDate = ctx.PeriodStart,
-            ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
-
-        var (items, _) = await _uow.Costs.SearchAsync(query);
-        var list = items.Where(c => c.DeletedAt == null).ToList();
-
-        return aggType.ToUpper() switch
-        {
-            "SUM" => list.Sum(c => GetCostFieldValue(c, field)),
-            "AVG" => list.Count > 0 ? list.Average(c => GetCostFieldValue(c, field)) : 0m,
-            "COUNT" => list.Count,
-            _ => 0m
-        };
+        return await _uow.Costs.AggregateByLocationAndPeriodAsync(
+            ctx.BusinessLocationId, ctx.PeriodStart, ctx.PeriodEnd, aggType);
     }
 
     private async Task<decimal> AggregateGLAsync(
@@ -230,30 +185,11 @@ public class FormulaEngine : IFormulaEngine
         string aggType, string field,
         Dictionary<string, string> filters)
     {
-        var query = new Application.DTOs.GeneralLedger.GeneralLedgerQueryParams
-        {
-            BusinessLocationId = ctx.BusinessLocationId,
-            FromDate = ctx.PeriodStart,
-            ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
+        filters.TryGetValue(GlFilterKey.MoneyChannel, out var mc);
+        filters.TryGetValue(GlFilterKey.TransactionType, out var tt);
 
-        if (filters.TryGetValue("MoneyChannel", out var mc))
-            query.MoneyChannels = new List<string> { mc };
-        if (filters.TryGetValue("TransactionType", out var tt))
-            query.TransactionTypes = new List<string> { tt };
-
-        var (items, _) = await _uow.GeneralLedgerEntries.SearchAsync(query);
-        var list = items.Where(e => !e.IsReversal).ToList();
-
-        return aggType.ToUpper() switch
-        {
-            "SUM" => list.Sum(e => GetGLFieldValue(e, field)),
-            "AVG" => list.Count > 0 ? list.Average(e => GetGLFieldValue(e, field)) : 0m,
-            "COUNT" => list.Count,
-            _ => 0m
-        };
+        return await _uow.GeneralLedgerEntries.AggregateByLocationAndPeriodAsync(
+            ctx.BusinessLocationId, ctx.PeriodStart, ctx.PeriodEnd, aggType, field, mc, tt);
     }
 
     private async Task<decimal> AggregateStockMovementsAsync(
@@ -262,59 +198,51 @@ public class FormulaEngine : IFormulaEngine
         Dictionary<string, string> filters,
         string? periodFilter, string? sign)
     {
-        var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
-        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
-
-        // Apply periodFilter
-        IEnumerable<StockMovement> filtered = periodFilter switch
+        // Compute date range at DB level based on periodFilter
+        var (dbFrom, dbTo) = periodFilter switch
         {
-            "before" => allMovements.Where(sm =>
-                DateOnly.FromDateTime(sm.CreatedAt) < ctx.PeriodStart),
-            "current" => allMovements.Where(sm =>
+            PeriodFilter.Before => ((DateOnly?)null, (DateOnly?)ctx.PeriodStart.AddDays(-1)),
+            PeriodFilter.Current => (ctx.PeriodStart, (DateOnly?)ctx.PeriodEnd),
+            _ => ((DateOnly?)null, (DateOnly?)null)
+        };
+
+        long? productId = filters.TryGetValue("ProductId", out var pid) && long.TryParse(pid, out var id)
+            ? id : null;
+
+        var movements = await _uow.StockMovements.GetByLocationAndPeriodAsync(
+            ctx.BusinessLocationId, dbFrom, dbTo, productId);
+
+        // Apply sign filter in-memory (cheap after DB reduced the dataset)
+        var list = sign switch
+        {
+            SignFilter.Positive => movements.Where(sm => sm.Quantity > 0).ToList(),
+            SignFilter.Negative => movements.Where(sm => sm.Quantity < 0).ToList(),
+            _ => movements
+        };
+
+        // TotalValue requires import-time cost - fetch lookup only when needed
+        if (field == "TotalValue")
+        {
+            var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
+
+            decimal GetCostPrice(StockMovement sm)
             {
-                var d = DateOnly.FromDateTime(sm.CreatedAt);
-                return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
-            }),
-            _ => allMovements
-        };
+                if (sm.ReferenceType == StockMovementReferenceType.Import
+                    && sm.ReferenceId.HasValue
+                    && importCostLookup.TryGetValue((sm.ReferenceId.Value, sm.ProductId), out var ic))
+                    return ic;
+                return sm.Product?.CostPrice ?? 0m;
+            }
 
-        // Apply sign filter
-        filtered = sign switch
-        {
-            "positive" => filtered.Where(sm => sm.Quantity > 0),
-            "negative" => filtered.Where(sm => sm.Quantity < 0),
-            _ => filtered
-        };
-
-        // Apply ProductId filter if present (for per-product scope via context)
-        if (filters.TryGetValue("ProductId", out var pid) && long.TryParse(pid, out var productId))
-            filtered = filtered.Where(sm => sm.ProductId == productId);
-
-        var list = filtered.ToList();
-
-        // Resolve import-time cost price for TotalValue (don’t use Product.CostPrice which reflects last-known price)
-        decimal GetCostPrice(StockMovement sm)
-        {
-            if (sm.ReferenceType == StockMovementReferenceType.Import
-                && sm.ReferenceId.HasValue
-                && importCostLookup.TryGetValue((sm.ReferenceId.Value, sm.ProductId), out var ic))
-                return ic;
-            return sm.Product?.CostPrice ?? 0m;
+            var sumVal = list.Sum(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm));
+            var avgVal = list.Count > 0 ? list.Average(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm)) : 0m;
+            return ComputeAgg(aggType, list.Count, sumVal, avgVal);
         }
 
-        return aggType.ToUpper() switch
-        {
-            "SUM" => field == "TotalValue"
-                ? list.Sum(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm))
-                : list.Sum(sm => GetStockFieldValue(sm, field)),
-            "AVG" => list.Count > 0
-                ? (field == "TotalValue"
-                    ? list.Average(sm => Math.Abs(sm.Quantity) * GetCostPrice(sm))
-                    : list.Average(sm => GetStockFieldValue(sm, field)))
-                : 0m,
-            "COUNT" => list.Count,
-            _ => 0m
-        };
+        return ComputeAgg(
+            aggType, list.Count,
+            list.Sum(sm => GetStockFieldValue(sm, field)),
+            list.Count > 0 ? list.Average(sm => GetStockFieldValue(sm, field)) : 0m);
     }
 
     // ────────────────────────────────────────────────────────
@@ -328,7 +256,7 @@ public class FormulaEngine : IFormulaEngine
 
         switch (entity)
         {
-            case "AccountingPeriods":
+            case LookupEntity.AccountingPeriods:
                 var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(
                     ctx.BusinessLocationId, ctx.PeriodId);
                 if (period == null) return 0m;
@@ -339,9 +267,9 @@ public class FormulaEngine : IFormulaEngine
                     _ => 0m
                 };
 
-            case "IndustryTaxRates":
+            case LookupEntity.IndustryTaxRates:
                 var filter = new Dictionary<string, string>();
-                if (lookupNode.TryGetProperty("filter", out var f))
+                if (lookupNode.TryGetProperty(AstNode.Filter, out var f))
                     foreach (var p in f.EnumerateObject())
                         filter[p.Name] = p.Value.GetString() ?? "";
 
@@ -391,14 +319,7 @@ public class FormulaEngine : IFormulaEngine
         var left = await EvaluateElementAsync(ctx, resolved, node.GetProperty("left"));
         var right = await EvaluateElementAsync(ctx, resolved, node.GetProperty("right"));
 
-        return op.ToUpper() switch
-        {
-            "ADD" => left + right,
-            "SUBTRACT" => left - right,
-            "MULTIPLY" => left * right,
-            "DIVIDE" => right != 0 ? left / right : 0m,
-            _ => 0m
-        };
+        return ComputeOp(op, left, right);
     }
 
     // ────────────────────────────────────────────────────────
@@ -418,13 +339,7 @@ public class FormulaEngine : IFormulaEngine
             }
         }
 
-        return fn.ToUpper() switch
-        {
-            "MAX" => args.Count > 0 ? args.Max() : 0m,
-            "MIN" => args.Count > 0 ? args.Min() : 0m,
-            "ABS" => args.Count > 0 ? Math.Abs(args[0]) : 0m,
-            _ => 0m
-        };
+        return ComputeFn(fn, args);
     }
 
     // ────────────────────────────────────────────────────────
@@ -537,22 +452,15 @@ public class FormulaEngine : IFormulaEngine
         }
 
         // 5. Op
-        if (node.TryGetProperty("op", out var opNode))
+        if (node.TryGetProperty(AstNode.Op, out var opNode))
         {
             var op = opNode.GetString()!;
-            var leftTrace = await TraceElementAsync(ctx, resolved, node.GetProperty("left"), counter);
-            var rightTrace = await TraceElementAsync(ctx, resolved, node.GetProperty("right"), counter);
-            var result = op.ToUpper() switch
-            {
-                "ADD" => leftTrace.ResolvedValue + rightTrace.ResolvedValue,
-                "SUBTRACT" => leftTrace.ResolvedValue - rightTrace.ResolvedValue,
-                "MULTIPLY" => leftTrace.ResolvedValue * rightTrace.ResolvedValue,
-                "DIVIDE" => rightTrace.ResolvedValue != 0 ? leftTrace.ResolvedValue / rightTrace.ResolvedValue : 0m,
-                _ => 0m
-            };
+            var leftTrace = await TraceElementAsync(ctx, resolved, node.GetProperty(AstNode.Left), counter);
+            var rightTrace = await TraceElementAsync(ctx, resolved, node.GetProperty(AstNode.Right), counter);
+            var result = ComputeOp(op, leftTrace.ResolvedValue, rightTrace.ResolvedValue);
             return new FormulaTraceNode
             {
-                Step = step, NodeType = "op",
+                Step = step, NodeType = AstNode.Op,
                 Description = $"{op}(left, right)",
                 ResolvedValue = result, Source = "computed",
                 Children = new List<FormulaTraceNode> { leftTrace, rightTrace }
@@ -560,12 +468,12 @@ public class FormulaEngine : IFormulaEngine
         }
 
         // 6. Function
-        if (node.TryGetProperty("fn", out var fnNode))
+        if (node.TryGetProperty(AstNode.Fn, out var fnNode))
         {
             var fn = fnNode.GetString()!;
             var children = new List<FormulaTraceNode>();
             var argValues = new List<decimal>();
-            if (node.TryGetProperty("args", out var argsNode))
+            if (node.TryGetProperty(AstNode.Args, out var argsNode))
             {
                 foreach (var arg in argsNode.EnumerateArray())
                 {
@@ -574,16 +482,10 @@ public class FormulaEngine : IFormulaEngine
                     argValues.Add(childTrace.ResolvedValue);
                 }
             }
-            var result = fn.ToUpper() switch
-            {
-                "MAX" => argValues.Count > 0 ? argValues.Max() : 0m,
-                "MIN" => argValues.Count > 0 ? argValues.Min() : 0m,
-                "ABS" => argValues.Count > 0 ? Math.Abs(argValues[0]) : 0m,
-                _ => 0m
-            };
+            var result = ComputeFn(fn, argValues);
             return new FormulaTraceNode
             {
-                Step = step, NodeType = "fn",
+                Step = step, NodeType = AstNode.Fn,
                 Description = $"{fn}({string.Join(", ", argValues)})",
                 ResolvedValue = result, Source = "computed",
                 Children = children
@@ -591,38 +493,32 @@ public class FormulaEngine : IFormulaEngine
         }
 
         // 7. Context
-        if (node.TryGetProperty("context", out var ctxNode))
+        if (node.TryGetProperty(AstNode.Context, out var ctxNode))
         {
             var ctxKey = ctxNode.GetString();
             var ctxVal = ResolveContextValue(ctx, ctxKey);
             return new FormulaTraceNode
             {
-                Step = step, NodeType = "context",
+                Step = step, NodeType = AstNode.Context,
                 Description = $"Context: {ctxKey}",
                 ResolvedValue = ctxVal, Source = "runtime"
             };
         }
 
         // 8. foreach
-        if (node.TryGetProperty("foreach", out _))
+        if (node.TryGetProperty(AstNode.Foreach, out _))
         {
             var (total, breakdown) = await EvaluateForeachAsync(ctx, resolved, node);
-            var children = new List<FormulaTraceNode>();
-            var childStep = 0;
-            foreach (var (groupKey, groupVal) in breakdown)
+            var children = breakdown.Select(kv => new FormulaTraceNode
             {
-                childStep++;
-                children.Add(new FormulaTraceNode
-                {
-                    Step = counter.Next(), NodeType = "foreach_group",
-                    Description = $"Group {groupKey}",
-                    ResolvedValue = groupVal, Source = $"BusinessTypeId={groupKey}"
-                });
-            }
+                Step = counter.Next(), NodeType = "foreach_group",
+                Description = $"Group {kv.Key}",
+                ResolvedValue = kv.Value, Source = $"BusinessTypeId={kv.Key}"
+            }).ToList();
             return new FormulaTraceNode
             {
-                Step = step, NodeType = "foreach",
-                Description = $"foreach({node.GetProperty("foreach").GetString()}) → {(node.TryGetProperty("reduce", out var red) ? red.GetString() : "SUM")}",
+                Step = step, NodeType = AstNode.Foreach,
+                Description = $"foreach({node.GetProperty(AstNode.Foreach).GetString()}) → {(node.TryGetProperty(AstNode.Reduce, out var red) ? red.GetString() : ReduceType.Sum)}",
                 ResolvedValue = total, Source = "iteration",
                 Children = children.Count > 0 ? children : null,
                 Debug = breakdown.Count == 0 ? "No groups found" : null
@@ -678,16 +574,15 @@ public class FormulaEngine : IFormulaEngine
         Dictionary<string, decimal> resolved,
         JsonElement node)
     {
-        var dimension = node.GetProperty("foreach").GetString()!; // "industry"
-        var source = node.GetProperty("source").GetString()!;     // "revenues", "costs"
-        var field = node.GetProperty("field").GetString()!;       // "Amount"
-        var reduce = node.TryGetProperty("reduce", out var r) ? r.GetString()! : "SUM";
-        var applyNode = node.GetProperty("apply");
+        var source = node.GetProperty(AstNode.Source).GetString()!;
+        var field = node.GetProperty(AstNode.Field).GetString()!;
+        var reduce = node.TryGetProperty(AstNode.Reduce, out var r) ? r.GetString()! : ReduceType.Sum;
+        var applyNode = node.GetProperty(AstNode.Apply);
 
         // Optional cost source for profit-based formulas
-        var hasCostSource = node.TryGetProperty("costSource", out var costSrcProp);
+        var hasCostSource = node.TryGetProperty(AstNode.CostSource, out var costSrcProp);
         var costSource = hasCostSource ? costSrcProp.GetString() : null;
-        var costField = node.TryGetProperty("costField", out var cf) ? cf.GetString()! : "Amount";
+        var costField = node.TryGetProperty(AstNode.CostField, out var cf) ? cf.GetString()! : "Amount";
 
         // Load grouped amounts
         var revenueByGroup = await LoadGroupedAmountsAsync(ctx, source, field);
@@ -698,10 +593,10 @@ public class FormulaEngine : IFormulaEngine
         var totalAmount = revenueByGroup.Values.Sum();
 
         // Optional threshold check (legacy — kept for backward compatibility)
-        if (node.TryGetProperty("threshold", out var thresholdNode))
+        if (node.TryGetProperty(AstNode.Threshold, out var thresholdNode))
         {
-            var minValue = thresholdNode.GetProperty("min").GetDecimal();
-            var elseValue = thresholdNode.TryGetProperty("elseValue", out var ev) ? ev.GetDecimal() : 0m;
+            var minValue = thresholdNode.GetProperty(AstNode.Min).GetDecimal();
+            var elseValue = thresholdNode.TryGetProperty(AstNode.ElseValue, out var ev) ? ev.GetDecimal() : 0m;
 
             if (totalAmount <= minValue)
             {
@@ -715,12 +610,12 @@ public class FormulaEngine : IFormulaEngine
         // The apply expression uses {context: "group_deduction"} to access this value.
         var deductionAmount = 0m;
         string? deductionTargetGroupKey = null;
-        if (node.TryGetProperty("deduction", out var deductionNode))
+        if (node.TryGetProperty(AstNode.Deduction, out var deductionNode))
         {
-            deductionAmount = deductionNode.GetProperty("amount").GetDecimal();
-            var target = deductionNode.TryGetProperty("target", out var t) ? t.GetString() : "highest_revenue";
+            deductionAmount = deductionNode.GetProperty(AstNode.Amount).GetDecimal();
+            var target = deductionNode.TryGetProperty(AstNode.Target, out var t) ? t.GetString() : DeductionTarget.HighestRevenue;
 
-            if (target == "highest_revenue" && revenueByGroup.Count > 0)
+            if (target == DeductionTarget.HighestRevenue && revenueByGroup.Count > 0)
             {
                 deductionTargetGroupKey = revenueByGroup.MaxBy(kv => kv.Value).Key;
             }
@@ -766,9 +661,9 @@ public class FormulaEngine : IFormulaEngine
         // Reduce
         var total = reduce.ToUpper() switch
         {
-            "SUM" => groupValues.Sum(),
-            "MAX" => groupValues.Count > 0 ? groupValues.Max() : 0m,
-            "MIN" => groupValues.Count > 0 ? groupValues.Min() : 0m,
+            ReduceType.Sum => groupValues.Sum(),
+            ReduceType.Max => groupValues.Count > 0 ? groupValues.Max() : 0m,
+            ReduceType.Min => groupValues.Count > 0 ? groupValues.Min() : 0m,
             _ => groupValues.Sum()
         };
 
@@ -780,8 +675,8 @@ public class FormulaEngine : IFormulaEngine
     {
         return source switch
         {
-            "revenues" => await LoadRevenueGroupedByBusinessTypeAsync(ctx, field),
-            "costs" => await LoadCostGroupedByBusinessTypeAsync(ctx, field),
+            AggSource.Revenues => await LoadRevenueGroupedByBusinessTypeAsync(ctx, field),
+            AggSource.Costs => await LoadCostGroupedByBusinessTypeAsync(ctx, field),
             _ => new Dictionary<string, decimal>()
         };
     }
@@ -789,39 +684,15 @@ public class FormulaEngine : IFormulaEngine
     private async Task<Dictionary<string, decimal>> LoadRevenueGroupedByBusinessTypeAsync(
         FormulaEvaluationContext ctx, string field)
     {
-        var query = new Application.DTOs.Revenue.RevenueQueryParams
-        {
-            BusinessLocationId = ctx.BusinessLocationId,
-            FromDate = ctx.PeriodStart,
-            ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
-
-        var (items, _) = await _uow.Revenues.SearchAsync(query);
-        return items
-            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
-            .GroupBy(r => r.BusinessTypeId!.Value.ToString())
-            .ToDictionary(g => g.Key, g => g.Sum(x => GetRevenueFieldValue(x, field)));
+        return await _uow.Revenues.SumGroupedByBusinessTypeAsync(
+            ctx.BusinessLocationId, ctx.PeriodStart, ctx.PeriodEnd);
     }
 
     private async Task<Dictionary<string, decimal>> LoadCostGroupedByBusinessTypeAsync(
         FormulaEvaluationContext ctx, string field)
     {
-        var query = new Application.DTOs.Cost.CostQueryParams
-        {
-            BusinessLocationId = ctx.BusinessLocationId,
-            FromDate = ctx.PeriodStart,
-            ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
-            PageSize = int.MaxValue
-        };
-
-        var (items, _) = await _uow.Costs.SearchAsync(query);
-        return items
-            .Where(c => c.DeletedAt == null && c.BusinessTypeId.HasValue)
-            .GroupBy(c => c.BusinessTypeId!.Value.ToString())
-            .ToDictionary(g => g.Key, g => g.Sum(x => GetCostFieldValue(x, field)));
+        return await _uow.Costs.SumGroupedByBusinessTypeAsync(
+            ctx.BusinessLocationId, ctx.PeriodStart, ctx.PeriodEnd);
     }
 
     // ────────────────────────────────────────────────────────
@@ -831,10 +702,10 @@ public class FormulaEngine : IFormulaEngine
     {
         return key switch
         {
-            "group_amount" => ctx.GroupAmount ?? 0m,
-            "group_cost" => ctx.GroupCost ?? 0m,
-            "group_deduction" => ctx.GroupDeduction ?? 0m,
-            "total_amount" => ctx.TotalAmount ?? 0m,
+            ContextKey.GroupAmount => ctx.GroupAmount ?? 0m,
+            ContextKey.GroupCost => ctx.GroupCost ?? 0m,
+            ContextKey.GroupDeduction => ctx.GroupDeduction ?? 0m,
+            ContextKey.TotalAmount => ctx.TotalAmount ?? 0m,
             _ => 0m
         };
     }
@@ -857,7 +728,7 @@ public class FormulaEngine : IFormulaEngine
                 var root = json.RootElement;
 
                 // Check if root node is a foreach — if so, capture breakdown
-                if (root.TryGetProperty("foreach", out _))
+                if (root.TryGetProperty(AstNode.Foreach, out _))
                 {
                     var (total, breakdown) = await EvaluateForeachAsync(context, results.Values, root);
                     total = ApplyRounding(total, formula);
@@ -884,6 +755,37 @@ public class FormulaEngine : IFormulaEngine
     }
 
     // ────────────────────────────────────────────────────────
+    // SHARED COMPUTE HELPERS (eliminates duplication between evaluate and trace paths)
+    // ────────────────────────────────────────────────────────
+    private static decimal ComputeOp(string op, decimal left, decimal right) =>
+        op.ToUpper() switch
+        {
+            OpType.Add => left + right,
+            OpType.Subtract => left - right,
+            OpType.Multiply => left * right,
+            OpType.Divide => right != 0 ? left / right : 0m,
+            _ => 0m
+        };
+
+    private static decimal ComputeFn(string fn, List<decimal> args) =>
+        fn.ToUpper() switch
+        {
+            FnType.Max => args.Count > 0 ? args.Max() : 0m,
+            FnType.Min => args.Count > 0 ? args.Min() : 0m,
+            FnType.Abs => args.Count > 0 ? Math.Abs(args[0]) : 0m,
+            _ => 0m
+        };
+
+    private static decimal ComputeAgg(string aggType, int count, decimal sum, decimal avg) =>
+        aggType.ToUpper() switch
+        {
+            AggType.Sum => sum,
+            AggType.Avg => avg,
+            AggType.Count => count,
+            _ => 0m
+        };
+
+    // ────────────────────────────────────────────────────────
     // ROUNDING
     // ────────────────────────────────────────────────────────
     private static decimal ApplyRounding(decimal value, FormulaDefinition formula)
@@ -895,9 +797,9 @@ public class FormulaEngine : IFormulaEngine
 
         return formula.RoundingMode switch
         {
-            "floor" => Math.Floor(value * (decimal)Math.Pow(10, precision)) / (decimal)Math.Pow(10, precision),
-            "ceil" => Math.Ceiling(value * (decimal)Math.Pow(10, precision)) / (decimal)Math.Pow(10, precision),
-            "round_half_up" => Math.Round(value, precision, MidpointRounding.AwayFromZero),
+            RoundingMode.Floor => Math.Floor(value * (decimal)Math.Pow(10, precision)) / (decimal)Math.Pow(10, precision),
+            RoundingMode.Ceil => Math.Ceiling(value * (decimal)Math.Pow(10, precision)) / (decimal)Math.Pow(10, precision),
+            RoundingMode.RoundHalfUp => Math.Round(value, precision, MidpointRounding.AwayFromZero),
             _ => Math.Round(value, precision)
         };
     }
