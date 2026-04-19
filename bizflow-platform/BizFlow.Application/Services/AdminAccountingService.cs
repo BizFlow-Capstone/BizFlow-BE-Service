@@ -1011,7 +1011,7 @@ public class AdminAccountingService : IAdminAccountingService
             DisplayName = request.DisplayName.Trim(),
             Description = request.Description,
             Category = request.Category.Trim(),
-            IsActive = true,
+            IsActive = false,
             CreatedByUserId = actorUserId,
             CreatedAt = DateTime.UtcNow
         };
@@ -1055,6 +1055,19 @@ public class AdminAccountingService : IAdminAccountingService
         await _uow.SaveChangesAsync();
 
         return MapMappableEntity(entity);
+    }
+
+    public async Task DeleteMappableEntityAsync(int entityId)
+    {
+        var entity = await _uow.AccountingTemplates.GetMappableEntityWithFieldsAsync(entityId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (entity.IsActive)
+            throw new BadRequestException(MessageKeys.BadRequest,
+                "Cannot delete an active entity. Deactivate it first (set IsActive = false).");
+
+        _uow.AccountingTemplates.RemoveMappableEntity(entity);
+        await _uow.SaveChangesAsync();
     }
 
     // ══════════════════════════════════════════════
@@ -1344,6 +1357,47 @@ public class AdminAccountingService : IAdminAccountingService
             }).ToList();
     }
 
+    public async Task<AdminBusinessTypeDetailDto> CreateBusinessTypeAsync(
+        CreateBusinessTypeRequest request, Guid actorUserId)
+    {
+        var code = request.Code?.Trim() ?? "";
+        if (string.IsNullOrEmpty(code))
+            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+
+        var name = request.Name?.Trim() ?? "";
+        if (string.IsNullOrEmpty(name))
+            throw new BadRequestException(MessageKeys.BadRequest, "Name is required");
+
+        var existing = await _uow.BusinessTypes.GetByCodeAsync(code);
+        if (existing != null)
+            throw new BadRequestException(MessageKeys.BadRequest, $"BusinessType with code '{code}' already exists");
+
+        var bt = new BusinessType
+        {
+            BusinessTypeId = Guid.NewGuid(),
+            Code = code,
+            Name = name,
+            Description = request.Description?.Trim(),
+            Status = BusinessTypeConstants.Active,
+            CreatedBy = actorUserId,
+            ModifiedBy = actorUserId,
+            CreatedAt = DateTime.UtcNow,
+            LastModifiedAt = DateTime.UtcNow
+        };
+
+        await _uow.BusinessTypes.AddAsync(bt);
+        await _uow.SaveChangesAsync();
+
+        return new AdminBusinessTypeDetailDto
+        {
+            BusinessTypeId = bt.BusinessTypeId,
+            Code = bt.Code,
+            Name = bt.Name,
+            Description = bt.Description,
+            Status = bt.Status
+        };
+    }
+
     public async Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(
         Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId)
     {
@@ -1417,13 +1471,14 @@ public class AdminAccountingService : IAdminAccountingService
             throw new BadRequestException(MessageKeys.BadRequest,
                 $"TaxRate must be between {IndustryTaxRateConstants.MinRate} and {IndustryTaxRateConstants.MaxRate} (e.g. 0.10 for 10%)");
 
-        await _uow.BeginTransactionAsync();
-        try
+        List<IndustryTaxRate> savedRates = new();
+
+        await _uow.ExecuteResilientAsync(async ct =>
         {
             var existing = await _uow.TaxRulesets.GetRatesByBusinessTypeAsync(rulesetId, businessTypeId);
             _uow.TaxRulesets.RemoveRates(existing);
 
-            var newRates = request.Rates.Select(item => new IndustryTaxRate
+            savedRates = request.Rates.Select(item => new IndustryTaxRate
             {
                 RulesetId = rulesetId,
                 BusinessTypeId = businessTypeId,
@@ -1432,17 +1487,113 @@ public class AdminAccountingService : IAdminAccountingService
                 Description = item.Description
             }).ToList();
 
-            foreach (var rate in newRates)
+            foreach (var rate in savedRates)
                 _uow.TaxRulesets.AddRate(rate);
+        });
 
-            await _uow.CommitTransactionAsync();
-            return newRates.OrderBy(r => r.TaxType).Select(MapIndustryTaxRate).ToList();
-        }
-        catch
+        return savedRates.OrderBy(r => r.TaxType).Select(MapIndustryTaxRate).ToList();
+    }
+
+    public async Task<AdminTaxRulesetDto> CreateTaxRulesetAsync(
+        CreateTaxRulesetRequest request, Guid actorUserId)
+    {
+        var code = request.Code?.Trim() ?? "";
+        if (string.IsNullOrEmpty(code))
+            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+
+        var name = request.Name?.Trim() ?? "";
+        if (string.IsNullOrEmpty(name))
+            throw new BadRequestException(MessageKeys.BadRequest, "Name is required");
+
+        var version = request.Version?.Trim() ?? "";
+        if (string.IsNullOrEmpty(version))
+            throw new BadRequestException(MessageKeys.BadRequest, "Version is required");
+
+        if (request.EffectiveTo.HasValue && request.EffectiveTo.Value <= request.EffectiveFrom)
+            throw new BadRequestException(MessageKeys.BadRequest, "EffectiveTo must be after EffectiveFrom");
+
+        var ruleset = new TaxRuleset
         {
-            await _uow.RollbackTransactionAsync();
-            throw;
+            Code = code,
+            Name = name,
+            Description = request.Description?.Trim(),
+            Version = version,
+            EffectiveFrom = request.EffectiveFrom,
+            EffectiveTo = request.EffectiveTo,
+            IsActive = false,
+            CreatedByUserId = actorUserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _uow.ExecuteResilientAsync(async ct =>
+        {
+            await _uow.TaxRulesets.AddAsync(ruleset);
+            await _uow.SaveChangesAsync(ct);
+
+            // Clone rates from source ruleset if requested
+            if (request.CloneFromRulesetId.HasValue)
+            {
+                var source = await _uow.TaxRulesets.GetByIdWithRulesAsync(request.CloneFromRulesetId.Value)
+                    ?? throw new BadRequestException(MessageKeys.BadRequest,
+                        $"Source ruleset {request.CloneFromRulesetId.Value} not found");
+
+                foreach (var srcRate in source.IndustryTaxRates)
+                {
+                    _uow.TaxRulesets.AddRate(new IndustryTaxRate
+                    {
+                        RulesetId = ruleset.RulesetId,
+                        BusinessTypeId = srcRate.BusinessTypeId,
+                        TaxType = srcRate.TaxType,
+                        TaxRate = srcRate.TaxRate,
+                        Description = srcRate.Description
+                    });
+                }
+            }
+        });
+
+        // Re-fetch to populate navigation for mapper
+        var created = await _uow.TaxRulesets.GetByIdWithRulesAsync(ruleset.RulesetId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+        return MapTaxRuleset(created);
+    }
+
+    public async Task<AdminTaxRulesetDto> UpdateTaxRulesetAsync(
+        int rulesetId, UpdateTaxRulesetRequest request)
+    {
+        var ruleset = await _uow.TaxRulesets.GetByIdWithRulesAsync(rulesetId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        if (request.Name != null)
+        {
+            var name = request.Name.Trim();
+            if (string.IsNullOrEmpty(name))
+                throw new BadRequestException(MessageKeys.BadRequest, "Name cannot be empty");
+            ruleset.Name = name;
         }
+
+        if (request.Description != null)
+            ruleset.Description = request.Description;
+
+        if (request.Version != null)
+        {
+            var version = request.Version.Trim();
+            if (string.IsNullOrEmpty(version))
+                throw new BadRequestException(MessageKeys.BadRequest, "Version cannot be empty");
+            ruleset.Version = version;
+        }
+
+        if (request.EffectiveFrom.HasValue)
+            ruleset.EffectiveFrom = request.EffectiveFrom.Value;
+
+        if (request.EffectiveTo.HasValue)
+            ruleset.EffectiveTo = request.EffectiveTo.Value;
+
+        if (ruleset.EffectiveTo.HasValue && ruleset.EffectiveTo.Value <= ruleset.EffectiveFrom)
+            throw new BadRequestException(MessageKeys.BadRequest, "EffectiveTo must be after EffectiveFrom");
+
+        _uow.TaxRulesets.Update(ruleset);
+        await _uow.SaveChangesAsync();
+        return MapTaxRuleset(ruleset);
     }
 
     // ══════════════════════════════════════════════

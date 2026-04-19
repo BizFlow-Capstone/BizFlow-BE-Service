@@ -200,6 +200,11 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
         _context.Set<MappableEntity>().Update(entity);
     }
 
+    public void RemoveMappableEntity(MappableEntity entity)
+    {
+        _context.Set<MappableEntity>().Remove(entity);
+    }
+
     // ── MappableFields ──
 
     public async Task<MappableField?> GetMappableFieldByIdAsync(int fieldId)

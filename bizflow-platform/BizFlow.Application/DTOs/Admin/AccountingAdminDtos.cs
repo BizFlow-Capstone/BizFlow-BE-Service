@@ -376,11 +376,38 @@ public class AdminIndustryTaxRateDto
     public string? Description { get; set; }
 }
 
+public class CreateBusinessTypeRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
 public class UpdateBusinessTypeRequest
 {
     public string? Name { get; set; }
     public string? Description { get; set; }
     public string? Status { get; set; }
+}
+
+public class CreateTaxRulesetRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Version { get; set; } = string.Empty;
+    public DateOnly EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    public int? CloneFromRulesetId { get; set; }
+}
+
+public class UpdateTaxRulesetRequest
+{
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public string? Version { get; set; }
+    public DateOnly? EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
 }
 
 public class UpsertIndustryTaxRateItem

@@ -1,3 +1,4 @@
+
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
@@ -271,6 +272,15 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataUpdatedSuccessfully);
     }
 
+    [HttpDelete("mappable-entities/{entityId:int}")]
+    [SwaggerOperation(Summary = "Delete inactive mappable entity (Admin only)")]
+    public async Task<IActionResult> DeleteMappableEntity(int entityId)
+    {
+        EnsureAdminOnly();
+        await _adminAccountingService.DeleteMappableEntityAsync(entityId);
+        return Ok(MessageKeys.DataDeletedSuccessfully);
+    }
+
     // ── MappableFields ──
 
     [HttpPost("mappable-entities/{entityId:int}/fields")]
@@ -371,6 +381,15 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpPost("business-types")]
+    [SwaggerOperation(Summary = "Create a new business type (Admin only)")]
+    public async Task<IActionResult> CreateBusinessType([FromBody] CreateBusinessTypeRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateBusinessTypeAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
     [HttpPatch("business-types/{businessTypeId:guid}")]
     [SwaggerOperation(Summary = "Update business type metadata (name, description, status)")]
     public async Task<IActionResult> UpdateBusinessType(Guid businessTypeId, [FromBody] UpdateBusinessTypeRequest request)
@@ -386,6 +405,26 @@ public class AdminAccountingController : BaseApiController
     {
         EnsureAdminOnly();
         var result = await _adminAccountingService.UpsertIndustryTaxRatesAsync(rulesetId, businessTypeId, request);
+        return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+    }
+
+    // ── TaxRuleset CRUD ──
+
+    [HttpPost("rulesets")]
+    [SwaggerOperation(Summary = "Create a new tax ruleset (Admin only)")]
+    public async Task<IActionResult> CreateTaxRuleset([FromBody] CreateTaxRulesetRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.CreateTaxRulesetAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
+    [HttpPatch("rulesets/{rulesetId:int}")]
+    [SwaggerOperation(Summary = "Update tax ruleset metadata (Admin only)")]
+    public async Task<IActionResult> UpdateTaxRuleset(int rulesetId, [FromBody] UpdateTaxRulesetRequest request)
+    {
+        EnsureAdminOnly();
+        var result = await _adminAccountingService.UpdateTaxRulesetAsync(rulesetId, request);
         return Ok(result, MessageKeys.DataUpdatedSuccessfully);
     }
 

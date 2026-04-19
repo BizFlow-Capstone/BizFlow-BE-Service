@@ -27,6 +27,18 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync(bt => bt.BusinessTypeId == id);
         }
 
+        public async Task<BusinessType?> GetByCodeAsync(string code)
+        {
+            return await _context.BusinessTypes
+                .FirstOrDefaultAsync(bt => bt.Code == code);
+        }
+
+        public async Task<BusinessType> AddAsync(BusinessType businessType)
+        {
+            await _context.BusinessTypes.AddAsync(businessType);
+            return businessType;
+        }
+
         public void Update(BusinessType businessType)
         {
             _context.BusinessTypes.Update(businessType);
