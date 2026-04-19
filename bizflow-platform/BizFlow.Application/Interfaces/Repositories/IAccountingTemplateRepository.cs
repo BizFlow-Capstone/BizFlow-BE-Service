@@ -34,6 +34,7 @@ public interface IAccountingTemplateRepository
     Task<MappableEntity?> GetMappableEntityByCodeAsync(string entityCode);
     Task AddMappableEntityAsync(MappableEntity entity);
     void UpdateMappableEntity(MappableEntity entity);
+    void RemoveMappableEntity(MappableEntity entity);
 
     // ── MappableFields ──
     Task<MappableField?> GetMappableFieldByIdAsync(int fieldId);

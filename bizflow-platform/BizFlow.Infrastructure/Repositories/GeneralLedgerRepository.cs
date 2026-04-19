@@ -141,5 +141,33 @@ namespace BizFlow.Infrastructure.Repositories
                 x => x.OriginalEntryId,
                 x => (x.ReversalCount, (long?)x.LatestReversalEntryId));
         }
+
+        public async Task<decimal> AggregateByLocationAndPeriodAsync(
+            int locationId, DateOnly from, DateOnly to,
+            string aggType, string field,
+            string? moneyChannel, string? transactionType)
+        {
+            var query = _db.GeneralLedgerEntries
+                .Where(e => e.BusinessLocationId == locationId
+                    && !e.IsReversal
+                    && e.EntryDate >= from
+                    && e.EntryDate <= to);
+
+            if (!string.IsNullOrEmpty(moneyChannel))
+                query = query.Where(e => e.MoneyChannel == moneyChannel);
+
+            if (!string.IsNullOrEmpty(transactionType))
+                query = query.Where(e => e.TransactionType == transactionType);
+
+            return (aggType.ToUpper(), field) switch
+            {
+                ("SUM", "DebitAmount") => await query.SumAsync(e => e.DebitAmount),
+                ("SUM", "CreditAmount") => await query.SumAsync(e => e.CreditAmount),
+                ("AVG", "DebitAmount") => await query.AnyAsync() ? await query.AverageAsync(e => e.DebitAmount) : 0m,
+                ("AVG", "CreditAmount") => await query.AnyAsync() ? await query.AverageAsync(e => e.CreditAmount) : 0m,
+                ("COUNT", _) => await query.CountAsync(),
+                _ => 0m
+            };
+        }
     }
 }

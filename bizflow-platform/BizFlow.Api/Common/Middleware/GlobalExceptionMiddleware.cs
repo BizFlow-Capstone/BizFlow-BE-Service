@@ -30,6 +30,15 @@ public class GlobalExceptionMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Client disconnected before the response was sent — not an application error.
+            _logger.LogDebug("Request was cancelled by the client: {Method} {Path}", context.Request.Method, context.Request.Path);
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 499; // Client Closed Request
+            }
+        }
         catch (Exception ex)
         {
             await HandleExceptionAsync(context, ex, messageService);

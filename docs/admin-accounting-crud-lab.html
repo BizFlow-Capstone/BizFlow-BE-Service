@@ -102,6 +102,7 @@
         <div class="tab" onclick="switchTab('tabTrace',this)">🔍 Trace</div>
         <div class="tab" onclick="switchTab('tabSchema',this)">🧩 Schema</div>
         <div class="tab" onclick="switchTab('tabBizType',this)">🏢 BusinessTypes</div>
+        <div class="tab" onclick="switchTab('tabRuleset',this)">📜 Rulesets</div>
     </div>
 
     <!-- ═══ TAB: Overview ═══ -->
@@ -493,6 +494,21 @@
                 </div>
             </div>
 
+            <!-- Create BusinessType -->
+            <details style="margin-top:8px;">
+                <summary>➕ Create New BusinessType</summary>
+                <div class="sub-panel">
+                    <div class="inline-form">
+                        <div><label>Code <span style="color:var(--err)">*</span></label><input id="btNewCode" placeholder="e.g. ban_le" /></div>
+                        <div><label>Name <span style="color:var(--err)">*</span></label><input id="btNewName" placeholder="e.g. Bán lẻ hàng hóa" /></div>
+                        <div><label>Description</label><input id="btNewDesc" placeholder="Optional" /></div>
+                    </div>
+                    <div class="actions" style="margin-top:6px;">
+                        <button class="ok" onclick="btCreate()">➕ Create BusinessType</button>
+                    </div>
+                </div>
+            </details>
+
             <!-- Upsert Tax Rates -->
             <div class="sub-panel" style="margin-top:8px;">
                 <h3>Upsert Tax Rates</h3>
@@ -505,6 +521,64 @@
                 </div>
                 <div id="btRatesResult" class="log" style="margin-top:8px;min-height:40px;max-height:150px;"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- ═══ TAB: Rulesets ═══ -->
+    <div id="tabRuleset" class="tab-content">
+        <div class="card">
+            <h2>📜 Tax Ruleset Manager</h2>
+            <div class="muted" style="margin-bottom:8px;">Quản lý bộ quy tắc thuế (TaxRuleset). Mỗi khi có thông tư mới, tạo ruleset mới → clone rates → activate.</div>
+
+            <!-- Rulesets table (loaded from overview) -->
+            <div class="table-wrap" style="max-height:200px;">
+                <table>
+                    <thead><tr><th>ID</th><th>Code</th><th>Name</th><th>Version</th><th>Active</th><th>From</th><th>To</th><th>Groups</th><th>Rates</th><th>Books</th><th>Action</th></tr></thead>
+                    <tbody id="rsTable"><tr><td colspan="11" class="muted">Load Overview first</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- Create Ruleset -->
+            <details style="margin-top:8px;" open>
+                <summary>➕ Create New TaxRuleset</summary>
+                <div class="sub-panel">
+                    <div class="inline-form">
+                        <div><label>Code <span style="color:var(--err)">*</span></label><input id="rsNewCode" placeholder="e.g. TT152-2025" /></div>
+                        <div><label>Name <span style="color:var(--err)">*</span></label><input id="rsNewName" placeholder="e.g. Thông tư 152/2025" /></div>
+                        <div><label>Version <span style="color:var(--err)">*</span></label><input id="rsNewVersion" placeholder="e.g. 1.0" /></div>
+                        <div><label>Effective From <span style="color:var(--err)">*</span></label><input id="rsNewFrom" type="date" /></div>
+                        <div><label>Effective To</label><input id="rsNewTo" type="date" /></div>
+                        <div><label>Clone Rates From Ruleset ID</label><input id="rsCloneFrom" type="number" placeholder="Optional" /></div>
+                    </div>
+                    <div><label>Description</label><input id="rsNewDesc" placeholder="Optional description" style="margin-top:4px;" /></div>
+                    <div class="actions" style="margin-top:6px;">
+                        <button class="ok" onclick="rsCreate()">➕ Create Ruleset</button>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Edit Ruleset -->
+            <details style="margin-top:8px;">
+                <summary>✏️ Edit TaxRuleset</summary>
+                <div class="sub-panel">
+                    <input id="rsEditId" type="hidden" />
+                    <div class="inline-form">
+                        <div><label>Ruleset ID</label><input id="rsEditIdDisplay" readonly style="background:#0a1022;" /></div>
+                        <div><label>Name</label><input id="rsEditName" /></div>
+                        <div><label>Version</label><input id="rsEditVersion" /></div>
+                        <div><label>Effective From</label><input id="rsEditFrom" type="date" /></div>
+                        <div><label>Effective To</label><input id="rsEditTo" type="date" /></div>
+                    </div>
+                    <div><label>Description</label><input id="rsEditDesc" style="margin-top:4px;" /></div>
+                    <div class="actions" style="margin-top:6px;">
+                        <button class="ok" onclick="rsUpdate()">💾 Update Ruleset</button>
+                        <button class="ok" onclick="rsActivate()">✅ Activate</button>
+                        <button class="alt" onclick="rsDeactivate()">⏸️ Deactivate</button>
+                    </div>
+                </div>
+            </details>
+
+            <div id="rsResult" class="log" style="margin-top:8px;min-height:40px;max-height:200px;"></div>
         </div>
     </div>
 
@@ -568,6 +642,7 @@ async function loadOverview(){
     // BizTypes
     h=''; (d.businessTypes||[]).forEach(b=>h+=`<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td class=muted style=font-size:9px>${(b.businessTypeId||'').substring(0,8)}…</td></tr>`);
     $('ovBizTypes').innerHTML=h||'<tr><td colspan=3>—</td></tr>';
+    rsRenderTable();
 }
 function goVersion(id){ $('tvId').value=id; $('fldVer').value=id; $('rdVer').value=id; switchTab('tabVersion',document.querySelectorAll('.tab')[1]); tvDetail(); }
 function goFormula(id){ $('fmId').value=id; $('trFId').value=id; switchTab('tabFormula',document.querySelectorAll('.tab')[2]); fmDetail(); }
@@ -868,6 +943,100 @@ async function btUpsertRates(){
     }catch(e){
         alert('❌ '+e.message);
     }
+}
+
+async function btCreate(){
+    const code=$('btNewCode').value.trim();
+    const name=$('btNewName').value.trim();
+    if(!code||!name) return alert('Code and Name are required');
+    const b={code,name};
+    if($('btNewDesc').value.trim()) b.description=$('btNewDesc').value.trim();
+    try{
+        const d=await api('POST','/api/admin/accounting/business-types',b);
+        alert(`✅ Created: ${d.code} — ${d.name}`);
+        $('btNewCode').value=''; $('btNewName').value=''; $('btNewDesc').value='';
+        if($('btRulesetId').value) btLoad();
+    }catch(e){ /* alert handled by api() */ }
+}
+
+// ═══ TaxRuleset CRUD ═══
+function rsRenderTable(){
+    if(!_ov||!_ov.taxRulesets) return;
+    let h='';
+    _ov.taxRulesets.forEach(r=>{
+        h+=`<tr class=clickable onclick="rsPick(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+            <td>${r.rulesetId}</td><td><b>${esc(r.code)}</b></td><td>${esc(r.name)}</td><td>${esc(r.version)}</td>
+            <td>${r.isActive?'✅':'❌'}</td><td>${r.effectiveFrom||'—'}</td><td>${r.effectiveTo||'—'}</td>
+            <td>${r.groupRuleCount}</td><td>${r.industryRateCount}</td><td>${r.bookCount}</td>
+            <td><button class=copy-btn onclick="event.stopPropagation();rsPick(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button></td>
+        </tr>`;
+    });
+    $('rsTable').innerHTML=h||'<tr><td colspan=11 class=muted>—</td></tr>';
+}
+
+function rsPick(r){
+    $('rsEditId').value=r.rulesetId;
+    $('rsEditIdDisplay').value=r.rulesetId;
+    $('rsEditName').value=r.name||'';
+    $('rsEditVersion').value=r.version||'';
+    $('rsEditFrom').value=r.effectiveFrom||'';
+    $('rsEditTo').value=r.effectiveTo||'';
+    $('rsEditDesc').value=r.description||'';
+}
+
+async function rsCreate(){
+    const code=$('rsNewCode').value.trim();
+    const name=$('rsNewName').value.trim();
+    const version=$('rsNewVersion').value.trim();
+    const from=$('rsNewFrom').value;
+    if(!code||!name||!version||!from) return alert('Code, Name, Version, EffectiveFrom are required');
+    const b={code,name,version,effectiveFrom:from};
+    if($('rsNewTo').value) b.effectiveTo=$('rsNewTo').value;
+    if($('rsNewDesc').value.trim()) b.description=$('rsNewDesc').value.trim();
+    if($('rsCloneFrom').value) b.cloneFromRulesetId=parseInt($('rsCloneFrom').value);
+    try{
+        const d=await api('POST','/api/admin/accounting/rulesets',b);
+        jn('rsResult',d);
+        alert(`✅ Created Ruleset #${d.rulesetId}: ${d.code}`);
+        $('rsNewCode').value=''; $('rsNewName').value=''; $('rsNewVersion').value=''; $('rsNewFrom').value=''; $('rsNewTo').value=''; $('rsNewDesc').value=''; $('rsCloneFrom').value='';
+        await loadOverview(); rsRenderTable();
+    }catch(e){ /* handled */ }
+}
+
+async function rsUpdate(){
+    const id=$('rsEditId').value;
+    if(!id) return alert('Select a ruleset first');
+    const b={};
+    if($('rsEditName').value) b.name=$('rsEditName').value;
+    if($('rsEditDesc').value) b.description=$('rsEditDesc').value;
+    if($('rsEditVersion').value) b.version=$('rsEditVersion').value;
+    if($('rsEditFrom').value) b.effectiveFrom=$('rsEditFrom').value;
+    if($('rsEditTo').value) b.effectiveTo=$('rsEditTo').value;
+    try{
+        const d=await api('PATCH',`/api/admin/accounting/rulesets/${id}`,b);
+        jn('rsResult',d);
+        alert('✅ Updated'); await loadOverview(); rsRenderTable();
+    }catch(e){ /* handled */ }
+}
+
+async function rsActivate(){
+    const id=$('rsEditId').value;
+    if(!id) return alert('Select a ruleset first');
+    try{
+        const d=await api('POST',`/api/admin/accounting/rulesets/${id}/activate`);
+        jn('rsResult',d);
+        alert('✅ Activated'); await loadOverview(); rsRenderTable();
+    }catch(e){ /* handled */ }
+}
+
+async function rsDeactivate(){
+    const id=$('rsEditId').value;
+    if(!id) return alert('Select a ruleset first');
+    try{
+        const d=await api('POST',`/api/admin/accounting/rulesets/${id}/deactivate`);
+        jn('rsResult',d);
+        alert('✅ Deactivated'); await loadOverview(); rsRenderTable();
+    }catch(e){ /* handled */ }
 }
 </script>
 </body>

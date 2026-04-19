@@ -45,6 +45,7 @@ public interface IAdminAccountingService
     Task<AdminMappableEntityDetailDto> GetMappableEntityDetailAsync(int entityId);
     Task<AdminMappableEntityDto> CreateMappableEntityAsync(CreateMappableEntityRequest request, Guid actorUserId);
     Task<AdminMappableEntityDto> UpdateMappableEntityAsync(int entityId, UpdateMappableEntityRequest request);
+    Task DeleteMappableEntityAsync(int entityId);
 
     // ── MappableFields CRUD ──
     Task<AdminMappableFieldDto> CreateMappableFieldAsync(int entityId, CreateMappableFieldRequest request);
@@ -65,6 +66,11 @@ public interface IAdminAccountingService
 
     // ── BusinessTypes + IndustryTaxRates Admin ──
     Task<List<AdminBusinessTypesWithRatesDto>> GetBusinessTypesWithRatesAsync(int rulesetId);
+    Task<AdminBusinessTypeDetailDto> CreateBusinessTypeAsync(CreateBusinessTypeRequest request, Guid actorUserId);
     Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId);
     Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request);
+
+    // ── TaxRuleset CRUD ──
+    Task<AdminTaxRulesetDto> CreateTaxRulesetAsync(CreateTaxRulesetRequest request, Guid actorUserId);
+    Task<AdminTaxRulesetDto> UpdateTaxRulesetAsync(int rulesetId, UpdateTaxRulesetRequest request);
 }

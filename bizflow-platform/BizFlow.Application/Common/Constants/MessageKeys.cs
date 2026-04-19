@@ -110,6 +110,13 @@ namespace BizFlow.Application.Common.Constants
         public const string AdminForgotPasswordNotAllowed = "AUTH_ADMIN_FORGOT_PASSWORD_NOT_ALLOWED";
 
         public const string ConsultantCannotLinkPhone = "AUTH_CONSULTANT_CANNOT_LINK_PHONE";
+
+
+        /// <summary>Admin created a consultant account (welcome email sent or attempted).</summary>
+        public const string GoogleAlreadyLinked = "AUTH_GOOGLE_ALREADY_LINKED";
+        public const string GoogleAlreadyExists = "AUTH_GOOGLE_ALREADY_EXISTS";
+        public const string GoogleLinkSuccess = "AUTH_GOOGLE_LINK_SUCCESS";
+
         public const string ConsultantCreated = "AUTH_CONSULTANT_CREATED";
         public const string ConsultantRoleNotFound = "AUTH_CONSULTANT_ROLE_NOT_FOUND";
         public const string AccountIsNotConsultant = "AUTH_ACCOUNT_IS_NOT_CONSULTANT";

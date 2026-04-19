@@ -3,7 +3,6 @@ using BizFlow.Api.Common.Extensions;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Ai;
-using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,19 +16,19 @@ namespace BizFlow.Api.Controllers.Ai
     {
         private readonly IAiServiceClient _aiServiceClient;
         private readonly IBusinessLocationService _locationService;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IAiDashboardService _aiDashboardService;
 
         public AiController(
             IAiServiceClient aiServiceClient,
             IBusinessLocationService locationService,
-            IUnitOfWork unitOfWork,
+            IAiDashboardService aiDashboardService,
             IMessageService messageService,
             ILogger<AiController> logger)
             : base(messageService, logger)
         {
             _aiServiceClient = aiServiceClient;
             _locationService = locationService;
-            _unitOfWork = unitOfWork;
+            _aiDashboardService = aiDashboardService;
         }
 
         [HttpPost("draft-order")]
@@ -155,22 +154,7 @@ namespace BizFlow.Api.Controllers.Ai
             var userId = GetCurrentUserId();
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
-            var forecasts = await _unitOfWork.AiRevenueForecasts
-                .GetByLocationAsync(locationId.ToString());
-
-            var dto = new AiForecastReadDto
-            {
-                Forecasts = forecasts.Select(f => new AiForecastItemDto
-                {
-                    ForecastDate = f.ForecastDate,
-                    PredictedRevenue = f.PredictedRevenue,
-                    LowerBound = f.LowerBound,
-                    UpperBound = f.UpperBound,
-                    TrendNote = f.TrendNote,
-                    GeneratedAt = f.GeneratedAt,
-                }).ToList()
-            };
-
+            var dto = await _aiDashboardService.GetForecastAsync(locationId);
             return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
         }
 
@@ -185,20 +169,7 @@ namespace BizFlow.Api.Controllers.Ai
             var userId = GetCurrentUserId();
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
-            var suggestions = await _unitOfWork.AiReorderSuggestions
-                .GetByLocationAsync(locationId.ToString());
-
-            var dto = suggestions.Select(r => new AiReorderItemReadDto
-            {
-                ProductId = r.ProductId,
-                CurrentStock = r.CurrentStock,
-                DaysUntilStockout = r.DaysUntilStockout,
-                SuggestedQuantity = r.SuggestedQuantity,
-                AvgDailySales = r.AvgDailySales,
-                Urgency = r.Urgency,
-                GeneratedAt = r.GeneratedAt,
-            }).ToList();
-
+            var dto = await _aiDashboardService.GetReorderSuggestionsAsync(locationId);
             return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
         }
 
@@ -213,19 +184,7 @@ namespace BizFlow.Api.Controllers.Ai
             var userId = GetCurrentUserId();
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
-            var insights = await _unitOfWork.AiProductInsights
-                .GetByLocationAsync(locationId.ToString());
-
-            var dto = insights.Select(i => new AiProductInsightReadDto
-            {
-                ProductId = i.ProductId,
-                InsightType = i.InsightType,
-                Rank = i.Rank,
-                MetricValue = i.MetricValue,
-                PeriodDays = i.PeriodDays,
-                GeneratedAt = i.GeneratedAt,
-            }).ToList();
-
+            var dto = await _aiDashboardService.GetProductInsightsAsync(locationId);
             return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
         }
 
@@ -240,22 +199,7 @@ namespace BizFlow.Api.Controllers.Ai
             var userId = GetCurrentUserId();
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
-            var alerts = await _unitOfWork.AiAnomalyAlerts
-                .GetByLocationAsync(locationId.ToString(), acknowledged);
-
-            var dto = alerts.Select(a => new AiAnomalyAlertReadDto
-            {
-                Id = a.Id,
-                AlertType = a.AlertType,
-                Severity = a.Severity,
-                Tier = a.Tier,
-                ReferenceDate = a.ReferenceDate,
-                Description = a.Description,
-                ReferenceId = a.ReferenceId,
-                IsAcknowledged = a.IsAcknowledged,
-                GeneratedAt = a.GeneratedAt,
-            }).ToList();
-
+            var dto = await _aiDashboardService.GetAnomaliesAsync(locationId, acknowledged);
             return Ok(dto, MessageKeys.DataRetrievedSuccessfully);
         }
 
@@ -271,14 +215,7 @@ namespace BizFlow.Api.Controllers.Ai
             var userId = GetCurrentUserId();
             await _locationService.ValidateLocationAccessAsync(userId, locationId);
 
-            var alert = await _unitOfWork.AiAnomalyAlerts.GetByIdAsync(id);
-            if (alert == null || alert.LocationId != locationId.ToString())
-                return NotFound(MessageKeys.NotFound);
-
-            alert.IsAcknowledged = true;
-            _unitOfWork.AiAnomalyAlerts.Update(alert);
-            await _unitOfWork.SaveChangesAsync();
-
+            await _aiDashboardService.AcknowledgeAnomalyAsync(id, locationId);
             return Ok(MessageKeys.DataUpdatedSuccessfully);
         }
 

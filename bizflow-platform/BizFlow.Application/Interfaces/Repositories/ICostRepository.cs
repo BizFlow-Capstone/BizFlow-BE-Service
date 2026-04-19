@@ -17,5 +17,13 @@ namespace BizFlow.Application.Interfaces.Repositories
             DateOnly fromDate,
             DateOnly toDate,
             CancellationToken cancellationToken = default);
+
+        // ── Formula Engine aggregation (avoids PageSize = int.MaxValue) ──
+        Task<decimal> AggregateByLocationAndPeriodAsync(
+            int locationId, DateOnly from, DateOnly to,
+            string aggType);
+
+        Task<Dictionary<string, decimal>> SumGroupedByBusinessTypeAsync(
+            int locationId, DateOnly from, DateOnly to);
     }
 }

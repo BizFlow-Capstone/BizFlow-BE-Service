@@ -149,6 +149,47 @@ namespace BizFlow.Api.Controllers.Auth
             }
         }
 
+        [HttpPost("link/google")]
+        [Authorize]
+        public async Task<IActionResult> LinkGoogle([FromBody] LinkGoogleRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.IdToken))
+                {
+                    return BadRequest(MessageKeys.ValidationError, new { field = "idToken", message = "Id token is required" });
+                }
+
+                var accountId = GetCurrentAccountId();
+                var result = await _authService.LinkGoogleAsync(accountId, request.IdToken);
+                return Ok(result, MessageKeys.GoogleLinkSuccess);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(MessageKeys.InvalidGoogleToken);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.AccountNotFound);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.GoogleAlreadyLinked)
+            {
+                return Conflict(MessageKeys.GoogleAlreadyLinked);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == MessageKeys.GoogleAlreadyExists)
+            {
+                return Conflict(MessageKeys.GoogleAlreadyExists);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(MessageKeys.ValidationError, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
         /// <summary>Step 1: send OTP to email for forgot-password flow.</summary>
         [HttpPost("forgot-password/send-otp")]
         [AllowAnonymous]
