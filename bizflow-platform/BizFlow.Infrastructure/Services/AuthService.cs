@@ -987,23 +987,15 @@ namespace BizFlow.Infrastructure.Services
                 throw new InvalidOperationException(MessageKeys.AccountIsNotConsultant);
             }
 
-            if (account.IsActive == false || account.DeletedAt != null)
+            var deleted = await _accountHardDeleteService.HardDeleteAccountNowAsync(accountId);
+            if (!deleted)
             {
-                _logger.LogWarning("Admin delete consultant rejected for inactive/deleted account. AccountId={AccountId}", accountId);
-                throw new InvalidOperationException(MessageKeys.AccountInactiveOrDeleted);
+                throw new KeyNotFoundException(MessageKeys.AccountNotFound);
             }
 
-            account.IsActive = false;
-            account.DeletedAt = DateTime.UtcNow;
-            account.UpdatedAt = DateTime.UtcNow;
-
-            var refreshTokensRevoked = await MarkAllRefreshTokensRevokedAsync(accountId);
-            await _db.SaveChangesAsync();
-
             _logger.LogInformation(
-                "Consultant soft-deleted by admin; Hangfire will hard-delete after retention. AccountId={AccountId}, RefreshTokensRevoked={RefreshTokensRevoked}",
-                accountId,
-                refreshTokensRevoked);
+                "Consultant hard-deleted by admin. AccountId={AccountId}",
+                accountId);
         }
 
         public async Task<List<CredentialInfo>> GetCredentialsAsync(Guid accountId)

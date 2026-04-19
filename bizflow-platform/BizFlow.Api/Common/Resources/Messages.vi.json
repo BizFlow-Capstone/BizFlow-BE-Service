@@ -232,6 +232,7 @@
   "SUBSCRIPTION_ACCESS_GRANT_MEMBER_INVALID": "Thành viên không hợp lệ để thu hồi quyền truy cập",
   "SUBSCRIPTION_PLAN_DELETE_HAS_ACTIVE_SUBSCRIPTIONS": "Không thể xóa gói đang có đăng ký hoạt động",
   "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_PRICE": "Không thể kích hoạt gói khi chưa có giá",
+  "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_DESCRIPTION": "Không thể kích hoạt gói khi chưa có mô tả",
   "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_FEATURES": "Không thể kích hoạt gói khi chưa có tính năng",
   "SUBSCRIPTION_PLAN_FEATURE_NOT_FOUND": "Tính năng (FeatureId = {0}) không tồn tại",
   "SUBSCRIPTION_ACTIVATED_TITLE": "Gói dịch vụ đã kích hoạt",

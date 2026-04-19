@@ -263,6 +263,9 @@ namespace BizFlow.Application.Services
                 if (activePrice == null)
                     throw new BadRequestException(MessageKeys.SubscriptionPlanActivateRequiresPrice);
 
+                if (string.IsNullOrWhiteSpace(plan.Description))
+                    throw new BadRequestException(MessageKeys.SubscriptionPlanActivateRequiresDescription);
+
                 if (!plan.PlanFeatures.Any())
                     throw new BadRequestException(MessageKeys.SubscriptionPlanActivateRequiresFeatures);
 
@@ -673,6 +676,7 @@ namespace BizFlow.Application.Services
         private static AdminSubscriptionPlanSummaryDto MapToAdminSummaryDto(SubscriptionPlan plan)
         {
             var activePrice = plan.Prices.FirstOrDefault(p => p.IsActive);
+            var discountActive = activePrice != null && activePrice.IsDiscountPeriodActive();
 
             return new AdminSubscriptionPlanSummaryDto
             {
@@ -681,6 +685,10 @@ namespace BizFlow.Application.Services
                 IsActive = plan.IsActive ?? true,
                 DurationDays = plan.DurationDays,
                 BasePrice = activePrice?.BasePrice,
+                DiscountedPrice = activePrice?.DiscountedPrice,
+                DiscountStart = activePrice?.DiscountStart,
+                DiscountEnd = activePrice?.DiscountEnd,
+                IsDiscountPeriodActive = discountActive,
                 Currency = activePrice?.Currency ?? "VND",
                 CreatedAt = plan.CreatedAt,
                 UpdatedAt = plan.UpdatedAt

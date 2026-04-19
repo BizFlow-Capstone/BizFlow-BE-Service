@@ -8,7 +8,9 @@ namespace BizFlow.Application.DTOs.Subscription
         [MaxLength(100)]
         public string Name { get; set; } = null!;
 
-        public string? Description { get; set; }
+        [Required]
+        [StringLength(5000, MinimumLength = 1)]
+        public string Description { get; set; } = null!;
 
         [Required]
         [Range(1, int.MaxValue)]
@@ -25,7 +27,9 @@ namespace BizFlow.Application.DTOs.Subscription
         [MaxLength(100)]
         public string Name { get; set; } = null!;
 
-        public string? Description { get; set; }
+        [Required]
+        [StringLength(5000, MinimumLength = 1)]
+        public string Description { get; set; } = null!;
 
         [Required]
         [Range(1, int.MaxValue)]

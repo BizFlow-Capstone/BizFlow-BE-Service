@@ -229,6 +229,7 @@
   "SUBSCRIPTION_ACCESS_GRANT_MEMBER_INVALID": "Invalid member for revoking access grant",
   "SUBSCRIPTION_PLAN_DELETE_HAS_ACTIVE_SUBSCRIPTIONS": "Cannot delete a plan that has active subscriptions",
   "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_PRICE": "Cannot activate a plan without a price",
+  "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_DESCRIPTION": "Cannot activate a plan without a description",
   "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_FEATURES": "Cannot activate a plan without features",
   "SUBSCRIPTION_PLAN_FEATURE_NOT_FOUND": "Feature (FeatureId = {0}) does not exist",
   "SUBSCRIPTION_ACTIVATED_TITLE": "Subscription activated",

@@ -55,7 +55,7 @@ public class AdminConsultantsController : BaseApiController
         }
     }
 
-    /// <summary>Soft-delete a consultant account. Only consultant accounts can be deleted via this endpoint.</summary>
+    /// <summary>Hard-delete a consultant account (same purge pipeline as user self-delete). Only consultant accounts can be deleted via this endpoint.</summary>
     [HttpDelete("{accountId:guid}")]
     public async Task<IActionResult> DeleteConsultant(Guid accountId)
     {
@@ -74,10 +74,6 @@ public class AdminConsultantsController : BaseApiController
         catch (InvalidOperationException ex) when (ex.Message == MessageKeys.AccountIsNotConsultant)
         {
             return BadRequest(MessageKeys.AccountIsNotConsultant);
-        }
-        catch (InvalidOperationException ex) when (ex.Message == MessageKeys.AccountInactiveOrDeleted)
-        {
-            return BadRequest(MessageKeys.AccountInactiveOrDeleted);
         }
         catch (Exception ex)
         {

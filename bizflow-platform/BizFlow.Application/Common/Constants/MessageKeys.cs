@@ -244,6 +244,7 @@ namespace BizFlow.Application.Common.Constants
         public const string SubscriptionAccessGrantMemberInvalid = "SUBSCRIPTION_ACCESS_GRANT_MEMBER_INVALID";
         public const string SubscriptionPlanDeleteHasActiveSubscriptions = "SUBSCRIPTION_PLAN_DELETE_HAS_ACTIVE_SUBSCRIPTIONS";
         public const string SubscriptionPlanActivateRequiresPrice = "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_PRICE";
+        public const string SubscriptionPlanActivateRequiresDescription = "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_DESCRIPTION";
         public const string SubscriptionPlanActivateRequiresFeatures = "SUBSCRIPTION_PLAN_ACTIVATE_REQUIRES_FEATURES";
         public const string SubscriptionPlanFeatureNotFound = "SUBSCRIPTION_PLAN_FEATURE_NOT_FOUND";
         public const string SubscriptionActivatedTitle = "SUBSCRIPTION_ACTIVATED_TITLE";

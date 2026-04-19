@@ -115,7 +115,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task<CreateConsultantResponse> CreateConsultantByAdminAsync(string email, string? fullName, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Admin-only: soft-delete a consultant account. Rejects if the target account is not a consultant.
+        /// Admin-only: hard-delete a consultant account (same purge pipeline as user self-delete). Rejects if the target is not a consultant.
         /// </summary>
         Task DeleteConsultantByAdminAsync(Guid accountId);
     }
