@@ -964,7 +964,8 @@ public class BookRenderingService : IBookRenderingService
             "RevenueDate" or "CompletedAt" => row.Values.GetValueOrDefault("RevenueDate") ?? row.Date,
             "Amount" or "TotalAmount" or "CostAmount" => row.Values.GetValueOrDefault("Amount"),
             "Description" or "CostDescription" => row.Values.GetValueOrDefault("Description"),
-            "OrderId" or "OrderCode" => row.Values.GetValueOrDefault("OrderId"),
+            "OrderId" => row.Values.GetValueOrDefault("OrderId"),
+            "OrderCode" => row.Values.GetValueOrDefault("OrderCode"),
             "RevenueType" => row.Values.GetValueOrDefault("RevenueType"),
             "BusinessTypeId" => row.Values.GetValueOrDefault("BusinessTypeId"),
 
