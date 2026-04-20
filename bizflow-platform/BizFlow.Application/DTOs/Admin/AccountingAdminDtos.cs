@@ -65,13 +65,30 @@ public class AdminTemplateFieldMappingDto
     public string FieldLabel { get; set; } = string.Empty;
     public string FieldType { get; set; } = string.Empty;
     public string? SourceType { get; set; }
+
+    // Source entity/field — IDs + resolved codes for UI display
     public int? SourceEntityId { get; set; }
+    public string? SourceEntityCode { get; set; }
+    public string? SourceEntityDisplayName { get; set; }
     public int? SourceFieldId { get; set; }
+    public string? SourceFieldCode { get; set; }
+    public string? SourceFieldDisplayName { get; set; }
+
     public string? FilterJson { get; set; }
     public string? AggregationType { get; set; }
+
+    // Formula — ID + resolved code/name
     public long? FormulaId { get; set; }
+    public string? FormulaCode { get; set; }
+    public string? FormulaName { get; set; }
     public string? FormulaExpression { get; set; }
+    public string? DependsOn { get; set; }
+    public int? CalculationOrder { get; set; }
+
+    // Export / rendering
+    public string? ExportColumn { get; set; }
     public int SortOrder { get; set; }
+    public bool IsRequired { get; set; }
 }
 
 public class AdminTaxRulesetDto
@@ -442,6 +459,17 @@ public class CreateFieldMappingRequest
 
 // ── Full structure ──
 
+/// <summary>
+/// Columns split by source type for the full-structure admin view.
+/// DataColumns = query/static/auto fields (actual data rows).
+/// FormulaColumns = computed/formula fields (aggregates, tax lines, totals).
+/// </summary>
+public class AdminColumnGroupDto
+{
+    public List<AdminTemplateFieldMappingDto> DataColumns { get; set; } = new();
+    public List<AdminTemplateFieldMappingDto> FormulaColumns { get; set; } = new();
+}
+
 public class AdminFullStructureDto
 {
     public int TemplateVersionId { get; set; }
@@ -449,8 +477,18 @@ public class AdminFullStructureDto
     public string TemplateName { get; set; } = string.Empty;
     public string VersionLabel { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public DateOnly? EffectiveFrom { get; set; }
+    public string? ChangeNotes { get; set; }
+
+    /// <summary>All field mappings (flat, ordered by SortOrder) — enriched with resolved source names.</summary>
     public List<AdminTemplateFieldMappingDto> FieldMappings { get; set; } = new();
+
+    /// <summary>Same columns split into data vs formula groups for UI layout.</summary>
+    public AdminColumnGroupDto Columns { get; set; } = new();
+
     public List<AdminRowDefinitionDto> RowDefinitions { get; set; } = new();
+
+    /// <summary>Human-readable rendering flow description (no real data, structure only).</summary>
     public string RenderPreview { get; set; } = string.Empty;
 }
 
