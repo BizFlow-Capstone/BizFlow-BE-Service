@@ -72,12 +72,22 @@ public class AdminAccountingService : IAdminAccountingService
                     FieldType = m.FieldType,
                     SourceType = m.SourceType,
                     SourceEntityId = m.SourceEntityId,
+                    SourceEntityCode = m.SourceEntity?.EntityCode,
+                    SourceEntityDisplayName = m.SourceEntity?.DisplayName,
                     SourceFieldId = m.SourceFieldId,
+                    SourceFieldCode = m.SourceField?.FieldCode,
+                    SourceFieldDisplayName = m.SourceField?.DisplayName,
                     FilterJson = m.FilterJson,
                     AggregationType = m.AggregationType,
                     FormulaId = m.FormulaId,
+                    FormulaCode = m.Formula?.Code,
+                    FormulaName = m.Formula?.Name,
                     FormulaExpression = m.FormulaExpression,
-                    SortOrder = m.SortOrder
+                    DependsOn = m.DependsOn,
+                    CalculationOrder = m.CalculationOrder,
+                    ExportColumn = m.ExportColumn,
+                    SortOrder = m.SortOrder,
+                    IsRequired = m.IsRequired
                 }).ToList()
         };
     }
@@ -407,7 +417,11 @@ public class AdminAccountingService : IAdminAccountingService
             AggregationType = mapping.AggregationType,
             FormulaId = mapping.FormulaId,
             FormulaExpression = mapping.FormulaExpression,
-            SortOrder = mapping.SortOrder
+            DependsOn = mapping.DependsOn,
+            CalculationOrder = mapping.CalculationOrder,
+            ExportColumn = mapping.ExportColumn,
+            SortOrder = mapping.SortOrder,
+            IsRequired = mapping.IsRequired
         };
     }
 
@@ -1273,7 +1287,11 @@ public class AdminAccountingService : IAdminAccountingService
             AggregationType = mapping.AggregationType,
             FormulaId = mapping.FormulaId,
             FormulaExpression = mapping.FormulaExpression,
-            SortOrder = mapping.SortOrder
+            DependsOn = mapping.DependsOn,
+            CalculationOrder = mapping.CalculationOrder,
+            ExportColumn = mapping.ExportColumn,
+            SortOrder = mapping.SortOrder,
+            IsRequired = mapping.IsRequired
         };
     }
 
@@ -1301,6 +1319,35 @@ public class AdminAccountingService : IAdminAccountingService
 
         var rows = await _uow.AccountingTemplates.GetRowDefinitionsAsync(templateVersionId);
 
+        var mappings = version.FieldMappings
+            .OrderBy(m => m.SortOrder)
+            .Select(m => new AdminTemplateFieldMappingDto
+            {
+                MappingId = m.MappingId,
+                FieldCode = m.FieldCode,
+                FieldLabel = m.FieldLabel,
+                FieldType = m.FieldType,
+                SourceType = m.SourceType,
+                SourceEntityId = m.SourceEntityId,
+                SourceEntityCode = m.SourceEntity?.EntityCode,
+                SourceEntityDisplayName = m.SourceEntity?.DisplayName,
+                SourceFieldId = m.SourceFieldId,
+                SourceFieldCode = m.SourceField?.FieldCode,
+                SourceFieldDisplayName = m.SourceField?.DisplayName,
+                FilterJson = m.FilterJson,
+                AggregationType = m.AggregationType,
+                FormulaId = m.FormulaId,
+                FormulaCode = m.Formula?.Code,
+                FormulaName = m.Formula?.Name,
+                FormulaExpression = m.FormulaExpression,
+                DependsOn = m.DependsOn,
+                CalculationOrder = m.CalculationOrder,
+                ExportColumn = m.ExportColumn,
+                SortOrder = m.SortOrder,
+                IsRequired = m.IsRequired
+            })
+            .ToList();
+
         return new AdminFullStructureDto
         {
             TemplateVersionId = version.TemplateVersionId,
@@ -1308,23 +1355,18 @@ public class AdminAccountingService : IAdminAccountingService
             TemplateName = version.Template?.Name ?? string.Empty,
             VersionLabel = version.VersionLabel,
             IsActive = version.IsActive,
-            FieldMappings = version.FieldMappings
-                .OrderBy(m => m.SortOrder)
-                .Select(m => new AdminTemplateFieldMappingDto
-                {
-                    MappingId = m.MappingId,
-                    FieldCode = m.FieldCode,
-                    FieldLabel = m.FieldLabel,
-                    FieldType = m.FieldType,
-                    SourceType = m.SourceType,
-                    SourceEntityId = m.SourceEntityId,
-                    SourceFieldId = m.SourceFieldId,
-                    FilterJson = m.FilterJson,
-                    AggregationType = m.AggregationType,
-                    FormulaId = m.FormulaId,
-                    FormulaExpression = m.FormulaExpression,
-                    SortOrder = m.SortOrder
-                }).ToList(),
+            EffectiveFrom = version.EffectiveFrom,
+            ChangeNotes = version.ChangeNotes,
+            FieldMappings = mappings,
+            Columns = new AdminColumnGroupDto
+            {
+                DataColumns = mappings
+                    .Where(m => m.SourceType is "query" or "static" or "auto")
+                    .ToList(),
+                FormulaColumns = mappings
+                    .Where(m => m.SourceType == "formula")
+                    .ToList()
+            },
             RowDefinitions = rows.Select(MapRowDefinition).ToList(),
             RenderPreview = BuildRenderPreview(rows)
         };
