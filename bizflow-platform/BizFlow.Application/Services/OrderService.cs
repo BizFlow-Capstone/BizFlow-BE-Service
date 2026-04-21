@@ -572,8 +572,45 @@ namespace BizFlow.Application.Services
 
         public async Task<OrderDto> GetDetailAsync(Guid profileId, long orderId)
         {
+            // #region agent log
+            File.AppendAllText(
+                "debug-f87db8.log",
+                JsonSerializer.Serialize(new
+                {
+                    sessionId = "f87db8",
+                    runId = "get-detail-debug",
+                    hypothesisId = "H1-H2-H3",
+                    location = "OrderService.GetDetailAsync:entry",
+                    message = "GetDetail requested",
+                    data = new { profileId, orderId },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }) + Environment.NewLine);
+            // #endregion
+
             var order = await _uow.Orders.GetByIdWithDetailsAsync(orderId)
                 ?? throw new NotFoundException(MessageKeys.NotFound);
+
+            // #region agent log
+            File.AppendAllText(
+                "debug-f87db8.log",
+                JsonSerializer.Serialize(new
+                {
+                    sessionId = "f87db8",
+                    runId = "get-detail-debug",
+                    hypothesisId = "H1-H2-H3",
+                    location = "OrderService.GetDetailAsync:order-loaded",
+                    message = "Order loaded for detail",
+                    data = new
+                    {
+                        orderId = order.OrderId,
+                        order.DebtorId,
+                        debtorLoaded = order.Debtor != null,
+                        order.Status,
+                        detailCount = order.OrderDetails.Count
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }) + Environment.NewLine);
+            // #endregion
 
             var locationId = ResolveOrderLocationId(order, null);
             await _locationService.ValidateLocationAccessAsync(profileId, locationId);
@@ -655,11 +692,57 @@ namespace BizFlow.Application.Services
                 .Distinct()
                 .ToList();
 
+            // #region agent log
+            File.AppendAllText(
+                "debug-f87db8.log",
+                JsonSerializer.Serialize(new
+                {
+                    sessionId = "f87db8",
+                    runId = "get-detail-debug",
+                    hypothesisId = "H1-H2-H3",
+                    location = "OrderService.ResolveOrderLocationId:computed",
+                    message = "Resolved candidate locations",
+                    data = new
+                    {
+                        orderId = order.OrderId,
+                        preferredLocationId,
+                        locationIds,
+                        locationCount = locationIds.Count,
+                        order.DebtorId,
+                        debtorLoaded = order.Debtor != null,
+                        debtorBusinessLocationId = order.Debtor?.BusinessLocationId
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }) + Environment.NewLine);
+            // #endregion
+
             if (locationIds.Count == 1)
                 return locationIds[0];
 
             if (order.Debtor != null)
                 return order.Debtor.BusinessLocationId;
+
+            // #region agent log
+            File.AppendAllText(
+                "debug-f87db8.log",
+                JsonSerializer.Serialize(new
+                {
+                    sessionId = "f87db8",
+                    runId = "get-detail-debug",
+                    hypothesisId = "H2-H3",
+                    location = "OrderService.ResolveOrderLocationId:throw",
+                    message = "Throwing bad request because location cannot be resolved",
+                    data = new
+                    {
+                        orderId = order.OrderId,
+                        locationIds,
+                        locationCount = locationIds.Count,
+                        order.DebtorId,
+                        debtorLoaded = order.Debtor != null
+                    },
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }) + Environment.NewLine);
+            // #endregion
 
             throw new BadRequestException(MessageKeys.BadRequest);
         }
