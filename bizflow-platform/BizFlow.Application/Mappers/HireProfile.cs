@@ -9,14 +9,15 @@ namespace BizFlow.Application.Mappers
         public HireProfile()
         {
             CreateMap<BizFlow.Domain.Entities.Profile, EmployeeSummaryDto>()
-                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.FullName));
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.FullName))
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
 
             CreateMap<(Hire hire, string fullName, string email, string? phone, string? avatarUrl), HiredEmployeeDto>()
                 .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.fullName))
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email))
                 .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.phone))
                 .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src => src.avatarUrl))
-                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.hire.Status))
+                .ForMember(dest => dest.Status, opt => opt.Ignore())
                 .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.hire.IsActive == true))
                 .ForMember(dest => dest.StartAt, opt => opt.MapFrom(src =>
                     src.hire.Status == "pending" || src.hire.Status == "rejected"
@@ -36,7 +37,7 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src => src.avatarUrl))
                 .ForMember(dest => dest.IsAlreadyHired, opt => opt.MapFrom(src => src.hire.Status == "accepted" && src.hire.IsActive == true))
                 .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.hire.IsActive == true))
-                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.hire.Status))
+                .ForMember(dest => dest.Status, opt => opt.Ignore())
                 .ForMember(dest => dest.StartAt, opt => opt.MapFrom(src =>
                     src.hire.Status == "pending" || src.hire.Status == "rejected"
                         ? (DateTime?)null

@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Revenue
 {
     public class RevenueDto
@@ -7,11 +9,19 @@ namespace BizFlow.Application.DTOs.Revenue
         public Guid BusinessTypeId { get; set; }
         public string? BusinessTypeName { get; set; }
         public long? OrderId { get; set; }
-        public string RevenueType { get; set; } = null!;
+        /// <summary>
+        /// Revenue type. <c>Code</c> ∈ {<c>sale</c>, <c>manual</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto RevenueType { get; set; } = null!;
         public decimal Amount { get; set; }
         public DateOnly RevenueDate { get; set; }
         public string Description { get; set; } = null!;
-        public string? MoneyChannel { get; set; }
+        /// <summary>
+        /// Money channel (optional). <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>debt</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto? MoneyChannel { get; set; }
         public string? DocumentUrl { get; set; }
         public string? DocumentPublicId { get; set; }
         public string? DocumentNumber { get; set; }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BizFlow.Application.DTOs.Reference;
 
 namespace BizFlow.Application.DTOs.Accounting;
 
@@ -87,14 +88,22 @@ public class AccountingPeriodDto
 {
     public long PeriodId { get; set; }
     public int BusinessLocationId { get; set; }
-    public string PeriodType { get; set; } = null!;
+    /// <summary>
+    /// Accounting period type. <c>Code</c> ∈ {<c>quarter</c>, <c>year</c>, <c>custom</c>}.
+    /// <c>Label</c> is localized by <c>Accept-Language</c>.
+    /// </summary>
+    public ReferenceOptionDto PeriodType { get; set; } = null!;
     public short Year { get; set; }
     public int? Quarter { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
     public decimal? OpeningCashBalance { get; set; }
     public decimal? OpeningBankBalance { get; set; }
-    public string Status { get; set; } = null!;
+    /// <summary>
+    /// Accounting period status. <c>Code</c> ∈ {<c>open</c>, <c>finalized</c>, <c>reopened</c>}.
+    /// <c>Label</c> is localized by <c>Accept-Language</c>.
+    /// </summary>
+    public ReferenceOptionDto Status { get; set; } = null!;
     public DateTime? FinalizedAt { get; set; }
     public Guid? FinalizedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -105,7 +114,11 @@ public class AccountingPeriodAuditLogDto
 {
     public long LogId { get; set; }
     public long PeriodId { get; set; }
-    public string Action { get; set; } = null!;
+    /// <summary>
+    /// Audit log action. <c>Code</c> ∈ {<c>period_created</c>, <c>period_finalized</c>, <c>period_reopened</c>}.
+    /// <c>Label</c> is localized by <c>Accept-Language</c>.
+    /// </summary>
+    public ReferenceOptionDto Action { get; set; } = null!;
     public string? OldValue { get; set; }
     public string? NewValue { get; set; }
     public string? Reason { get; set; }

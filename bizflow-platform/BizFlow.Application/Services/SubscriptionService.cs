@@ -23,6 +23,7 @@ namespace BizFlow.Application.Services
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IBusinessLocationRepository _businessLocationRepository;
         private readonly IMessageService _messageService;
+        private readonly IReferenceLabelService _labels;
         private readonly StripeSettings _stripeSettings;
         private readonly FreePlanOptions _freePlanOptions;
         private readonly ILogger<SubscriptionService> _logger;
@@ -35,6 +36,7 @@ namespace BizFlow.Application.Services
             IBackgroundJobScheduler backgroundJobScheduler,
             IBusinessLocationRepository businessLocationRepository,
             IMessageService messageService,
+            IReferenceLabelService labels,
             IOptions<StripeSettings> stripeSettings,
             IOptions<FreePlanOptions> freePlanOptions,
             ILogger<SubscriptionService> logger)
@@ -46,6 +48,7 @@ namespace BizFlow.Application.Services
             _backgroundJobScheduler = backgroundJobScheduler;
             _businessLocationRepository = businessLocationRepository;
             _messageService = messageService;
+            _labels = labels;
             _stripeSettings = stripeSettings.Value;
             _freePlanOptions = freePlanOptions.Value;
             _logger = logger;
@@ -339,9 +342,10 @@ namespace BizFlow.Application.Services
             if (active == null)
             {
                 var hasAny = await _unitOfWork.Subscriptions.HasAnySubscriptionAsync(ownerProfileId);
+                var fallbackStatus = hasAny ? SubscriptionStatus.Expired : SubscriptionStatus.Inactive;
                 return new CurrentSubscriptionDto
                 {
-                    Status = hasAny ? SubscriptionStatus.Expired : SubscriptionStatus.Inactive
+                    Status = _labels.ToOption(ReferenceCategory.SubscriptionStatus, fallbackStatus)
                 };
             }
 
@@ -356,7 +360,7 @@ namespace BizFlow.Application.Services
             return new CurrentSubscriptionDto
             {
                 SubscriptionId = active.SubscriptionId,
-                Status = active.Status,
+                Status = _labels.ToOption(ReferenceCategory.SubscriptionStatus, active.Status),
                 StartDate = active.StartDate,
                 EndDate = showEndDate ? active.EndDate : null,
                 Plan = new SubscriptionPlanDto
@@ -420,8 +424,8 @@ namespace BizFlow.Application.Services
                 TransactionId = t.TransactionId,
                 SubscriptionPlanId = t.SubscriptionPlanId,
                 PlanName = t.SubscriptionPlan.Name,
-                TransactionType = t.TransactionType,
-                Status = t.Status,
+                TransactionType = _labels.ToOption(ReferenceCategory.SubscriptionTransactionType, t.TransactionType),
+                Status = _labels.ToOption(ReferenceCategory.TransactionStatus, t.Status),
                 PlanPrice = t.PlanPrice,
                 ProrationCredit = t.ProrationCredit,
                 FinalAmount = t.FinalAmount,
@@ -949,7 +953,7 @@ namespace BizFlow.Application.Services
                 ProrationCredit = 0m,
                 FinalAmount = finalAmount,
                 Currency = transaction.Currency,
-                TransactionType = transactionType
+                TransactionType = _labels.ToOption(ReferenceCategory.SubscriptionTransactionType, transactionType)
             };
         }
 

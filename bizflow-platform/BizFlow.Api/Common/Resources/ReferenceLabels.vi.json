@@ -17,7 +17,7 @@
     "marketing": "Marketing",
     "maintenance": "Bảo trì",
     "other": "Chi phí khác",
-    "manual": "Chi phí thủ công"
+    "manual": ""
   },
   "general_ledger_reference_type": {
     "cost": "Chi phí",
@@ -27,10 +27,10 @@
   "general_ledger_transaction_type": {
     "sale": "Bán hàng",
     "import_cost": "Chi phí nhập hàng",
-    "manual_cost": "Chi phí thủ công",
+    "manual_cost": "",
     "debt_payment": "Thanh toán công nợ",
-    "manual_revenue": "Doanh thu thủ công",
-    "manual_expense": "Khoản chi thủ công"
+    "manual_revenue": "",
+    "manual_expense": ""
   },
   "general_ledger_view_mode": {
     "audit": "Theo dõi kiểm toán",
@@ -62,7 +62,7 @@
   },
   "revenue_type": {
     "sale": "Bán hàng",
-    "manual": "Thủ công"
+    "manual": ""
   },
   "subscription_status": {
     "Pending": "Đang chờ",
@@ -76,6 +76,12 @@
     "PURCHASE": "Mua mới",
     "RENEW": "Gia hạn"
   },
+  "transaction_status": {
+    "Pending": "Đang chờ",
+    "Success": "Thành công",
+    "Failed": "Thất bại",
+    "Refunded": "Đã hoàn tiền"
+  },
   "stock_movement_type": {
     "IN": "Nhập kho",
     "OUT": "Xuất kho",
@@ -85,5 +91,30 @@
     "IMPORT": "Phiếu nhập hàng",
     "ORDER": "Đơn hàng",
     "ADJUSTMENT": "Điều chỉnh tồn kho"
+  },
+  "ledger_effective_status": {
+    "active": "Đang hiệu lực",
+    "reversed": "Đã bị đảo",
+    "reversal": "Bút toán đảo"
+  },
+  "hire_status": {
+    "pending": "Đang chờ",
+    "accepted": "Đã chấp nhận",
+    "rejected": "Đã từ chối"
+  },
+  "accounting_period_type": {
+    "quarter": "Theo quý",
+    "year": "Theo năm",
+    "custom": "Tùy chỉnh"
+  },
+  "accounting_period_status": {
+    "open": "Đang mở",
+    "finalized": "Đã chốt sổ",
+    "reopened": "Đã mở lại"
+  },
+  "accounting_period_audit_action": {
+    "period_created": "Tạo kỳ kế toán",
+    "period_finalized": "Chốt sổ",
+    "period_reopened": "Mở lại kỳ kế toán"
   }
 }

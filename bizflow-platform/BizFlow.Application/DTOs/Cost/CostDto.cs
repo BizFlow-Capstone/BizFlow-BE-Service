@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Cost
 {
     public class CostDto
@@ -5,11 +7,20 @@ namespace BizFlow.Application.DTOs.Cost
         public long CostId { get; set; }
         public int BusinessLocationId { get; set; }
         public Guid? BusinessTypeId { get; set; }
-        public string CostType { get; set; } = null!;
+        /// <summary>
+        /// Cost type. <c>Code</c> ∈ {<c>import</c>, <c>salary</c>, <c>rent</c>, <c>utilities</c>,
+        /// <c>transport</c>, <c>marketing</c>, <c>maintenance</c>, <c>other</c>, <c>manual</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto CostType { get; set; } = null!;
         public string Description { get; set; } = null!;
         public decimal Amount { get; set; }
         public DateOnly CostDate { get; set; }
-        public string? PaymentMethod { get; set; }
+        /// <summary>
+        /// Payment method (optional). <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>system</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto? PaymentMethod { get; set; }
         public string? DocumentUrl { get; set; }
         public string? DocumentPublicId { get; set; }
         public string? DocumentNumber { get; set; }

@@ -8,9 +8,14 @@ namespace BizFlow.Application.Mappers
     {
         public RevenueProfile()
         {
+            // RevenueType / MoneyChannel are reference i18n fields — populated by
+            // the service layer via IReferenceLabelService after AutoMapper
+            // projection to avoid pulling DI into AutoMapper profiles.
             CreateMap<Revenue, RevenueDto>()
                 .ForMember(dest => dest.BusinessTypeName,
-                    opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : null));
+                    opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : null))
+                .ForMember(dest => dest.RevenueType, opt => opt.Ignore())
+                .ForMember(dest => dest.MoneyChannel, opt => opt.Ignore());
         }
     }
 }

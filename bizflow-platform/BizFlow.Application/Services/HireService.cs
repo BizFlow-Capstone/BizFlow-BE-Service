@@ -1,3 +1,5 @@
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -10,11 +12,13 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly IReferenceLabelService _labels;
 
-        public HireService(IUnitOfWork unitOfWork, IMapper mapper)
+        public HireService(IUnitOfWork unitOfWork, IMapper mapper, IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _labels = labels;
         }
 
         #region Query Methods
@@ -26,9 +30,16 @@ namespace BizFlow.Application.Services
         {
             var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
 
+            var dtos = _mapper.Map<List<EmployeeSummaryDto>>(employees);
+            var statusList = employees.Select(e => e.hire.Status).ToList();
+            for (int i = 0; i < dtos.Count; i++)
+            {
+                dtos[i].Status = _labels.ToOption(ReferenceCategory.HireStatus, statusList[i]);
+            }
+
             return new EmployeeSummaryListDto
             {
-                Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
+                Employees = dtos
             };
         }
 
@@ -37,9 +48,14 @@ namespace BizFlow.Application.Services
         /// </summary>
         public async Task<IEnumerable<HiredEmployeeDto>> GetHiredEmployeeDetailsAsync(Guid ownerId)
         {
-            var employees = await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId);
+            var employees = (await _unitOfWork.Hires.GetHiredEmployeesWithDetailsAsync(ownerId)).ToList();
 
-            return _mapper.Map<IEnumerable<HiredEmployeeDto>>(employees);
+            var dtos = _mapper.Map<List<HiredEmployeeDto>>(employees);
+            for (int i = 0; i < dtos.Count; i++)
+            {
+                dtos[i].Status = _labels.ToOption(ReferenceCategory.HireStatus, employees[i].hire.Status);
+            }
+            return dtos;
         }
 
         #endregion

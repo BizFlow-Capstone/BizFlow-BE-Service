@@ -2,6 +2,7 @@ using BizFlow.Application.DTOs.Hire;
 using BizFlow.Application.DTOs.Location;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using AutoMapper;
@@ -14,12 +15,14 @@ namespace BizFlow.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHireService _hireService;
         private readonly IMapper _mapper;
+        private readonly IReferenceLabelService _labels;
 
-        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService, IMapper mapper)
+        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService, IMapper mapper, IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
             _hireService = hireService;
             _mapper = mapper;
+            _labels = labels;
         }
 
         #region Query Methods
@@ -43,6 +46,12 @@ namespace BizFlow.Application.Services
             if (detail == null)
                 throw new NotFoundException(MessageKeys.NotFound);
 
+            var acceptedOption = _labels.ToOption(ReferenceCategory.HireStatus, "accepted");
+            foreach (var employee in detail.Employees)
+            {
+                employee.Status = acceptedOption;
+            }
+
             return detail;
         }
 
@@ -51,9 +60,15 @@ namespace BizFlow.Application.Services
             await GetLocationAsOwnerOrThrowAsync(userId, locationId);
 
             var employees = await _unitOfWork.BusinessLocations.GetEmployeesByLocationIdAsync(locationId);
+            var dtos = _mapper.Map<List<EmployeeSummaryDto>>(employees);
+            var acceptedOption = _labels.ToOption(ReferenceCategory.HireStatus, "accepted");
+            foreach (var dto in dtos)
+            {
+                dto.Status = acceptedOption;
+            }
             return new EmployeeSummaryListDto
             {
-                Employees = _mapper.Map<List<EmployeeSummaryDto>>(employees)
+                Employees = dtos
             };
         }
 

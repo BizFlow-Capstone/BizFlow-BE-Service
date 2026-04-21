@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -11,10 +12,12 @@ namespace BizFlow.Application.Services;
 public class AccountingPeriodService : IAccountingPeriodService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IReferenceLabelService _labels;
 
-    public AccountingPeriodService(IUnitOfWork unitOfWork)
+    public AccountingPeriodService(IUnitOfWork unitOfWork, IReferenceLabelService labels)
     {
         _unitOfWork = unitOfWork;
+        _labels = labels;
     }
 
     public async Task<AccountingPeriodDto> CreatePeriodAsync(int locationId, Guid userId, CreateAccountingPeriodRequest request)
@@ -327,7 +330,7 @@ public class AccountingPeriodService : IAccountingPeriodService
         {
             LogId = x.LogId,
             PeriodId = x.PeriodId,
-            Action = x.Action,
+            Action = _labels.ToOption(ReferenceCategory.AccountingPeriodAuditAction, x.Action),
             OldValue = x.OldValue,
             NewValue = x.NewValue,
             Reason = x.Reason,
@@ -490,20 +493,20 @@ public class AccountingPeriodService : IAccountingPeriodService
             netBank);
     }
 
-    private static AccountingPeriodDto MapPeriod(AccountingPeriod period)
+    private AccountingPeriodDto MapPeriod(AccountingPeriod period)
     {
         return new AccountingPeriodDto
         {
             PeriodId = period.PeriodId,
             BusinessLocationId = period.BusinessLocationId,
-            PeriodType = period.PeriodType,
+            PeriodType = _labels.ToOption(ReferenceCategory.AccountingPeriodType, period.PeriodType),
             Year = period.Year,
             Quarter = period.Quarter,
             StartDate = period.StartDate,
             EndDate = period.EndDate,
             OpeningCashBalance = period.OpeningCashBalance,
             OpeningBankBalance = period.OpeningBankBalance,
-            Status = period.Status,
+            Status = _labels.ToOption(ReferenceCategory.AccountingPeriodStatus, period.Status),
             FinalizedAt = period.FinalizedAt,
             FinalizedByUserId = period.FinalizedByUserId,
             CreatedAt = period.CreatedAt,

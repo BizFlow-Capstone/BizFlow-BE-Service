@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Order
 {
     public class OrderDto
@@ -14,7 +16,11 @@ namespace BizFlow.Application.DTOs.Order
         public decimal CashAmount { get; set; }
         public decimal BankAmount { get; set; }
         public decimal DebtAmount { get; set; }
-        public string Status { get; set; } = null!;
+        /// <summary>
+        /// Order status. <c>Code</c> ∈ {<c>pending</c>, <c>completed</c>, <c>cancelled</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto Status { get; set; } = null!;
         public string? Note { get; set; }
         public Guid? CreatedByProfileId { get; set; }
         public string? CreatedByProfileFullName { get; set; }

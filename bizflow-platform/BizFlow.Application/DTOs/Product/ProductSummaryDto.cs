@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Product
 {
     /// <summary>
@@ -14,6 +16,10 @@ namespace BizFlow.Application.DTOs.Product
         public decimal Price { get; set; }
         public bool TrackInventory { get; set; }
         public decimal? Stock { get; set; }
-        public string Status { get; set; } = null!;
+        /// <summary>
+        /// Product status. <c>Code</c> ∈ {<c>active</c>, <c>inactive</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto Status { get; set; } = null!;
     }
 }

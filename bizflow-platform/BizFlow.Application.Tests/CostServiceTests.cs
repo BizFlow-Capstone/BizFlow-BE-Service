@@ -1,6 +1,8 @@
 using AutoMapper;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Cost;
+using BizFlow.Application.DTOs.Reference;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Services;
@@ -20,6 +22,7 @@ public class CostServiceTests
     private readonly Mock<IImageService> _imageService = new();
     private readonly Mock<IGeneralLedgerService> _generalLedgerService = new();
     private readonly Mock<ICostRepository> _costRepo = new();
+    private readonly Mock<IReferenceLabelService> _labelService = new();
     private readonly IMapper _mapper;
 
     public CostServiceTests()
@@ -28,6 +31,10 @@ public class CostServiceTests
         _mapper = cfg.CreateMapper();
 
         _uow.SetupGet(x => x.Costs).Returns(_costRepo.Object);
+
+        _labelService
+            .Setup(l => l.GetLabel(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns<string, string>((_, code) => code);
     }
 
     [Fact]
@@ -146,6 +153,7 @@ public class CostServiceTests
             _mapper,
             _locationService.Object,
             _imageService.Object,
-            _generalLedgerService.Object);
+            _generalLedgerService.Object,
+            _labelService.Object);
     }
 }

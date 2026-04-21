@@ -8,7 +8,12 @@ namespace BizFlow.Application.Mappers
     {
         public CostProfile()
         {
-            CreateMap<Cost, CostDto>();
+            // CostType / PaymentMethod are reference i18n fields — populated by
+            // the service layer via IReferenceLabelService after AutoMapper
+            // projection to avoid pulling DI into AutoMapper profiles.
+            CreateMap<Cost, CostDto>()
+                .ForMember(dest => dest.CostType, opt => opt.Ignore())
+                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore());
         }
     }
 }

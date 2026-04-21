@@ -76,6 +76,12 @@
     "PURCHASE": "Purchase",
     "RENEW": "Renew"
   },
+  "transaction_status": {
+    "Pending": "Pending",
+    "Success": "Success",
+    "Failed": "Failed",
+    "Refunded": "Refunded"
+  },
   "stock_movement_type": {
     "IN": "Stock in",
     "OUT": "Stock out",
@@ -85,5 +91,30 @@
     "IMPORT": "Import receipt",
     "ORDER": "Order",
     "ADJUSTMENT": "Adjustment"
+  },
+  "ledger_effective_status": {
+    "active": "Active",
+    "reversed": "Reversed",
+    "reversal": "Reversal"
+  },
+  "hire_status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "rejected": "Rejected"
+  },
+  "accounting_period_type": {
+    "quarter": "Quarterly",
+    "year": "Yearly",
+    "custom": "Custom"
+  },
+  "accounting_period_status": {
+    "open": "Open",
+    "finalized": "Finalized",
+    "reopened": "Reopened"
+  },
+  "accounting_period_audit_action": {
+    "period_created": "Period created",
+    "period_finalized": "Period finalized",
+    "period_reopened": "Period reopened"
   }
 }

@@ -42,7 +42,8 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.FullName))
                 .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.Phone))
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
-                .ForMember(dest => dest.IsAlreadyHired, opt => opt.MapFrom(src => true));
+                .ForMember(dest => dest.IsAlreadyHired, opt => opt.MapFrom(src => true))
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
         }
     }
 }

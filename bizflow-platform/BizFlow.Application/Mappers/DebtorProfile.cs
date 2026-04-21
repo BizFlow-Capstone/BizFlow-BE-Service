@@ -16,8 +16,12 @@ namespace BizFlow.Application.Mappers
 
             CreateMap<Debtor, DebtorMinimalDto>();
 
+            // PaymentMethod is a reference i18n field — populated by the
+            // service layer via IReferenceLabelService after AutoMapper
+            // projection to avoid pulling DI into AutoMapper profiles.
             CreateMap<DebtorPaymentTransaction, DebtorPaymentDto>()
-                .ForMember(dest => dest.TransactionId, opt => opt.MapFrom(src => src.DebtorPaymentTransactionId));
+                .ForMember(dest => dest.TransactionId, opt => opt.MapFrom(src => src.DebtorPaymentTransactionId))
+                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore());
         }
 
         #region Static mapping methods — used when audit fields must be set at call time

@@ -8,10 +8,16 @@ namespace BizFlow.Application.Mappers
     {
         public GeneralLedgerProfile()
         {
+            // TransactionType / MoneyChannel / EffectiveStatus and
+            // Source.ReferenceType are reference i18n fields — populated by the
+            // service layer via IReferenceLabelService after AutoMapper
+            // projection to avoid pulling DI into AutoMapper profiles.
             CreateMap<GeneralLedgerEntry, GeneralLedgerEntryDto>()
+                .ForMember(d => d.TransactionType, opt => opt.Ignore())
+                .ForMember(d => d.MoneyChannel, opt => opt.Ignore())
+                .ForMember(d => d.EffectiveStatus, opt => opt.Ignore())
                 .ForMember(d => d.Source, opt => opt.MapFrom(s => new SourceLinkDto
                 {
-                    ReferenceType = s.ReferenceType,
                     ReferenceId = s.ReferenceId
                 }));
         }

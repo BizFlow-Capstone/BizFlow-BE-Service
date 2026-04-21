@@ -22,6 +22,7 @@ namespace BizFlow.Application.Services
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IMessageService _messageService;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
+        private readonly IReferenceLabelService _labels;
 
         public OrderService(
             IUnitOfWork uow,
@@ -30,7 +31,8 @@ namespace BizFlow.Application.Services
             IStockMovementService stockMovementService,
             IGeneralLedgerService generalLedgerService,
             IMessageService messageService,
-            IBackgroundJobScheduler backgroundJobScheduler)
+            IBackgroundJobScheduler backgroundJobScheduler,
+            IReferenceLabelService labels)
         {
             _uow = uow;
             _mapper = mapper;
@@ -39,6 +41,7 @@ namespace BizFlow.Application.Services
             _generalLedgerService = generalLedgerService;
             _messageService = messageService;
             _backgroundJobScheduler = backgroundJobScheduler;
+            _labels = labels;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -390,9 +393,9 @@ namespace BizFlow.Application.Services
                 return new EditCompletedSaveResultDto
                 {
                     OldOrderId = oldOrderId,
-                    OldOrderStatus = OrderStatus.Cancelled,
+                    OldOrderStatus = _labels.ToOption(ReferenceCategory.OrderStatus, OrderStatus.Cancelled),
                     NewOrderId = replacement.OrderId,
-                    NewOrderStatus = replacement.Status
+                    NewOrderStatus = _labels.ToOption(ReferenceCategory.OrderStatus, replacement.Status)
                 };
             }
 
@@ -564,9 +567,9 @@ namespace BizFlow.Application.Services
             return new EditCompletedSaveResultDto
             {
                 OldOrderId = oldOrderId,
-                OldOrderStatus = OrderStatus.Cancelled,
+                OldOrderStatus = _labels.ToOption(ReferenceCategory.OrderStatus, OrderStatus.Cancelled),
                 NewOrderId = newOrderId,
-                NewOrderStatus = OrderStatus.Completed
+                NewOrderStatus = _labels.ToOption(ReferenceCategory.OrderStatus, OrderStatus.Completed)
             };
         }
 
@@ -614,6 +617,7 @@ namespace BizFlow.Application.Services
         private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
         {
             var dto = _mapper.Map<OrderDto>(order);
+            dto.Status = _labels.ToOption(ReferenceCategory.OrderStatus, order.Status);
             if (order.CreatedBy is { } creatorId)
             {
                 var profile = await _uow.Profiles.GetByIdAsync(creatorId);
@@ -629,6 +633,11 @@ namespace BizFlow.Application.Services
             var dtos = _mapper.Map<List<OrderDto>>(orderList);
             if (dtos.Count == 0)
                 return dtos;
+
+            for (var i = 0; i < orderList.Count; i++)
+            {
+                dtos[i].Status = _labels.ToOption(ReferenceCategory.OrderStatus, orderList[i].Status);
+            }
 
             var creatorIds = orderList.Select(o => o.CreatedBy).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
             var profiles = creatorIds.Count > 0

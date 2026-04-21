@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Import;
 using BizFlow.Application.Interfaces.Repositories;
@@ -18,6 +19,7 @@ namespace BizFlow.Application.Services
         private readonly ICostService _costService;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IMapper _mapper;
+        private readonly IReferenceLabelService _labels;
 
         public ImportService(
             IUnitOfWork unitOfWork,
@@ -25,7 +27,8 @@ namespace BizFlow.Application.Services
             IStockMovementService stockMovementService,
             ICostService costService,
             IBackgroundJobScheduler backgroundJobScheduler,
-            IMapper mapper)
+            IMapper mapper,
+            IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
@@ -33,6 +36,23 @@ namespace BizFlow.Application.Services
             _costService = costService;
             _backgroundJobScheduler = backgroundJobScheduler;
             _mapper = mapper;
+            _labels = labels;
+        }
+
+        private ImportSummaryDto ToDto(Import import)
+        {
+            var dto = _mapper.Map<ImportSummaryDto>(import);
+            dto.ImportType = _labels.ToOption(ReferenceCategory.ImportType, import.ImportType);
+            dto.Status = _labels.ToOption(ReferenceCategory.ImportStatus, import.Status);
+            return dto;
+        }
+
+        private ImportDetailDto ToDetailDto(Import import)
+        {
+            var dto = _mapper.Map<ImportDetailDto>(import);
+            dto.ImportType = _labels.ToOption(ReferenceCategory.ImportType, import.ImportType);
+            dto.Status = _labels.ToOption(ReferenceCategory.ImportStatus, import.Status);
+            return dto;
         }
 
         #region Query Methods
@@ -104,7 +124,7 @@ namespace BizFlow.Application.Services
                 await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
             }
 
-            var result = _mapper.Map<ImportSummaryDto>(import);
+            var result = ToDto(import);
             result.BusinessLocationName = location.LocationName;
             return result;
         }
@@ -176,7 +196,7 @@ namespace BizFlow.Application.Services
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
 
-            return _mapper.Map<ImportSummaryDto>(import);
+            return ToDto(import);
         }
 
         // =========================================================
@@ -220,7 +240,7 @@ namespace BizFlow.Application.Services
             {
                 ImportId = import.ImportId,
                 ImportCode = import.ImportCode,
-                Status = import.Status,
+                Status = _labels.ToOption(ReferenceCategory.ImportStatus, import.Status),
                 ReceivedAt = import.ReceivedAt,
                 UpdatedAt = import.UpdatedAt
             };
@@ -253,7 +273,7 @@ namespace BizFlow.Application.Services
 
             var (imports, totalCount) = await _unitOfWork.Imports.SearchAsync(query);
 
-            var items = _mapper.Map<List<ImportSummaryDto>>(imports);
+            var items = imports.Select(ToDto).ToList();
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 10;
@@ -273,7 +293,7 @@ namespace BizFlow.Application.Services
 
             await EnsureAccessToLocationAsync(userId, import.BusinessLocationId);
 
-            return _mapper.Map<ImportDetailDto>(import);
+            return ToDetailDto(import);
         }
 
         #endregion

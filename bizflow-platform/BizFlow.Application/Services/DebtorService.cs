@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Debtor;
 using BizFlow.Application.Interfaces.Repositories;
@@ -16,17 +17,27 @@ namespace BizFlow.Application.Services
         private readonly IMapper _mapper;
         private readonly IBusinessLocationService _locationService;
         private readonly IGeneralLedgerService _generalLedgerService;
+        private readonly IReferenceLabelService _labels;
 
         public DebtorService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
-            IGeneralLedgerService generalLedgerService)
+            IGeneralLedgerService generalLedgerService,
+            IReferenceLabelService labels)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _generalLedgerService = generalLedgerService;
+            _labels = labels;
+        }
+
+        private DebtorPaymentDto ToDto(DebtorPaymentTransaction transaction)
+        {
+            var dto = _mapper.Map<DebtorPaymentDto>(transaction);
+            dto.PaymentMethod = _labels.ToOption(ReferenceCategory.PaymentMethod, transaction.PaymentMethod);
+            return dto;
         }
 
         public async Task<PaginatedResponse<DebtorSummaryDto>> ListAsync(Guid userId, DebtorQueryParams query)
@@ -171,7 +182,7 @@ namespace BizFlow.Application.Services
             await _generalLedgerService.RecordDebtPaymentAsync(transaction, debtor.BusinessLocationId);
             await _uow.SaveChangesAsync();
 
-            return _mapper.Map<DebtorPaymentDto>(transaction);
+            return ToDto(transaction);
         }
 
         public async Task<IEnumerable<DebtorPaymentDto>> GetPaymentsAsync(Guid userId, long debtorId)
@@ -179,7 +190,7 @@ namespace BizFlow.Application.Services
             var debtor = await GetDebtorAndVerifyOwnerAsync(userId, debtorId);
 
             var transactions = await _uow.Debtors.GetPaymentsAsync(debtorId);
-            return _mapper.Map<List<DebtorPaymentDto>>(transactions);
+            return transactions.Select(ToDto).ToList();
         }
 
         #region Private Helpers

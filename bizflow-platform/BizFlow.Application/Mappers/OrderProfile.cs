@@ -8,10 +8,13 @@ namespace BizFlow.Application.Mappers
     {
         public OrderProfile()
         {
+            // Status is a reference i18n field — populated by the service layer
+            // via IReferenceLabelService after AutoMapper projection.
             CreateMap<Order, OrderDto>()
                 .ForMember(d => d.CreatedByProfileId, o => o.MapFrom(s => s.CreatedBy))
                 .ForMember(d => d.CreatedByProfileFullName, o => o.Ignore())
-                .ForMember(d => d.Items, o => o.MapFrom(s => s.OrderDetails));
+                .ForMember(d => d.Items, o => o.MapFrom(s => s.OrderDetails))
+                .ForMember(d => d.Status, o => o.Ignore());
 
             CreateMap<OrderDetail, OrderDetailDto>()
                 .ForMember(d => d.ProductId, o => o.MapFrom(s => s.SaleItem.ProductId))

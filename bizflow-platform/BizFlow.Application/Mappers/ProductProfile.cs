@@ -34,7 +34,10 @@ namespace BizFlow.Application.Mappers
                         .SelectMany(s => s.ProductPricePolicies)
                         .Where(pp => pp.IsDefault)
                         .Select(pp => pp.Price)
-                        .FirstOrDefault()));
+                        .FirstOrDefault()))
+                // Status is a reference i18n field — populated by the service layer
+                // via IReferenceLabelService after AutoMapper projection.
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
 
             // Product -> ProductQuickSearchDto
             CreateMap<Product, ProductQuickSearchDto>()

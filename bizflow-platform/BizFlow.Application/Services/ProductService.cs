@@ -21,6 +21,7 @@ namespace BizFlow.Application.Services
         private readonly IMessageService _messageService;
         private readonly IMapper _mapper;
         private readonly IAiServiceClient _aiServiceClient;
+        private readonly IReferenceLabelService _labels;
 
         public ProductService(
             IUnitOfWork unitOfWork,
@@ -30,7 +31,8 @@ namespace BizFlow.Application.Services
             IStockMovementService stockMovementService,
             IMessageService messageService,
             IMapper mapper,
-            IAiServiceClient aiServiceClient)
+            IAiServiceClient aiServiceClient,
+            IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
@@ -40,6 +42,21 @@ namespace BizFlow.Application.Services
             _messageService = messageService;
             _mapper = mapper;
             _aiServiceClient = aiServiceClient;
+            _labels = labels;
+        }
+
+        private ProductSummaryDto ToDto(Product product)
+        {
+            var dto = _mapper.Map<ProductSummaryDto>(product);
+            dto.Status = _labels.ToOption(ReferenceCategory.ProductStatus, product.Status);
+            return dto;
+        }
+
+        private ProductDetailDto ToDetailDto(Product product)
+        {
+            var dto = _mapper.Map<ProductDetailDto>(product);
+            dto.Status = _labels.ToOption(ReferenceCategory.ProductStatus, product.Status);
+            return dto;
         }
 
         #region Query Methods
@@ -51,7 +68,7 @@ namespace BizFlow.Application.Services
 
             var (products, totalCount) = await _unitOfWork.Products.SearchAsync(query);
 
-            var items = products.Select(p => _mapper.Map<ProductSummaryDto>(p)).ToList();
+            var items = products.Select(ToDto).ToList();
 
             // Use values with fallback (should be set by controller)
             var pageNumber = query.PageNumber ?? 1;
@@ -78,7 +95,7 @@ namespace BizFlow.Application.Services
 
             await ValidateProductAccessAsync(userId, product.BusinessLocationId);
 
-            return _mapper.Map<ProductDetailDto>(product);
+            return ToDetailDto(product);
         }
 
         public async Task<ProductSaleItemsResponseDto?> GetProductSaleItemsAsync(Guid userId, long productId)
@@ -175,7 +192,7 @@ namespace BizFlow.Application.Services
             _ = _aiServiceClient.TriggerVectorStoreSyncAsync(
                 request.LocationId, created.ProductId, created.ProductName, created.Unit, created.BusinessType?.Name);
 
-            return (_mapper.Map<ProductSummaryDto>(created), warnings);
+            return (ToDto(created), warnings);
         }
 
         public async Task<(ProductSummaryDto Product, List<string>? Warnings)> UpdateProductAsync(Guid userId, long productId, UpdateProductRequest request)
@@ -245,7 +262,7 @@ namespace BizFlow.Application.Services
             _ = _aiServiceClient.TriggerVectorStoreSyncAsync(
                 request.LocationId, updated.ProductId, updated.ProductName, updated.Unit, updated.BusinessType?.Name);
 
-            return (_mapper.Map<ProductSummaryDto>(updated), warnings);
+            return (ToDto(updated), warnings);
         }
 
         public async Task UpdateProductStatusAsync(Guid userId, long productId, string status)
@@ -286,7 +303,7 @@ namespace BizFlow.Application.Services
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
             if (request.Stock == product.Stock)
-                return _mapper.Map<ProductSummaryDto>(product);
+                return ToDto(product);
 
             var costPriceForIncrease = request.CostPrice ?? product.CostPrice;
             var memo = string.IsNullOrWhiteSpace(request.Memo) ? null : request.Memo.Trim();
@@ -297,7 +314,7 @@ namespace BizFlow.Application.Services
             await _unitOfWork.SaveChangesAsync();
 
             var updated = await _unitOfWork.Products.GetByIdWithDetailsAsync(product.ProductId) ?? product;
-            return _mapper.Map<ProductSummaryDto>(updated);
+            return ToDto(updated);
         }
 
         public async Task BulkAdjustSellingPriceAsync(Guid userId, BulkAdjustSellingPriceRequest request)

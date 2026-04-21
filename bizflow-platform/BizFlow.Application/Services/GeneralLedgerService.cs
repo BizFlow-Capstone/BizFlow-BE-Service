@@ -18,6 +18,7 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationService _locationService;
         private readonly IMapper _mapper;
         private readonly IMessageService _messageService;
+        private readonly IReferenceLabelService _labels;
         private readonly GeneralLedgerSettings _settings;
 
         public GeneralLedgerService(
@@ -25,12 +26,14 @@ namespace BizFlow.Application.Services
             IBusinessLocationService locationService,
             IMapper mapper,
             IMessageService messageService,
+            IReferenceLabelService labels,
             IOptions<GeneralLedgerSettings> settings)
         {
             _uow = uow;
             _locationService = locationService;
             _mapper = mapper;
             _messageService = messageService;
+            _labels = labels;
             _settings = settings.Value;
         }
 
@@ -87,7 +90,26 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
 
             var (items, total) = await _uow.GeneralLedgerEntries.SearchAsync(query);
-            var dtos = _mapper.Map<List<GeneralLedgerEntryDto>>(items);
+            var itemList = items.ToList();
+            var dtos = _mapper.Map<List<GeneralLedgerEntryDto>>(itemList);
+
+            // Enrich i18n reference fields (dto fields ignored by AutoMapper profile)
+            // plus track the raw reference_type code for downstream processing.
+            var rawReferenceTypes = new string[dtos.Count];
+            for (var i = 0; i < dtos.Count; i++)
+            {
+                var entity = itemList[i];
+                var dto = dtos[i];
+
+                dto.TransactionType = _labels.ToOption(ReferenceCategory.GeneralLedgerTransactionType, entity.TransactionType);
+                dto.MoneyChannel = _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, entity.MoneyChannel);
+
+                if (dto.Source != null)
+                {
+                    dto.Source.ReferenceType = _labels.ToOption(ReferenceCategory.GeneralLedgerReferenceType, entity.ReferenceType);
+                    rawReferenceTypes[i] = entity.ReferenceType;
+                }
+            }
 
             var asOfDate = query.ToDate.Value;
             var pageEntryIds = dtos.Select(d => d.EntryId).ToList();
@@ -99,31 +121,33 @@ namespace BizFlow.Application.Services
             // if it is not reversed by another entry, it is active
             foreach (var dto in dtos)
             {
+                string effectiveStatusCode;
+
                 // check if it is a reversal entry
                 if (dto.IsReversal)
                 {
                     dto.IsReversed = false;
                     dto.ReversalEntryId = null;
                     dto.ReversalCount = 0;
-                    dto.EffectiveStatus = "reversal";
-                    continue;
+                    effectiveStatusCode = "reversal";
                 }
-
-                // check if it is reversed by another entry
-                if (reversalSummary.TryGetValue(dto.EntryId, out var summary))
+                else if (reversalSummary.TryGetValue(dto.EntryId, out var summary))
                 {
+                    // check if it is reversed by another entry
                     dto.IsReversed = true;
                     dto.ReversalCount = summary.ReversalCount;
                     dto.ReversalEntryId = summary.LatestReversalEntryId;
-                    dto.EffectiveStatus = "reversed";
+                    effectiveStatusCode = "reversed";
                 }
                 else
                 {
                     dto.IsReversed = false;
                     dto.ReversalCount = 0;
                     dto.ReversalEntryId = null;
-                    dto.EffectiveStatus = "active";
+                    effectiveStatusCode = "active";
                 }
+
+                dto.EffectiveStatus = _labels.ToOption(ReferenceCategory.LedgerEffectiveStatus, effectiveStatusCode);
             }
 
             if (viewMode == GeneralLedgerViewMode.Audit && dtos.Count > 0)
@@ -155,37 +179,41 @@ namespace BizFlow.Application.Services
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
 
-            await PopulateSourceLinksAsync(dtos);
+            await PopulateSourceLinksAsync(dtos, rawReferenceTypes);
 
             return new PaginatedResponse<GeneralLedgerEntryDto>(dtos, total, pageNumber, pageSize);
         }
 
-        private async Task PopulateSourceLinksAsync(List<GeneralLedgerEntryDto> dtos)
+        private async Task PopulateSourceLinksAsync(List<GeneralLedgerEntryDto> dtos, string[] rawReferenceTypes)
         {
-            var costIds = dtos
-                .Where(d => d.Source != null && d.Source.ReferenceType == GeneralLedgerReferenceType.Cost && d.Source.ReferenceId.HasValue)
-                .Select(d => d.Source.ReferenceId!.Value)
-                .Distinct()
-                .ToList();
+            var costIds = new List<long>();
+            var revenueIds = new List<long>();
 
-            var costs = await _uow.Costs.GetByIdsAsync(costIds);
+            for (var i = 0; i < dtos.Count; i++)
+            {
+                var dto = dtos[i];
+                if (dto.Source == null) continue;
+                var refType = rawReferenceTypes[i];
+
+                if (refType == GeneralLedgerReferenceType.Cost && dto.Source.ReferenceId.HasValue)
+                    costIds.Add(dto.Source.ReferenceId.Value);
+                else if (refType == GeneralLedgerReferenceType.Revenue && dto.Source.ReferenceId.HasValue)
+                    revenueIds.Add(dto.Source.ReferenceId.Value);
+            }
+
+            var costs = await _uow.Costs.GetByIdsAsync(costIds.Distinct().ToList());
             var costDict = costs.ToDictionary(c => c.CostId);
 
-            var revenueIds = dtos
-                .Where(d => d.Source != null && d.Source.ReferenceType == GeneralLedgerReferenceType.Revenue && d.Source.ReferenceId.HasValue)
-                .Select(d => d.Source.ReferenceId!.Value)
-                .Distinct()
-                .ToList();
-
-            var revenues = await _uow.Revenues.GetByIdsAsync(revenueIds);
+            var revenues = await _uow.Revenues.GetByIdsAsync(revenueIds.Distinct().ToList());
             var revenueDict = revenues.ToDictionary(r => r.RevenueId);
 
-            foreach (var dto in dtos)
+            for (var i = 0; i < dtos.Count; i++)
             {
-                var source = dto.Source;
+                var source = dtos[i].Source;
                 if (source == null) continue;
+                var refType = rawReferenceTypes[i];
 
-                if (source.ReferenceType == GeneralLedgerReferenceType.Revenue)
+                if (refType == GeneralLedgerReferenceType.Revenue)
                 {
                     if (source.ReferenceId.HasValue && revenueDict.TryGetValue(source.ReferenceId.Value, out var revenue) && revenue.OrderId.HasValue)
                     {
@@ -198,7 +226,7 @@ namespace BizFlow.Application.Services
                         source.EntityId = source.ReferenceId;
                     }
                 }
-                else if (source.ReferenceType == GeneralLedgerReferenceType.Cost)
+                else if (refType == GeneralLedgerReferenceType.Cost)
                 {
                     if (source.ReferenceId.HasValue && costDict.TryGetValue(source.ReferenceId.Value, out var cost) && cost.ImportId.HasValue)
                     {
@@ -211,14 +239,14 @@ namespace BizFlow.Application.Services
                         source.EntityId = source.ReferenceId;
                     }
                 }
-                else if (source.ReferenceType == GeneralLedgerReferenceType.DebtorPayment)
+                else if (refType == GeneralLedgerReferenceType.DebtorPayment)
                 {
                     source.EntityType = "debtor_payment";
                     source.EntityId = source.ReferenceId;
                 }
                 else
                 {
-                    source.EntityType = source.ReferenceType;
+                    source.EntityType = refType;
                     source.EntityId = source.ReferenceId;
                 }
             }

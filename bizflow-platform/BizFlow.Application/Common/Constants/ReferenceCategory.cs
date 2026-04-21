@@ -21,7 +21,13 @@ namespace BizFlow.Application.Common.Constants
         public const string RevenueType = "revenue_type";
         public const string SubscriptionStatus = "subscription_status";
         public const string SubscriptionTransactionType = "subscription_transaction_type";
+        public const string TransactionStatus = "transaction_status";
         public const string StockMovementType = "stock_movement_type";
         public const string StockMovementReferenceType = "stock_movement_reference_type";
+        public const string LedgerEffectiveStatus = "ledger_effective_status";
+        public const string HireStatus = "hire_status";
+        public const string AccountingPeriodType = "accounting_period_type";
+        public const string AccountingPeriodStatus = "accounting_period_status";
+        public const string AccountingPeriodAuditAction = "accounting_period_audit_action";
     }
 }

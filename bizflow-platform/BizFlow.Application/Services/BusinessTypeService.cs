@@ -1,3 +1,5 @@
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.BusinessType;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -7,10 +9,12 @@ namespace BizFlow.Application.Services
     public class BusinessTypeService : IBusinessTypeService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IReferenceLabelService _labels;
 
-        public BusinessTypeService(IUnitOfWork unitOfWork)
+        public BusinessTypeService(IUnitOfWork unitOfWork, IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
+            _labels = labels;
         }
 
         public async Task<IEnumerable<BusinessTypeDto>> GetAllAsync()
@@ -22,7 +26,7 @@ namespace BizFlow.Application.Services
                 Code = bt.Code,
                 Name = bt.Name,
                 Description = bt.Description,
-                Status = bt.Status
+                Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status)
             });
         }
     }

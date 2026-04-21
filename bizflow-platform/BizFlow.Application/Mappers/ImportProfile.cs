@@ -8,13 +8,20 @@ namespace BizFlow.Application.Mappers
     {
         public ImportProfile()
         {
+            // ImportType / Status are reference i18n fields — populated by the
+            // service layer via IReferenceLabelService after AutoMapper
+            // projection to avoid pulling DI into AutoMapper profiles.
+
             // Import → ImportSummaryDto
             CreateMap<Import, ImportSummaryDto>()
                 .ForMember(dest => dest.BusinessLocationName,
-                    opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.LocationName : null));
+                    opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.LocationName : null))
+                .ForMember(dest => dest.ImportType, opt => opt.Ignore())
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
 
-            // Import → ImportDetailDto  
+            // Import → ImportDetailDto
             CreateMap<Import, ImportDetailDto>()
+                .IncludeBase<Import, ImportSummaryDto>()
                 .ForMember(dest => dest.BusinessLocationName,
                     opt => opt.MapFrom(src => src.BusinessLocation != null ? src.BusinessLocation.LocationName : null))
                 .ForMember(dest => dest.Items,

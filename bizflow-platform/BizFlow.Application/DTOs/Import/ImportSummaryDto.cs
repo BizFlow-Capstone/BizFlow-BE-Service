@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Import
 {
     /// <summary>
@@ -7,8 +9,16 @@ namespace BizFlow.Application.DTOs.Import
     {
         public long ImportId { get; set; }
         public string? ImportCode { get; set; }
-        public string ImportType { get; set; } = null!;
-        public string Status { get; set; } = null!;
+        /// <summary>
+        /// Import type. <c>Code</c> ∈ {<c>INVOICE</c>, <c>INVENTORY_ADJUSTMENT</c>, <c>RETURN</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto ImportType { get; set; } = null!;
+        /// <summary>
+        /// Import status. <c>Code</c> ∈ {<c>DRAFT</c>, <c>CONFIRMED</c>, <c>CANCELLED</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto Status { get; set; } = null!;
         public int BusinessLocationId { get; set; }
         public string? BusinessLocationName { get; set; }
         public string? Supplier { get; set; }

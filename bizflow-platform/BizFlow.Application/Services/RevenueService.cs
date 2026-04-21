@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
@@ -17,19 +18,30 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationService _locationService;
         private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
+        private readonly IReferenceLabelService _labels;
 
         public RevenueService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
             IImageService imageService,
-            IGeneralLedgerService generalLedgerService)
+            IGeneralLedgerService generalLedgerService,
+            IReferenceLabelService labels)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _imageService = imageService;
             _generalLedgerService = generalLedgerService;
+            _labels = labels;
+        }
+
+        private RevenueDto ToDto(Revenue revenue)
+        {
+            var dto = _mapper.Map<RevenueDto>(revenue);
+            dto.RevenueType = _labels.ToOption(ReferenceCategory.RevenueType, revenue.RevenueType);
+            dto.MoneyChannel = _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, revenue.MoneyChannel);
+            return dto;
         }
 
         public async Task<RevenueDto> CreateManualAsync(Guid userId, CreateManualRevenueRequest request)
@@ -77,7 +89,7 @@ namespace BizFlow.Application.Services
                 return entity;
             });
 
-            return _mapper.Map<RevenueDto>(revenue);
+            return ToDto(revenue);
         }
 
         public async Task<RevenueDto> UpdateManualAsync(Guid userId, long revenueId, UpdateManualRevenueRequest request)
@@ -122,7 +134,7 @@ namespace BizFlow.Application.Services
             await _generalLedgerService.RecordManualRevenueAsync(revenue);
             await _uow.SaveChangesAsync();
 
-            return _mapper.Map<RevenueDto>(revenue);
+            return ToDto(revenue);
         }
 
         public async Task<PaginatedResponse<RevenueDto>> ListAsync(Guid userId, RevenueQueryParams query)
@@ -144,7 +156,7 @@ namespace BizFlow.Application.Services
                 query.MoneyChannel = query.MoneyChannel.Trim().ToLowerInvariant();
 
             var (items, total) = await _uow.Revenues.SearchAsync(query);
-            var dtos = _mapper.Map<List<RevenueDto>>(items);
+            var dtos = items.Select(ToDto).ToList();
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;

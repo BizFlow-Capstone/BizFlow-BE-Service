@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Cost;
 using BizFlow.Application.Interfaces.Repositories;
@@ -17,19 +18,30 @@ namespace BizFlow.Application.Services
         private readonly IBusinessLocationService _locationService;
         private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
+        private readonly IReferenceLabelService _labels;
 
         public CostService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
             IImageService imageService,
-            IGeneralLedgerService generalLedgerService)
+            IGeneralLedgerService generalLedgerService,
+            IReferenceLabelService labels)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _imageService = imageService;
             _generalLedgerService = generalLedgerService;
+            _labels = labels;
+        }
+
+        private CostDto ToDto(Cost cost)
+        {
+            var dto = _mapper.Map<CostDto>(cost);
+            dto.CostType = _labels.ToOption(ReferenceCategory.CostType, cost.CostType);
+            dto.PaymentMethod = _labels.ToOptionOrNull(ReferenceCategory.PaymentMethod, cost.PaymentMethod);
+            return dto;
         }
 
         public async Task<CostDto> CreateManualAsync(Guid userId, CreateManualCostRequest request)
@@ -87,7 +99,7 @@ namespace BizFlow.Application.Services
             await _generalLedgerService.RecordManualCostAsync(entity);
             await _uow.SaveChangesAsync();
 
-            return _mapper.Map<CostDto>(entity);
+            return ToDto(entity);
         }
 
         public async Task<CostDto> UpdateManualAsync(Guid userId, long costId, UpdateManualCostRequest request)
@@ -154,7 +166,7 @@ namespace BizFlow.Application.Services
             await _generalLedgerService.RecordManualCostAsync(cost);
             await _uow.SaveChangesAsync();
 
-            return _mapper.Map<CostDto>(cost);
+            return ToDto(cost);
         }
 
         public async Task<PaginatedResponse<CostDto>> ListAsync(Guid userId, CostQueryParams query)
@@ -176,7 +188,7 @@ namespace BizFlow.Application.Services
                 query.PaymentMethod = query.PaymentMethod.Trim().ToLowerInvariant();
 
             var (items, total) = await _uow.Costs.SearchAsync(query);
-            var dtos = _mapper.Map<List<CostDto>>(items);
+            var dtos = items.Select(ToDto).ToList();
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
