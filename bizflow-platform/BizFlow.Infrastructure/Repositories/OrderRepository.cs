@@ -22,58 +22,12 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<(IEnumerable<Order> Items, int TotalCount)> SearchAsync(OrderQueryParams query)
         {
-            // #region agent log
-            File.AppendAllText(
-                "debug-f87db8.log",
-                JsonSerializer.Serialize(new
-                {
-                    sessionId = "f87db8",
-                    runId = "list-order-debug",
-                    hypothesisId = "H1-H2-H3-H4",
-                    location = "OrderRepository.SearchAsync:entry",
-                    message = "SearchAsync filters snapshot",
-                    data = new
-                    {
-                        query.BusinessLocationId,
-                        query.Status,
-                        query.FromDate,
-                        query.ToDate,
-                        query.Search,
-                        query.CreatedByProfileId,
-                        query.PageNumber,
-                        query.PageSize
-                    },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + Environment.NewLine);
-            // #endregion
-
             // 1. Get total count
             // IgnoreQueryFilters: OrderDetails reference SaleItems/Products that may be soft-deleted
             // after an order was placed. Historical order data must not be affected by those filters.
             var countSpec = new OrderSearchSpec(query, isCount: true);
             var countQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.IgnoreQueryFilters(), countSpec);
             var totalCount = await countQuery.CountAsync();
-            var targetOrderInCount = await countQuery.AnyAsync(o => o.OrderId == 163);
-
-            // #region agent log
-            File.AppendAllText(
-                "debug-f87db8.log",
-                JsonSerializer.Serialize(new
-                {
-                    sessionId = "f87db8",
-                    runId = "list-order-debug",
-                    hypothesisId = "H1-H2-H3-H4",
-                    location = "OrderRepository.SearchAsync:count",
-                    message = "Count query evaluated",
-                    data = new
-                    {
-                        totalCount,
-                        targetOrderId = 163,
-                        targetOrderInCount
-                    },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + Environment.NewLine);
-            // #endregion
 
             if (totalCount == 0)
                 return (Array.Empty<Order>(), 0);
@@ -90,27 +44,6 @@ namespace BizFlow.Infrastructure.Repositories
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
-
-            // #region agent log
-            File.AppendAllText(
-                "debug-f87db8.log",
-                JsonSerializer.Serialize(new
-                {
-                    sessionId = "f87db8",
-                    runId = "list-order-debug",
-                    hypothesisId = "H4",
-                    location = "OrderRepository.SearchAsync:page-ids",
-                    message = "Paged ids selected",
-                    data = new
-                    {
-                        pageNumber,
-                        pageSize,
-                        ids,
-                        contains163 = ids.Contains(163)
-                    },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + Environment.NewLine);
-            // #endregion
 
             if (!ids.Any())
                 return (Array.Empty<Order>(), totalCount);

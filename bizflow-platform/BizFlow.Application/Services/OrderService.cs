@@ -587,31 +587,6 @@ namespace BizFlow.Application.Services
 
         public async Task<PaginatedResponse<OrderDto>> ListAsync(Guid profileId, OrderQueryParams query)
         {
-            // #region agent log
-            File.AppendAllText(
-                "debug-f87db8.log",
-                JsonSerializer.Serialize(new
-                {
-                    sessionId = "f87db8",
-                    runId = "list-order-debug",
-                    hypothesisId = "H1-H2-H3",
-                    location = "OrderService.ListAsync:entry",
-                    message = "Incoming list order query",
-                    data = new
-                    {
-                        profileId,
-                        query.BusinessLocationId,
-                        query.Status,
-                        query.FromDate,
-                        query.ToDate,
-                        query.Search,
-                        query.PageNumber,
-                        query.PageSize
-                    },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + Environment.NewLine);
-            // #endregion
-
             await _locationService.ValidateLocationAccessAsync(profileId, query.BusinessLocationId);
             var isOwner = await _uow.BusinessLocations.IsOwnerOfLocationAsync(profileId, query.BusinessLocationId);
 
@@ -626,26 +601,6 @@ namespace BizFlow.Application.Services
                 query.CreatedByProfileId = profileId;
 
             var (items, totalCount) = await _uow.Orders.SearchAsync(query);
-            // #region agent log
-            File.AppendAllText(
-                "debug-f87db8.log",
-                JsonSerializer.Serialize(new
-                {
-                    sessionId = "f87db8",
-                    runId = "list-order-debug",
-                    hypothesisId = "H1-H2-H3",
-                    location = "OrderService.ListAsync:after-search",
-                    message = "List order search result",
-                    data = new
-                    {
-                        isOwner,
-                        query.CreatedByProfileId,
-                        totalCount,
-                        returnedOrderIds = items.Select(x => x.OrderId).ToList()
-                    },
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }) + Environment.NewLine);
-            // #endregion
             var dtos = await MapOrdersWithCreatorAsync(items);
 
             var pageNumber = query.PageNumber ?? 1;
