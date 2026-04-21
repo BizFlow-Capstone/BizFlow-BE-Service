@@ -1,0 +1,89 @@
+{
+  "payment_method": {
+    "cash": "Cash",
+    "bank": "Bank transfer",
+    "system": "System"
+  },
+  "business_type_status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "cost_type": {
+    "import": "Goods import cost",
+    "salary": "Salary",
+    "rent": "Rent",
+    "utilities": "Utilities (electricity, water, internet)",
+    "transport": "Transport",
+    "marketing": "Marketing",
+    "maintenance": "Maintenance",
+    "other": "Other cost",
+    "manual": "Manual cost"
+  },
+  "general_ledger_reference_type": {
+    "cost": "Cost",
+    "debtor_payment": "Debtor payment",
+    "revenue": "Revenue"
+  },
+  "general_ledger_transaction_type": {
+    "sale": "Sale",
+    "import_cost": "Import cost",
+    "manual_cost": "Manual cost",
+    "debt_payment": "Debt payment",
+    "manual_revenue": "Manual revenue",
+    "manual_expense": "Manual expense"
+  },
+  "general_ledger_view_mode": {
+    "audit": "Audit trail",
+    "effective": "Current effective"
+  },
+  "import_status": {
+    "DRAFT": "Draft",
+    "CONFIRMED": "Confirmed",
+    "CANCELLED": "Cancelled"
+  },
+  "import_type": {
+    "INVOICE": "Invoice",
+    "INVENTORY_ADJUSTMENT": "Inventory adjustment",
+    "RETURN": "Return"
+  },
+  "money_channel_type": {
+    "cash": "Cash",
+    "bank": "Bank",
+    "debt": "Debt"
+  },
+  "order_status": {
+    "pending": "Pending",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "product_status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "revenue_type": {
+    "sale": "Sale",
+    "manual": "Manual"
+  },
+  "subscription_status": {
+    "Pending": "Pending",
+    "Active": "Active",
+    "Expired": "Expired",
+    "Upgraded": "Upgraded",
+    "Cancelled": "Cancelled",
+    "Inactive": "Inactive"
+  },
+  "subscription_transaction_type": {
+    "PURCHASE": "Purchase",
+    "RENEW": "Renew"
+  },
+  "stock_movement_type": {
+    "IN": "Stock in",
+    "OUT": "Stock out",
+    "ADJUSTMENT": "Adjustment"
+  },
+  "stock_movement_reference_type": {
+    "IMPORT": "Import receipt",
+    "ORDER": "Order",
+    "ADJUSTMENT": "Adjustment"
+  }
+}

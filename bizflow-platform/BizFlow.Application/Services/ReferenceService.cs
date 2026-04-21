@@ -1,4 +1,6 @@
 using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Interfaces;
+using BizFlow.Application.DTOs.Reference;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Enums;
 
@@ -6,36 +8,69 @@ namespace BizFlow.Application.Services
 {
     public class ReferenceService : IReferenceService
     {
-        public IReadOnlyList<string> GetPaymentMethods() => PaymentMethods.ExposedToUser;
+        private readonly IReferenceLabelService _labelService;
 
-        public IReadOnlyList<string> GetBusinessTypeStatuses() => BusinessTypeStatus.All;
+        public ReferenceService(IReferenceLabelService labelService)
+        {
+            _labelService = labelService;
+        }
 
-        public IReadOnlyList<string> GetCostTypes() => CostType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetPaymentMethods() =>
+            Build(ReferenceCategory.PaymentMethod, PaymentMethods.ExposedToUser);
 
-        public IReadOnlyList<string> GetGeneralLedgerReferenceTypes() => GeneralLedgerReferenceType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetBusinessTypeStatuses() =>
+            Build(ReferenceCategory.BusinessTypeStatus, BusinessTypeStatus.All);
 
-        public IReadOnlyList<string> GetGeneralLedgerTransactionTypes() => GeneralLedgerTransactionType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetCostTypes() =>
+            Build(ReferenceCategory.CostType, CostType.All);
 
-        public IReadOnlyList<string> GetGeneralLedgerViewModes() => GeneralLedgerViewMode.All;
+        public IReadOnlyList<ReferenceOptionDto> GetGeneralLedgerReferenceTypes() =>
+            Build(ReferenceCategory.GeneralLedgerReferenceType, GeneralLedgerReferenceType.All);
 
-        public IReadOnlyList<string> GetImportStatuses() => ImportStatus.All;
+        public IReadOnlyList<ReferenceOptionDto> GetGeneralLedgerTransactionTypes() =>
+            Build(ReferenceCategory.GeneralLedgerTransactionType, GeneralLedgerTransactionType.All);
 
-        public IReadOnlyList<string> GetImportTypes() => ImportType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetGeneralLedgerViewModes() =>
+            Build(ReferenceCategory.GeneralLedgerViewMode, GeneralLedgerViewMode.All);
 
-        public IReadOnlyList<string> GetMoneyChannelTypes() => MoneyChannelType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetImportStatuses() =>
+            Build(ReferenceCategory.ImportStatus, ImportStatus.All);
 
-        public IReadOnlyList<string> GetOrderStatuses() => OrderStatus.All;
+        public IReadOnlyList<ReferenceOptionDto> GetImportTypes() =>
+            Build(ReferenceCategory.ImportType, ImportType.All);
 
-        public IReadOnlyList<string> GetProductStatuses() => ProductStatus.All;
+        public IReadOnlyList<ReferenceOptionDto> GetMoneyChannelTypes() =>
+            Build(ReferenceCategory.MoneyChannelType, MoneyChannelType.All);
 
-        public IReadOnlyList<string> GetRevenueTypes() => RevenueType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetOrderStatuses() =>
+            Build(ReferenceCategory.OrderStatus, OrderStatus.All);
 
-        public IReadOnlyList<string> GetSubscriptionStatuses() => SubscriptionStatus.All;
+        public IReadOnlyList<ReferenceOptionDto> GetProductStatuses() =>
+            Build(ReferenceCategory.ProductStatus, ProductStatus.All);
 
-        public IReadOnlyList<string> GetSubscriptionTransactionTypes() => TransactionType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetRevenueTypes() =>
+            Build(ReferenceCategory.RevenueType, RevenueType.All);
 
-        public IReadOnlyList<string> GetStockMovementTypes() => StockMovementType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetSubscriptionStatuses() =>
+            Build(ReferenceCategory.SubscriptionStatus, SubscriptionStatus.All);
 
-        public IReadOnlyList<string> GetStockMovementReferenceTypes() => StockMovementReferenceType.All;
+        public IReadOnlyList<ReferenceOptionDto> GetSubscriptionTransactionTypes() =>
+            Build(ReferenceCategory.SubscriptionTransactionType, TransactionType.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetStockMovementTypes() =>
+            Build(ReferenceCategory.StockMovementType, StockMovementType.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetStockMovementReferenceTypes() =>
+            Build(ReferenceCategory.StockMovementReferenceType, StockMovementReferenceType.All);
+
+        private IReadOnlyList<ReferenceOptionDto> Build(string category, IReadOnlyList<string> codes)
+        {
+            var result = new List<ReferenceOptionDto>(codes.Count);
+            foreach (var code in codes)
+            {
+                result.Add(new ReferenceOptionDto(code, _labelService.GetLabel(category, code)));
+            }
+            return result;
+        }
     }
 }

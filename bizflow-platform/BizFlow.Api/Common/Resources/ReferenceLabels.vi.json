@@ -1,0 +1,89 @@
+{
+  "payment_method": {
+    "cash": "Tiền mặt",
+    "bank": "Ngân hàng",
+    "system": "Hệ thống"
+  },
+  "business_type_status": {
+    "active": "Đang hoạt động",
+    "inactive": "Ngừng hoạt động"
+  },
+  "cost_type": {
+    "import": "Chi phí nhập hàng",
+    "salary": "Lương nhân viên",
+    "rent": "Tiền thuê mặt bằng",
+    "utilities": "Tiện ích (điện, nước, internet)",
+    "transport": "Vận chuyển",
+    "marketing": "Marketing",
+    "maintenance": "Bảo trì",
+    "other": "Chi phí khác",
+    "manual": "Chi phí thủ công"
+  },
+  "general_ledger_reference_type": {
+    "cost": "Chi phí",
+    "debtor_payment": "Thanh toán công nợ",
+    "revenue": "Doanh thu"
+  },
+  "general_ledger_transaction_type": {
+    "sale": "Bán hàng",
+    "import_cost": "Chi phí nhập hàng",
+    "manual_cost": "Chi phí thủ công",
+    "debt_payment": "Thanh toán công nợ",
+    "manual_revenue": "Doanh thu thủ công",
+    "manual_expense": "Khoản chi thủ công"
+  },
+  "general_ledger_view_mode": {
+    "audit": "Theo dõi kiểm toán",
+    "effective": "Hiệu lực hiện hành"
+  },
+  "import_status": {
+    "DRAFT": "Nháp",
+    "CONFIRMED": "Đã xác nhận",
+    "CANCELLED": "Đã hủy"
+  },
+  "import_type": {
+    "INVOICE": "Hóa đơn",
+    "INVENTORY_ADJUSTMENT": "Điều chỉnh tồn kho",
+    "RETURN": "Trả hàng"
+  },
+  "money_channel_type": {
+    "cash": "Tiền mặt",
+    "bank": "Ngân hàng",
+    "debt": "Công nợ"
+  },
+  "order_status": {
+    "pending": "Đang chờ",
+    "completed": "Hoàn tất",
+    "cancelled": "Đã hủy"
+  },
+  "product_status": {
+    "active": "Đang hoạt động",
+    "inactive": "Ngừng hoạt động"
+  },
+  "revenue_type": {
+    "sale": "Bán hàng",
+    "manual": "Thủ công"
+  },
+  "subscription_status": {
+    "Pending": "Đang chờ",
+    "Active": "Đang hoạt động",
+    "Expired": "Hết hạn",
+    "Upgraded": "Đã nâng cấp",
+    "Cancelled": "Đã hủy",
+    "Inactive": "Ngừng hoạt động"
+  },
+  "subscription_transaction_type": {
+    "PURCHASE": "Mua mới",
+    "RENEW": "Gia hạn"
+  },
+  "stock_movement_type": {
+    "IN": "Nhập kho",
+    "OUT": "Xuất kho",
+    "ADJUSTMENT": "Điều chỉnh tồn kho"
+  },
+  "stock_movement_reference_type": {
+    "IMPORT": "Phiếu nhập hàng",
+    "ORDER": "Đơn hàng",
+    "ADJUSTMENT": "Điều chỉnh tồn kho"
+  }
+}

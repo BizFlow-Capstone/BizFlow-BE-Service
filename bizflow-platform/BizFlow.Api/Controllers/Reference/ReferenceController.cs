@@ -11,7 +11,10 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BizFlow.Api.Controllers.Reference
 {
     /// <summary>
-    /// Reference / lookup data
+    /// Reference / lookup data.
+    /// All list endpoints return items as { code, label } where:
+    ///  - code  = backend enum value that clients must send back in requests,
+    ///  - label = Vietnamese display text for UI only.
     /// </summary>
     [Route("api/reference")]
     [Authorize]
@@ -46,7 +49,7 @@ namespace BizFlow.Api.Controllers.Reference
         /// </summary>
         [HttpGet("payment-methods")]
         [OutputCache(PolicyName = "PublicData")]
-        [SwaggerOperation(Summary = "Get payment methods", Description = "Returns all supported payment method codes (e.g. cash, bank).")]
+        [SwaggerOperation(Summary = "Get payment methods", Description = "Returns supported payment methods as objects with { code, label }.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public IActionResult GetPaymentMethods()
         {
