@@ -23,8 +23,10 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<(IEnumerable<Order> Items, int TotalCount)> SearchAsync(OrderQueryParams query)
         {
             // 1. Get total count
+            // IgnoreQueryFilters: OrderDetails reference SaleItems/Products that may be soft-deleted
+            // after an order was placed. Historical order data must not be affected by those filters.
             var countSpec = new OrderSearchSpec(query, isCount: true);
-            var countQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.AsQueryable(), countSpec);
+            var countQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.IgnoreQueryFilters(), countSpec);
             var totalCount = await countQuery.CountAsync();
 
             if (totalCount == 0)
@@ -32,7 +34,7 @@ namespace BizFlow.Infrastructure.Repositories
 
             // 2. Deferred Join Strategy (Get IDs first)
             var filterSpec = new OrderSearchSpec(query, isCount: false, filterOnly: true);
-            var filterQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.AsQueryable(), filterSpec);
+            var filterQuery = SpecificationEvaluator<Order>.GetQuery(_db.Orders.IgnoreQueryFilters(), filterSpec);
 
             var pageNumber = query.PageNumber ?? 1;
             var pageSize = query.PageSize ?? 20;
@@ -48,6 +50,7 @@ namespace BizFlow.Infrastructure.Repositories
 
             // 3. Fetch full entities
             var items = await _db.Orders
+                .IgnoreQueryFilters()
                 .Where(o => ids.Contains(o.OrderId))
                 .OrderByDescending(o => o.CreatedAt)
                 .Include(o => o.OrderDetails)
@@ -63,6 +66,7 @@ namespace BizFlow.Infrastructure.Repositories
 
         public Task<Order?> GetByIdWithDetailsAsync(long orderId)
             => _db.Orders
+                .IgnoreQueryFilters()
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
                         .ThenInclude(si => si.Product)
@@ -71,6 +75,7 @@ namespace BizFlow.Infrastructure.Repositories
 
         public Task<Order?> GetByIdWithDetailsAsNoTrackingAsync(long orderId, CancellationToken cancellationToken = default)
             => _db.Orders
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
@@ -86,6 +91,7 @@ namespace BizFlow.Infrastructure.Repositories
 
         public Task<Order?> GetLatestReplacementByRefOrderIdAsync(long refOrderId)
             => _db.Orders
+                .IgnoreQueryFilters()
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
                         .ThenInclude(si => si.Product)
@@ -96,6 +102,7 @@ namespace BizFlow.Infrastructure.Repositories
         public async Task<Order?> GetLatestReplacementByRefOrderIdAsync(long refOrderId, string idempotencyMarker)
         {
             var candidates = await _db.Orders
+                .IgnoreQueryFilters()
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.SaleItem)
                         .ThenInclude(si => si.Product)
@@ -159,6 +166,7 @@ namespace BizFlow.Infrastructure.Repositories
                 return 0;
 
             return await _db.Orders
+                .IgnoreQueryFilters()
                 .Where(o => o.Status == OrderStatus.Completed
                     && o.CompletedAt != null
                     && o.CompletedAt >= completedFromUtc
