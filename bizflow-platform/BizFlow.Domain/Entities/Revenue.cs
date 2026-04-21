@@ -51,6 +51,16 @@ public partial class Revenue
     public string? MoneyChannel { get; set; }
 
     /// <summary>
+    /// Receipt/invoice URL (Cloudinary)
+    /// </summary>
+    public string? DocumentUrl { get; set; }
+
+    /// <summary>
+    /// Receipt/invoice Cloudinary public id
+    /// </summary>
+    public string? DocumentPublicId { get; set; }
+
+    /// <summary>
     /// Supporting document number (optional)
     /// </summary>
     public string? DocumentNumber { get; set; }

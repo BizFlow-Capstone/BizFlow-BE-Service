@@ -15,17 +15,20 @@ namespace BizFlow.Application.Services
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
         private readonly IBusinessLocationService _locationService;
+        private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
 
         public RevenueService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
+            IImageService imageService,
             IGeneralLedgerService generalLedgerService)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
+            _imageService = imageService;
             _generalLedgerService = generalLedgerService;
         }
 
@@ -39,6 +42,16 @@ namespace BizFlow.Application.Services
 
             var revenue = await _uow.ExecuteResilientAsync(async _ =>
             {
+                string? documentUrl = null;
+                string? documentPublicId = null;
+                if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    documentUrl = imageInfo.Url;
+                    documentPublicId = imageInfo.PublicId;
+                }
+
                 var entity = new Revenue
                 {
                     BusinessLocationId = request.BusinessLocationId,
@@ -48,6 +61,8 @@ namespace BizFlow.Application.Services
                     RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
                     Description = request.Description.Trim(),
                     MoneyChannel = request.MoneyChannel.Trim().ToLower(),
+                    DocumentUrl = documentUrl,
+                    DocumentPublicId = documentPublicId,
                     DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber),
                     DocumentDate = request.DocumentDate,
                     CreatedBy = userId,
@@ -83,6 +98,20 @@ namespace BizFlow.Application.Services
             revenue.RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             revenue.Description = request.Description.Trim();
             revenue.MoneyChannel = request.MoneyChannel.Trim().ToLower();
+            if (request.RemoveDocument && !string.IsNullOrEmpty(revenue.DocumentPublicId))
+            {
+                revenue.DocumentUrl = null;
+                revenue.DocumentPublicId = null;
+            }
+
+            if (request.ImageStream != null)
+            {
+                var imageInfo = await _imageService.UploadImageAsync(
+                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                revenue.DocumentUrl = imageInfo.Url;
+                revenue.DocumentPublicId = imageInfo.PublicId;
+            }
+
             revenue.DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber);
             revenue.DocumentDate = request.DocumentDate;
 

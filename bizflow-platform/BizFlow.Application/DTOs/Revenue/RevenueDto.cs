@@ -12,6 +12,8 @@ namespace BizFlow.Application.DTOs.Revenue
         public DateOnly RevenueDate { get; set; }
         public string Description { get; set; } = null!;
         public string? MoneyChannel { get; set; }
+        public string? DocumentUrl { get; set; }
+        public string? DocumentPublicId { get; set; }
         public string? DocumentNumber { get; set; }
         public DateOnly? DocumentDate { get; set; }
         public Guid CreatedBy { get; set; }

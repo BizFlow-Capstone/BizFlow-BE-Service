@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 
 namespace BizFlow.Application.DTOs.Revenue
 {
@@ -24,5 +25,17 @@ namespace BizFlow.Application.DTOs.Revenue
         public string? DocumentNumber { get; set; }
 
         public DateOnly? DocumentDate { get; set; }
+
+        public bool RemoveDocument { get; set; }
+
+        /// <summary>
+        /// Image stream (populated from IFormFile on controller).
+        /// </summary>
+        internal Stream? ImageStream { get; set; }
+
+        /// <summary>
+        /// Image file name (populated from IFormFile on controller).
+        /// </summary>
+        internal string? ImageFileName { get; set; }
     }
 }

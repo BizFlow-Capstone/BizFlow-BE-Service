@@ -1171,6 +1171,12 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
                 .HasComment("Revenue description");
+            entity.Property(e => e.DocumentPublicId)
+                .HasMaxLength(255)
+                .HasComment("Cloudinary public ID of the voucher");
+            entity.Property(e => e.DocumentUrl)
+                .HasMaxLength(500)
+                .HasComment("Voucher/invoice URL (Cloudinary)");
             entity.Property(e => e.MoneyChannel)
                 .HasMaxLength(10)
                 .HasComment("cash | bank | debt");

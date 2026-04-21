@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
+using System.IO;
 
 namespace BizFlow.Api.Controllers.Revenue
 {
@@ -33,14 +34,36 @@ namespace BizFlow.Api.Controllers.Revenue
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> CreateManual([FromBody] CreateManualRevenueRequest request)
+        public async Task<IActionResult> CreateManual([FromForm] CreateManualRevenueRequest request, IFormFile? image)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(MessageKeys.ValidationError, ModelState);
+            MemoryStream? uploadedImageStream = null;
+            if (image != null)
+            {
+                uploadedImageStream = new MemoryStream();
+                await image.CopyToAsync(uploadedImageStream);
+                uploadedImageStream.Position = 0;
+                request.ImageStream = uploadedImageStream;
+                request.ImageFileName = image.FileName;
+            }
 
-            var userId = GetCurrentUserId();
-            var result = await _revenueService.CreateManualAsync(userId, request);
-            return Created(result, MessageKeys.DataCreatedSuccessfully, nameof(GetRevenues), new { });
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(MessageKeys.ValidationError, ModelState);
+
+                var userId = GetCurrentUserId();
+                var result = await _revenueService.CreateManualAsync(userId, request);
+                return Created(
+                    result,
+                    MessageKeys.DataCreatedSuccessfully,
+                    nameof(GetRevenues),
+                    new { }
+                );
+            }
+            finally
+            {
+                uploadedImageStream?.Dispose();
+            }
         }
 
         [HttpPut("revenues/{revenueId:long}")]
@@ -49,14 +72,35 @@ namespace BizFlow.Api.Controllers.Revenue
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateManual(long revenueId, [FromBody] UpdateManualRevenueRequest request)
+        public async Task<IActionResult> UpdateManual(
+            long revenueId,
+            [FromForm] UpdateManualRevenueRequest request,
+            IFormFile? image
+        )
         {
-            if (!ModelState.IsValid)
-                return BadRequest(MessageKeys.ValidationError, ModelState);
+            MemoryStream? uploadedImageStream = null;
+            if (image != null)
+            {
+                uploadedImageStream = new MemoryStream();
+                await image.CopyToAsync(uploadedImageStream);
+                uploadedImageStream.Position = 0;
+                request.ImageStream = uploadedImageStream;
+                request.ImageFileName = image.FileName;
+            }
 
-            var userId = GetCurrentUserId();
-            var result = await _revenueService.UpdateManualAsync(userId, revenueId, request);
-            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(MessageKeys.ValidationError, ModelState);
+
+                var userId = GetCurrentUserId();
+                var result = await _revenueService.UpdateManualAsync(userId, revenueId, request);
+                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+            }
+            finally
+            {
+                uploadedImageStream?.Dispose();
+            }
         }
 
         [HttpGet("revenues")]
