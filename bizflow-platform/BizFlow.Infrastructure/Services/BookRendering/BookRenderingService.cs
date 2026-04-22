@@ -686,17 +686,17 @@ public class BookRenderingService : IBookRenderingService
         BookRenderContext ctx, string? cursor, int batchSize)
     {
         var safeBatchSize = SanitizeBatchSize(batchSize);
+        var cursorOffset = ParseCursorOffset(cursor);
+        var pageNumber = cursorOffset > 0 ? (cursorOffset / safeBatchSize) + 1 : 1;
 
         var query = new Application.DTOs.Revenue.RevenueQueryParams
         {
             BusinessLocationId = ctx.BusinessLocationId,
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
+            PageNumber = pageNumber,
             PageSize = safeBatchSize + 1 // +1 to check hasMore
         };
-
-        // TODO: Apply cursor-based filtering (skip past cursor position)
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
         var list = items.Where(r => r.DeletedAt == null).ToList();
@@ -783,13 +783,15 @@ public class BookRenderingService : IBookRenderingService
         BookRenderContext ctx, string? cursor, int batchSize)
     {
         var safeBatchSize = SanitizeBatchSize(batchSize);
+        var cursorOffset = ParseCursorOffset(cursor);
+        var pageNumber = cursorOffset > 0 ? (cursorOffset / safeBatchSize) + 1 : 1;
 
         var query = new Application.DTOs.GeneralLedger.GeneralLedgerQueryParams
         {
             BusinessLocationId = ctx.BusinessLocationId,
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
+            PageNumber = pageNumber,
             PageSize = safeBatchSize + 1
         };
 
