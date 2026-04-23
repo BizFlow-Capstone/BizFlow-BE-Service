@@ -94,6 +94,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
+      - GOOGLE_STT_MODEL=${GOOGLE_STT_MODEL:-long}
       - AI_DB_URL=${AI_DB_URL}
       # Shared secret — must match AiService__InternalSecret in the BE service
       - INTERNAL_API_SECRET=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}

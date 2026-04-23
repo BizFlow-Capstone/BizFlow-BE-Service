@@ -613,6 +613,11 @@ if (isHangfireEnabled)
         "ai-product-insights",
         job => job.ExecuteAsync(),
         "30 20 * * *"); // 03:30 Vietnam time (UTC+7)
+
+    RecurringJob.AddOrUpdate<AiVectorStoreSyncJob>(
+        "ai-vector-store-sync",
+        job => job.ExecuteAsync(),
+        "0 21 * * *"); // 04:00 Vietnam time (UTC+7) — nightly reconciliation
 }
 else
 {
