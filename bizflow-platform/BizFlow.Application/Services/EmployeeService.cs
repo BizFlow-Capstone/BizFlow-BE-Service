@@ -11,15 +11,18 @@ namespace BizFlow.Application.Services
     public class EmployeeService : IEmployeeService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISubscriptionService _subscriptionService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<EmployeeService> _logger;
 
         public EmployeeService(
             IUnitOfWork unitOfWork,
+            ISubscriptionService subscriptionService,
             INotificationService notificationService,
             ILogger<EmployeeService> logger)
         {
             _unitOfWork = unitOfWork;
+            _subscriptionService = subscriptionService;
             _notificationService = notificationService;
             _logger = logger;
         }
@@ -100,6 +103,20 @@ namespace BizFlow.Application.Services
             hire.EndAt = DateTime.UtcNow;
 
             await _unitOfWork.SaveChangesAsync();
+
+            // Keep employee removal persisted even if Firestore access-grant revoke fails.
+            try
+            {
+                await _subscriptionService.RevokeAccessGrantAsync(ownerId, employeeId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "RevokeAccessGrantAsync failed after employee removal. ownerId={OwnerId}, employeeId={EmployeeId}",
+                    ownerId,
+                    employeeId);
+            }
 
             // Deletion state must be persisted even if downstream notification dispatch fails.
             try
