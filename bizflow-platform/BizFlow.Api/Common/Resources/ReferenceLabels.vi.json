@@ -17,7 +17,7 @@
     "marketing": "Marketing",
     "maintenance": "Bảo trì",
     "other": "Chi phí khác",
-    "manual": ""
+    "manual": "Tự khai báo"
   },
   "general_ledger_reference_type": {
     "cost": "Chi phí",
@@ -27,10 +27,10 @@
   "general_ledger_transaction_type": {
     "sale": "Bán hàng",
     "import_cost": "Chi phí nhập hàng",
-    "manual_cost": "",
+    "manual_cost": "Tự khai báo",
     "debt_payment": "Thanh toán công nợ",
-    "manual_revenue": "",
-    "manual_expense": ""
+    "manual_revenue": "Tự khai báo",
+    "manual_expense": "Tự khai báo"
   },
   "general_ledger_view_mode": {
     "audit": "Theo dõi kiểm toán",
@@ -62,7 +62,7 @@
   },
   "revenue_type": {
     "sale": "Bán hàng",
-    "manual": ""
+    "manual": "Tự khai báo"
   },
   "subscription_status": {
     "Pending": "Đang chờ",
