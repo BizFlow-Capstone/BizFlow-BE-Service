@@ -1,5 +1,6 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
+using BizFlow.Api.Common.Filters;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Employee;
@@ -39,6 +40,7 @@ namespace BizFlow.Api.Controllers.Employee
         }
 
         [HttpPost("invite")]
+        [RequireFeature(FeatureCodes.Employees, useOwnerScope: true)]
         [SwaggerOperation(Summary = "Invite employee")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

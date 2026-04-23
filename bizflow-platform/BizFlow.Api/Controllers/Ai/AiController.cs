@@ -1,5 +1,6 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
+using BizFlow.Api.Common.Filters;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Ai;
@@ -32,6 +33,7 @@ namespace BizFlow.Api.Controllers.Ai
         }
 
         [HttpPost("draft-order")]
+        [RequireFeature(FeatureCodes.Ai)]
         [SwaggerOperation(
             Summary = "Tạo draft order từ giọng nói",
             Description = "Upload audio file → STT → product matching → trả về draft order để user review. Xử lý ~5-8 giây.")]
@@ -54,6 +56,7 @@ namespace BizFlow.Api.Controllers.Ai
         }
 
         [HttpPost("draft-revenue")]
+        [RequireFeature(FeatureCodes.Ai)]
         [SwaggerOperation(
             Summary = "Tạo draft doanh thu từ giọng nói",
             Description = "Upload audio file → STT → trả về draft doanh thu (số tiền, mô tả, ngày, kênh thanh toán) để user review. Ví dụ: 'Hôm nay bán áo thun 3 triệu rưỡi tiền mặt'. Xử lý ~3-6 giây.")]
@@ -76,6 +79,7 @@ namespace BizFlow.Api.Controllers.Ai
         }
 
         [HttpPost("draft-cost")]
+        [RequireFeature(FeatureCodes.Ai)]
         [SwaggerOperation(
             Summary = "Tạo draft chi phí từ giọng nói",
             Description = "Upload audio file → STT → trả về draft chi phí (số tiền, mô tả, loại chi phí, ngày, phương thức thanh toán) để user review. Ví dụ: 'Chi tiền điện tháng này 1 triệu 2'. Xử lý ~3-6 giây.")]
@@ -98,6 +102,7 @@ namespace BizFlow.Api.Controllers.Ai
         }
 
         [HttpPost("ocr/purchase-invoice")]
+        [RequireFeature(FeatureCodes.Ai)]
         [SwaggerOperation(
             Summary = "OCR hóa đơn nhập hàng",
             Description = "Upload ảnh hóa đơn nhập hàng (hóa đơn đỏ từ NCC hoặc phiếu mua hàng 01/TNDN) → GPT-4o Vision trích xuất tên NCC, ngày, SP/SL/đơn giá/tổng. Kết quả draft, không tự lưu.")]
@@ -120,6 +125,7 @@ namespace BizFlow.Api.Controllers.Ai
         }
 
         [HttpPost("ocr/sale-invoice")]
+        [RequireFeature(FeatureCodes.Ai)]
         [SwaggerOperation(
             Summary = "OCR hóa đơn bán hàng",
             Description = "Upload ảnh hóa đơn bán hàng do shop phát hành (hóa đơn đỏ khi bán) → GPT-4o Vision trích xuất tên người mua, số HĐ, ngày, SP/SL/đơn giá, VAT, tổng. Kết quả draft, không tự lưu.")]

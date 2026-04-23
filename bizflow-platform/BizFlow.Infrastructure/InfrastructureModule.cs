@@ -111,6 +111,7 @@ namespace BizFlow.Infrastructure
             builder.RegisterType<AiReorderJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<AiProductInsightsJob>().AsSelf().InstancePerDependency();
             builder.RegisterType<AiAnomalyCheckJob>().AsSelf().InstancePerDependency();
+            builder.RegisterType<AiVectorStoreSyncJob>().AsSelf().InstancePerDependency();
 
             // Register Accounting Book engines
             builder.RegisterType<BizFlow.Infrastructure.Services.FormulaEngine.FormulaEngine>()
