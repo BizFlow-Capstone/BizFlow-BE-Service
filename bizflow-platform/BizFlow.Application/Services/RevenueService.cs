@@ -19,6 +19,7 @@ namespace BizFlow.Application.Services
         private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IReferenceLabelService _labels;
+        private readonly IBackgroundJobScheduler _backgroundJobScheduler;
 
         public RevenueService(
             IUnitOfWork uow,
@@ -26,7 +27,8 @@ namespace BizFlow.Application.Services
             IBusinessLocationService locationService,
             IImageService imageService,
             IGeneralLedgerService generalLedgerService,
-            IReferenceLabelService labels)
+            IReferenceLabelService labels,
+            IBackgroundJobScheduler backgroundJobScheduler)
         {
             _uow = uow;
             _mapper = mapper;
@@ -34,6 +36,7 @@ namespace BizFlow.Application.Services
             _imageService = imageService;
             _generalLedgerService = generalLedgerService;
             _labels = labels;
+            _backgroundJobScheduler = backgroundJobScheduler;
         }
 
         private RevenueDto ToDto(Revenue revenue)
@@ -89,6 +92,9 @@ namespace BizFlow.Application.Services
                 return entity;
             });
 
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                revenue.BusinessLocationId, "revenue", revenue.RevenueId);
+
             return ToDto(revenue);
         }
 
@@ -133,6 +139,9 @@ namespace BizFlow.Application.Services
             await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueUpdatedReversalReason);
             await _generalLedgerService.RecordManualRevenueAsync(revenue);
             await _uow.SaveChangesAsync();
+
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                revenue.BusinessLocationId, "revenue", revenue.RevenueId);
 
             return ToDto(revenue);
         }
