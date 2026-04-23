@@ -67,7 +67,7 @@ namespace BizFlow.Api.Controllers.Import
         /// Update a DRAFT import
         /// </summary>
         [HttpPut("import/{importId:long}")]
-        [SwaggerOperation(Summary = "Update import", Description = "Updates a DRAFT import. Upload image via multipart/form-data. Set RemoveImage=true to remove image. Providing items replaces all existing items.")]
+        [SwaggerOperation(Summary = "Update import", Description = "DRAFT: in-place update. CONFIRMED: replace-when-confirmed (requires IdempotencyKey; new Import + stock/Cost). Upload image via multipart/form-data.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -81,7 +81,9 @@ namespace BizFlow.Api.Controllers.Import
 
             var userId = GetCurrentUserId();
             var result = await _importService.UpdateImportAsync(userId, importId, request);
-            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+            if (result.IsReplacement)
+                return Ok(result, MessageKeys.ImportReplacementCreated);
+            return Ok(result.Import!, MessageKeys.DataUpdatedSuccessfully);
         }
 
         /// <summary>

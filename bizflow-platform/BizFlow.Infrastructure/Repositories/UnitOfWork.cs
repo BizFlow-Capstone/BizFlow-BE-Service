@@ -46,7 +46,8 @@ namespace BizFlow.Infrastructure.Repositories
             IAiRevenueForecastRepository aiRevenueForecastRepository,
             IAiAnomalyAlertRepository aiAnomalyAlertRepository,
             IAiReorderSuggestionRepository aiReorderSuggestionRepository,
-            IAiProductInsightRepository aiProductInsightRepository)
+            IAiProductInsightRepository aiProductInsightRepository,
+            IAccountingDocumentLockRepository accountingDocumentLockRepository)
         {
             _dbContext = dbContext;
             Roles = roleRepository;
@@ -85,6 +86,7 @@ namespace BizFlow.Infrastructure.Repositories
             AiAnomalyAlerts = aiAnomalyAlertRepository;
             AiReorderSuggestions = aiReorderSuggestionRepository;
             AiProductInsights = aiProductInsightRepository;
+            AccountingDocumentLocks = accountingDocumentLockRepository;
         }
 
         public IRoleRepository Roles { get; set; }
@@ -127,6 +129,9 @@ namespace BizFlow.Infrastructure.Repositories
         public IAiAnomalyAlertRepository AiAnomalyAlerts { get; set; }
         public IAiReorderSuggestionRepository AiReorderSuggestions { get; set; }
         public IAiProductInsightRepository AiProductInsights { get; set; }
+
+        // ── DocumentNumber uniqueness ──
+        public IAccountingDocumentLockRepository AccountingDocumentLocks { get; set; }
 
         //============================================
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

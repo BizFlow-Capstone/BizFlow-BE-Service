@@ -12,6 +12,49 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Revenue> AddAsync(Revenue revenue);
         void Update(Revenue revenue);
 
+        // ── DocumentNumber uniqueness helpers (replace-when-posted flow) ──
+
+        /// <summary>
+        /// Must run inside a DB transaction. Acquires an InnoDB row-level write
+        /// lock on the target Revenue row via <c>SELECT ... FOR UPDATE</c>.
+        /// </summary>
+        Task LockRevenueRowForUpdateAsync(long revenueId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Check if any Revenue row (including soft-deleted, cancelled or
+        /// replaced) in the given BusinessLocation uses the supplied normalized
+        /// document number.
+        /// </summary>
+        Task<bool> ExistsByDocumentNumberAsync(
+            int businessLocationId,
+            string documentNumberNormalized,
+            long? excludeRevenueId = null,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Variant that checks across all locations belonging to the supplied
+        /// owner. Used for the "unique-per-owner, cross-location" rule.
+        /// </summary>
+        Task<bool> ExistsByDocumentNumberForOwnerAsync(
+            Guid ownerId,
+            string documentNumberNormalized,
+            long? excludeRevenueId = null,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Get the most recent replacement Revenue that references the given
+        /// original RevenueId via <c>RefRevenueId</c>.
+        /// </summary>
+        Task<Revenue?> GetLatestReplacementByRefRevenueIdAsync(long refRevenueId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Idempotent variant keyed by <c>IdempotencyKey</c>.
+        /// </summary>
+        Task<Revenue?> GetLatestReplacementByRefRevenueIdAsync(
+            long refRevenueId,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default);
+
         Task<decimal> SumAmountByLocationsAndDateRangeAsync(
             IReadOnlyCollection<int> businessLocationIds,
             DateOnly fromDate,

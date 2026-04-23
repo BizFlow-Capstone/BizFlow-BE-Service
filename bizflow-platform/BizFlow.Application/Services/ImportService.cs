@@ -2,6 +2,7 @@ using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
+using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Import;
 using BizFlow.Application.Interfaces.Repositories;
@@ -20,6 +21,7 @@ namespace BizFlow.Application.Services
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IMapper _mapper;
         private readonly IReferenceLabelService _labels;
+        private readonly IMessageService _messageService;
 
         public ImportService(
             IUnitOfWork unitOfWork,
@@ -28,7 +30,8 @@ namespace BizFlow.Application.Services
             ICostService costService,
             IBackgroundJobScheduler backgroundJobScheduler,
             IMapper mapper,
-            IReferenceLabelService labels)
+            IReferenceLabelService labels,
+            IMessageService messageService)
         {
             _unitOfWork = unitOfWork;
             _imageService = imageService;
@@ -37,6 +40,7 @@ namespace BizFlow.Application.Services
             _backgroundJobScheduler = backgroundJobScheduler;
             _mapper = mapper;
             _labels = labels;
+            _messageService = messageService;
         }
 
         private ImportSummaryDto ToDto(Import import)
@@ -133,7 +137,7 @@ namespace BizFlow.Application.Services
         // 3. Update Import
         // =========================================================
 
-        public async Task<ImportSummaryDto> UpdateImportAsync(Guid userId, long importId, UpdateImportRequest request)
+        public async Task<ImportUpdateResultDto> UpdateImportAsync(Guid userId, long importId, UpdateImportRequest request)
         {
             var import = await _unitOfWork.Imports.GetByIdWithItemsAsync(importId);
             if (import == null)
@@ -141,9 +145,20 @@ namespace BizFlow.Application.Services
 
             await EnsureOwnerOfLocationAsync(userId, import.BusinessLocationId);
 
-            if (import.Status != ImportStatus.Draft)
-                throw new BadRequestException(MessageKeys.ImportOnlyDraftCanBeEdited);
+            if (string.Equals(import.Status, ImportStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.ImportCannotEditCancelledOrReplaced);
 
+            if (string.Equals(import.Status, ImportStatus.Draft, StringComparison.OrdinalIgnoreCase))
+                return new ImportUpdateResultDto { IsReplacement = false, Import = await UpdateDraftImportAsync(import, request) };
+
+            if (string.Equals(import.Status, ImportStatus.Confirmed, StringComparison.OrdinalIgnoreCase))
+                return await ReplaceConfirmedImportAsync(userId, importId, request);
+
+            throw new BadRequestException(MessageKeys.BadRequest);
+        }
+
+        private async Task<ImportSummaryDto> UpdateDraftImportAsync(Import import, UpdateImportRequest request)
+        {
             // ImportType cannot be null on entity; keep current when request omits it.
             if (!string.IsNullOrWhiteSpace(request.ImportType)
                 && !ImportType.IsValid(request.ImportType.Trim()))
@@ -157,15 +172,12 @@ namespace BizFlow.Application.Services
             import.ReceivedAt = request.ReceivedAt;
             import.UpdatedAt = DateTime.UtcNow;
 
-            // Update Image
             if (request.RemoveImage && !string.IsNullOrEmpty(import.ImagePublicId))
             {
-                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
                 import.ImageUrl = null;
                 import.ImagePublicId = null;
             }
 
-            // Handle new image upload (if provided)
             if (request.ImageStream != null)
             {
                 var imageInfo = await _imageService.UploadImageAsync(
@@ -174,7 +186,6 @@ namespace BizFlow.Application.Services
                 import.ImagePublicId = imageInfo.PublicId;
             }
 
-            // Always replace items — null or empty list = remove all
             foreach (var old in import.ProductsImports.ToList())
                 _unitOfWork.Imports.DeleteItem(old);
 
@@ -196,7 +207,162 @@ namespace BizFlow.Application.Services
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
 
-            return ToDto(import);
+            var location = await _unitOfWork.BusinessLocations.GetByIdAsync(import.BusinessLocationId);
+            var dto = ToDto(import);
+            if (location != null)
+                dto.BusinessLocationName = location.LocationName;
+            return dto;
+        }
+
+        private async Task<ImportUpdateResultDto> ReplaceConfirmedImportAsync(Guid userId, long oldImportId, UpdateImportRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
+                throw new BadRequestException(MessageKeys.ImportEditConfirmedRequiresIdempotencyKey);
+
+            var idemKey = request.IdempotencyKey.Trim();
+            if (idemKey.Length > 100)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var existing = await _unitOfWork.Imports.GetLatestReplacementByRefImportIdAsync(oldImportId, idemKey);
+            if (existing != null)
+            {
+                return new ImportUpdateResultDto
+                {
+                    IsReplacement = true,
+                    Replacement = new PostedRecordReplacementResultDto
+                    {
+                        OldRecordId = oldImportId,
+                        OldRecordStatus = _labels.ToOption(ReferenceCategory.ImportStatus, ImportStatus.Cancelled),
+                        NewRecordId = existing.ImportId,
+                        NewRecordStatus = _labels.ToOption(ReferenceCategory.ImportStatus, existing.Status)
+                    }
+                };
+            }
+
+            if (request.Items == null || request.Items.Count == 0)
+                throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
+
+            var oldPreview = await _unitOfWork.Imports.GetByIdWithItemsAsync(oldImportId)
+                ?? throw new NotFoundException(MessageKeys.NotFound);
+
+            var receivedAt = request.ReceivedAt ?? oldPreview.ReceivedAt;
+            if (!receivedAt.HasValue)
+                throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
+
+            Import newImportResult = null!;
+
+            await _unitOfWork.ExecuteResilientAsync(async ct =>
+            {
+                await _unitOfWork.Imports.LockImportRowForUpdateAsync(oldImportId, ct);
+
+                var old = await _unitOfWork.Imports.GetByIdWithItemsAsync(oldImportId)
+                    ?? throw new NotFoundException(MessageKeys.NotFound);
+
+                if (!string.Equals(old.Status, ImportStatus.Confirmed, StringComparison.OrdinalIgnoreCase))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                var dup = await _unitOfWork.Imports.GetLatestReplacementByRefImportIdAsync(oldImportId, idemKey, ct);
+                if (dup != null)
+                {
+                    newImportResult = dup;
+                    return;
+                }
+
+                var newCode = GenerateImportCode();
+
+                if (!string.IsNullOrWhiteSpace(request.ImportType)
+                    && !ImportType.IsValid(request.ImportType.Trim()))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                var importType = string.IsNullOrWhiteSpace(request.ImportType)
+                    ? old.ImportType
+                    : request.ImportType.Trim().ToUpperInvariant();
+
+                var (newItems, totalAmount) = await BuildImportItemsAsync(old.BusinessLocationId, request.Items!);
+
+                await RevertImportFromProductsAsync(
+                    old.ProductsImports,
+                    old.ImportId,
+                    old.CancelledAt?.ToString("O") ?? DateTime.UtcNow.ToString("O"));
+
+                await _costService.ReverseImportCostAsync(userId, old, MessageKeys.ImportCancelledReversalReason);
+
+                old.Status = ImportStatus.Cancelled;
+                old.CancelledAt = DateTime.UtcNow;
+                old.CancelledBy = userId;
+                old.CancelReason = _messageService.GetMessage(MessageKeys.ImportReplacedReason, newCode);
+                old.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Imports.Update(old);
+
+                var newImport = new Import
+                {
+                    ImportCode = newCode,
+                    ImportType = importType,
+                    Status = ImportStatus.Confirmed,
+                    BusinessLocationId = old.BusinessLocationId,
+                    Supplier = request.Supplier ?? old.Supplier,
+                    Note = request.Note ?? old.Note,
+                    ReceivedAt = receivedAt,
+                    TotalAmount = totalAmount,
+                    RefImportId = old.ImportId,
+                    IdempotencyKey = idemKey,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    ConfirmedAt = DateTime.UtcNow
+                };
+
+                if (request.RemoveImage && !string.IsNullOrEmpty(old.ImagePublicId))
+                {
+                    newImport.ImageUrl = null;
+                    newImport.ImagePublicId = null;
+                }
+                else if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    newImport.ImageUrl = imageInfo.Url;
+                    newImport.ImagePublicId = imageInfo.PublicId;
+                }
+                else
+                {
+                    newImport.ImageUrl = old.ImageUrl;
+                    newImport.ImagePublicId = old.ImagePublicId;
+                }
+
+                await _unitOfWork.Imports.AddAsync(newImport);
+                await _unitOfWork.SaveChangesAsync(ct);
+
+                foreach (var item in newItems)
+                    item.ImportId = newImport.ImportId;
+
+                newImport.ProductsImports = newItems;
+
+                await ApplyImportToProductsAsync(newItems, newImport.ImportId, newImport.Note);
+                await _unitOfWork.SaveChangesAsync(ct);
+
+                await _costService.CreateImportCostInCurrentTransactionAsync(
+                    userId,
+                    newImport,
+                    request.DocumentNumber,
+                    request.DocumentDate,
+                    ct);
+
+                newImportResult = newImport;
+            });
+
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(newImportResult.BusinessLocationId, "import", newImportResult.ImportId);
+
+            return new ImportUpdateResultDto
+            {
+                IsReplacement = true,
+                Replacement = new PostedRecordReplacementResultDto
+                {
+                    OldRecordId = oldImportId,
+                    OldRecordStatus = _labels.ToOption(ReferenceCategory.ImportStatus, ImportStatus.Cancelled),
+                    NewRecordId = newImportResult.ImportId,
+                    NewRecordStatus = _labels.ToOption(ReferenceCategory.ImportStatus, newImportResult.Status)
+                }
+            };
         }
 
         // =========================================================
@@ -526,7 +692,8 @@ namespace BizFlow.Application.Services
                     Quantity = req.Quantity,
                     CostPrice = req.CostPrice,
                     TotalPrice = totalPrice,
-                    BaseUnit = product.Unit
+                    BaseUnit = product.Unit,
+                    CreatedAt = DateTime.UtcNow
                 });
 
                 totalAmount += totalPrice;

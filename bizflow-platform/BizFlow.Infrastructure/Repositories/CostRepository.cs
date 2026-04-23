@@ -73,6 +73,70 @@ namespace BizFlow.Infrastructure.Repositories
         public void Update(Cost cost)
             => _db.Costs.Update(cost);
 
+        public Task LockCostRowForUpdateAsync(long costId, CancellationToken cancellationToken = default)
+            => _db.Database.ExecuteSqlRawAsync(
+                "SELECT CostId FROM `Costs` WHERE CostId = {0} LIMIT 1 FOR UPDATE",
+                new object[] { costId },
+                cancellationToken);
+
+        public Task<bool> ExistsByDocumentNumberAsync(
+            int businessLocationId,
+            string documentNumberNormalized,
+            long? excludeCostId = null,
+            CancellationToken cancellationToken = default)
+        {
+            // IgnoreQueryFilters: the uniqueness rule applies to ALL rows — including soft-deleted, cancelled or replaced.
+            var q = _db.Costs
+                .IgnoreQueryFilters()
+                .Where(c => c.BusinessLocationId == businessLocationId
+                            && c.DocumentNumberNormalized == documentNumberNormalized);
+
+            if (excludeCostId.HasValue)
+                q = q.Where(c => c.CostId != excludeCostId.Value);
+
+            return q.AnyAsync(cancellationToken);
+        }
+
+        public Task<bool> ExistsByDocumentNumberForOwnerAsync(
+            Guid ownerId,
+            string documentNumberNormalized,
+            long? excludeCostId = null,
+            CancellationToken cancellationToken = default)
+        {
+            // Owner of a location is resolved via UserLocationAssignments (IsOwner = true).
+            var ownedLocationIds = _db.UserLocationAssignments
+                .Where(ula => ula.UserId == ownerId && ula.IsOwner)
+                .Select(ula => ula.BusinessLocationId);
+
+            // IgnoreQueryFilters: uniqueness applies to ALL rows — including soft-deleted, cancelled or replaced.
+            var q = _db.Costs
+                .IgnoreQueryFilters()
+                .Where(c => ownedLocationIds.Contains(c.BusinessLocationId)
+                            && c.DocumentNumberNormalized == documentNumberNormalized);
+
+            if (excludeCostId.HasValue)
+                q = q.Where(c => c.CostId != excludeCostId.Value);
+
+            return q.AnyAsync(cancellationToken);
+        }
+
+        public Task<Cost?> GetLatestReplacementByRefCostIdAsync(long refCostId, CancellationToken cancellationToken = default)
+            => _db.Costs
+                .IgnoreQueryFilters()
+                .Where(c => c.RefCostId == refCostId)
+                .OrderByDescending(c => c.CostId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        public Task<Cost?> GetLatestReplacementByRefCostIdAsync(
+            long refCostId,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default)
+            => _db.Costs
+                .IgnoreQueryFilters()
+                .Where(c => c.RefCostId == refCostId && c.IdempotencyKey == idempotencyKey)
+                .OrderByDescending(c => c.CostId)
+                .FirstOrDefaultAsync(cancellationToken);
+
         public async Task<decimal> SumAmountByLocationsAndDateRangeAsync(
             IReadOnlyCollection<int> businessLocationIds,
             DateOnly fromDate,

@@ -13,7 +13,8 @@ namespace BizFlow.Application.Mappers
             // projection to avoid pulling DI into AutoMapper profiles.
             CreateMap<Cost, CostDto>()
                 .ForMember(dest => dest.CostType, opt => opt.Ignore())
-                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore());
+                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore())
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
         }
     }
 }

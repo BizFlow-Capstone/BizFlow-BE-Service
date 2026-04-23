@@ -95,7 +95,9 @@ namespace BizFlow.Api.Controllers.Revenue
 
                 var userId = GetCurrentUserId();
                 var result = await _revenueService.UpdateManualAsync(userId, revenueId, request);
-                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+                if (result.IsReplacement)
+                    return Ok(result, MessageKeys.RevenueReplacementCreated);
+                return Ok(result.Revenue!, MessageKeys.DataUpdatedSuccessfully);
             }
             finally
             {

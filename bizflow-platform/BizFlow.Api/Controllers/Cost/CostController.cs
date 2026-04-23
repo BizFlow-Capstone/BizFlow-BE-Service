@@ -96,7 +96,9 @@ namespace BizFlow.Api.Controllers.Cost
 
                 var userId = GetCurrentUserId();
                 var result = await _costService.UpdateManualAsync(userId, costId, request);
-                return Ok(result, MessageKeys.DataUpdatedSuccessfully);
+                if (result.IsReplacement)
+                    return Ok(result, MessageKeys.CostReplacementCreated);
+                return Ok(result.Cost!, MessageKeys.DataUpdatedSuccessfully);
             }
             finally
             {

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BizFlow.Application.DTOs.Import
 {
     public class UpdateImportRequest
@@ -11,6 +13,25 @@ namespace BizFlow.Application.DTOs.Import
         public DateTime? ReceivedAt { get; set; }
 
         public List<ImportItemRequest>? Items { get; set; }
+
+        /// <summary>
+        /// Voucher number written to Cost rows created from this import (optional).
+        /// Used when replacing a CONFIRMED import (new Cost row).
+        /// </summary>
+        [MaxLength(100)]
+        public string? DocumentNumber { get; set; }
+
+        /// <summary>
+        /// Voucher date for the Cost row (optional).
+        /// </summary>
+        public DateOnly? DocumentDate { get; set; }
+
+        /// <summary>
+        /// Required when editing a CONFIRMED import (replace-when-confirmed flow).
+        /// Ignored for DRAFT updates.
+        /// </summary>
+        [MaxLength(100)]
+        public string? IdempotencyKey { get; set; }
 
         /// <summary>
         /// Set to true to remove the current image without uploading a new one

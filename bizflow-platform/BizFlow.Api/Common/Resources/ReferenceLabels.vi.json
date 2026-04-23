@@ -56,6 +56,18 @@
     "completed": "Hoàn tất",
     "cancelled": "Đã hủy"
   },
+  "cost_status": {
+    "draft": "Nháp",
+    "posted": "Đã ghi sổ",
+    "cancelled": "Đã hủy",
+    "replaced": "Đã thay thế"
+  },
+  "revenue_status": {
+    "draft": "Nháp",
+    "posted": "Đã ghi sổ",
+    "cancelled": "Đã hủy",
+    "replaced": "Đã thay thế"
+  },
   "product_status": {
     "active": "Đang hoạt động",
     "inactive": "Ngừng hoạt động"

@@ -56,6 +56,18 @@
     "completed": "Completed",
     "cancelled": "Cancelled"
   },
+  "cost_status": {
+    "draft": "Draft",
+    "posted": "Posted",
+    "cancelled": "Cancelled",
+    "replaced": "Replaced"
+  },
+  "revenue_status": {
+    "draft": "Draft",
+    "posted": "Posted",
+    "cancelled": "Cancelled",
+    "replaced": "Replaced"
+  },
   "product_status": {
     "active": "Active",
     "inactive": "Inactive"

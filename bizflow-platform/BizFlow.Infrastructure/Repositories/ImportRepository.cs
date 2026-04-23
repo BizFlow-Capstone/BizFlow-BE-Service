@@ -102,6 +102,27 @@ namespace BizFlow.Infrastructure.Repositories
             _dbContext.Imports.Update(import);
         }
 
+        public Task LockImportRowForUpdateAsync(long importId, CancellationToken cancellationToken = default)
+            => _dbContext.Database.ExecuteSqlRawAsync(
+                "SELECT ImportId FROM `Imports` WHERE ImportId = {0} LIMIT 1 FOR UPDATE",
+                new object[] { importId },
+                cancellationToken);
+
+        public Task<Import?> GetLatestReplacementByRefImportIdAsync(long refImportId, CancellationToken cancellationToken = default)
+            => _dbContext.Imports
+                .Where(i => i.RefImportId == refImportId)
+                .OrderByDescending(i => i.ImportId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        public Task<Import?> GetLatestReplacementByRefImportIdAsync(
+            long refImportId,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default)
+            => _dbContext.Imports
+                .Where(i => i.RefImportId == refImportId && i.IdempotencyKey == idempotencyKey)
+                .OrderByDescending(i => i.ImportId)
+                .FirstOrDefaultAsync(cancellationToken);
+
         public void Delete(Import import)
         {
             _dbContext.Imports.Remove(import);

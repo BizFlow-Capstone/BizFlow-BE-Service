@@ -14,6 +14,11 @@ namespace BizFlow.Application.DTOs.Revenue
         /// <c>Label</c> is localized by <c>Accept-Language</c>.
         /// </summary>
         public ReferenceOptionDto RevenueType { get; set; } = null!;
+        /// <summary>
+        /// Revenue lifecycle status. <c>Code</c> ∈ {<c>draft</c>, <c>posted</c>, <c>cancelled</c>, <c>replaced</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto Status { get; set; } = null!;
         public decimal Amount { get; set; }
         public DateOnly RevenueDate { get; set; }
         public string Description { get; set; } = null!;
@@ -26,6 +31,10 @@ namespace BizFlow.Application.DTOs.Revenue
         public string? DocumentPublicId { get; set; }
         public string? DocumentNumber { get; set; }
         public DateOnly? DocumentDate { get; set; }
+        /// <summary>
+        /// Original Revenue this record replaces (replace-when-posted flow). Null when this is a fresh record.
+        /// </summary>
+        public long? RefRevenueId { get; set; }
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
     }

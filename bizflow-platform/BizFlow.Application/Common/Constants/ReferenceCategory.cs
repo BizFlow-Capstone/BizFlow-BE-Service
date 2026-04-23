@@ -19,6 +19,8 @@ namespace BizFlow.Application.Common.Constants
         public const string OrderStatus = "order_status";
         public const string ProductStatus = "product_status";
         public const string RevenueType = "revenue_type";
+        public const string CostStatus = "cost_status";
+        public const string RevenueStatus = "revenue_status";
         public const string SubscriptionStatus = "subscription_status";
         public const string SubscriptionTransactionType = "subscription_transaction_type";
         public const string TransactionStatus = "transaction_status";

@@ -48,6 +48,14 @@ namespace BizFlow.Application.DTOs.Cost
         public bool RemoveDocument { get; set; } = false;
 
         /// <summary>
+        /// Client-supplied idempotency key for the replace-when-posted flow.
+        /// Lets the client retry the same edit safely and receive the same replacement record.
+        /// Ignored when the Cost is still in <c>draft</c> status (in-place update applies).
+        /// </summary>
+        [MaxLength(100)]
+        public string? IdempotencyKey { get; set; }
+
+        /// <summary>
         /// Image stream (populated from IFormFile on controller).
         /// </summary>
         internal Stream? ImageStream { get; set; }

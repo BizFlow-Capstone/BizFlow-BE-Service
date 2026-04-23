@@ -49,6 +49,12 @@ namespace BizFlow.Application.Interfaces.Repositories
         IAiReorderSuggestionRepository AiReorderSuggestions { get; }
         IAiProductInsightRepository AiProductInsights { get; }
 
+        /// <summary>
+        /// Synthetic lock table used to serialize DocumentNumber uniqueness
+        /// checks per Owner across Costs / Revenues / Imports / Orders.
+        /// </summary>
+        IAccountingDocumentLockRepository AccountingDocumentLocks { get; }
+
         //========================================================
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync();

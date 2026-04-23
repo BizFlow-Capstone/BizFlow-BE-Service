@@ -3,6 +3,7 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.DTOs.Cost;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -19,6 +20,7 @@ namespace BizFlow.Application.Services
         private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IReferenceLabelService _labels;
+        private readonly IDocumentNumberRegistryService _documentNumberRegistry;
 
         public CostService(
             IUnitOfWork uow,
@@ -26,7 +28,8 @@ namespace BizFlow.Application.Services
             IBusinessLocationService locationService,
             IImageService imageService,
             IGeneralLedgerService generalLedgerService,
-            IReferenceLabelService labels)
+            IReferenceLabelService labels,
+            IDocumentNumberRegistryService documentNumberRegistry)
         {
             _uow = uow;
             _mapper = mapper;
@@ -34,6 +37,7 @@ namespace BizFlow.Application.Services
             _imageService = imageService;
             _generalLedgerService = generalLedgerService;
             _labels = labels;
+            _documentNumberRegistry = documentNumberRegistry;
         }
 
         private CostDto ToDto(Cost cost)
@@ -41,6 +45,7 @@ namespace BizFlow.Application.Services
             var dto = _mapper.Map<CostDto>(cost);
             dto.CostType = _labels.ToOption(ReferenceCategory.CostType, cost.CostType);
             dto.PaymentMethod = _labels.ToOptionOrNull(ReferenceCategory.PaymentMethod, cost.PaymentMethod);
+            dto.Status = _labels.ToOption(ReferenceCategory.CostStatus, cost.Status);
             return dto;
         }
 
@@ -64,10 +69,11 @@ namespace BizFlow.Application.Services
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
 
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+
             string? documentUrl = null;
             string? documentPublicId = null;
 
-            // Handle document image upload
             if (request.ImageStream != null)
             {
                 var imageInfo = await _imageService.UploadImageAsync(
@@ -76,52 +82,106 @@ namespace BizFlow.Application.Services
                 documentPublicId = imageInfo.PublicId;
             }
 
-            var entity = new Cost
+            var ownerId = await ResolveOwnerIdAsync(request.BusinessLocationId);
+
+            var entity = await _uow.ExecuteResilientAsync(async ct =>
             {
-                BusinessLocationId = request.BusinessLocationId,
-                BusinessTypeId = request.BusinessTypeId,
-                CostType = normalizedType,
-                Description = request.Description.Trim(),
-                Amount = request.Amount,
-                CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
-                PaymentMethod = normalizedPaymentMethod,
-                DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber),
-                DocumentDate = request.DocumentDate,
-                DocumentUrl = documentUrl,
-                DocumentPublicId = documentPublicId,
-                CreatedBy = userId,
-                CreatedAt = DateTime.UtcNow
-            };
+                if (docNumberNormalized != null)
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId, docNumberNormalized, cancellationToken: ct);
+                }
 
-            await _uow.Costs.AddAsync(entity);
-            await _uow.SaveChangesAsync();
+                var cost = new Cost
+                {
+                    BusinessLocationId = request.BusinessLocationId,
+                    BusinessTypeId = request.BusinessTypeId,
+                    CostType = normalizedType,
+                    Description = request.Description.Trim(),
+                    Amount = request.Amount,
+                    Status = CostStatus.Posted,
+                    CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod = normalizedPaymentMethod,
+                    DocumentNumber = docNumberNormalized,
+                    DocumentDate = request.DocumentDate,
+                    DocumentUrl = documentUrl,
+                    DocumentPublicId = documentPublicId,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            await _generalLedgerService.RecordManualCostAsync(entity);
-            await _uow.SaveChangesAsync();
+                await _uow.Costs.AddAsync(cost);
+                await _uow.SaveChangesAsync(ct);
+
+                await _generalLedgerService.RecordManualCostAsync(cost);
+                await _uow.SaveChangesAsync(ct);
+
+                return cost;
+            });
 
             return ToDto(entity);
         }
 
-        public async Task<CostDto> UpdateManualAsync(Guid userId, long costId, UpdateManualCostRequest request)
+        public async Task<ManualCostUpdateResponseDto> UpdateManualAsync(Guid userId, long costId, UpdateManualCostRequest request)
         {
-            var cost = await _uow.Costs.GetByIdAsync(costId)
-                ?? throw new NotFoundException(MessageKeys.NotFound);
+            var costPreview = await _uow.Costs.GetByIdAsync(costId)
+                ?? throw new NotFoundException(MessageKeys.CostNotFound);
 
-            await _locationService.ValidateOwnerAsync(userId, cost.BusinessLocationId);
+            await _locationService.ValidateOwnerAsync(userId, costPreview.BusinessLocationId);
 
-            if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
+            if (costPreview.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            if (CostStatus.IsTerminal(costPreview.Status))
+                throw new BadRequestException(MessageKeys.CostCannotEditCancelledOrReplaced);
+
+            // ── Draft: in-place update (no replacement, no GL on the row) ──
+            if (CostStatus.IsEditableInPlace(costPreview.Status))
+                return new ManualCostUpdateResponseDto
+                {
+                    IsReplacement = false,
+                    Cost = await UpdateManualDraftInPlaceAsync(userId, costPreview, request)
+                };
+
+            // ── Posted: replace-when-posted ──
+            if (!string.Equals(costPreview.Status, CostStatus.Posted, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.CostInvalidStatus);
+
+            if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
+                throw new BadRequestException(MessageKeys.CostEditPostedRequiresIdempotencyKey);
+
+            var idemKey = request.IdempotencyKey.Trim();
+            if (idemKey.Length > 100)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var existingReplacement = await _uow.Costs.GetLatestReplacementByRefCostIdAsync(costId, idemKey);
+            if (existingReplacement != null)
+            {
+                return new ManualCostUpdateResponseDto
+                {
+                    IsReplacement = true,
+                    Replacement = new PostedRecordReplacementResultDto
+                    {
+                        OldRecordId = costId,
+                        OldRecordStatus = _labels.ToOption(ReferenceCategory.CostStatus, CostStatus.Replaced),
+                        NewRecordId = existingReplacement.CostId,
+                        NewRecordStatus = _labels.ToOption(ReferenceCategory.CostStatus, existingReplacement.Status)
+                    }
+                };
+            }
+
+            var ownerId = await ResolveOwnerIdAsync(costPreview.BusinessLocationId);
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+
+            string? normalizedCostType = costPreview.CostType;
             if (!string.IsNullOrWhiteSpace(request.CostType))
             {
-                var normalizedCostType = request.CostType.Trim().ToLower();
+                normalizedCostType = request.CostType.Trim().ToLower();
                 if (!CostType.IsValid(normalizedCostType))
                     throw new BadRequestException(MessageKeys.BadRequest);
 
                 if (normalizedCostType == CostType.Import)
                     throw new BadRequestException(MessageKeys.BadRequest);
-
-                cost.CostType = normalizedCostType;
             }
 
             string? normalizedPaymentMethod = null;
@@ -133,38 +193,166 @@ namespace BizFlow.Application.Services
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
 
-            cost.BusinessTypeId = request.BusinessTypeId;
-            cost.Description = request.Description.Trim();
-            cost.Amount = request.Amount;
-            cost.CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            cost.PaymentMethod = normalizedPaymentMethod;
-            cost.DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber);
-            cost.DocumentDate = request.DocumentDate;
-            cost.UpdatedAt = DateTime.UtcNow;
-
-            // Handle document image removal
-            if (request.RemoveDocument && !string.IsNullOrEmpty(cost.DocumentPublicId))
+            var newCost = await _uow.ExecuteResilientAsync(async ct =>
             {
-                // Orphan image on Cloudinary will be cleaned up by ImageCleanupJob
-                cost.DocumentUrl = null;
-                cost.DocumentPublicId = null;
+                await _uow.Costs.LockCostRowForUpdateAsync(costId, ct);
+
+                var old = await _uow.Costs.GetByIdAsync(costId)
+                    ?? throw new NotFoundException(MessageKeys.CostNotFound);
+
+                if (CostStatus.IsTerminal(old.Status))
+                    throw new BadRequestException(MessageKeys.CostCannotEditCancelledOrReplaced);
+
+                if (!string.Equals(old.Status, CostStatus.Posted, StringComparison.OrdinalIgnoreCase))
+                    throw new BadRequestException(MessageKeys.CostInvalidStatus);
+
+                var dup = await _uow.Costs.GetLatestReplacementByRefCostIdAsync(costId, idemKey, ct);
+                if (dup != null)
+                    return dup;
+
+                if (docNumberNormalized != null)
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId,
+                        docNumberNormalized,
+                        excludeCostId: old.CostId,
+                        cancellationToken: ct);
+                }
+
+                await _generalLedgerService.ReverseCostEntriesAsync(old, MessageKeys.CostReplacedReason);
+
+                old.Status = CostStatus.Replaced;
+                old.CancelledAt = DateTime.UtcNow;
+                old.CancelledBy = userId;
+                old.UpdatedAt = DateTime.UtcNow;
+                _uow.Costs.Update(old);
+
+                string? docUrl = old.DocumentUrl;
+                string? docPublicId = old.DocumentPublicId;
+
+                if (request.RemoveDocument && !string.IsNullOrEmpty(old.DocumentPublicId))
+                {
+                    docUrl = null;
+                    docPublicId = null;
+                }
+
+                if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    docUrl = imageInfo.Url;
+                    docPublicId = imageInfo.PublicId;
+                }
+
+                var created = new Cost
+                {
+                    BusinessLocationId = old.BusinessLocationId,
+                    BusinessTypeId = request.BusinessTypeId,
+                    CostType = normalizedCostType!,
+                    Description = request.Description.Trim(),
+                    Amount = request.Amount,
+                    Status = CostStatus.Posted,
+                    CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod = normalizedPaymentMethod,
+                    DocumentNumber = docNumberNormalized,
+                    DocumentDate = request.DocumentDate,
+                    DocumentUrl = docUrl,
+                    DocumentPublicId = docPublicId,
+                    RefCostId = old.CostId,
+                    IdempotencyKey = idemKey,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Costs.AddAsync(created);
+                await _uow.SaveChangesAsync(ct);
+
+                await _generalLedgerService.RecordManualCostAsync(created);
+                await _uow.SaveChangesAsync(ct);
+
+                return created;
+            });
+
+            return new ManualCostUpdateResponseDto
+            {
+                IsReplacement = true,
+                Replacement = new PostedRecordReplacementResultDto
+                {
+                    OldRecordId = costId,
+                    OldRecordStatus = _labels.ToOption(ReferenceCategory.CostStatus, CostStatus.Replaced),
+                    NewRecordId = newCost.CostId,
+                    NewRecordStatus = _labels.ToOption(ReferenceCategory.CostStatus, newCost.Status)
+                }
+            };
+        }
+
+        private async Task<CostDto> UpdateManualDraftInPlaceAsync(Guid userId, Cost cost, UpdateManualCostRequest request)
+        {
+            if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            string? normalizedCostType = cost.CostType;
+            if (!string.IsNullOrWhiteSpace(request.CostType))
+            {
+                normalizedCostType = request.CostType.Trim().ToLower();
+                if (!CostType.IsValid(normalizedCostType))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                if (normalizedCostType == CostType.Import)
+                    throw new BadRequestException(MessageKeys.BadRequest);
             }
 
-            // Handle new document image upload
-            if (request.ImageStream != null)
+            string? normalizedPaymentMethod = null;
+            if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
             {
-                var imageInfo = await _imageService.UploadImageAsync(
-                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
-                cost.DocumentUrl = imageInfo.Url;
-                cost.DocumentPublicId = imageInfo.PublicId;
+                if (!PaymentMethods.IsValid(request.PaymentMethod))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
 
-            _uow.Costs.Update(cost);
-            await _uow.SaveChangesAsync();
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+            var ownerId = await ResolveOwnerIdAsync(cost.BusinessLocationId);
 
-            await _generalLedgerService.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostUpdatedReversalReason);
-            await _generalLedgerService.RecordManualCostAsync(cost);
-            await _uow.SaveChangesAsync();
+            await _uow.ExecuteResilientAsync(async ct =>
+            {
+                if (docNumberNormalized != null
+                    && !string.Equals(docNumberNormalized, cost.DocumentNumberNormalized, StringComparison.Ordinal))
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId,
+                        docNumberNormalized,
+                        excludeCostId: cost.CostId,
+                        cancellationToken: ct);
+                }
+
+                cost.CostType = normalizedCostType!;
+                cost.BusinessTypeId = request.BusinessTypeId;
+                cost.Description = request.Description.Trim();
+                cost.Amount = request.Amount;
+                cost.CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                cost.PaymentMethod = normalizedPaymentMethod;
+                cost.DocumentNumber = docNumberNormalized;
+                cost.DocumentDate = request.DocumentDate;
+                cost.UpdatedAt = DateTime.UtcNow;
+
+                if (request.RemoveDocument && !string.IsNullOrEmpty(cost.DocumentPublicId))
+                {
+                    cost.DocumentUrl = null;
+                    cost.DocumentPublicId = null;
+                }
+
+                if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    cost.DocumentUrl = imageInfo.Url;
+                    cost.DocumentPublicId = imageInfo.PublicId;
+                }
+
+                _uow.Costs.Update(cost);
+                await _uow.SaveChangesAsync(ct);
+            });
 
             return ToDto(cost);
         }
@@ -198,13 +386,31 @@ namespace BizFlow.Application.Services
         public async Task DeleteManualAsync(Guid userId, long costId)
         {
             var cost = await _uow.Costs.GetByIdAsync(costId)
-                ?? throw new NotFoundException(MessageKeys.NotFound);
+                ?? throw new NotFoundException(MessageKeys.CostNotFound);
 
             await _locationService.ValidateOwnerAsync(userId, cost.BusinessLocationId);
 
             if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            if (CostStatus.IsTerminal(cost.Status))
+                throw new BadRequestException(MessageKeys.CostCannotEditCancelledOrReplaced);
+
+            if (string.Equals(cost.Status, CostStatus.Draft, StringComparison.OrdinalIgnoreCase))
+            {
+                cost.Status = CostStatus.Cancelled;
+                cost.CancelledAt = DateTime.UtcNow;
+                cost.CancelledBy = userId;
+                cost.DeletedAt = DateTime.UtcNow;
+                cost.UpdatedAt = DateTime.UtcNow;
+                _uow.Costs.Update(cost);
+                await _uow.SaveChangesAsync();
+                return;
+            }
+
+            cost.Status = CostStatus.Cancelled;
+            cost.CancelledAt = DateTime.UtcNow;
+            cost.CancelledBy = userId;
             cost.DeletedAt = DateTime.UtcNow;
             cost.UpdatedAt = DateTime.UtcNow;
             _uow.Costs.Update(cost);
@@ -215,51 +421,80 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
         }
 
-        public async Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null)
-        {
-            return await _uow.ExecuteResilientAsync(async _ =>
-            {
-                var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
-                if (existing != null)
-                {
-                    // If previously soft-deleted and import is re-confirmed in future flows,
-                    // revive the same row to keep one source-of-truth cost per import.
-                    if (existing.DeletedAt != null)
-                    {
-                        existing.DeletedAt = null;
-                        existing.UpdatedAt = DateTime.UtcNow;
-                        existing.DocumentNumber = NormalizeDocumentNumber(documentNumber);
-                        existing.DocumentDate = documentDate;
-                        _uow.Costs.Update(existing);
+        public Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null)
+            => _uow.ExecuteResilientAsync(ct => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, ct));
 
-                        await _generalLedgerService.RecordImportCostAsync(existing);
+        public Task<Cost> CreateImportCostInCurrentTransactionAsync(
+            Guid userId,
+            Import import,
+            string? documentNumber = null,
+            DateOnly? documentDate = null,
+            CancellationToken cancellationToken = default)
+            => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, cancellationToken);
+
+        private async Task<Cost> CreateImportCostCoreAsync(
+            Guid userId,
+            Import import,
+            string? documentNumber,
+            DateOnly? documentDate,
+            CancellationToken cancellationToken)
+        {
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(documentNumber);
+            var ownerId = await ResolveOwnerIdAsync(import.BusinessLocationId);
+
+            var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
+            if (existing != null)
+            {
+                if (existing.DeletedAt != null)
+                {
+                    if (docNumberNormalized != null
+                        && !string.Equals(docNumberNormalized, existing.DocumentNumberNormalized, StringComparison.Ordinal))
+                    {
+                        await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                            ownerId, docNumberNormalized, excludeCostId: existing.CostId, cancellationToken: cancellationToken);
                     }
 
-                    return existing;
+                    existing.DeletedAt = null;
+                    existing.Status = CostStatus.Posted;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.DocumentNumber = docNumberNormalized;
+                    existing.DocumentDate = documentDate;
+                    _uow.Costs.Update(existing);
+
+                    await _generalLedgerService.RecordImportCostAsync(existing);
                 }
 
-                var cost = new Cost
-                {
-                    BusinessLocationId = import.BusinessLocationId,
-                    CostType = CostType.Import,
-                    ImportId = import.ImportId,
-                    Description = $"Import {import.ImportCode ?? import.ImportId.ToString()}",
-                    Amount = import.TotalAmount,
-                    CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
-                    PaymentMethod = null,
-                    DocumentNumber = NormalizeDocumentNumber(documentNumber),
-                    DocumentDate = documentDate,
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow
-                };
+                return existing;
+            }
 
-                await _uow.Costs.AddAsync(cost);
-                await _uow.SaveChangesAsync(); // Need CostId before creating GL reference entry.
+            if (docNumberNormalized != null)
+            {
+                await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                    ownerId, docNumberNormalized, cancellationToken: cancellationToken);
+            }
 
-                await _generalLedgerService.RecordImportCostAsync(cost);
+            var cost = new Cost
+            {
+                BusinessLocationId = import.BusinessLocationId,
+                CostType = CostType.Import,
+                ImportId = import.ImportId,
+                Description = $"Import {import.ImportCode ?? import.ImportId.ToString()}",
+                Amount = import.TotalAmount,
+                Status = CostStatus.Posted,
+                CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
+                PaymentMethod = null,
+                DocumentNumber = docNumberNormalized,
+                DocumentDate = documentDate,
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow
+            };
 
-                return cost;
-            });
+            await _uow.Costs.AddAsync(cost);
+            await _uow.SaveChangesAsync(cancellationToken);
+
+            await _generalLedgerService.RecordImportCostAsync(cost);
+
+            return cost;
         }
 
         public async Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null)
@@ -270,6 +505,9 @@ namespace BizFlow.Application.Services
 
             if (cost.DeletedAt == null)
             {
+                cost.Status = CostStatus.Cancelled;
+                cost.CancelledAt = DateTime.UtcNow;
+                cost.CancelledBy = userId;
                 cost.DeletedAt = DateTime.UtcNow;
                 cost.UpdatedAt = DateTime.UtcNow;
                 _uow.Costs.Update(cost);
@@ -279,12 +517,11 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
         }
 
-        private static string? NormalizeDocumentNumber(string? value)
+        private async Task<Guid> ResolveOwnerIdAsync(int locationId)
         {
-            if (string.IsNullOrWhiteSpace(value))
-                return null;
-
-            return value.Trim();
+            var ownerId = await _uow.BusinessLocations.GetOwnerIdByLocationAsync(locationId)
+                ?? throw new NotFoundException(MessageKeys.NotFound);
+            return ownerId;
         }
     }
 }

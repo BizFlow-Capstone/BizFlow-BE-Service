@@ -63,6 +63,21 @@ public partial class Import
     public DateTime? CancelledAt { get; set; }
 
     /// <summary>
+    /// UserId that cancelled this import.
+    /// </summary>
+    public Guid? CancelledBy { get; set; }
+
+    /// <summary>
+    /// Original Import this row replaces (replace-when-confirmed flow).
+    /// </summary>
+    public long? RefImportId { get; set; }
+
+    /// <summary>
+    /// Client-supplied idempotency key for the replace-when-confirmed flow (stored on the <b>replacement</b> row).
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
     /// Reason for cancellation
     /// </summary>
     public string? CancelReason { get; set; }
@@ -98,4 +113,6 @@ public partial class Import
     public virtual ICollection<ProductImport> ProductsImports { get; set; } = new List<ProductImport>();
 
     public virtual ImportSchemaVersion? SchemaVersion { get; set; }
+
+    public virtual Import? RefImport { get; set; }
 }

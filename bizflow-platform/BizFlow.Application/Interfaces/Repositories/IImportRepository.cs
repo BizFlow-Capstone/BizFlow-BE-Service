@@ -55,5 +55,27 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// for stock movements in S2d rendering (don_gia, tien_nhap, tien_xuat, tien_ton).
         /// </summary>
         Task<Dictionary<(long ImportId, long ProductId), decimal>> GetImportCostLookupByLocationAsync(int locationId);
+
+        // ── Replace-when-confirmed flow ──
+
+        /// <summary>
+        /// Must run inside a DB transaction. Acquires an InnoDB row-level write
+        /// lock on the target Import row via <c>SELECT ... FOR UPDATE</c>.
+        /// </summary>
+        Task LockImportRowForUpdateAsync(long importId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Get the most recent replacement Import that references the given
+        /// original ImportId via <c>RefImportId</c>.
+        /// </summary>
+        Task<Import?> GetLatestReplacementByRefImportIdAsync(long refImportId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Idempotent variant keyed by <c>IdempotencyKey</c>.
+        /// </summary>
+        Task<Import?> GetLatestReplacementByRefImportIdAsync(
+            long refImportId,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default);
     }
 }

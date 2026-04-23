@@ -14,7 +14,7 @@ public partial class SaleItem
     /// </summary>
     public string Unit { get; set; } = null!;
 
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     public DateTime? DeletedAt { get; set; }
 

@@ -14,6 +14,11 @@ namespace BizFlow.Application.DTOs.Cost
         /// <c>Label</c> is localized by <c>Accept-Language</c>.
         /// </summary>
         public ReferenceOptionDto CostType { get; set; } = null!;
+        /// <summary>
+        /// Cost lifecycle status. <c>Code</c> ∈ {<c>draft</c>, <c>posted</c>, <c>cancelled</c>, <c>replaced</c>}.
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto Status { get; set; } = null!;
         public string Description { get; set; } = null!;
         public decimal Amount { get; set; }
         public DateOnly CostDate { get; set; }
@@ -26,6 +31,10 @@ namespace BizFlow.Application.DTOs.Cost
         public string? DocumentPublicId { get; set; }
         public string? DocumentNumber { get; set; }
         public DateOnly? DocumentDate { get; set; }
+        /// <summary>
+        /// Original Cost this record replaces (replace-when-posted flow). Null when this is a fresh record.
+        /// </summary>
+        public long? RefCostId { get; set; }
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

@@ -196,6 +196,37 @@ namespace BizFlow.Application.Common.Constants
         public const string ImportLocationNotFound = "IMPORT_LOCATION_NOT_FOUND";
         public const string ImportAlreadyCancelled = "IMPORT_ALREADY_CANCELLED";
         public const string ImportItemsRequiredOnConfirm = "IMPORT_ITEMS_REQUIRED_ON_CONFIRM";
+        public const string ImportEditConfirmedRequiresIdempotencyKey = "IMPORT_EDIT_CONFIRMED_REQUIRES_IDEMPOTENCY_KEY";
+        public const string ImportCannotEditCancelledOrReplaced = "IMPORT_CANNOT_EDIT_CANCELLED_OR_REPLACED";
+        public const string ImportReplacementCreated = "IMPORT_REPLACEMENT_CREATED";
+        public const string ImportReplacedReason = "IMPORT_REPLACED_REASON";
+
+        // ============ DOCUMENT NUMBER (Costs / Revenues / Imports / Orders) ============
+        /// <summary>DocumentNumber duplicates an existing record for the same Owner (cross-table check on Costs + Revenues, including cancelled rows).</summary>
+        public const string DocumentNumberDuplicated = "DOCUMENT_NUMBER_DUPLICATED";
+        public const string DocumentNumberTooLong = "DOCUMENT_NUMBER_TOO_LONG";
+
+        // ============ COST (replacement flow) ============
+        public const string CostNotFound = "COST_NOT_FOUND";
+        public const string CostCreated = "COST_CREATED";
+        public const string CostUpdated = "COST_UPDATED";
+        public const string CostDeleted = "COST_DELETED";
+        public const string CostReplacementCreated = "COST_REPLACEMENT_CREATED";
+        public const string CostCannotEditCancelledOrReplaced = "COST_CANNOT_EDIT_CANCELLED_OR_REPLACED";
+        public const string CostEditPostedRequiresIdempotencyKey = "COST_EDIT_POSTED_REQUIRES_IDEMPOTENCY_KEY";
+        public const string CostReplacedReason = "COST_REPLACED_REASON";
+        public const string CostInvalidStatus = "COST_INVALID_STATUS";
+
+        // ============ REVENUE (replacement flow) ============
+        public const string RevenueNotFound = "REVENUE_NOT_FOUND";
+        public const string RevenueCreated = "REVENUE_CREATED";
+        public const string RevenueUpdated = "REVENUE_UPDATED";
+        public const string RevenueDeleted = "REVENUE_DELETED";
+        public const string RevenueReplacementCreated = "REVENUE_REPLACEMENT_CREATED";
+        public const string RevenueCannotEditCancelledOrReplaced = "REVENUE_CANNOT_EDIT_CANCELLED_OR_REPLACED";
+        public const string RevenueEditPostedRequiresIdempotencyKey = "REVENUE_EDIT_POSTED_REQUIRES_IDEMPOTENCY_KEY";
+        public const string RevenueReplacedReason = "REVENUE_REPLACED_REASON";
+        public const string RevenueInvalidStatus = "REVENUE_INVALID_STATUS";
         public const string LowStockConfirmRequired = "LOW_STOCK_CONFIRM_REQUIRED";
         public const string OrderPaymentAmountMismatch = "ORDER_PAYMENT_AMOUNT_MISMATCH";
         public const string OrderLocationChangeNotAllowed = "ORDER_LOCATION_CHANGE_NOT_ALLOWED";

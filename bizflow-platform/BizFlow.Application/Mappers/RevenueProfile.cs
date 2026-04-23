@@ -15,7 +15,8 @@ namespace BizFlow.Application.Mappers
                 .ForMember(dest => dest.BusinessTypeName,
                     opt => opt.MapFrom(src => src.BusinessType != null ? src.BusinessType.Name : null))
                 .ForMember(dest => dest.RevenueType, opt => opt.Ignore())
-                .ForMember(dest => dest.MoneyChannel, opt => opt.Ignore());
+                .ForMember(dest => dest.MoneyChannel, opt => opt.Ignore())
+                .ForMember(dest => dest.Status, opt => opt.Ignore());
         }
     }
 }

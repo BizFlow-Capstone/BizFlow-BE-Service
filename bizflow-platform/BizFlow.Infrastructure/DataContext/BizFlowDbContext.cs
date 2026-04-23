@@ -817,6 +817,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Line-item discount");
             entity.Property(e => e.OrderId).HasComment("FK to Orders");
             entity.Property(e => e.Quantity)
+                .HasPrecision(15, 2)
                 .HasDefaultValueSql("'1'")
                 .HasComment("Quantity sold");
             entity.Property(e => e.SaleItemId).HasComment("FK to SaleItems (live reference)");
@@ -1226,7 +1227,9 @@ public partial class BizFlowDbContext : DbContext
             entity.HasIndex(e => e.DeletedAt, "idx_saleitems_deletedat");
 
             entity.Property(e => e.DeletedAt).HasColumnType("datetime");
-            entity.Property(e => e.Quantity).HasDefaultValueSql("'1'");
+            entity.Property(e => e.Quantity)
+                .HasPrecision(15, 2)
+                .HasDefaultValueSql("'1'");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'Unit'")

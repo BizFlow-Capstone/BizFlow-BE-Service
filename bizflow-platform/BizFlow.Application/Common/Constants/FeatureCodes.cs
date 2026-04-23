@@ -8,5 +8,6 @@ namespace BizFlow.Application.Common.Constants
     {
         public const string Locations = "LOCATIONS";
         public const string AiOrder = "AI";
+        
     }
 }

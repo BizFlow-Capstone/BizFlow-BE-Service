@@ -7,8 +7,8 @@ namespace BizFlow.Application.DTOs.Order
         [Range(1, long.MaxValue)]
         public long SaleItemId { get; set; }
 
-        [Range(1, int.MaxValue)]
-        public int Quantity { get; set; }
+        [Range(typeof(decimal), "0.01", "999999999999.99")]
+        public decimal Quantity { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal Discount { get; set; } = 0;

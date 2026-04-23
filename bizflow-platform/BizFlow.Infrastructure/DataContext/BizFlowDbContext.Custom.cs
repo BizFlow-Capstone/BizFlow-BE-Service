@@ -20,6 +20,8 @@ public partial class BizFlowDbContext
 
     public virtual DbSet<UserNotification> UserNotifications { get; set; }
 
+    public virtual DbSet<AccountingDocumentLock> AccountingDocumentLocks { get; set; }
+
     // ── AI tables (managed by Python Alembic, read-only from .NET) ──
     public virtual DbSet<AiRevenueForecast> AiRevenueForecasts { get; set; }
     public virtual DbSet<AiAnomalyAlert> AiAnomalyAlerts { get; set; }
@@ -329,5 +331,105 @@ public partial class BizFlowDbContext
 
         // Global Query Filter: Soft Delete for Cost
         modelBuilder.Entity<Cost>().HasQueryFilter(e => e.DeletedAt == null);
+
+        // ─────────────────────────────────────────────────────────────────────
+        // DocumentNumber replacement-flow columns (added by migration 117)
+        // ─────────────────────────────────────────────────────────────────────
+        modelBuilder.Entity<Cost>(entity =>
+        {
+            entity.Property(e => e.Status)
+                .HasMaxLength(32)
+                .HasDefaultValueSql("'posted'")
+                .HasComment("draft | posted | cancelled | replaced");
+
+            entity.Property(e => e.CancelledAt).HasColumnType("datetime");
+            entity.Property(e => e.CancelledBy).HasComment("UserId that cancelled this cost");
+            entity.Property(e => e.RefCostId)
+                .HasComment("Original Cost this record replaces (replace-when-posted flow)");
+
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(100);
+
+            // DocumentNumberNormalized is a MySQL GENERATED column — EF must never write to it.
+            entity.Property(e => e.DocumentNumberNormalized)
+                .HasMaxLength(100)
+                .ValueGeneratedOnAddOrUpdate()
+                .Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+            entity.Property(e => e.DocumentNumberNormalized)
+                .Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+
+            entity.HasIndex(e => new { e.BusinessLocationId, e.DocumentNumberNormalized }, "idx_cost_location_doc_norm");
+            entity.HasIndex(e => e.RefCostId, "idx_cost_ref_cost");
+
+            entity.HasOne(d => d.RefCost)
+                .WithMany()
+                .HasForeignKey(d => d.RefCostId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Revenue>(entity =>
+        {
+            entity.Property(e => e.Status)
+                .HasMaxLength(32)
+                .HasDefaultValueSql("'posted'")
+                .HasComment("draft | posted | cancelled | replaced");
+
+            entity.Property(e => e.CancelledAt).HasColumnType("datetime");
+            entity.Property(e => e.CancelledBy).HasComment("UserId that cancelled this revenue");
+            entity.Property(e => e.RefRevenueId)
+                .HasComment("Original Revenue this record replaces (replace-when-posted flow)");
+
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(100);
+
+            entity.Property(e => e.DocumentNumberNormalized)
+                .HasMaxLength(100)
+                .ValueGeneratedOnAddOrUpdate()
+                .Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+            entity.Property(e => e.DocumentNumberNormalized)
+                .Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+
+            entity.HasIndex(e => new { e.BusinessLocationId, e.DocumentNumberNormalized }, "idx_rev_location_doc_norm");
+            entity.HasIndex(e => e.RefRevenueId, "idx_rev_ref_revenue");
+
+            entity.HasOne(d => d.RefRevenue)
+                .WithMany()
+                .HasForeignKey(d => d.RefRevenueId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Import>(entity =>
+        {
+            entity.Property(e => e.CancelledBy).HasComment("UserId that cancelled this import");
+            entity.Property(e => e.RefImportId)
+                .HasComment("Original Import this record replaces (replace-when-confirmed flow)");
+
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(100);
+
+            entity.HasIndex(e => e.RefImportId, "idx_import_ref_import");
+
+            entity.HasOne(d => d.RefImport)
+                .WithMany()
+                .HasForeignKey(d => d.RefImportId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ─────────────────────────────────────────────────────────────────────
+        // AccountingDocumentLocks — synthetic lock rows for DocumentNumber uniqueness
+        // ─────────────────────────────────────────────────────────────────────
+        modelBuilder.Entity<AccountingDocumentLock>(entity =>
+        {
+            entity.HasKey(e => e.LockId).HasName("PRIMARY");
+            entity.ToTable("AccountingDocumentLocks");
+            entity.UseCollation("utf8mb4_unicode_ci");
+
+            entity.Property(e => e.LockId).HasColumnType("char(36)");
+            entity.Property(e => e.OwnerId).HasColumnType("char(36)");
+            entity.Property(e => e.DocumentNumberNormalized).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime");
+
+            entity.HasIndex(e => new { e.OwnerId, e.DocumentNumberNormalized }, "ux_doc_lock_owner_number").IsUnique();
+            entity.HasIndex(e => e.OwnerId, "idx_doc_lock_owner");
+        });
     }
 }

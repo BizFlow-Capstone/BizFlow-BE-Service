@@ -23,7 +23,7 @@ public partial class OrderDetail
     /// <summary>
     /// Sold quantity
     /// </summary>
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// Unit price snapshot at order creation

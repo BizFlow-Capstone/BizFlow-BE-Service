@@ -16,9 +16,9 @@ namespace BizFlow.Application.Interfaces.Services
         Task<ImportSummaryDto> CreateImportAsync(Guid userId, CreateImportRequest request);
 
         /// <summary>
-        /// Update a DRAFT import (fields + items)
+        /// Update import: DRAFT → in-place; CONFIRMED → replace-when-confirmed (new Import + stock/Cost migration).
         /// </summary>
-        Task<ImportSummaryDto> UpdateImportAsync(Guid userId, long importId, UpdateImportRequest request);
+        Task<ImportUpdateResultDto> UpdateImportAsync(Guid userId, long importId, UpdateImportRequest request);
 
         /// <summary>
         /// Confirm or cancel an import.

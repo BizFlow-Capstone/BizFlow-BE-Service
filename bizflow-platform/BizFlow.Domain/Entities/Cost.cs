@@ -41,6 +41,11 @@ public partial class Cost
     public decimal Amount { get; set; }
 
     /// <summary>
+    /// draft | posted | cancelled | replaced (see <c>BizFlow.Domain.Enums.CostStatus</c>).
+    /// </summary>
+    public string Status { get; set; } = "posted";
+
+    /// <summary>
     /// Cost posting date
     /// </summary>
     public DateOnly CostDate { get; set; }
@@ -84,9 +89,37 @@ public partial class Cost
     /// </summary>
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>
+    /// When this cost was cancelled (either standalone cancel or as part of replace-flow).
+    /// </summary>
+    public DateTime? CancelledAt { get; set; }
+
+    /// <summary>
+    /// UserId that cancelled this cost.
+    /// </summary>
+    public Guid? CancelledBy { get; set; }
+
+    /// <summary>
+    /// Original Cost this row replaces (replace-when-posted flow). Null when this record was created fresh.
+    /// </summary>
+    public long? RefCostId { get; set; }
+
+    /// <summary>
+    /// Client-supplied idempotency key for the replace-when-posted flow (stored on the <b>replacement</b> row).
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
+    /// Normalized (UPPER+TRIM) copy of <see cref="DocumentNumber"/> produced by a DB-generated column.
+    /// Used for uniqueness checks across Costs + Revenues.
+    /// </summary>
+    public string? DocumentNumberNormalized { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
     public virtual BusinessType? BusinessType { get; set; }
 
     public virtual Import? Import { get; set; }
+
+    public virtual Cost? RefCost { get; set; }
 }

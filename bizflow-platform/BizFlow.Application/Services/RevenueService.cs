@@ -3,6 +3,7 @@ using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
+using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
@@ -20,6 +21,7 @@ namespace BizFlow.Application.Services
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IReferenceLabelService _labels;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
+        private readonly IDocumentNumberRegistryService _documentNumberRegistry;
 
         public RevenueService(
             IUnitOfWork uow,
@@ -28,7 +30,8 @@ namespace BizFlow.Application.Services
             IImageService imageService,
             IGeneralLedgerService generalLedgerService,
             IReferenceLabelService labels,
-            IBackgroundJobScheduler backgroundJobScheduler)
+            IBackgroundJobScheduler backgroundJobScheduler,
+            IDocumentNumberRegistryService documentNumberRegistry)
         {
             _uow = uow;
             _mapper = mapper;
@@ -37,6 +40,7 @@ namespace BizFlow.Application.Services
             _generalLedgerService = generalLedgerService;
             _labels = labels;
             _backgroundJobScheduler = backgroundJobScheduler;
+            _documentNumberRegistry = documentNumberRegistry;
         }
 
         private RevenueDto ToDto(Revenue revenue)
@@ -44,6 +48,7 @@ namespace BizFlow.Application.Services
             var dto = _mapper.Map<RevenueDto>(revenue);
             dto.RevenueType = _labels.ToOption(ReferenceCategory.RevenueType, revenue.RevenueType);
             dto.MoneyChannel = _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, revenue.MoneyChannel);
+            dto.Status = _labels.ToOption(ReferenceCategory.RevenueStatus, revenue.Status);
             return dto;
         }
 
@@ -55,8 +60,17 @@ namespace BizFlow.Application.Services
             if (!PaymentMethods.IsValid(request.MoneyChannel))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            var revenue = await _uow.ExecuteResilientAsync(async _ =>
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+            var ownerId = await ResolveOwnerIdAsync(request.BusinessLocationId);
+
+            var revenue = await _uow.ExecuteResilientAsync(async ct =>
             {
+                if (docNumberNormalized != null)
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId, docNumberNormalized, cancellationToken: ct);
+                }
+
                 string? documentUrl = null;
                 string? documentPublicId = null;
                 if (request.ImageStream != null)
@@ -73,21 +87,23 @@ namespace BizFlow.Application.Services
                     BusinessTypeId = businessTypeId,
                     RevenueType = RevenueType.Manual,
                     Amount = request.Amount,
+                    Status = RevenueStatus.Posted,
                     RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
                     Description = request.Description.Trim(),
                     MoneyChannel = request.MoneyChannel.Trim().ToLower(),
                     DocumentUrl = documentUrl,
                     DocumentPublicId = documentPublicId,
-                    DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber),
+                    DocumentNumber = docNumberNormalized,
                     DocumentDate = request.DocumentDate,
                     CreatedBy = userId,
                     CreatedAt = DateTime.UtcNow
                 };
 
                 await _uow.Revenues.AddAsync(entity);
-                await _uow.SaveChangesAsync(); // Need RevenueId before GL reference entry.
+                await _uow.SaveChangesAsync(ct);
 
                 await _generalLedgerService.RecordManualRevenueAsync(entity);
+                await _uow.SaveChangesAsync(ct);
 
                 return entity;
             });
@@ -98,47 +114,201 @@ namespace BizFlow.Application.Services
             return ToDto(revenue);
         }
 
-        public async Task<RevenueDto> UpdateManualAsync(Guid userId, long revenueId, UpdateManualRevenueRequest request)
+        public async Task<ManualRevenueUpdateResponseDto> UpdateManualAsync(Guid userId, long revenueId, UpdateManualRevenueRequest request)
         {
-            var revenue = await _uow.Revenues.GetByIdAsync(revenueId)
-                ?? throw new NotFoundException(MessageKeys.NotFound);
+            var revenuePreview = await _uow.Revenues.GetByIdAsync(revenueId)
+                ?? throw new NotFoundException(MessageKeys.RevenueNotFound);
 
-            await _locationService.ValidateOwnerAsync(userId, revenue.BusinessLocationId);
+            await _locationService.ValidateOwnerAsync(userId, revenuePreview.BusinessLocationId);
 
-            if (!revenue.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
+            if (!revenuePreview.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
+
+            if (RevenueStatus.IsTerminal(revenuePreview.Status))
+                throw new BadRequestException(MessageKeys.RevenueCannotEditCancelledOrReplaced);
+
+            if (RevenueStatus.IsEditableInPlace(revenuePreview.Status))
+                return new ManualRevenueUpdateResponseDto
+                {
+                    IsReplacement = false,
+                    Revenue = await UpdateManualDraftInPlaceAsync(userId, revenuePreview, request)
+                };
+
+            if (!string.Equals(revenuePreview.Status, RevenueStatus.Posted, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.RevenueInvalidStatus);
+
+            if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
+                throw new BadRequestException(MessageKeys.RevenueEditPostedRequiresIdempotencyKey);
+
+            var idemKey = request.IdempotencyKey.Trim();
+            if (idemKey.Length > 100)
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            var existingReplacement = await _uow.Revenues.GetLatestReplacementByRefRevenueIdAsync(revenueId, idemKey);
+            if (existingReplacement != null)
+            {
+                return new ManualRevenueUpdateResponseDto
+                {
+                    IsReplacement = true,
+                    Replacement = new PostedRecordReplacementResultDto
+                    {
+                        OldRecordId = revenueId,
+                        OldRecordStatus = _labels.ToOption(ReferenceCategory.RevenueStatus, RevenueStatus.Replaced),
+                        NewRecordId = existingReplacement.RevenueId,
+                        NewRecordStatus = _labels.ToOption(ReferenceCategory.RevenueStatus, existingReplacement.Status)
+                    }
+                };
+            }
 
             if (!PaymentMethods.IsValid(request.MoneyChannel))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            revenue.BusinessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
-            revenue.Amount = request.Amount;
-            revenue.RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            revenue.Description = request.Description.Trim();
-            revenue.MoneyChannel = request.MoneyChannel.Trim().ToLower();
-            if (request.RemoveDocument && !string.IsNullOrEmpty(revenue.DocumentPublicId))
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+            var ownerId = await ResolveOwnerIdAsync(revenuePreview.BusinessLocationId);
+
+            var newRevenue = await _uow.ExecuteResilientAsync(async ct =>
             {
-                revenue.DocumentUrl = null;
-                revenue.DocumentPublicId = null;
-            }
+                await _uow.Revenues.LockRevenueRowForUpdateAsync(revenueId, ct);
 
-            if (request.ImageStream != null)
+                var old = await _uow.Revenues.GetByIdAsync(revenueId)
+                    ?? throw new NotFoundException(MessageKeys.RevenueNotFound);
+
+                if (RevenueStatus.IsTerminal(old.Status))
+                    throw new BadRequestException(MessageKeys.RevenueCannotEditCancelledOrReplaced);
+
+                if (!string.Equals(old.Status, RevenueStatus.Posted, StringComparison.OrdinalIgnoreCase))
+                    throw new BadRequestException(MessageKeys.RevenueInvalidStatus);
+
+                var dup = await _uow.Revenues.GetLatestReplacementByRefRevenueIdAsync(revenueId, idemKey, ct);
+                if (dup != null)
+                    return dup;
+
+                if (docNumberNormalized != null)
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId,
+                        docNumberNormalized,
+                        excludeRevenueId: old.RevenueId,
+                        cancellationToken: ct);
+                }
+
+                await _generalLedgerService.ReverseRevenueEntriesAsync(old, MessageKeys.RevenueReplacedReason);
+
+                old.Status = RevenueStatus.Replaced;
+                old.CancelledAt = DateTime.UtcNow;
+                old.CancelledBy = userId;
+                _uow.Revenues.Update(old);
+
+                string? docUrl = old.DocumentUrl;
+                string? docPublicId = old.DocumentPublicId;
+
+                if (request.RemoveDocument && !string.IsNullOrEmpty(old.DocumentPublicId))
+                {
+                    docUrl = null;
+                    docPublicId = null;
+                }
+
+                if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    docUrl = imageInfo.Url;
+                    docPublicId = imageInfo.PublicId;
+                }
+
+                var businessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
+
+                var created = new Revenue
+                {
+                    BusinessLocationId = old.BusinessLocationId,
+                    BusinessTypeId = businessTypeId,
+                    RevenueType = RevenueType.Manual,
+                    Amount = request.Amount,
+                    Status = RevenueStatus.Posted,
+                    RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                    Description = request.Description.Trim(),
+                    MoneyChannel = request.MoneyChannel.Trim().ToLower(),
+                    DocumentUrl = docUrl,
+                    DocumentPublicId = docPublicId,
+                    DocumentNumber = docNumberNormalized,
+                    DocumentDate = request.DocumentDate,
+                    RefRevenueId = old.RevenueId,
+                    IdempotencyKey = idemKey,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Revenues.AddAsync(created);
+                await _uow.SaveChangesAsync(ct);
+
+                await _generalLedgerService.RecordManualRevenueAsync(created);
+                await _uow.SaveChangesAsync(ct);
+
+                return created;
+            });
+
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                newRevenue.BusinessLocationId, "revenue", newRevenue.RevenueId);
+
+            return new ManualRevenueUpdateResponseDto
             {
-                var imageInfo = await _imageService.UploadImageAsync(
-                    request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
-                revenue.DocumentUrl = imageInfo.Url;
-                revenue.DocumentPublicId = imageInfo.PublicId;
-            }
+                IsReplacement = true,
+                Replacement = new PostedRecordReplacementResultDto
+                {
+                    OldRecordId = revenueId,
+                    OldRecordStatus = _labels.ToOption(ReferenceCategory.RevenueStatus, RevenueStatus.Replaced),
+                    NewRecordId = newRevenue.RevenueId,
+                    NewRecordStatus = _labels.ToOption(ReferenceCategory.RevenueStatus, newRevenue.Status)
+                }
+            };
+        }
 
-            revenue.DocumentNumber = NormalizeDocumentNumber(request.DocumentNumber);
-            revenue.DocumentDate = request.DocumentDate;
+        private async Task<RevenueDto> UpdateManualDraftInPlaceAsync(Guid userId, Revenue revenue, UpdateManualRevenueRequest request)
+        {
+            if (!PaymentMethods.IsValid(request.MoneyChannel))
+                throw new BadRequestException(MessageKeys.BadRequest);
 
-            _uow.Revenues.Update(revenue);
-            await _uow.SaveChangesAsync();
+            var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
+            var ownerId = await ResolveOwnerIdAsync(revenue.BusinessLocationId);
 
-            await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueUpdatedReversalReason);
-            await _generalLedgerService.RecordManualRevenueAsync(revenue);
-            await _uow.SaveChangesAsync();
+            await _uow.ExecuteResilientAsync(async ct =>
+            {
+                if (docNumberNormalized != null
+                    && !string.Equals(docNumberNormalized, revenue.DocumentNumberNormalized, StringComparison.Ordinal))
+                {
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(
+                        ownerId,
+                        docNumberNormalized,
+                        excludeRevenueId: revenue.RevenueId,
+                        cancellationToken: ct);
+                }
+
+                revenue.BusinessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
+                revenue.Amount = request.Amount;
+                revenue.RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                revenue.Description = request.Description.Trim();
+                revenue.MoneyChannel = request.MoneyChannel.Trim().ToLower();
+
+                if (request.RemoveDocument && !string.IsNullOrEmpty(revenue.DocumentPublicId))
+                {
+                    revenue.DocumentUrl = null;
+                    revenue.DocumentPublicId = null;
+                }
+
+                if (request.ImageStream != null)
+                {
+                    var imageInfo = await _imageService.UploadImageAsync(
+                        request.ImageStream, request.ImageFileName, ImageUploadTarget.Costs);
+                    revenue.DocumentUrl = imageInfo.Url;
+                    revenue.DocumentPublicId = imageInfo.PublicId;
+                }
+
+                revenue.DocumentNumber = docNumberNormalized;
+                revenue.DocumentDate = request.DocumentDate;
+
+                _uow.Revenues.Update(revenue);
+                await _uow.SaveChangesAsync(ct);
+            });
 
             _backgroundJobScheduler.EnqueueAiAnomalyCheck(
                 revenue.BusinessLocationId, "revenue", revenue.RevenueId);
@@ -175,28 +345,41 @@ namespace BizFlow.Application.Services
         public async Task DeleteManualAsync(Guid userId, long revenueId)
         {
             var revenue = await _uow.Revenues.GetByIdAsync(revenueId)
-                ?? throw new NotFoundException(MessageKeys.NotFound);
+                ?? throw new NotFoundException(MessageKeys.RevenueNotFound);
 
             await _locationService.ValidateOwnerAsync(userId, revenue.BusinessLocationId);
 
             if (!revenue.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            await _uow.ExecuteResilientAsync(async _ =>
+            if (RevenueStatus.IsTerminal(revenue.Status))
+                throw new BadRequestException(MessageKeys.RevenueCannotEditCancelledOrReplaced);
+
+            if (string.Equals(revenue.Status, RevenueStatus.Draft, StringComparison.OrdinalIgnoreCase))
             {
+                await _uow.ExecuteResilientAsync(async ct =>
+                {
+                    revenue.Status = RevenueStatus.Cancelled;
+                    revenue.CancelledAt = DateTime.UtcNow;
+                    revenue.CancelledBy = userId;
+                    revenue.DeletedAt = DateTime.UtcNow;
+                    _uow.Revenues.Update(revenue);
+                    await _uow.SaveChangesAsync(ct);
+                });
+                return;
+            }
+
+            await _uow.ExecuteResilientAsync(async ct =>
+            {
+                revenue.Status = RevenueStatus.Cancelled;
+                revenue.CancelledAt = DateTime.UtcNow;
+                revenue.CancelledBy = userId;
                 revenue.DeletedAt = DateTime.UtcNow;
                 _uow.Revenues.Update(revenue);
 
                 await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueDeletedReversalReason);
+                await _uow.SaveChangesAsync(ct);
             });
-        }
-
-        private static string? NormalizeDocumentNumber(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return null;
-
-            return value.Trim();
         }
 
         private static Guid EnsureBusinessTypeRequired(Guid? businessTypeId)
@@ -204,6 +387,13 @@ namespace BizFlow.Application.Services
             if (!businessTypeId.HasValue || businessTypeId.Value == Guid.Empty)
                 throw new BadRequestException(MessageKeys.BadRequest);
             return businessTypeId.Value;
+        }
+
+        private async Task<Guid> ResolveOwnerIdAsync(int locationId)
+        {
+            var ownerId = await _uow.BusinessLocations.GetOwnerIdByLocationAsync(locationId)
+                ?? throw new NotFoundException(MessageKeys.NotFound);
+            return ownerId;
         }
     }
 }

@@ -23,6 +23,7 @@ namespace BizFlow.Application.Services
         private readonly IMessageService _messageService;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IReferenceLabelService _labels;
+        private readonly IDocumentNumberRegistryService _documentNumberRegistry;
 
         public OrderService(
             IUnitOfWork uow,
@@ -32,7 +33,8 @@ namespace BizFlow.Application.Services
             IGeneralLedgerService generalLedgerService,
             IMessageService messageService,
             IBackgroundJobScheduler backgroundJobScheduler,
-            IReferenceLabelService labels)
+            IReferenceLabelService labels,
+            IDocumentNumberRegistryService documentNumberRegistry)
         {
             _uow = uow;
             _mapper = mapper;
@@ -42,6 +44,7 @@ namespace BizFlow.Application.Services
             _messageService = messageService;
             _backgroundJobScheduler = backgroundJobScheduler;
             _labels = labels;
+            _documentNumberRegistry = documentNumberRegistry;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -245,7 +248,16 @@ namespace BizFlow.Application.Services
                 order.UpdatedBy = userId;
                 _uow.Orders.Update(order);
 
-                var revenues = BuildSaleRevenuesFromOrder(order, locationId, userId, _messageService);
+                var (rawDoc, docDate) = ExtractDocumentInfoFromBillMetadata(order.BillMetadata);
+                var docNorm = _documentNumberRegistry.NormalizeOrNull(rawDoc);
+                if (docNorm != null)
+                {
+                    var ownerId = await _uow.BusinessLocations.GetOwnerIdByLocationAsync(locationId)
+                        ?? throw new NotFoundException(MessageKeys.NotFound);
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(ownerId, docNorm, cancellationToken: ct);
+                }
+
+                var revenues = BuildSaleRevenuesFromOrder(order, locationId, userId, docNorm, docDate);
                 foreach (var revenue in revenues)
                     await _uow.Revenues.AddAsync(revenue);
 
@@ -416,7 +428,7 @@ namespace BizFlow.Application.Services
             if (prepared.RequiresConfirmation)
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            var newOrderId = await _uow.ExecuteResilientAsync(async _ =>
+            var newOrderId = await _uow.ExecuteResilientAsync(async ct =>
             {
                 var now = DateTime.UtcNow;
                 var newOrder = new Order
@@ -489,7 +501,16 @@ namespace BizFlow.Application.Services
                 newOrder.UpdatedBy = userId;
                 _uow.Orders.Update(newOrder);
 
-                var newOrderRevenues = BuildSaleRevenuesFromOrder(newOrder, locationId, userId, _messageService);
+                var (rawDoc, docDate) = ExtractDocumentInfoFromBillMetadata(newOrder.BillMetadata);
+                var docNorm = _documentNumberRegistry.NormalizeOrNull(rawDoc);
+                if (docNorm != null)
+                {
+                    var ownerId = await _uow.BusinessLocations.GetOwnerIdByLocationAsync(locationId)
+                        ?? throw new NotFoundException(MessageKeys.NotFound);
+                    await _documentNumberRegistry.EnsureLockAndAssertUniqueAsync(ownerId, docNorm, cancellationToken: ct);
+                }
+
+                var newOrderRevenues = BuildSaleRevenuesFromOrder(newOrder, locationId, userId, docNorm, docDate);
                 foreach (var revenue in newOrderRevenues)
                     await _uow.Revenues.AddAsync(revenue);
 
@@ -791,12 +812,22 @@ namespace BizFlow.Application.Services
             return (false, warnings, details, subTotal, discount, total);
         }
 
-        private static List<Revenue> BuildSaleRevenuesFromOrder(Order order, int businessLocationId, Guid userId, IMessageService messageService)
+        /// <summary>
+        /// <paramref name="documentNumberNormalized"/> is produced by
+        /// <see cref="IDocumentNumberRegistryService.NormalizeOrNull"/> (already uniqueness-checked at complete-time).
+        /// The document is stamped on the <b>first</b> sale revenue row only so owner-wide uniqueness (Costs ∪ Revenues) is not violated by split rows.
+        /// </summary>
+        private List<Revenue> BuildSaleRevenuesFromOrder(
+            Order order,
+            int businessLocationId,
+            Guid userId,
+            string? documentNumberNormalized,
+            DateOnly? documentDate)
         {
             var revenues = new List<Revenue>();
             var date = DateOnly.FromDateTime(order.CompletedAt ?? DateTime.UtcNow);
-            var (documentNumber, documentDate) = ExtractDocumentInfoFromBillMetadata(order.BillMetadata);
             var businessTypeAllocations = BuildBusinessTypeAllocations(order);
+            var orderCode = order.OrderCode ?? order.OrderId.ToString();
 
             revenues.AddRange(BuildRevenuesByChannel(
                 order.CashAmount,
@@ -805,11 +836,8 @@ namespace BizFlow.Application.Services
                 businessLocationId,
                 order.OrderId,
                 date,
-                documentNumber,
-                documentDate,
                 userId,
-                messageService,
-                order.OrderCode ?? order.OrderId.ToString()));
+                orderCode));
 
             revenues.AddRange(BuildRevenuesByChannel(
                 order.BankAmount,
@@ -818,11 +846,8 @@ namespace BizFlow.Application.Services
                 businessLocationId,
                 order.OrderId,
                 date,
-                documentNumber,
-                documentDate,
                 userId,
-                messageService,
-                order.OrderCode ?? order.OrderId.ToString()));
+                orderCode));
 
             revenues.AddRange(BuildRevenuesByChannel(
                 order.DebtAmount,
@@ -831,11 +856,15 @@ namespace BizFlow.Application.Services
                 businessLocationId,
                 order.OrderId,
                 date,
-                documentNumber,
-                documentDate,
                 userId,
-                messageService,
-                order.OrderCode ?? order.OrderId.ToString()));
+                orderCode));
+
+            var first = revenues.FirstOrDefault(r => r.Amount > 0);
+            if (first != null)
+            {
+                first.DocumentNumber = documentNumberNormalized;
+                first.DocumentDate = documentDate;
+            }
 
             return revenues;
         }
@@ -859,17 +888,14 @@ namespace BizFlow.Application.Services
             return grouped.Select(x => (x.BusinessTypeId, x.Total / total)).ToList();
         }
 
-        private static IEnumerable<Revenue> BuildRevenuesByChannel(
+        private IEnumerable<Revenue> BuildRevenuesByChannel(
             decimal channelAmount,
             string moneyChannel,
             List<(Guid BusinessTypeId, decimal Weight)> allocations,
             int businessLocationId,
             long orderId,
             DateOnly revenueDate,
-            string? documentNumber,
-            DateOnly? documentDate,
             Guid userId,
-            IMessageService messageService,
             string orderCode)
         {
             if (channelAmount <= 0)
@@ -890,12 +916,11 @@ namespace BizFlow.Application.Services
                     BusinessTypeId = allocations[i].BusinessTypeId,
                     OrderId = orderId,
                     RevenueType = RevenueType.Sale,
+                    Status = RevenueStatus.Posted,
                     Amount = splitAmounts[i],
                     RevenueDate = revenueDate,
-                    Description = messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, orderCode, moneyChannel),
+                    Description = _messageService.GetMessage(MessageKeys.OrderRevenueDescriptionFormat, orderCode, moneyChannel),
                     MoneyChannel = moneyChannel,
-                    DocumentNumber = documentNumber,
-                    DocumentDate = documentDate,
                     CreatedBy = userId,
                     CreatedAt = now
                 });
