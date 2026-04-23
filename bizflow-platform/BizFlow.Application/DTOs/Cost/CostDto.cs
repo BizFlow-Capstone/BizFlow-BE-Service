@@ -7,6 +7,7 @@ namespace BizFlow.Application.DTOs.Cost
         public long CostId { get; set; }
         public int BusinessLocationId { get; set; }
         public Guid? BusinessTypeId { get; set; }
+        public long? ImportId { get; set; }
         /// <summary>
         /// Cost type. <c>Code</c> ∈ {<c>import</c>, <c>salary</c>, <c>rent</c>, <c>utilities</c>,
         /// <c>transport</c>, <c>marketing</c>, <c>maintenance</c>, <c>other</c>, <c>manual</c>}.
