@@ -349,7 +349,7 @@ public class BookRenderingService : IBookRenderingService
                     revenueByBtCache ??= await LoadRevenueByBusinessTypeAsync(context);
                     if (revenueByBtCache.Count > 0)
                     {
-                        btNamesCache ??= await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
+                        btNamesCache ??= await LoadBusinessTypeNamesAsync(revenueByBtCache.Keys);
                         row["revenueBreakdown"] = revenueByBtCache
                             .OrderByDescending(kv => kv.Value)
                             .Select(kv => new Dictionary<string, object?>
@@ -445,9 +445,13 @@ public class BookRenderingService : IBookRenderingService
                     && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown)
                     && breakdown.Count > 0)
                 {
-                    btNamesCache ??= await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
                     revenueByBtCache ??= await LoadRevenueByBusinessTypeAsync(context);
                     costByBtCache ??= await LoadCostByBusinessTypeAsync(context);
+                    if (btNamesCache == null)
+                    {
+                        var allBtIds = revenueByBtCache.Keys.Concat(costByBtCache.Keys).Distinct();
+                        btNamesCache = await LoadBusinessTypeNamesAsync(allBtIds);
+                    }
 
                     row["taxBreakdown"] = breakdown.Select(kv =>
                     {
@@ -1131,13 +1135,16 @@ public class BookRenderingService : IBookRenderingService
 
         if (groupByField.Equals("BusinessTypeId", StringComparison.OrdinalIgnoreCase))
         {
-            var names = await LoadBusinessTypeNamesAsync(context.BusinessTypeIds);
             var amounts = await LoadRevenueByBusinessTypeAsync(context);
 
-            // Only include business types that have revenue in the current period
-            var activeIds = context.BusinessTypeIds
-                .Where(id => amounts.ContainsKey(id) && amounts[id] != 0m)
+            // Use all business types that actually have revenue in this period
+            // (not limited to context.BusinessTypeIds which is derived from products only)
+            var activeIds = amounts
+                .Where(kv => kv.Value != 0m)
+                .Select(kv => kv.Key)
                 .ToList();
+
+            var names = await LoadBusinessTypeNamesAsync(activeIds);
 
             var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
                 context.RulesetId, activeIds);
