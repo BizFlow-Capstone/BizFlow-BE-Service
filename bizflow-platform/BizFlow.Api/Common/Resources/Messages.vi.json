@@ -25,7 +25,7 @@
   "LEDGER_ORDER_CANCELLED_REASON": "hủy đơn hàng",
   "ORDER_REPLACED_REASON": "Được thay thế bởi đơn hàng {0}",
   "ORDER_AUTO_ROLLBACK_NOTE": "Hoàn tác nợ tự động từ đơn hàng bị hủy {0}",
-  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Doanh thu ({1}) từ đơn hàng {0}",
+  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Doanh thu bán hàng",
   "LEDGER_INVALID_LOOKBACK_UNIT": "Cấu hình GeneralLedger:LookbackUnit phải là một trong các giá trị: day, month, year",
   "LEDGER_DATE_OUT_OF_RANGE": "Ngày tra cứu không được ở tương lai hoặc vượt quá giới hạn cho phép",
   "LEDGER_INVALID_DATE_RANGE": "Từ ngày phải nhỏ hơn hoặc bằng Đến ngày",

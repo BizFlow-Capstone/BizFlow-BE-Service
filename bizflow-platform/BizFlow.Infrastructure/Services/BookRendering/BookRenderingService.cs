@@ -686,17 +686,17 @@ public class BookRenderingService : IBookRenderingService
         BookRenderContext ctx, string? cursor, int batchSize)
     {
         var safeBatchSize = SanitizeBatchSize(batchSize);
+        var cursorOffset = ParseCursorOffset(cursor);
+        var pageNumber = cursorOffset > 0 ? (cursorOffset / safeBatchSize) + 1 : 1;
 
         var query = new Application.DTOs.Revenue.RevenueQueryParams
         {
             BusinessLocationId = ctx.BusinessLocationId,
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
+            PageNumber = pageNumber,
             PageSize = safeBatchSize + 1 // +1 to check hasMore
         };
-
-        // TODO: Apply cursor-based filtering (skip past cursor position)
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
         var list = items.Where(r => r.DeletedAt == null).ToList();
@@ -719,6 +719,8 @@ public class BookRenderingService : IBookRenderingService
                     ["RevenueType"] = r.RevenueType,
                     ["MoneyChannel"] = r.MoneyChannel,
                     ["OrderId"] = r.OrderId,
+                    ["DocumentNumber"] = r.DocumentNumber,
+                    ["DocumentDate"] = r.DocumentDate,
                     ["BusinessTypeId"] = r.BusinessTypeId
                 }
             }).ToList(),
@@ -783,13 +785,15 @@ public class BookRenderingService : IBookRenderingService
         BookRenderContext ctx, string? cursor, int batchSize)
     {
         var safeBatchSize = SanitizeBatchSize(batchSize);
+        var cursorOffset = ParseCursorOffset(cursor);
+        var pageNumber = cursorOffset > 0 ? (cursorOffset / safeBatchSize) + 1 : 1;
 
         var query = new Application.DTOs.GeneralLedger.GeneralLedgerQueryParams
         {
             BusinessLocationId = ctx.BusinessLocationId,
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
-            PageNumber = 1,
+            PageNumber = pageNumber,
             PageSize = safeBatchSize + 1
         };
 
@@ -929,10 +933,7 @@ public class BookRenderingService : IBookRenderingService
             // Common
             "date" or "ngay_thang" or "ngay" => row.Date,
             "description" or "dien_giai" => row.Values.GetValueOrDefault("Description"),
-            "so_hieu" => row.Values.GetValueOrDefault("OrderId")?.ToString()
-                ?? row.Values.GetValueOrDefault("EntryId")?.ToString()
-                ?? row.Values.GetValueOrDefault("StockMovementId")?.ToString()
-                ?? row.Values.GetValueOrDefault("CostId")?.ToString(),
+            "so_hieu" => row.Values.GetValueOrDefault("DocumentNumber")?.ToString(),
 
             // Revenue/Order
             "revenue" or "so_tien" => row.Values.GetValueOrDefault("Amount"),
@@ -972,6 +973,8 @@ public class BookRenderingService : IBookRenderingService
             "OrderCode" => row.Values.GetValueOrDefault("OrderCode"),
             "RevenueType" => row.Values.GetValueOrDefault("RevenueType"),
             "BusinessTypeId" => row.Values.GetValueOrDefault("BusinessTypeId"),
+            "DocumentNumber" => row.Values.GetValueOrDefault("DocumentNumber"),
+            "DocumentDate" => row.Values.GetValueOrDefault("DocumentDate") ?? row.Date,
 
             // Cost
             "CostDate" => row.Values.GetValueOrDefault("CostDate") ?? row.Date,

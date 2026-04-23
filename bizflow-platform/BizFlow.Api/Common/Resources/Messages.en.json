@@ -25,7 +25,7 @@
   "LEDGER_ORDER_CANCELLED_REASON": "order cancelled",
   "ORDER_REPLACED_REASON": "Replaced by order {0}",
   "ORDER_AUTO_ROLLBACK_NOTE": "Auto rollback from cancelled order {0}",
-  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Revenue ({1}) from order {0}",
+  "ORDER_REVENUE_DESCRIPTION_FORMAT": "Sales revenue",
   "LEDGER_INVALID_LOOKBACK_UNIT": "Configuration GeneralLedger:LookbackUnit must be one of: day, month, year",
   "LEDGER_DATE_OUT_OF_RANGE": "Date must not be in the future or older than the allowed limit",
   "LEDGER_INVALID_DATE_RANGE": "FromDate must be less than or equal to ToDate",
