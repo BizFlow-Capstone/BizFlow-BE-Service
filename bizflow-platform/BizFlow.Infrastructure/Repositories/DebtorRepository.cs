@@ -4,6 +4,7 @@ using BizFlow.Domain.Entities;
 using BizFlow.Infrastructure.DataContext;
 using Microsoft.EntityFrameworkCore;
 using BizFlow.Application.Specifications.Debtors;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Infrastructure.Specifications;
 
 namespace BizFlow.Infrastructure.Repositories
@@ -100,6 +101,16 @@ namespace BizFlow.Infrastructure.Repositories
                 .OrderByDescending(t => t.PaidAt)
                 .ToListAsync();
 
+        public async Task<IEnumerable<DebtorPaymentTransaction>> GetPaymentsByIdsAsync(IReadOnlyCollection<long> paymentIds)
+        {
+            if (paymentIds == null || paymentIds.Count == 0)
+                return [];
+
+            return await _db.DebtorPaymentTransactions
+                .Where(t => paymentIds.Contains(t.DebtorPaymentTransactionId))
+                .ToListAsync();
+        }
+
         public async Task<decimal> SumOutstandingDebtByLocationsAsync(
             IReadOnlyCollection<int> businessLocationIds,
             CancellationToken cancellationToken = default)
@@ -107,11 +118,13 @@ namespace BizFlow.Infrastructure.Repositories
             if (businessLocationIds == null || businessLocationIds.Count == 0)
                 return 0m;
 
-            return await _db.Debtors
+            var debtors = await _db.Debtors
                 .Where(d => businessLocationIds.Contains(d.BusinessLocationId)
-                    && d.IsActive == true
-                    && d.CurrentBalance < 0)
-                .SumAsync(d => -d.CurrentBalance, cancellationToken);
+                    && d.IsActive == true)
+                .Select(d => d.CurrentBalance)
+                .ToListAsync(cancellationToken);
+
+            return debtors.Sum(DebtBalanceSemanticHelper.CalculateOutstandingDebt);
         }
     }
 }

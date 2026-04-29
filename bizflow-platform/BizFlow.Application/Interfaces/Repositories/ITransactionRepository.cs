@@ -1,3 +1,4 @@
+using BizFlow.Application.DTOs.Subscription;
 using BizFlow.Domain.Entities;
 
 namespace BizFlow.Application.Interfaces.Repositories
@@ -10,5 +11,9 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Transaction?> GetByPaymentIntentIdAsync(string paymentIntentId);
         Task<List<Transaction>> GetByProfileAsync(Guid profileId, int page, int pageSize);
         Task<List<Transaction>> GetStalePendingTransactionsAsync(DateTime olderThanUtc);
+        Task<List<SubscriptionTransactionAnalyticsRecord>> GetSuccessfulSubscriptionTransactionsInRangeAsync(
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default);
     }
 }

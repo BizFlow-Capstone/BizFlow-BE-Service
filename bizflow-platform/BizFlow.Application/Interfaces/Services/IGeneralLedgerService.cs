@@ -12,7 +12,10 @@ namespace BizFlow.Application.Interfaces.Services
         Task<GeneralLedgerEntry> RecordManualCostAsync(Cost cost);
         Task<int> ReverseCostEntriesAsync(Cost cost, string reversalReason);
 
-        Task<GeneralLedgerEntry> RecordDebtPaymentAsync(DebtorPaymentTransaction transaction, int businessLocationId);
+        Task<GeneralLedgerEntry> RecordDebtPaymentAsync(
+            DebtorPaymentTransaction transaction,
+            int businessLocationId,
+            string? debtAction = null);
 
         Task<GeneralLedgerEntry> RecordSaleRevenueAsync(Revenue revenue);
         Task<GeneralLedgerEntry> RecordManualRevenueAsync(Revenue revenue);

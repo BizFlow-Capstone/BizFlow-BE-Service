@@ -1,6 +1,7 @@
 using BizFlow.Application.Common.Configuration;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Constants;
+using BizFlow.Application.Common.Dashboard;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.Common.Utilities;
@@ -433,6 +434,100 @@ namespace BizFlow.Application.Services
                 PaidAt = t.PaidAt,
                 CreatedAt = t.CreatedAt
             }).ToList();
+        }
+
+        public async Task<AdminSubscriptionAnalyticsResponse> GetAdminAnalyticsAsync(
+            AdminSubscriptionAnalyticsQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            var requestedPeriod = string.IsNullOrWhiteSpace(query.Period)
+                ? DashboardPeriod.Week
+                : query.Period!;
+
+            if (!DashboardPeriodResolver.TryParsePeriod(requestedPeriod, out var period))
+                throw new BadRequestException(MessageKeys.DashboardInvalidPeriod);
+
+            if (period == DashboardPeriod.Custom)
+            {
+                if (!query.FromDate.HasValue || !query.ToDate.HasValue)
+                    throw new BadRequestException(MessageKeys.DashboardCustomDatesRequired);
+
+                if (query.FromDate.Value > query.ToDate.Value)
+                    throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
+            }
+
+            var referenceDate = query.ReferenceDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            var (fromDate, toDate) = DashboardPeriodResolver.Resolve(
+                period,
+                referenceDate,
+                query.FromDate,
+                query.ToDate);
+
+            var (fromUtc, toUtc) = DashboardPeriodResolver.ToUtcInclusiveDateTimeRange(fromDate, toDate);
+            var transactions = await _unitOfWork.Transactions.GetSuccessfulSubscriptionTransactionsInRangeAsync(
+                fromUtc,
+                toUtc,
+                cancellationToken);
+
+            var planIds = transactions.Select(x => x.SubscriptionPlanId).Distinct().ToList();
+            var priceRows = await _unitOfWork.PlanPrices.GetByPlanIdsAsync(planIds, cancellationToken);
+            var priceRowsByPlanId = priceRows
+                .GroupBy(x => x.SubscriptionPlanId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CreatedAt).ToList());
+
+            var byDate = transactions
+                .GroupBy(x => DateOnly.FromDateTime(x.PaidAtUtc.Date))
+                .ToDictionary(
+                    g => g.Key,
+                    g => new SubscriptionTransactionDailyAggregate
+                    {
+                        Date = g.Key,
+                        Revenue = g.Sum(x => x.FinalAmount),
+                        SubscriptionRegistrations = g.Sum(x => EstimatePurchasedQuantity(
+                            x,
+                            priceRowsByPlanId.GetValueOrDefault(x.SubscriptionPlanId)))
+                    });
+
+            var dailySeries = new List<AdminSubscriptionAnalyticsDailyPoint>();
+            for (var d = fromDate; d <= toDate; d = d.AddDays(1))
+            {
+                byDate.TryGetValue(d, out var row);
+                dailySeries.Add(new AdminSubscriptionAnalyticsDailyPoint
+                {
+                    Date = d,
+                    Revenue = row?.Revenue ?? 0m,
+                    SubscriptionRegistrations = row?.SubscriptionRegistrations ?? 0
+                });
+            }
+
+            return new AdminSubscriptionAnalyticsResponse
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                TotalRevenue = dailySeries.Sum(x => x.Revenue),
+                TotalSubscriptionRegistrations = dailySeries.Sum(x => x.SubscriptionRegistrations),
+                DailySeries = dailySeries
+            };
+        }
+
+        private static int EstimatePurchasedQuantity(
+            SubscriptionTransactionAnalyticsRecord transaction,
+            IReadOnlyList<SubscriptionPlanPrice>? planPriceHistory)
+        {
+            if (planPriceHistory == null || planPriceHistory.Count == 0)
+                return 1;
+
+            var referenceUtc = transaction.PaidAtUtc;
+            var candidate = planPriceHistory.LastOrDefault(p => p.CreatedAt <= referenceUtc)
+                           ?? planPriceHistory[^1];
+
+            var effectiveUnitPrice = candidate.GetEffectivePrice(referenceUtc);
+            if (effectiveUnitPrice <= 0)
+                return 1;
+
+            var raw = transaction.PlanPrice / effectiveUnitPrice;
+            var estimated = (int)Math.Round(raw, MidpointRounding.AwayFromZero);
+            return Math.Max(1, estimated);
         }
 
         public async Task HandleCheckoutCompletedAsync(StripeCheckoutSessionPayload session)
@@ -1081,13 +1176,6 @@ namespace BizFlow.Application.Services
             }
 
             return 1;
-        }
-
-        private static DateTime ResolveSubscriptionEndDate(DateTime startDateUtc, int durationDays)
-        {
-            return durationDays > 0
-                ? startDateUtc.AddDays(durationDays)
-                : startDateUtc;
         }
 
         private Task<SubscriptionPlan?> ResolveFreePlanAsync()

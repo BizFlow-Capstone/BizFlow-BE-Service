@@ -1,4 +1,5 @@
 using BizFlow.Application.Interfaces.Repositories;
+using BizFlow.Application.DTOs.Subscription;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
 using BizFlow.Infrastructure.DataContext;
@@ -58,6 +59,28 @@ namespace BizFlow.Infrastructure.Repositories
             return _context.Transactions
                 .Where(t => t.Status == TransactionStatus.Pending && t.CreatedAt <= olderThanUtc)
                 .ToListAsync();
+        }
+
+        public async Task<List<SubscriptionTransactionAnalyticsRecord>> GetSuccessfulSubscriptionTransactionsInRangeAsync(
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Transactions
+                .Where(t =>
+                    t.Status == TransactionStatus.Success &&
+                    t.PaidAt.HasValue &&
+                    t.PaidAt.Value >= fromUtc &&
+                    t.PaidAt.Value <= toUtc)
+                .Select(t => new SubscriptionTransactionAnalyticsRecord
+                {
+                    SubscriptionPlanId = t.SubscriptionPlanId,
+                    PlanPrice = t.PlanPrice,
+                    FinalAmount = t.FinalAmount,
+                    PaidAtUtc = t.PaidAt!.Value
+                })
+                .OrderBy(x => x.PaidAtUtc)
+                .ToListAsync(cancellationToken);
         }
     }
 }

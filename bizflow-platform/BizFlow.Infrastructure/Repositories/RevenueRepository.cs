@@ -75,6 +75,7 @@ namespace BizFlow.Infrastructure.Repositories
         {
             if (revenueIds == null || !revenueIds.Any()) return Array.Empty<Revenue>();
             return await _db.Revenues
+                .IgnoreQueryFilters()
                 .Where(r => revenueIds.Contains(r.RevenueId))
                 .Include(r => r.BusinessType)
                 .ToListAsync();

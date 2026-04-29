@@ -1,4 +1,5 @@
 using AutoMapper;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
 using BizFlow.Application.Common.Interfaces;
@@ -37,6 +38,13 @@ namespace BizFlow.Application.Services
         {
             var dto = _mapper.Map<DebtorPaymentDto>(transaction);
             dto.PaymentMethod = _labels.ToOption(ReferenceCategory.PaymentMethod, transaction.PaymentMethod);
+            dto.BalanceDelta = transaction.BalanceAfter - transaction.BalanceBefore;
+            var debtDirectionCode = DebtBalanceSemanticHelper.ResolveDebtDirection(
+                transaction.BalanceBefore,
+                transaction.BalanceAfter);
+            dto.DebtDirection = _labels.ToOption(ReferenceCategory.DebtDirection, debtDirectionCode);
+            dto.DebtAction = ResolveDebtAction(transaction, debtDirectionCode);
+            dto.OutstandingDebtAfter = DebtBalanceSemanticHelper.CalculateOutstandingDebt(transaction.BalanceAfter);
             return dto;
         }
 
@@ -158,7 +166,7 @@ namespace BizFlow.Application.Services
 
         public async Task<DebtorPaymentDto> RecordPaymentAsync(Guid userId, long debtorId, RecordDebtPaymentRequest request)
         {
-            if (request.Amount == 0)
+            if (request.Amount <= 0)
                 throw new BadRequestException(MessageKeys.DebtorPaymentAmountZero);
 
             if (!PaymentMethods.IsValid(request.PaymentMethod))
@@ -168,6 +176,9 @@ namespace BizFlow.Application.Services
 
             if (debtor.IsActive != true)
                 throw new BadRequestException(MessageKeys.DebtorNotActive);
+
+            if (!DebtPaymentActions.IsValidUserAction(request.Action))
+                throw new BadRequestException(MessageKeys.DebtorPaymentActionInvalid);
 
             var transaction = DebtorProfile.ToEntity(request, debtorId, userId, debtor.CurrentBalance);
 
@@ -179,7 +190,10 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
 
             // Log debt payment transaction to GL.
-            await _generalLedgerService.RecordDebtPaymentAsync(transaction, debtor.BusinessLocationId);
+            await _generalLedgerService.RecordDebtPaymentAsync(
+                transaction,
+                debtor.BusinessLocationId,
+                request.Action);
             await _uow.SaveChangesAsync();
 
             return ToDto(transaction);
@@ -190,7 +204,10 @@ namespace BizFlow.Application.Services
             var debtor = await GetDebtorAndVerifyOwnerAsync(userId, debtorId);
 
             var transactions = await _uow.Debtors.GetPaymentsAsync(debtorId);
-            return transactions.Select(ToDto).ToList();
+            return transactions
+                .Where(t => !t.PaymentMethod.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase))
+                .Select(ToDto)
+                .ToList();
         }
 
         #region Private Helpers
@@ -198,6 +215,19 @@ namespace BizFlow.Application.Services
         private async Task VerifyLocationOwnerAsync(Guid userId, int locationId)
         {
             await _locationService.ValidateOwnerAsync(userId, locationId);
+        }
+
+        private static string ResolveDebtAction(DebtorPaymentTransaction transaction, string debtDirection)
+        {
+            if (transaction.PaymentMethod.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase))
+                return DebtPaymentActions.SystemRollback;
+
+            return debtDirection switch
+            {
+                DebtDirection.Decrease => DebtPaymentActions.DecreaseDebt,
+                DebtDirection.Increase => DebtPaymentActions.IncreaseDebt,
+                _ => DebtPaymentActions.DecreaseDebt
+            };
         }
 
         private async Task<Debtor> GetDebtorAndVerifyOwnerAsync(Guid userId, long debtorId)

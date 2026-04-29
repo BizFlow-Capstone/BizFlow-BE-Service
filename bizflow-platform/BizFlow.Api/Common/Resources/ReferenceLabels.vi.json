@@ -4,6 +4,11 @@
     "bank": "Ngân hàng",
     "system": "Hệ thống"
   },
+  "debt_direction": {
+    "debt_increase": "Tăng công nợ",
+    "debt_decrease": "Giảm công nợ",
+    "neutral": "Không đổi"
+  },
   "business_type_status": {
     "active": "Đang hoạt động",
     "inactive": "Ngừng hoạt động"
@@ -49,7 +54,8 @@
   "money_channel_type": {
     "cash": "Tiền mặt",
     "bank": "Ngân hàng",
-    "debt": "Công nợ"
+    "debt": "Công nợ",
+    "system": "Hệ thống"
   },
   "order_status": {
     "pending": "Đang chờ",

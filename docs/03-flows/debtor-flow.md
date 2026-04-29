@@ -34,8 +34,8 @@
 |------------|---------|------|
 | Hồ sơ công nợ | Debtor Profile | `Debtor` |
 | Số dư | Balance | `CurrentBalance` |
-| Đang nợ | Outstanding Debt | `CurrentBalance < 0` |
-| Có credit (trả trước) | Credit Balance | `CurrentBalance > 0` |
+| Đang nợ | Outstanding Debt | `CurrentBalance > 0` |
+| Có credit (trả trước) | Credit Balance | `CurrentBalance < 0` |
 | Hết nợ | Cleared | `CurrentBalance = 0` |
 | Giới hạn nợ | Credit Limit | `CreditLimit` |
 | Giao dịch trả nợ | Payment Transaction | `DebtorPaymentTransaction` |
@@ -44,20 +44,20 @@
 
 ```
 CurrentBalance (Số dư):
-├── Negative (-) = Khách đang NỢ
-│   Ví dụ: -500,000đ = Nợ 500k
+├── Positive (+) = Khách đang NỢ
+│   Ví dụ: +500,000đ = Nợ 500k
 ├── Zero (0) = Hết nợ, không credit
 │   Ví dụ: 0đ = Balance rỗng
-└── Positive (+) = Khách có CREDIT (trả trước/dư)
-    Ví dụ: +200,000đ = Có 200k credit
+└── Negative (-) = Khách có CREDIT (trả trước/dư)
+    Ví dụ: -200,000đ = Có 200k credit
 ```
 
 **Công thức tính**:
 ```
-CurrentBalance = Tổng tiền đã trả - Tổng tiền mua chịu
+CurrentBalance = Tổng tiền mua chịu - Tổng tiền đã trả
 
-Khi mua chịu:   CurrentBalance -= OrderDebtAmount
-Khi trả nợ:     CurrentBalance += PaymentAmount
+Khi mua chịu:   CurrentBalance += OrderDebtAmount
+Khi thu nợ:     CurrentBalance -= PaymentAmount
 ```
 
 ---
@@ -82,7 +82,7 @@ CREATE TABLE Debtors (
     
     -- Công nợ
     CreditLimit DECIMAL(15,2) DEFAULT NULL COMMENT 'Giới hạn nợ (NULL = unlimited)',
-    CurrentBalance DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Số dư: âm=nợ, dương=credit',
+    CurrentBalance DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Số dư: dương=nợ, âm=credit',
     
     -- Status
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
@@ -446,7 +446,7 @@ Khi khách trả nợ, Owner hoặc Employee ghi nhận thanh toán.
        │                 │                 │────────────────►│
        │                 │                 │                 │
        │                 │                 │ Update Debtor   │
-       │                 │                 │ Balance += amt  │
+       │                 │                 │ Balance -= amt  │
        │                 │                 │────────────────►│
        │                 │                 │◄────────────────│
        │                 │                 │                 │
@@ -464,6 +464,7 @@ Authorization: Bearer {token}
 Request:
 {
   "amount": 1000000,          # Số tiền trả (luôn dương)
+  "action": "decrease_debt",  # decrease_debt | increase_debt
   "paymentMethod": "cash",    # cash | bank
   "notes": "Trả một phần, còn 500k"
 }
@@ -473,9 +474,11 @@ Response (201 Created):
   "transactionId": 102,
   "debtorId": 45,
   "amount": 1000000,
+  "debtAction": "decrease_debt",
+  "debtDirection": "debt_decrease",
   "paymentMethod": "cash",
-  "balanceBefore": -1500000,
-  "balanceAfter": -500000,
+  "balanceBefore": 1500000,
+  "balanceAfter": 500000,
   "outstandingDebtAfter": 500000,
   "paidAt": "2026-02-25T14:00:00Z",
   "createdByName": "Nguyễn Văn A"
@@ -497,13 +500,13 @@ if (request.Amount <= 0)
 // Không validate amount vs outstanding debt
 // Khách có thể trả trước nhiều hơn nợ → tạo credit
 var balanceBefore = debtor.CurrentBalance;
-debtor.CurrentBalance += request.Amount;
+debtor.CurrentBalance -= request.Amount;
 var balanceAfter = debtor.CurrentBalance;
 
 // Ví dụ: 
-// Debtor nợ 500k (balance = -500,000)
+// Debtor nợ 500k (balance = +500,000)
 // Trả 700k
-// Balance mới = -500,000 + 700,000 = +200,000 (có credit 200k)
+// Balance mới = 500,000 - 700,000 = -200,000 (có credit 200k)
 ```
 
 #### **RULE-PAYMENT-03: Lưu balance snapshot**
@@ -584,7 +587,7 @@ Response (204 No Content)
 - Phải hết nợ mới được xóa (hoặc confirm forgivable)
 
 ```csharp
-if (debtor.CurrentBalance < 0)
+if (debtor.CurrentBalance > 0)
 {
     throw new ValidationException(
         $"Cannot delete debtor with outstanding debt of {Math.Abs(debtor.CurrentBalance):N0}đ. " +
@@ -718,7 +721,7 @@ if (debtor == null || !debtor.IsActive)
     throw new NotFoundException("Debtor not found or inactive");
 
 // 2. Check credit limit (soft warning)
-var currentDebt = Math.Abs(Math.Min(0, debtor.CurrentBalance));
+var currentDebt = Math.Max(0, debtor.CurrentBalance);
 var newDebt = request.PaymentMethod == "debt" 
     ? order.TotalAmount 
     : order.TotalAmount - request.PaidAmount;  // mixed
@@ -735,15 +738,15 @@ if (debtor.CreditLimit.HasValue && projectedDebt > debtor.CreditLimit.Value)
 
 // 3. Use credit first (if any)
 decimal debtToRecord = newDebt;
-if (debtor.CurrentBalance > 0)
+if (debtor.CurrentBalance < 0)
 {
-    var creditUsed = Math.Min(debtor.CurrentBalance, newDebt);
+    var creditUsed = Math.Min(-debtor.CurrentBalance, newDebt);
     debtToRecord = newDebt - creditUsed;
     response.Info.Add($"Đã trừ {creditUsed:N0}đ từ credit có sẵn");
 }
 
 // 4. Update debtor balance
-debtor.CurrentBalance -= newDebt;
+debtor.CurrentBalance += newDebt;
 
 // 5. Save order with debtor reference
 order.DebtorId = debtor.DebtorId;
@@ -757,7 +760,7 @@ order.DebtAmount = debtToRecord;
 if (order.DebtAmount > 0 && order.DebtorId.HasValue)
 {
     var debtor = await _unitOfWork.Debtors.GetByIdAsync(order.DebtorId.Value);
-    debtor.CurrentBalance += order.DebtAmount;  // Hoàn lại
+    debtor.CurrentBalance -= order.DebtAmount;  // Hoàn lại
     
     // Log for audit
     _logger.LogInformation($"Reversed debt {order.DebtAmount:N0}đ for debtor {debtor.DebtorId} due to order {order.OrderId} cancellation");
@@ -831,9 +834,9 @@ order.CancelReason = request.Reason;
 
 | CurrentBalance | State | Color | Icon |
 |----------------|-------|-------|------|
-| `< 0` | Đang nợ | 🔴 Red | ⚠️ |
+| `> 0` | Đang nợ | 🔴 Red | ⚠️ |
 | `= 0` | Hết nợ | ⚪ Gray | ✓ |
-| `> 0` | Có credit | 🟢 Green | 💰 |
+| `< 0` | Có credit | 🟢 Green | 💰 |
 
 ### Credit Limit Bar
 

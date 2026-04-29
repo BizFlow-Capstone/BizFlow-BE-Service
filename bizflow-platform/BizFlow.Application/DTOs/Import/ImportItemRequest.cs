@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BizFlow.Application.DTOs.Import
 {
     /// <summary>
@@ -10,6 +12,7 @@ namespace BizFlow.Application.DTOs.Import
         /// <summary>
         /// Quantity in base unit
         /// </summary>
+        [Range(1, double.MaxValue)]
         public decimal Quantity { get; set; }
 
         /// <summary>

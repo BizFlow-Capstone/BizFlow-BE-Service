@@ -8,6 +8,7 @@ namespace BizFlow.Application.Common.Constants
     public static class ReferenceCategory
     {
         public const string PaymentMethod = "payment_method";
+        public const string DebtDirection = "debt_direction";
         public const string BusinessTypeStatus = "business_type_status";
         public const string CostType = "cost_type";
         public const string GeneralLedgerReferenceType = "general_ledger_reference_type";

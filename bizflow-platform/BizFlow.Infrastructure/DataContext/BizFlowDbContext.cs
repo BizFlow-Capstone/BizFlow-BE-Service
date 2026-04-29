@@ -420,7 +420,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("Allowed credit limit (NULL = unlimited)");
             entity.Property(e => e.CurrentBalance)
                 .HasPrecision(15, 2)
-                .HasComment("Current balance (<0 = customer owes, >0 = store owes customer)");
+                .HasComment("Current balance (>0 = customer owes, <0 = store owes customer)");
             entity.Property(e => e.DeletedAt)
                 .HasComment("Soft delete timestamp")
                 .HasColumnType("datetime");

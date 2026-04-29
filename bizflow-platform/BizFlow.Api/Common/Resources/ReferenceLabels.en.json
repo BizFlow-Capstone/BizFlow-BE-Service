@@ -4,6 +4,11 @@
     "bank": "Bank transfer",
     "system": "System"
   },
+  "debt_direction": {
+    "debt_increase": "Debt increase",
+    "debt_decrease": "Debt decrease",
+    "neutral": "No change"
+  },
   "business_type_status": {
     "active": "Active",
     "inactive": "Inactive"

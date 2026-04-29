@@ -152,10 +152,12 @@ namespace BizFlow.Api.Controllers.Debtor
         }
 
         /// <summary>
-        /// Records a signed debt adjustment for a debtor.
+        /// Records a debt payment/adjustment using absolute amount and explicit action.
         /// </summary>
         [HttpPost("{debtorId:long}/payments")]
-        [SwaggerOperation(Summary = "Record debt adjustment", Description = "Records a signed adjustment. Negative amount reduces debt, positive amount increases debt.")]
+        [SwaggerOperation(
+            Summary = "Record debt adjustment",
+            Description = "Amount must be positive. Action determines direction: decrease_debt (reduce receivable) or increase_debt (increase receivable).")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

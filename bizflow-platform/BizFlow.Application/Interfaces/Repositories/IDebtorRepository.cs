@@ -17,6 +17,7 @@ namespace BizFlow.Application.Interfaces.Repositories
 
         Task<DebtorPaymentTransaction> AddPaymentAsync(DebtorPaymentTransaction transaction);
         Task<IEnumerable<DebtorPaymentTransaction>> GetPaymentsAsync(long debtorId);
+        Task<IEnumerable<DebtorPaymentTransaction>> GetPaymentsByIdsAsync(IReadOnlyCollection<long> paymentIds);
 
         Task<decimal> SumOutstandingDebtByLocationsAsync(
             IReadOnlyCollection<int> businessLocationIds,

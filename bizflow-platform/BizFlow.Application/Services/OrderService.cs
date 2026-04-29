@@ -10,6 +10,7 @@ using BizFlow.Domain.Enums;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using BizFlow.Application.Common.Interfaces;
+using BizFlow.Application.Common.Helpers;
 
 namespace BizFlow.Application.Services
 {
@@ -236,7 +237,9 @@ namespace BizFlow.Application.Services
                     var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    debtor.CurrentBalance -= order.DebtAmount;
+                    debtor.CurrentBalance = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
+                        debtor.CurrentBalance,
+                        order.DebtAmount);
                     debtor.UpdatedAt = DateTime.UtcNow;
                     _uow.Debtors.Update(debtor);
                 }
@@ -294,6 +297,13 @@ namespace BizFlow.Application.Services
             {
                 if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
                 {
+                    var saleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, order.OrderId);
+                    var debtAmountToRollback = order.DebtAmount > 0
+                        ? order.DebtAmount
+                        : saleRevenues
+                            .Where(r => r.MoneyChannel == MoneyChannelType.Debt && r.DeletedAt == null)
+                            .Sum(r => r.Amount);
+
                     foreach (var detail in order.OrderDetails)
                     {
                         var product = detail.SaleItem.Product;
@@ -313,7 +323,7 @@ namespace BizFlow.Application.Services
                         _uow.Products.Update(product);
                     }
 
-                    if (order.DebtorId.HasValue && order.DebtAmount > 0)
+                    if (order.DebtorId.HasValue && debtAmountToRollback > 0)
                     {
                         var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                             ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
@@ -321,11 +331,13 @@ namespace BizFlow.Application.Services
                     var rollbackTx = new DebtorPaymentTransaction
                     {
                         DebtorId = debtor.DebtorId,
-                        Amount = order.DebtAmount,
+                        Amount = debtAmountToRollback,
                         PaymentMethod = PaymentMethods.System,
                         Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
                         BalanceBefore = debtor.CurrentBalance,
-                        BalanceAfter = debtor.CurrentBalance + order.DebtAmount,
+                        BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
+                            debtor.CurrentBalance,
+                            debtAmountToRollback),
                         CreatedByUserId = userId,
                         PaidAt = DateTime.UtcNow
                     };
@@ -337,10 +349,12 @@ namespace BizFlow.Application.Services
                     _uow.Debtors.Update(debtor);
                     await _uow.SaveChangesAsync();
 
-                    await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
+                    await _generalLedgerService.RecordDebtPaymentAsync(
+                        rollbackTx,
+                        locationId,
+                        DebtPaymentActions.SystemRollback);
                 }
 
-                var saleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, order.OrderId);
                     foreach (var revenue in saleRevenues)
                     {
                         revenue.DeletedAt = DateTime.UtcNow;
@@ -489,7 +503,9 @@ namespace BizFlow.Application.Services
                     var newDebtor = await _uow.Debtors.GetByIdAsync(newOrder.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    newDebtor.CurrentBalance -= newOrder.DebtAmount;
+                    newDebtor.CurrentBalance = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
+                        newDebtor.CurrentBalance,
+                        newOrder.DebtAmount);
                     newDebtor.UpdatedAt = DateTime.UtcNow;
                     _uow.Debtors.Update(newDebtor);
                 }
@@ -537,7 +553,14 @@ namespace BizFlow.Application.Services
                     _uow.Products.Update(product);
                 }
 
-                if (oldOrder.DebtorId.HasValue && oldOrder.DebtAmount > 0)
+                var oldSaleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, oldOrder.OrderId);
+                var oldDebtAmountToRollback = oldOrder.DebtAmount > 0
+                    ? oldOrder.DebtAmount
+                    : oldSaleRevenues
+                        .Where(r => r.MoneyChannel == MoneyChannelType.Debt && r.DeletedAt == null)
+                        .Sum(r => r.Amount);
+
+                if (oldOrder.DebtorId.HasValue && oldDebtAmountToRollback > 0)
                 {
                     var oldDebtor = await _uow.Debtors.GetByIdAsync(oldOrder.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
@@ -545,11 +568,13 @@ namespace BizFlow.Application.Services
                     var rollbackTx = new DebtorPaymentTransaction
                     {
                         DebtorId = oldDebtor.DebtorId,
-                        Amount = oldOrder.DebtAmount,
+                        Amount = oldDebtAmountToRollback,
                         PaymentMethod = PaymentMethods.System,
                         Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, oldOrder.OrderCode),
                         BalanceBefore = oldDebtor.CurrentBalance,
-                        BalanceAfter = oldDebtor.CurrentBalance + oldOrder.DebtAmount,
+                        BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
+                            oldDebtor.CurrentBalance,
+                            oldDebtAmountToRollback),
                         CreatedByUserId = userId,
                         PaidAt = DateTime.UtcNow
                     };
@@ -561,10 +586,12 @@ namespace BizFlow.Application.Services
                     _uow.Debtors.Update(oldDebtor);
                     await _uow.SaveChangesAsync();
 
-                    await _generalLedgerService.RecordDebtPaymentAsync(rollbackTx, locationId);
+                    await _generalLedgerService.RecordDebtPaymentAsync(
+                        rollbackTx,
+                        locationId,
+                        DebtPaymentActions.SystemRollback);
                 }
 
-                var oldSaleRevenues = await _uow.Revenues.GetSaleByOrderIdAsync(locationId, oldOrder.OrderId);
                 foreach (var revenue in oldSaleRevenues)
                 {
                     revenue.DeletedAt = DateTime.UtcNow;
@@ -790,8 +817,11 @@ namespace BizFlow.Application.Services
 
             if (debtAmount > 0 && debtor != null && debtor.CreditLimit.HasValue)
             {
-                var projectedBalance = debtor.CurrentBalance - debtAmount;
-                if (-projectedBalance > debtor.CreditLimit.Value)
+                var projectedBalance = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
+                    debtor.CurrentBalance,
+                    debtAmount);
+                var projectedOutstanding = DebtBalanceSemanticHelper.CalculateOutstandingDebt(projectedBalance);
+                if (projectedOutstanding > debtor.CreditLimit.Value)
                 {
                     warnings.Add(MessageKeys.DebtorCreditLimitExceededConfirmRequired);
                     hasCreditLimitWarning = true;
@@ -1069,5 +1099,6 @@ namespace BizFlow.Application.Services
 
             return wrapped.ToJsonString();
         }
+
     }
 }

@@ -30,6 +30,9 @@ namespace BizFlow.Application.Common.Constants
         public const string ImageUploadFailed = "IMAGE_UPLOAD_FAILED";
         public const string ReversalDescriptionFormat = "LEDGER_REVERSAL_DESCRIPTION_FORMAT";
         public const string LedgerDebtPaymentDescription = "LEDGER_DEBT_PAYMENT_DESCRIPTION";
+        public const string LedgerDebtDecreaseDescription = "LEDGER_DEBT_DECREASE_DESCRIPTION";
+        public const string LedgerDebtIncreaseDescription = "LEDGER_DEBT_INCREASE_DESCRIPTION";
+        public const string LedgerDebtSystemRollbackDescription = "LEDGER_DEBT_SYSTEM_ROLLBACK_DESCRIPTION";
         public const string ManualCostUpdatedReversalReason = "LEDGER_MANUAL_COST_UPDATED_REASON";
         public const string ManualCostDeletedReversalReason = "LEDGER_MANUAL_COST_DELETED_REASON";
         public const string ImportCancelledReversalReason = "LEDGER_IMPORT_CANCELLED_REASON";
@@ -263,6 +266,7 @@ namespace BizFlow.Application.Common.Constants
         public const string DebtorHasOutstandingBalance = "DEBTOR_HAS_OUTSTANDING_BALANCE";
         public const string DebtorPaymentAmountZero = "DEBTOR_PAYMENT_AMOUNT_ZERO";
         public const string DebtorPaymentMethodInvalid = "DEBTOR_PAYMENT_METHOD_INVALID";
+        public const string DebtorPaymentActionInvalid = "DEBTOR_PAYMENT_ACTION_INVALID";
         public const string DebtorCreditLimitExceededConfirmRequired = "DEBTOR_CREDIT_LIMIT_EXCEEDED_CONFIRM_REQUIRED";
 
         // ============ SUBSCRIPTION & PAYMENT ============

@@ -40,7 +40,7 @@ namespace BizFlow.Application.Services
             Build(ReferenceCategory.ImportType, ImportType.All);
 
         public IReadOnlyList<ReferenceOptionDto> GetMoneyChannelTypes() =>
-            Build(ReferenceCategory.MoneyChannelType, MoneyChannelType.All);
+            Build(ReferenceCategory.MoneyChannelType, MoneyChannelType.ExposedToUser);
 
         public IReadOnlyList<ReferenceOptionDto> GetOrderStatuses() =>
             Build(ReferenceCategory.OrderStatus, OrderStatus.All);

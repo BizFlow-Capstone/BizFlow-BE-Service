@@ -102,7 +102,10 @@ namespace BizFlow.Application.Services
                 var dto = dtos[i];
 
                 dto.TransactionType = _labels.ToOption(ReferenceCategory.GeneralLedgerTransactionType, entity.TransactionType);
-                dto.MoneyChannel = _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, entity.MoneyChannel);
+                dto.MoneyChannel = entity.MoneyChannel != null
+                    && entity.MoneyChannel.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, entity.MoneyChannel);
 
                 if (dto.Source != null)
                 {
@@ -348,8 +351,13 @@ namespace BizFlow.Application.Services
             return candidates.Count;
         }
 
-        public async Task<GeneralLedgerEntry> RecordDebtPaymentAsync(DebtorPaymentTransaction transaction, int businessLocationId)
+        public async Task<GeneralLedgerEntry> RecordDebtPaymentAsync(
+            DebtorPaymentTransaction transaction,
+            int businessLocationId,
+            string? debtAction = null)
         {
+            var normalizedAction = NormalizeDebtAction(debtAction, transaction);
+            var description = ResolveDebtDescription(normalizedAction, transaction.Notes);
             var entry = new GeneralLedgerEntry
             {
                 BusinessLocationId = businessLocationId,
@@ -357,7 +365,7 @@ namespace BizFlow.Application.Services
                 ReferenceType = GeneralLedgerReferenceType.DebtorPayment,
                 ReferenceId = transaction.DebtorPaymentTransactionId,
                 EntryDate = DateOnly.FromDateTime(transaction.PaidAt),
-                Description = transaction.Notes ?? _messageService.GetMessage(MessageKeys.LedgerDebtPaymentDescription),
+                Description = description,
                 DebitAmount = Math.Abs(transaction.Amount),
                 CreditAmount = 0,
                 MoneyChannel = transaction.PaymentMethod,
@@ -368,6 +376,31 @@ namespace BizFlow.Application.Services
 
             await _uow.GeneralLedgerEntries.AddAsync(entry);
             return entry;
+        }
+
+        private string ResolveDebtDescription(string debtAction, string? notes)
+        {
+            if (!string.IsNullOrWhiteSpace(notes))
+                return notes;
+
+            return debtAction switch
+            {
+                DebtPaymentActions.DecreaseDebt => _messageService.GetMessage(MessageKeys.LedgerDebtDecreaseDescription),
+                DebtPaymentActions.IncreaseDebt => _messageService.GetMessage(MessageKeys.LedgerDebtIncreaseDescription),
+                DebtPaymentActions.SystemRollback => _messageService.GetMessage(MessageKeys.LedgerDebtSystemRollbackDescription),
+                _ => _messageService.GetMessage(MessageKeys.LedgerDebtPaymentDescription)
+            };
+        }
+
+        private static string NormalizeDebtAction(string? debtAction, DebtorPaymentTransaction transaction)
+        {
+            if (!string.IsNullOrWhiteSpace(debtAction))
+                return debtAction.Trim().ToLowerInvariant();
+
+            if (transaction.PaymentMethod.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase))
+                return DebtPaymentActions.SystemRollback;
+
+            return DebtPaymentActions.DecreaseDebt;
         }
 
         public async Task<GeneralLedgerEntry> RecordManualRevenueAsync(Revenue revenue)

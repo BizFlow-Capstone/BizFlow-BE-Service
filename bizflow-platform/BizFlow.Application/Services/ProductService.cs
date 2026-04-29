@@ -239,16 +239,21 @@ namespace BizFlow.Application.Services
             // 6. Handle stock change — Stock is excluded from the mapper, so product.Stock is still oldStock here.
             var stockDiff = request.Stock - oldStock;
             var costPriceChanged = request.CostPrice != oldCostPrice;
-            if (stockDiff != 0 || costPriceChanged)
+            if (stockDiff > 0 || (costPriceChanged && stockDiff <= 0))
             {
                 var updateStockMemo = stockDiff != 0
                     ? _messageService.GetMessage(MessageKeys.ProductStockUpdatedOnUpdateMemo)
                     : null;
 
+                // Do not create negative-quantity inventory adjustment imports.
+                // When stock decreases and cost price changes, record a zero-quantity
+                // adjustment import so the new cost price is captured consistently.
+                var adjustmentQuantity = stockDiff < 0 ? 0 : stockDiff;
+
                 await _importService.CreateInventoryAdjustmentImportAsync(
                     product.BusinessLocationId,
                     product.ProductId,
-                    stockDiff,
+                    adjustmentQuantity,
                     request.CostPrice,
                     updateStockMemo);
             }

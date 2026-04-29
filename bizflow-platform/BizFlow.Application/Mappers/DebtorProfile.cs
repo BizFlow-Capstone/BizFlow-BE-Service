@@ -1,4 +1,5 @@
 using AutoMapper;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.DTOs.Debtor;
 using BizFlow.Domain.Entities;
 
@@ -21,7 +22,8 @@ namespace BizFlow.Application.Mappers
             // projection to avoid pulling DI into AutoMapper profiles.
             CreateMap<DebtorPaymentTransaction, DebtorPaymentDto>()
                 .ForMember(dest => dest.TransactionId, opt => opt.MapFrom(src => src.DebtorPaymentTransactionId))
-                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore());
+                .ForMember(dest => dest.PaymentMethod, opt => opt.Ignore())
+                .ForMember(dest => dest.DebtDirection, opt => opt.Ignore());
         }
 
         #region Static mapping methods — used when audit fields must be set at call time
@@ -55,18 +57,25 @@ namespace BizFlow.Application.Mappers
             RecordDebtPaymentRequest request,
             long debtorId,
             Guid createdByUserId,
-            decimal balanceBefore) => new()
+            decimal balanceBefore)
         {
-            DebtorId = debtorId,
-            Amount = request.Amount,
-            PaymentMethod = request.PaymentMethod.ToLower(),
-            Notes = request.Notes?.Trim(),
-            BalanceBefore = balanceBefore,
-            // Positive amount → balance increases → debt decreases. Negative amount → balance decreases → debt increases.
-            BalanceAfter = balanceBefore + request.Amount,
-            CreatedByUserId = createdByUserId,
-            PaidAt = DateTime.UtcNow
-        };
+            var balanceAfter = DebtBalanceSemanticHelper.ApplyUserDebtAction(
+                balanceBefore,
+                request.Amount,
+                request.Action);
+
+            return new DebtorPaymentTransaction
+            {
+                DebtorId = debtorId,
+                Amount = request.Amount,
+                PaymentMethod = request.PaymentMethod.ToLowerInvariant(),
+                Notes = request.Notes?.Trim(),
+                BalanceBefore = balanceBefore,
+                BalanceAfter = balanceAfter,
+                CreatedByUserId = createdByUserId,
+                PaidAt = DateTime.UtcNow
+            };
+        }
 
         #endregion
     }

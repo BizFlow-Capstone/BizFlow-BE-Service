@@ -41,7 +41,8 @@ public partial class Debtor
     public decimal? CreditLimit { get; set; }
 
     /// <summary>
-    /// Current balance (&lt;0 = debtor owes, &gt;0 = creditor balance)
+    /// Current balance semantics:
+    /// (&gt;0 = debtor owes owner / accounts receivable, &lt;0 = owner owes debtor / payable-credit)
     /// </summary>
     public decimal CurrentBalance { get; set; }
 
