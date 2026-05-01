@@ -104,6 +104,15 @@ namespace BizFlow.Application.Services
             if (!request.SaveAsDraft && (request.Items == null || request.Items.Count == 0))
                 throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
 
+            string? normalizedPaymentMethod = null;
+            if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
+            {
+                if (!PaymentMethods.IsValid(request.PaymentMethod))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                normalizedPaymentMethod = request.PaymentMethod.Trim().ToLowerInvariant();
+            }
+
             // Validate and build items
             var (items, totalAmount) = await BuildImportItemsAsync(request.BusinessLocationId, request.Items);
 
@@ -125,7 +134,12 @@ namespace BizFlow.Application.Services
             // Auto create import cost + GL when created directly as CONFIRMED.
             if (status == ImportStatus.Confirmed)
             {
-                await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
+                await _costService.CreateImportCostAsync(
+                    userId,
+                    import,
+                    request.DocumentNumber,
+                    request.DocumentDate,
+                    normalizedPaymentMethod);
             }
 
             var result = ToDto(import);
@@ -345,7 +359,8 @@ namespace BizFlow.Application.Services
                     newImport,
                     request.DocumentNumber,
                     request.DocumentDate,
-                    ct);
+                    request.PaymentMethod,
+                    cancellationToken: ct);
 
                 newImportResult = newImport;
             });
@@ -396,7 +411,12 @@ namespace BizFlow.Application.Services
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
 
-            await _costService.CreateImportCostAsync(userId, import, request.DocumentNumber, request.DocumentDate);
+            await _costService.CreateImportCostAsync(
+                userId,
+                import,
+                request.DocumentNumber,
+                request.DocumentDate,
+                request.PaymentMethod);
 
             // Fire-and-forget: enqueue AI anomaly check via Hangfire.
             // If AI Service is down, the job will retry — does not block user.

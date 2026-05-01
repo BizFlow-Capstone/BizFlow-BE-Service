@@ -16,5 +16,10 @@ namespace BizFlow.Application.DTOs.Import
         /// Optional voucher date to store on generated import cost.
         /// </summary>
         public DateOnly? DocumentDate { get; set; }
+
+        /// <summary>
+        /// Optional payment method to store on generated import cost: cash | bank.
+        /// </summary>
+        public string? PaymentMethod { get; set; }
     }
 }

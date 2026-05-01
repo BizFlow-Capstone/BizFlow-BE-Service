@@ -27,6 +27,11 @@ namespace BizFlow.Application.DTOs.Import
         public DateOnly? DocumentDate { get; set; }
 
         /// <summary>
+        /// Payment method for the Cost row created from import (optional): cash | bank.
+        /// </summary>
+        public string? PaymentMethod { get; set; }
+
+        /// <summary>
         /// Required when editing a CONFIRMED import (replace-when-confirmed flow).
         /// Ignored for DRAFT updates.
         /// </summary>

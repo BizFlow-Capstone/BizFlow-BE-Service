@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using BizFlow.Application.Common.Constants;
 
 namespace BizFlow.Application.DTOs.Import
 {
-    public class CreateImportRequest
+    public class CreateImportRequest : IValidatableObject
     {
         /// <summary>
         /// INVOICE | INVENTORY_ADJUSTMENT | RETURN
@@ -32,6 +34,11 @@ namespace BizFlow.Application.DTOs.Import
         public DateOnly? DocumentDate { get; set; }
 
         /// <summary>
+        /// Payment method written to Cost rows created from import (optional): cash | bank.
+        /// </summary>
+        public string? PaymentMethod { get; set; }
+
+        /// <summary>
         /// If true → Status = DRAFT (stock NOT updated).
         /// If false (default) → Status = CONFIRMED immediately (stock updated).
         /// </summary>
@@ -41,5 +48,15 @@ namespace BizFlow.Application.DTOs.Import
 
         internal Stream? ImageStream { get; set; }
         internal string? ImageFileName { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (!string.IsNullOrWhiteSpace(PaymentMethod) && !PaymentMethods.IsValid(PaymentMethod))
+            {
+                yield return new ValidationResult(
+                    "PaymentMethod must be cash or bank.",
+                    [nameof(PaymentMethod)]);
+            }
+        }
     }
 }

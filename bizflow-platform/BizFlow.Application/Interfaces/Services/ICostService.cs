@@ -14,7 +14,12 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Creates (or revives) the import-backed Cost inside its own resilient transaction.
         /// </summary>
-        Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null);
+        Task<Cost> CreateImportCostAsync(
+            Guid userId,
+            Import import,
+            string? documentNumber = null,
+            DateOnly? documentDate = null,
+            string? paymentMethod = null);
 
         /// <summary>
         /// Same as <see cref="CreateImportCostAsync"/> but must be called only while already
@@ -25,6 +30,7 @@ namespace BizFlow.Application.Interfaces.Services
             Import import,
             string? documentNumber = null,
             DateOnly? documentDate = null,
+            string? paymentMethod = null,
             CancellationToken cancellationToken = default);
 
         Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null);

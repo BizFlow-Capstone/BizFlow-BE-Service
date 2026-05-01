@@ -426,25 +426,41 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
         }
 
-        public Task<Cost> CreateImportCostAsync(Guid userId, Import import, string? documentNumber = null, DateOnly? documentDate = null)
-            => _uow.ExecuteResilientAsync(ct => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, ct));
+        public Task<Cost> CreateImportCostAsync(
+            Guid userId,
+            Import import,
+            string? documentNumber = null,
+            DateOnly? documentDate = null,
+            string? paymentMethod = null)
+            => _uow.ExecuteResilientAsync(ct => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, paymentMethod, ct));
 
         public Task<Cost> CreateImportCostInCurrentTransactionAsync(
             Guid userId,
             Import import,
             string? documentNumber = null,
             DateOnly? documentDate = null,
+            string? paymentMethod = null,
             CancellationToken cancellationToken = default)
-            => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, cancellationToken);
+            => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, paymentMethod, cancellationToken);
 
         private async Task<Cost> CreateImportCostCoreAsync(
             Guid userId,
             Import import,
             string? documentNumber,
             DateOnly? documentDate,
+            string? paymentMethod,
             CancellationToken cancellationToken)
         {
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(documentNumber);
+            string? normalizedPaymentMethod = null;
+            if (!string.IsNullOrWhiteSpace(paymentMethod))
+            {
+                if (!PaymentMethods.IsValid(paymentMethod))
+                    throw new BadRequestException(MessageKeys.BadRequest);
+
+                normalizedPaymentMethod = paymentMethod.Trim().ToLowerInvariant();
+            }
+
             var ownerId = await ResolveOwnerIdAsync(import.BusinessLocationId);
 
             var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
@@ -463,6 +479,7 @@ namespace BizFlow.Application.Services
                     existing.UpdatedAt = DateTime.UtcNow;
                     existing.DocumentNumber = docNumberNormalized;
                     existing.DocumentDate = documentDate;
+                    existing.PaymentMethod = normalizedPaymentMethod;
                     _uow.Costs.Update(existing);
 
                     await _generalLedgerService.RecordImportCostAsync(existing);
@@ -486,7 +503,7 @@ namespace BizFlow.Application.Services
                 Amount = import.TotalAmount,
                 Status = CostStatus.Posted,
                 CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
-                PaymentMethod = null,
+                PaymentMethod = normalizedPaymentMethod,
                 DocumentNumber = docNumberNormalized,
                 DocumentDate = documentDate,
                 CreatedBy = userId,

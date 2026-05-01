@@ -5,7 +5,7 @@ namespace BizFlow.Application.Common.Constants
     /// ReferenceLabels.{lang}.json resource files. Keep these values in sync
     /// with the top-level JSON object keys.
     /// </summary>
-    public static class ReferenceCategory
+public static class ReferenceCategory
     {
         public const string PaymentMethod = "payment_method";
         public const string DebtDirection = "debt_direction";
