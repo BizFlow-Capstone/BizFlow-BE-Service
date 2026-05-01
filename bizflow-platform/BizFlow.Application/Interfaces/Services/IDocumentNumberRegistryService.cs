@@ -55,5 +55,21 @@ namespace BizFlow.Application.Interfaces.Services
             long? excludeCostId = null,
             long? excludeRevenueId = null,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Checks whether a document number is already used by the owner across
+        /// Costs + Revenues (including cancelled/replaced rows).
+        /// </summary>
+        /// <param name="ownerId">Profile/Account id that owns the DocumentNumber namespace.</param>
+        /// <param name="documentNumber">Raw document number input from client.</param>
+        /// <param name="excludeCostId">Optional Cost id to exclude from the check.</param>
+        /// <param name="excludeRevenueId">Optional Revenue id to exclude from the check.</param>
+        /// <returns><c>true</c> when the normalized document number already exists.</returns>
+        Task<bool> ExistsAsync(
+            Guid ownerId,
+            string? documentNumber,
+            long? excludeCostId = null,
+            long? excludeRevenueId = null,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -185,6 +185,7 @@
   "IMPORT_REPLACED_REASON": "Replaced by import {0}",
   "DOCUMENT_NUMBER_DUPLICATED": "Document number '{0}' is already used. Document numbers must be unique for the owner across the entire system (including cancelled records)",
   "DOCUMENT_NUMBER_TOO_LONG": "Document number is too long (max 100 characters)",
+  "DOCUMENT_NUMBER_INVALID_FOR_UNIQUENESS_CHECK": "Document number is invalid for uniqueness check. Please provide a non-empty normalized value",
   "COST_NOT_FOUND": "Cost not found",
   "COST_CREATED": "Cost created successfully",
   "COST_UPDATED": "Cost updated successfully",

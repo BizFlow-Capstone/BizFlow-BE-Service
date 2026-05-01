@@ -25,7 +25,9 @@ namespace BizFlow.Application.Services
             if (string.IsNullOrWhiteSpace(documentNumber))
                 return null;
 
-            var trimmed = WhitespaceCollapseRegex.Replace(documentNumber.Trim(), " ").ToUpperInvariant();
+            var trimmed = WhitespaceCollapseRegex
+                .Replace(documentNumber.Trim(), " ")
+                .ToUpperInvariant();
 
             if (trimmed.Length > MaxDocumentNumberLength)
                 throw new BadRequestException(MessageKeys.DocumentNumberTooLong);
@@ -41,28 +43,78 @@ namespace BizFlow.Application.Services
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(documentNumberNormalized))
-                throw new ArgumentException("documentNumberNormalized must be non-empty. Call NormalizeOrNull first and skip the check when it returns null.", nameof(documentNumberNormalized));
+                throw new BadRequestException(
+                    MessageKeys.DocumentNumberInvalidForUniquenessCheck
+                );
 
             // 1) Ensure the (OwnerId, DocumentNumberNormalized) lock row exists.
             //    Under concurrency, INSERT IGNORE makes the ensure-step safe.
             await _uow.AccountingDocumentLocks.EnsureExistsAsync(
-                ownerId, documentNumberNormalized, cancellationToken);
+                ownerId,
+                documentNumberNormalized,
+                cancellationToken
+            );
 
             // 2) Acquire the row-level write lock. This serializes all concurrent
             //    peers that touch the same (OwnerId, DocumentNumberNormalized).
             await _uow.AccountingDocumentLocks.LockForUpdateAsync(
-                ownerId, documentNumberNormalized, cancellationToken);
+                ownerId,
+                documentNumberNormalized,
+                cancellationToken
+            );
 
             // 3) Duplicate-check Costs and Revenues (including cancelled / soft-deleted rows).
             var costConflict = await _uow.Costs.ExistsByDocumentNumberForOwnerAsync(
-                ownerId, documentNumberNormalized, excludeCostId, cancellationToken);
+                ownerId,
+                documentNumberNormalized,
+                excludeCostId,
+                cancellationToken
+            );
             if (costConflict)
-                throw new ConflictException(MessageKeys.DocumentNumberDuplicated, documentNumberNormalized);
+                throw new ConflictException(
+                    MessageKeys.DocumentNumberDuplicated,
+                    documentNumberNormalized
+                );
 
             var revenueConflict = await _uow.Revenues.ExistsByDocumentNumberForOwnerAsync(
-                ownerId, documentNumberNormalized, excludeRevenueId, cancellationToken);
+                ownerId,
+                documentNumberNormalized,
+                excludeRevenueId,
+                cancellationToken
+            );
             if (revenueConflict)
-                throw new ConflictException(MessageKeys.DocumentNumberDuplicated, documentNumberNormalized);
+                throw new ConflictException(
+                    MessageKeys.DocumentNumberDuplicated,
+                    documentNumberNormalized
+                );
+        }
+
+        public async Task<bool> ExistsAsync(
+            Guid ownerId,
+            string? documentNumber,
+            long? excludeCostId = null,
+            long? excludeRevenueId = null,
+            CancellationToken cancellationToken = default)
+        {
+            var documentNumberNormalized = NormalizeOrNull(documentNumber);
+            if (documentNumberNormalized is null)
+                return false;
+
+            var costExists = await _uow.Costs.ExistsByDocumentNumberForOwnerAsync(
+                ownerId,
+                documentNumberNormalized,
+                excludeCostId,
+                cancellationToken
+            );
+            if (costExists)
+                return true;
+
+            return await _uow.Revenues.ExistsByDocumentNumberForOwnerAsync(
+                ownerId,
+                documentNumberNormalized,
+                excludeRevenueId,
+                cancellationToken
+            );
         }
     }
 }

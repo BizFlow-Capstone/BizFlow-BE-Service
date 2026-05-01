@@ -191,6 +191,7 @@
   "IMPORT_REPLACED_REASON": "Được thay thế bởi phiếu nhập {0}",
   "DOCUMENT_NUMBER_DUPLICATED": "Số chứng từ '{0}' đã được sử dụng. Số chứng từ phải là duy nhất trong toàn bộ hệ thống của chủ hộ (bao gồm cả chứng từ đã hủy)",
   "DOCUMENT_NUMBER_TOO_LONG": "Số chứng từ quá dài (tối đa 100 ký tự)",
+  "DOCUMENT_NUMBER_INVALID_FOR_UNIQUENESS_CHECK": "Số chứng từ không hợp lệ để kiểm tra trùng. Vui lòng cung cấp giá trị đã chuẩn hóa và không rỗng",
   "COST_NOT_FOUND": "Không tìm thấy chi phí",
   "COST_CREATED": "Tạo chi phí thành công",
   "COST_UPDATED": "Cập nhật chi phí thành công",

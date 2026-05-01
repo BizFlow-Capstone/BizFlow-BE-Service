@@ -208,6 +208,7 @@ namespace BizFlow.Application.Common.Constants
         /// <summary>DocumentNumber duplicates an existing record for the same Owner (cross-table check on Costs + Revenues, including cancelled rows).</summary>
         public const string DocumentNumberDuplicated = "DOCUMENT_NUMBER_DUPLICATED";
         public const string DocumentNumberTooLong = "DOCUMENT_NUMBER_TOO_LONG";
+        public const string DocumentNumberInvalidForUniquenessCheck = "DOCUMENT_NUMBER_INVALID_FOR_UNIQUENESS_CHECK";
 
         // ============ COST (replacement flow) ============
         public const string CostNotFound = "COST_NOT_FOUND";
