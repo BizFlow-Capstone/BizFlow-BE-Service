@@ -86,7 +86,10 @@ jobs:
             git checkout deployment
             git reset --hard origin/deployment
 
-            # ── Step 1: Start MySQL and wait until healthy ─────────────────────
+            # ── Step 1: Ensure backup directory exists on host ──────────────────
+            mkdir -p ./backups
+
+            # ── Step 2: Start MySQL and wait until healthy ──────────────────────
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
@@ -109,7 +112,7 @@ jobs:
               echo "[error] MySQL did not become healthy in time." && exit 1
             fi
 
-            # ── Step 2: Best-effort alembic to create AI tables early ──────────
+            # ── Step 3: Best-effort alembic to create AI tables early ──────────
             # Non-fatal: migration 108 self-skips via IF EXISTS if AI tables absent.
             docker compose \
               -f docker-compose.yml \
@@ -128,10 +131,10 @@ jobs:
               run --rm -T bizflow-ai \
               alembic upgrade head || echo "[warn] AI alembic migration skipped or failed — migration 108 will self-skip"
 
-            # ── Step 3: Apply any pending BE SQL migrations ─────────────────────
+            # ── Step 4: Apply any pending BE SQL migrations ─────────────────────
             bash docker/scripts/run-migrations.sh
 
-            # ── Step 4: Pull new API image and restart ──────────────────────────
+            # ── Step 5: Pull new API image and restart ──────────────────────────
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
@@ -139,13 +142,20 @@ jobs:
               --env-file .env.prod \
               pull bizflow-api
 
-
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
               -f docker-compose.vps.yml \
               --env-file .env.prod \
               up -d --no-build bizflow-api
+
+            # ── Step 6: Ensure mysql-backup is running ──────────────────────────
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              -f docker-compose.vps.yml \
+              --env-file .env.prod \
+              up -d mysql-backup
 
             # Clean up unused images, stopped containers, build cache, unused networks
             # --volumes is intentionally omitted to preserve MySQL/app data volumes
