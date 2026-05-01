@@ -324,12 +324,19 @@ namespace BizFlow.Application.Services
                 && !RevenueType.IsValid(query.RevenueType.Trim()))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            if (!string.IsNullOrWhiteSpace(query.Status)
+                && !RevenueStatus.IsValid(query.Status.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
             if (!string.IsNullOrWhiteSpace(query.MoneyChannel)
                 && !MoneyChannelType.IsValid(query.MoneyChannel.Trim()))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
             if (!string.IsNullOrWhiteSpace(query.RevenueType))
                 query.RevenueType = query.RevenueType.Trim().ToLowerInvariant();
+
+            if (!string.IsNullOrWhiteSpace(query.Status))
+                query.Status = query.Status.Trim().ToLowerInvariant();
 
             if (!string.IsNullOrWhiteSpace(query.MoneyChannel))
                 query.MoneyChannel = query.MoneyChannel.Trim().ToLowerInvariant();
@@ -362,7 +369,6 @@ namespace BizFlow.Application.Services
                     revenue.Status = RevenueStatus.Cancelled;
                     revenue.CancelledAt = DateTime.UtcNow;
                     revenue.CancelledBy = userId;
-                    revenue.DeletedAt = DateTime.UtcNow;
                     _uow.Revenues.Update(revenue);
                     await _uow.SaveChangesAsync(ct);
                 });
@@ -374,7 +380,6 @@ namespace BizFlow.Application.Services
                 revenue.Status = RevenueStatus.Cancelled;
                 revenue.CancelledAt = DateTime.UtcNow;
                 revenue.CancelledBy = userId;
-                revenue.DeletedAt = DateTime.UtcNow;
                 _uow.Revenues.Update(revenue);
 
                 await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueDeletedReversalReason);

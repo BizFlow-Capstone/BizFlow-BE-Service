@@ -54,7 +54,8 @@
   "money_channel_type": {
     "cash": "Cash",
     "bank": "Bank",
-    "debt": "Debt"
+    "debt": "Debt",
+    "system": "System"
   },
   "order_status": {
     "pending": "Pending",

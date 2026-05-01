@@ -65,7 +65,8 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == businessLocationId
                     && r.RevenueType == RevenueType.Sale
-                    && r.DeletedAt == null
+                    && r.Status != RevenueStatus.Cancelled
+                    && r.Status != RevenueStatus.Replaced
                     && r.OrderId == orderId)
                 .OrderBy(r => r.RevenueId)
                 .ToListAsync();
@@ -174,7 +175,8 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var query = _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
-                    && r.DeletedAt == null
+                    && r.Status != RevenueStatus.Cancelled
+                    && r.Status != RevenueStatus.Replaced
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to);
 
@@ -195,7 +197,8 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
-                    && r.DeletedAt == null
+                    && r.Status != RevenueStatus.Cancelled
+                    && r.Status != RevenueStatus.Replaced
                     && r.BusinessTypeId.HasValue
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to)

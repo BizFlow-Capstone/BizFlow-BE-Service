@@ -15,6 +15,12 @@ namespace BizFlow.Application.Specifications.Revenues
                 AddCriteria(r => r.RevenueType.ToLower() == type);
             }
 
+            if (!string.IsNullOrWhiteSpace(query.Status))
+            {
+                var status = query.Status.Trim().ToLower();
+                AddCriteria(r => r.Status.ToLower() == status);
+            }
+
             if (!string.IsNullOrWhiteSpace(query.MoneyChannel))
             {
                 var channel = query.MoneyChannel.Trim().ToLower();

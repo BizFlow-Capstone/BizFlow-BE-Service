@@ -2,6 +2,7 @@ using BizFlow.Application.DTOs.Cost;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Specifications.Costs;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 using BizFlow.Infrastructure.DataContext;
 using BizFlow.Infrastructure.Specifications;
 using Microsoft.EntityFrameworkCore;
@@ -85,7 +86,7 @@ namespace BizFlow.Infrastructure.Repositories
             long? excludeCostId = null,
             CancellationToken cancellationToken = default)
         {
-            // IgnoreQueryFilters: the uniqueness rule applies to ALL rows — including soft-deleted, cancelled or replaced.
+            // IgnoreQueryFilters: the uniqueness rule applies to ALL rows — including cancelled or replaced.
             var q = _db.Costs
                 .IgnoreQueryFilters()
                 .Where(c => c.BusinessLocationId == businessLocationId
@@ -108,7 +109,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(ula => ula.UserId == ownerId && ula.IsOwner)
                 .Select(ula => ula.BusinessLocationId);
 
-            // IgnoreQueryFilters: uniqueness applies to ALL rows — including soft-deleted, cancelled or replaced.
+            // IgnoreQueryFilters: uniqueness applies to ALL rows — including cancelled or replaced.
             var q = _db.Costs
                 .IgnoreQueryFilters()
                 .Where(c => ownedLocationIds.Contains(c.BusinessLocationId)
@@ -148,7 +149,8 @@ namespace BizFlow.Infrastructure.Repositories
 
             return await _db.Costs
                 .Where(c => businessLocationIds.Contains(c.BusinessLocationId)
-                    && c.DeletedAt == null
+                    && c.Status != CostStatus.Cancelled
+                    && c.Status != CostStatus.Replaced
                     && c.CostDate >= fromDate
                     && c.CostDate <= toDate)
                 .SumAsync(c => c.Amount, cancellationToken);
@@ -160,7 +162,8 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var query = _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
-                    && c.DeletedAt == null
+                    && c.Status != CostStatus.Cancelled
+                    && c.Status != CostStatus.Replaced
                     && c.CostDate >= from
                     && c.CostDate <= to);
 
@@ -178,7 +181,8 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
-                    && c.DeletedAt == null
+                    && c.Status != CostStatus.Cancelled
+                    && c.Status != CostStatus.Replaced
                     && c.BusinessTypeId.HasValue
                     && c.CostDate >= from
                     && c.CostDate <= to)

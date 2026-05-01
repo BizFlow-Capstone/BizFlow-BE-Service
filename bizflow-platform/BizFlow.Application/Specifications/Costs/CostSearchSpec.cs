@@ -31,6 +31,12 @@ namespace BizFlow.Application.Specifications.Costs
                 AddCriteria(c => c.PaymentMethod != null && c.PaymentMethod.ToLower() == paymentMethod);
             }
 
+            if (!string.IsNullOrWhiteSpace(query.Status))
+            {
+                var status = query.Status.Trim().ToLower();
+                AddCriteria(c => c.Status.ToLower() == status);
+            }
+
             if (query.FromDate.HasValue)
                 AddCriteria(c => c.CostDate >= query.FromDate.Value);
 

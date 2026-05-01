@@ -71,7 +71,7 @@ public class CostServiceTests
     }
 
     [Fact]
-    public async Task DeleteManualAsync_ShouldSoftDelete_AndReverseGL()
+    public async Task DeleteManualAsync_ShouldCancel_AndReverseGL()
     {
         var userId = Guid.NewGuid();
         var cost = new Cost
@@ -92,7 +92,8 @@ public class CostServiceTests
         var sut = BuildSut();
         await sut.DeleteManualAsync(userId, cost.CostId);
 
-        Assert.NotNull(cost.DeletedAt);
+        Assert.Equal(CostStatus.Cancelled, cost.Status);
+        Assert.NotNull(cost.CancelledAt);
         _generalLedgerService.Verify(g => g.ReverseCostEntriesAsync(cost, "manual cost deleted"), Times.Once);
     }
 

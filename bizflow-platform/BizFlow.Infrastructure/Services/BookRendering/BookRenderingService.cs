@@ -699,7 +699,9 @@ public class BookRenderingService : IBookRenderingService
         };
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
-        var list = items.Where(r => r.DeletedAt == null).ToList();
+        var list = items
+            .Where(r => r.Status != RevenueStatus.Cancelled && r.Status != RevenueStatus.Replaced)
+            .ToList();
 
         var hasMore = list.Count > safeBatchSize;
         if (hasMore) list = list.Take(safeBatchSize).ToList();
@@ -745,7 +747,7 @@ public class BookRenderingService : IBookRenderingService
         };
         var (costItems, _) = await _uow.Costs.SearchAsync(costQuery);
 
-        var costRows = costItems.Where(c => c.DeletedAt == null).Select(c => new SourceRow
+        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled && c.Status != CostStatus.Replaced).Select(c => new SourceRow
         {
             Date = c.CostDate,
             Id = c.CostId,
@@ -1072,7 +1074,9 @@ public class BookRenderingService : IBookRenderingService
 
         var (items, _) = await _uow.Revenues.SearchAsync(query);
         return items
-            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+            .Where(r => r.Status != RevenueStatus.Cancelled
+                && r.Status != RevenueStatus.Replaced
+                && r.BusinessTypeId.HasValue)
             .GroupBy(r => r.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
     }
@@ -1090,7 +1094,9 @@ public class BookRenderingService : IBookRenderingService
 
         var (items, _) = await _uow.Costs.SearchAsync(query);
         return items
-            .Where(c => c.DeletedAt == null && c.BusinessTypeId.HasValue)
+            .Where(c => c.Status != CostStatus.Cancelled
+                && c.Status != CostStatus.Replaced
+                && c.BusinessTypeId.HasValue)
             .GroupBy(c => c.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
     }

@@ -549,7 +549,9 @@ public class AccountingBookService : IAccountingBookService
         };
         var (revenues, _) = await _uow.Revenues.SearchAsync(revenueQuery);
         ids = revenues
-            .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+            .Where(r => r.Status != RevenueStatus.Cancelled
+                && r.Status != RevenueStatus.Replaced
+                && r.BusinessTypeId.HasValue)
             .Select(r => r.BusinessTypeId!.Value)
             .Distinct()
             .ToList();

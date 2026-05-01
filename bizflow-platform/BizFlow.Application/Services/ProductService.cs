@@ -255,7 +255,7 @@ namespace BizFlow.Application.Services
                 try
                 {
                     var initialStockMemo = _messageService.GetMessage(MessageKeys.ProductInitialStockMemo);
-                    await ApplyStockToTargetAsync(product, initialStock, request.CostPrice, initialStockMemo);
+                    await ApplyStockToTargetAsync(userId, product, initialStock, request.CostPrice, initialStockMemo);
                     await _unitOfWork.SaveChangesAsync();
                 }
                 catch
@@ -331,6 +331,7 @@ namespace BizFlow.Application.Services
                 var adjustmentQuantity = stockDiff < 0 ? 0 : stockDiff;
 
                 await _importService.CreateInventoryAdjustmentImportAsync(
+                    userId,
                     product.BusinessLocationId,
                     product.ProductId,
                     adjustmentQuantity,
@@ -393,7 +394,7 @@ namespace BizFlow.Application.Services
             var costPriceForIncrease = request.CostPrice ?? product.CostPrice;
             var memo = string.IsNullOrWhiteSpace(request.Memo) ? null : request.Memo.Trim();
 
-            await ApplyStockToTargetAsync(product, request.Stock, costPriceForIncrease, memo);
+            await ApplyStockToTargetAsync(userId, product, request.Stock, costPriceForIncrease, memo);
 
             _unitOfWork.Products.Update(product);
             await _unitOfWork.SaveChangesAsync();
@@ -611,7 +612,7 @@ namespace BizFlow.Application.Services
         /// Applies stock changes from current stock to target stock.
         /// Shared by Create/Update/Manual Adjust to keep stock behavior consistent.
         /// </summary>
-        private async Task ApplyStockToTargetAsync(Product product, decimal targetStock, decimal costPriceForIncrease, string? note = null)
+        private async Task ApplyStockToTargetAsync(Guid userId, Product product, decimal targetStock, decimal costPriceForIncrease, string? note = null)
         {
             var stockDiff = targetStock - product.Stock;
             if (stockDiff == 0)
@@ -622,7 +623,7 @@ namespace BizFlow.Application.Services
             if (stockDiff < 0)
                 product.Stock = targetStock;
 
-            await ApplyStockAdjustmentAsync(product, stockDiff, costPriceForIncrease, note);
+            await ApplyStockAdjustmentAsync(userId, product, stockDiff, costPriceForIncrease, note);
         }
 
         /// <summary>
@@ -630,11 +631,12 @@ namespace BizFlow.Application.Services
         /// - Increase: ImportService owns stock apply + stock movement creation.
         /// - Decrease: ProductService creates stock movement directly.
         /// </summary>
-        private async Task ApplyStockAdjustmentAsync(Product product, decimal stockDiff, decimal costPrice, string? note = null)
+        private async Task ApplyStockAdjustmentAsync(Guid userId, Product product, decimal stockDiff, decimal costPrice, string? note = null)
         {
             if (stockDiff > 0)
             {
                 await _importService.CreateInventoryAdjustmentImportAsync(
+                    userId,
                     product.BusinessLocationId,
                     product.ProductId,
                     stockDiff,

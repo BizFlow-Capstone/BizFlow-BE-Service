@@ -7,6 +7,7 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 
 namespace BizFlow.Application.Services;
 
@@ -613,7 +614,9 @@ public class AdminAccountingService : IAdminAccountingService
                 };
                 var (revenues, _) = await _uow.Revenues.SearchAsync(revenueQuery);
                 businessTypeIds = revenues
-                    .Where(r => r.DeletedAt == null && r.BusinessTypeId.HasValue)
+                    .Where(r => r.Status != RevenueStatus.Cancelled
+                        && r.Status != RevenueStatus.Replaced
+                        && r.BusinessTypeId.HasValue)
                     .Select(r => r.BusinessTypeId!.Value)
                     .Distinct()
                     .ToList();

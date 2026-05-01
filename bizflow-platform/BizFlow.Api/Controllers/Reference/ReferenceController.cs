@@ -74,6 +74,33 @@ namespace BizFlow.Api.Controllers.Reference
             return Ok(_referenceService.GetCostTypes(), MessageKeys.DataRetrievedSuccessfully);
         }
 
+        [HttpGet("cost-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get cost statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetCostStatuses()
+        {
+            return Ok(_referenceService.GetCostStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("revenue-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get revenue statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetRevenueStatuses()
+        {
+            return Ok(_referenceService.GetRevenueStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("debt-directions")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get debt directions")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetDebtDirections()
+        {
+            return Ok(_referenceService.GetDebtDirections(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
         [HttpGet("general-ledger-reference-types")]
         [OutputCache(PolicyName = "PublicData")]
         [SwaggerOperation(Summary = "Get general ledger reference types")]
@@ -101,6 +128,15 @@ namespace BizFlow.Api.Controllers.Reference
             return Ok(_referenceService.GetGeneralLedgerViewModes(), MessageKeys.DataRetrievedSuccessfully);
         }
 
+        [HttpGet("ledger-effective-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get ledger effective statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetLedgerEffectiveStatuses()
+        {
+            return Ok(_referenceService.GetLedgerEffectiveStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
         [HttpGet("import-statuses")]
         [OutputCache(PolicyName = "PublicData")]
         [SwaggerOperation(Summary = "Get import statuses")]
@@ -117,6 +153,42 @@ namespace BizFlow.Api.Controllers.Reference
         public IActionResult GetImportTypes()
         {
             return Ok(_referenceService.GetImportTypes(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("hire-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get hire statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetHireStatuses()
+        {
+            return Ok(_referenceService.GetHireStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("accounting-period-types")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get accounting period types")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetAccountingPeriodTypes()
+        {
+            return Ok(_referenceService.GetAccountingPeriodTypes(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("accounting-period-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get accounting period statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetAccountingPeriodStatuses()
+        {
+            return Ok(_referenceService.GetAccountingPeriodStatuses(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("accounting-period-audit-actions")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get accounting period audit actions")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetAccountingPeriodAuditActions()
+        {
+            return Ok(_referenceService.GetAccountingPeriodAuditActions(), MessageKeys.DataRetrievedSuccessfully);
         }
 
         [HttpGet("money-channel-types")]
@@ -171,6 +243,15 @@ namespace BizFlow.Api.Controllers.Reference
         public IActionResult GetSubscriptionTransactionTypes()
         {
             return Ok(_referenceService.GetSubscriptionTransactionTypes(), MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        [HttpGet("transaction-statuses")]
+        [OutputCache(PolicyName = "PublicData")]
+        [SwaggerOperation(Summary = "Get transaction statuses")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetTransactionStatuses()
+        {
+            return Ok(_referenceService.GetTransactionStatuses(), MessageKeys.DataRetrievedSuccessfully);
         }
 
         [HttpGet("stock-movement-types")]

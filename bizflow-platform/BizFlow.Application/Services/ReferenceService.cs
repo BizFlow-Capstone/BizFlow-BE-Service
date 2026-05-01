@@ -24,6 +24,15 @@ namespace BizFlow.Application.Services
         public IReadOnlyList<ReferenceOptionDto> GetCostTypes() =>
             Build(ReferenceCategory.CostType, CostType.All);
 
+        public IReadOnlyList<ReferenceOptionDto> GetCostStatuses() =>
+            Build(ReferenceCategory.CostStatus, CostStatus.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetRevenueStatuses() =>
+            Build(ReferenceCategory.RevenueStatus, RevenueStatus.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetDebtDirections() =>
+            Build(ReferenceCategory.DebtDirection, DebtDirection.All);
+
         public IReadOnlyList<ReferenceOptionDto> GetGeneralLedgerReferenceTypes() =>
             Build(ReferenceCategory.GeneralLedgerReferenceType, GeneralLedgerReferenceType.All);
 
@@ -33,11 +42,26 @@ namespace BizFlow.Application.Services
         public IReadOnlyList<ReferenceOptionDto> GetGeneralLedgerViewModes() =>
             Build(ReferenceCategory.GeneralLedgerViewMode, GeneralLedgerViewMode.All);
 
+        public IReadOnlyList<ReferenceOptionDto> GetLedgerEffectiveStatuses() =>
+            Build(ReferenceCategory.LedgerEffectiveStatus, LedgerEffectiveStatuses.All);
+
         public IReadOnlyList<ReferenceOptionDto> GetImportStatuses() =>
             Build(ReferenceCategory.ImportStatus, ImportStatus.All);
 
         public IReadOnlyList<ReferenceOptionDto> GetImportTypes() =>
             Build(ReferenceCategory.ImportType, ImportType.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetHireStatuses() =>
+            Build(ReferenceCategory.HireStatus, HireStatuses.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetAccountingPeriodTypes() =>
+            Build(ReferenceCategory.AccountingPeriodType, AccountingPeriodConstants.PeriodTypes.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetAccountingPeriodStatuses() =>
+            Build(ReferenceCategory.AccountingPeriodStatus, AccountingPeriodConstants.PeriodStatuses.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetAccountingPeriodAuditActions() =>
+            Build(ReferenceCategory.AccountingPeriodAuditAction, AccountingPeriodConstants.AuditActions.All);
 
         public IReadOnlyList<ReferenceOptionDto> GetMoneyChannelTypes() =>
             Build(ReferenceCategory.MoneyChannelType, MoneyChannelType.ExposedToUser);
@@ -56,6 +80,9 @@ namespace BizFlow.Application.Services
 
         public IReadOnlyList<ReferenceOptionDto> GetSubscriptionTransactionTypes() =>
             Build(ReferenceCategory.SubscriptionTransactionType, TransactionType.All);
+
+        public IReadOnlyList<ReferenceOptionDto> GetTransactionStatuses() =>
+            Build(ReferenceCategory.TransactionStatus, TransactionStatus.All);
 
         public IReadOnlyList<ReferenceOptionDto> GetStockMovementTypes() =>
             Build(ReferenceCategory.StockMovementType, StockMovementType.All);

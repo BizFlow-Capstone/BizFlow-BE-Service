@@ -23,6 +23,7 @@ namespace BizFlow.Application.DTOs.Cost
         /// Filter by payment method (cash | bank)
         /// </summary>
         public string? PaymentMethod { get; set; }
+        public string? Status { get; set; }
         public DateOnly? FromDate { get; set; }
         public DateOnly? ToDate { get; set; }
     }

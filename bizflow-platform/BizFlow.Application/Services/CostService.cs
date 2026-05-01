@@ -365,12 +365,19 @@ namespace BizFlow.Application.Services
                 && !CostType.IsValid(query.CostType.Trim()))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            if (!string.IsNullOrWhiteSpace(query.Status)
+                && !CostStatus.IsValid(query.Status.Trim()))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
             if (!string.IsNullOrWhiteSpace(query.PaymentMethod)
                 && !PaymentMethods.IsValid(query.PaymentMethod.Trim()))
                 throw new BadRequestException(MessageKeys.BadRequest);
 
             if (!string.IsNullOrWhiteSpace(query.CostType))
                 query.CostType = query.CostType.Trim().ToLowerInvariant();
+
+            if (!string.IsNullOrWhiteSpace(query.Status))
+                query.Status = query.Status.Trim().ToLowerInvariant();
 
             if (!string.IsNullOrWhiteSpace(query.PaymentMethod))
                 query.PaymentMethod = query.PaymentMethod.Trim().ToLowerInvariant();
@@ -401,7 +408,6 @@ namespace BizFlow.Application.Services
                 cost.Status = CostStatus.Cancelled;
                 cost.CancelledAt = DateTime.UtcNow;
                 cost.CancelledBy = userId;
-                cost.DeletedAt = DateTime.UtcNow;
                 cost.UpdatedAt = DateTime.UtcNow;
                 _uow.Costs.Update(cost);
                 await _uow.SaveChangesAsync();
@@ -411,7 +417,6 @@ namespace BizFlow.Application.Services
             cost.Status = CostStatus.Cancelled;
             cost.CancelledAt = DateTime.UtcNow;
             cost.CancelledBy = userId;
-            cost.DeletedAt = DateTime.UtcNow;
             cost.UpdatedAt = DateTime.UtcNow;
             _uow.Costs.Update(cost);
 
@@ -445,7 +450,7 @@ namespace BizFlow.Application.Services
             var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
             if (existing != null)
             {
-                if (existing.DeletedAt != null)
+                if (string.Equals(existing.Status, CostStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
                 {
                     if (docNumberNormalized != null
                         && !string.Equals(docNumberNormalized, existing.DocumentNumberNormalized, StringComparison.Ordinal))
@@ -454,7 +459,6 @@ namespace BizFlow.Application.Services
                             ownerId, docNumberNormalized, excludeCostId: existing.CostId, cancellationToken: cancellationToken);
                     }
 
-                    existing.DeletedAt = null;
                     existing.Status = CostStatus.Posted;
                     existing.UpdatedAt = DateTime.UtcNow;
                     existing.DocumentNumber = docNumberNormalized;
@@ -503,12 +507,11 @@ namespace BizFlow.Application.Services
             if (cost == null)
                 return;
 
-            if (cost.DeletedAt == null)
+            if (!CostStatus.IsTerminal(cost.Status))
             {
                 cost.Status = CostStatus.Cancelled;
                 cost.CancelledAt = DateTime.UtcNow;
                 cost.CancelledBy = userId;
-                cost.DeletedAt = DateTime.UtcNow;
                 cost.UpdatedAt = DateTime.UtcNow;
                 _uow.Costs.Update(cost);
             }

@@ -466,7 +466,7 @@ namespace BizFlow.Application.Services
 
         #region Command Methods
 
-        public async Task<long> CreateInventoryAdjustmentImportAsync(int businessLocationId, long productId, decimal quantity, decimal costPrice, string? memo = null)
+        public async Task<long> CreateInventoryAdjustmentImportAsync(Guid userId, int businessLocationId, long productId, decimal quantity, decimal costPrice, string? memo = null)
         {
             var product = await _unitOfWork.Products.GetByIdAsync(productId);
             if (product == null)
@@ -500,6 +500,8 @@ namespace BizFlow.Application.Services
                 imageFileName: null,
                 applyToStock: true);
 
+            await _costService.CreateImportCostAsync(userId, import);
+
             return import.ImportId;
         }
 
@@ -526,6 +528,7 @@ namespace BizFlow.Application.Services
                 await RevertImportFromProductsAsync(import.ProductsImports, import.ImportId, import.CancelledAt.Value.ToString("O"));
 
                 import.Status = ImportStatus.Cancelled;
+                import.CancelledBy = userId;
                 import.UpdatedAt = DateTime.UtcNow;
                 _unitOfWork.Imports.Update(import);
 

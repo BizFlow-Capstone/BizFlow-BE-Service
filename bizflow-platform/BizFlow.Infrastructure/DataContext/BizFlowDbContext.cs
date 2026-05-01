@@ -287,9 +287,6 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.CreatedBy).HasComment("UserId of the user who created the row");
-            entity.Property(e => e.DeletedAt)
-                .HasComment("Soft delete")
-                .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
                 .HasComment("Expense description");
@@ -1166,9 +1163,6 @@ public partial class BizFlowDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
             entity.Property(e => e.CreatedBy).HasComment("UserId of the user who created the row");
-            entity.Property(e => e.DeletedAt)
-                .HasComment("Soft delete")
-                .HasColumnType("datetime");
             entity.Property(e => e.Description)
                 .HasMaxLength(500)
                 .HasComment("Revenue description");

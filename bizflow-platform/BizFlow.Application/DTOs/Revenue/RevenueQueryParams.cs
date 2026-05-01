@@ -10,6 +10,7 @@ namespace BizFlow.Application.DTOs.Revenue
         public int BusinessLocationId { get; set; }
 
         public string? RevenueType { get; set; }
+        public string? Status { get; set; }
         public string? MoneyChannel { get; set; }
         public DateOnly? FromDate { get; set; }
         public DateOnly? ToDate { get; set; }

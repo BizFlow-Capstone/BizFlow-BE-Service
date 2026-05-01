@@ -83,11 +83,6 @@ public partial class Revenue
     public DateTime CreatedAt { get; set; }
 
     /// <summary>
-    /// Soft delete
-    /// </summary>
-    public DateTime? DeletedAt { get; set; }
-
-    /// <summary>
     /// When this revenue was cancelled (either standalone cancel or as part of replace-flow).
     /// </summary>
     public DateTime? CancelledAt { get; set; }

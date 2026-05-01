@@ -301,7 +301,7 @@ namespace BizFlow.Application.Services
                     var debtAmountToRollback = order.DebtAmount > 0
                         ? order.DebtAmount
                         : saleRevenues
-                            .Where(r => r.MoneyChannel == MoneyChannelType.Debt && r.DeletedAt == null)
+                            .Where(r => r.MoneyChannel == MoneyChannelType.Debt)
                             .Sum(r => r.Amount);
 
                     foreach (var detail in order.OrderDetails)
@@ -357,7 +357,9 @@ namespace BizFlow.Application.Services
 
                     foreach (var revenue in saleRevenues)
                     {
-                        revenue.DeletedAt = DateTime.UtcNow;
+                        revenue.Status = RevenueStatus.Cancelled;
+                        revenue.CancelledAt = DateTime.UtcNow;
+                        revenue.CancelledBy = userId;
                         _uow.Revenues.Update(revenue);
                     }
 
@@ -557,7 +559,7 @@ namespace BizFlow.Application.Services
                 var oldDebtAmountToRollback = oldOrder.DebtAmount > 0
                     ? oldOrder.DebtAmount
                     : oldSaleRevenues
-                        .Where(r => r.MoneyChannel == MoneyChannelType.Debt && r.DeletedAt == null)
+                        .Where(r => r.MoneyChannel == MoneyChannelType.Debt)
                         .Sum(r => r.Amount);
 
                 if (oldOrder.DebtorId.HasValue && oldDebtAmountToRollback > 0)
@@ -594,7 +596,9 @@ namespace BizFlow.Application.Services
 
                 foreach (var revenue in oldSaleRevenues)
                 {
-                    revenue.DeletedAt = DateTime.UtcNow;
+                    revenue.Status = RevenueStatus.Cancelled;
+                    revenue.CancelledAt = DateTime.UtcNow;
+                    revenue.CancelledBy = userId;
                     _uow.Revenues.Update(revenue);
                 }
 
