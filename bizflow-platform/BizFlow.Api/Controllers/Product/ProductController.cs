@@ -109,6 +109,37 @@ namespace BizFlow.Api.Controllers.Product
         }
 
         /// <summary>
+        /// Get product price policies grouped by sale item
+        /// </summary>
+        [HttpGet("product/{productId:long}/price-policies")]
+        [SwaggerOperation(Summary = "Get price policies by sale item", Description = "Returns all price policies per sale unit. Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetProductPricePolicies(long productId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _productService.GetProductPricePoliciesAsync(userId, productId);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
+        /// Get stock movements for a product (paginated, optional from/to dates)
+        /// </summary>
+        [HttpGet("product/{productId:long}/stock-movements")]
+        [SwaggerOperation(Summary = "Get product stock movements", Description = "Paginated ledger for one product; optional inclusive From/To (DateOnly). Owner only.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetProductStockMovements(long productId, [FromQuery] StockMovementQueryParams query)
+        {
+            ApplyPaginationDefaults(query);
+            var userId = GetCurrentUserId();
+            var result = await _productService.GetProductStockMovementsAsync(userId, productId, query);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
         /// Create a new product
         /// </summary>
         [HttpPost("product")]
@@ -219,7 +250,6 @@ namespace BizFlow.Api.Controllers.Product
 
         private Guid GetCurrentUserId() => User.GetRequiredUserId();
 
-        /// <summary>
         #endregion
     }
 }

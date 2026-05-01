@@ -19,4 +19,14 @@ public interface IStockMovementRepository
         DateOnly? from,
         DateOnly? to,
         long? productId = null);
+
+    /// <summary>
+    /// Paginated stock movements for one product; optional calendar-day range (same semantics as GetByLocationAndPeriodAsync).
+    /// </summary>
+    Task<(List<StockMovement> Items, int TotalCount)> GetByProductAndPeriodPagedAsync(
+        long productId,
+        DateOnly? from,
+        DateOnly? to,
+        int pageNumber,
+        int pageSize);
 }

@@ -61,5 +61,18 @@ namespace BizFlow.Application.Interfaces.Services
         /// Get cost price history for a product (owner only)
         /// </summary>
         Task<CostPriceHistoryDto> GetCostPriceHistoryAsync(Guid userId, long productId);
+
+        /// <summary>
+        /// Get price policies grouped by sale item (owner only).
+        /// </summary>
+        Task<ProductPricePoliciesResponseDto> GetProductPricePoliciesAsync(Guid userId, long productId);
+
+        /// <summary>
+        /// Get paginated stock movements for a product with optional date range (owner only).
+        /// </summary>
+        Task<PaginatedResponse<StockMovementDto>> GetProductStockMovementsAsync(
+            Guid userId,
+            long productId,
+            StockMovementQueryParams query);
     }
 }

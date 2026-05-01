@@ -478,7 +478,7 @@ namespace BizFlow.Application.Services
                 BusinessLocationId = import.BusinessLocationId,
                 CostType = CostType.Import,
                 ImportId = import.ImportId,
-                Description = $"Import {import.ImportCode ?? import.ImportId.ToString()}",
+                Description = $"Nhập hàng {import.ImportCode ?? import.ImportId.ToString()}",
                 Amount = import.TotalAmount,
                 Status = CostStatus.Posted,
                 CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),

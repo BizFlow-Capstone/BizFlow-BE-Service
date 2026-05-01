@@ -137,6 +137,86 @@ namespace BizFlow.Application.Services
             };
         }
 
+        public async Task<ProductPricePoliciesResponseDto> GetProductPricePoliciesAsync(Guid userId, long productId)
+        {
+            var product = await _unitOfWork.Products.GetByIdWithSaleItemsAsync(productId);
+            if (product == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
+            if (!isOwner)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            var saleItems = product.SaleItems
+                .Where(s => s.DeletedAt == null)
+                .OrderBy(s => s.SaleItemId)
+                .Select(si => new SaleItemPricePoliciesDto
+                {
+                    SaleItemId = si.SaleItemId,
+                    Unit = si.Unit,
+                    Quantity = si.Quantity,
+                    PricePolicies = si.ProductPricePolicies
+                        .OrderBy(p => p.ProductPricePolicyId)
+                        .Select(p => new ProductPricePolicyItemDto
+                        {
+                            ProductPricePolicyId = p.ProductPricePolicyId,
+                            Price = p.Price,
+                            IsDefault = p.IsDefault,
+                            StartAt = p.StartAt,
+                            EndAt = p.EndAt,
+                        })
+                        .ToList(),
+                })
+                .ToList();
+
+            return new ProductPricePoliciesResponseDto
+            {
+                ProductId = product.ProductId,
+                SaleItems = saleItems,
+            };
+        }
+
+        public async Task<PaginatedResponse<StockMovementDto>> GetProductStockMovementsAsync(
+            Guid userId,
+            long productId,
+            StockMovementQueryParams query)
+        {
+            var product = await _unitOfWork.Products.GetByIdAsync(productId);
+            if (product == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+
+            var isOwner = await _unitOfWork.BusinessLocations.IsOwnerOfLocationAsync(userId, product.BusinessLocationId);
+            if (!isOwner)
+                throw new ForbiddenException(MessageKeys.Forbidden);
+
+            var pageNumber = query.PageNumber ?? 1;
+            var pageSize = query.PageSize ?? 10;
+
+            var (movements, totalCount) = await _unitOfWork.StockMovements.GetByProductAndPeriodPagedAsync(
+                productId,
+                query.From,
+                query.To,
+                pageNumber,
+                pageSize);
+
+            var items = movements
+                .Select(sm => new StockMovementDto
+                {
+                    StockMovementId = sm.StockMovementId,
+                    ProductId = sm.ProductId,
+                    MovementType = sm.MovementType,
+                    Quantity = sm.Quantity,
+                    ReferenceType = sm.ReferenceType,
+                    ReferenceId = sm.ReferenceId,
+                    Memo = sm.Memo,
+                    BalanceAfter = sm.BalanceAfter,
+                    CreatedAt = sm.CreatedAt,
+                })
+                .ToList();
+
+            return new PaginatedResponse<StockMovementDto>(items, totalCount, pageNumber, pageSize);
+        }
+
         #endregion
 
         #region Command Methods

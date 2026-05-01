@@ -56,4 +56,40 @@ public class StockMovementRepository : IStockMovementRepository
             .ThenBy(sm => sm.StockMovementId)
             .ToListAsync();
     }
+
+    public async Task<(List<StockMovement> Items, int TotalCount)> GetByProductAndPeriodPagedAsync(
+        long productId,
+        DateOnly? from,
+        DateOnly? to,
+        int pageNumber,
+        int pageSize)
+    {
+        var query = _db.StockMovements
+            .Include(sm => sm.Product)
+            .Where(sm => sm.ProductId == productId
+                         && sm.Product.DeletedAt == null);
+
+        if (from.HasValue)
+        {
+            var fromDt = from.Value.ToDateTime(TimeOnly.MinValue);
+            query = query.Where(sm => sm.CreatedAt >= fromDt);
+        }
+
+        if (to.HasValue)
+        {
+            var toDt = to.Value.ToDateTime(TimeOnly.MaxValue);
+            query = query.Where(sm => sm.CreatedAt <= toDt);
+        }
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(sm => sm.CreatedAt)
+            .ThenByDescending(sm => sm.StockMovementId)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
 }
