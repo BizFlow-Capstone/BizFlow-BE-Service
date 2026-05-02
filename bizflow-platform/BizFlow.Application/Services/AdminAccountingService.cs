@@ -615,7 +615,6 @@ public class AdminAccountingService : IAdminAccountingService
                 var (revenues, _) = await _uow.Revenues.SearchAsync(revenueQuery);
                 businessTypeIds = revenues
                     .Where(r => r.Status != RevenueStatus.Cancelled
-                        && r.Status != RevenueStatus.Replaced
                         && r.BusinessTypeId.HasValue)
                     .Select(r => r.BusinessTypeId!.Value)
                     .Distinct()

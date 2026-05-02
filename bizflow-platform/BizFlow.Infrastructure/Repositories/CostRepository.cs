@@ -163,14 +163,17 @@ namespace BizFlow.Infrastructure.Repositories
             var query = _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
                     && c.Status != CostStatus.Cancelled
-                    && c.Status != CostStatus.Replaced
                     && c.CostDate >= from
                     && c.CostDate <= to);
 
             return aggType.ToUpper() switch
             {
-                "SUM" => await query.SumAsync(c => c.Amount),
-                "AVG" => await query.AnyAsync() ? await query.AverageAsync(c => c.Amount) : 0m,
+                "SUM" => await query.SumAsync(c =>
+                    c.Status == CostStatus.Replaced ? -c.Amount : c.Amount),
+                "AVG" => await query.AnyAsync()
+                    ? await query.AverageAsync(c =>
+                        c.Status == CostStatus.Replaced ? -c.Amount : c.Amount)
+                    : 0m,
                 "COUNT" => await query.CountAsync(),
                 _ => 0m
             };
@@ -182,14 +185,14 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
                     && c.Status != CostStatus.Cancelled
-                    && c.Status != CostStatus.Replaced
                     && c.BusinessTypeId.HasValue
                     && c.CostDate >= from
                     && c.CostDate <= to)
                 .GroupBy(c => c.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
-                    g => g.Sum(c => c.Amount));
+                    g => g.Sum(c =>
+                        c.Status == CostStatus.Replaced ? -c.Amount : c.Amount));
         }
     }
 }
