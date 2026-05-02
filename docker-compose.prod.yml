@@ -55,6 +55,34 @@ services:
           memory: 256M
 
   # ---------------------------------------------------------------------------
+  # MySQL Backup (prod — daily dump, stored in ./backups)
+  # ---------------------------------------------------------------------------
+  mysql-backup:
+    image: mysql:8.0
+    container_name: bizflow-mysql-backup
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-bizflow_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bizflow_db}
+    volumes:
+      - ./backups:/backups
+      - ./docker/scripts/backup.sh:/backup.sh:ro
+    command: /bin/bash -c "chmod +x /backup.sh && while true; do /backup.sh; sleep 86400; done"
+    networks:
+      - bizflow-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  # ---------------------------------------------------------------------------
   # API — pre-built image from Docker Hub
   # Joined to proxy-network so Nginx Proxy Manager can route traffic.
   # ---------------------------------------------------------------------------

@@ -700,7 +700,7 @@ public class BookRenderingService : IBookRenderingService
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
         var list = items
-            .Where(r => r.Status != RevenueStatus.Cancelled && r.Status != RevenueStatus.Replaced)
+            .Where(r => r.Status != RevenueStatus.Cancelled)
             .ToList();
 
         var hasMore = list.Count > safeBatchSize;
@@ -716,8 +716,11 @@ public class BookRenderingService : IBookRenderingService
                 {
                     ["RevenueId"] = r.RevenueId,
                     ["RevenueDate"] = r.RevenueDate,
-                    ["Description"] = r.Description,
-                    ["Amount"] = r.Amount,
+                    ["Description"] = r.Status == RevenueStatus.Replaced
+                        ? $"Bút toán đảo doanh thu ngày {r.RevenueDate:dd/MM/yyyy}: {r.Description}"
+                        : r.Description,
+                    ["Amount"] = r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount,
+                    ["Status"] = r.Status,
                     ["RevenueType"] = r.RevenueType,
                     ["MoneyChannel"] = r.MoneyChannel,
                     ["OrderId"] = r.OrderId,
@@ -747,7 +750,7 @@ public class BookRenderingService : IBookRenderingService
         };
         var (costItems, _) = await _uow.Costs.SearchAsync(costQuery);
 
-        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled && c.Status != CostStatus.Replaced).Select(c => new SourceRow
+        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled).Select(c => new SourceRow
         {
             Date = c.CostDate,
             Id = c.CostId,
@@ -756,8 +759,11 @@ public class BookRenderingService : IBookRenderingService
             {
                 ["CostId"] = c.CostId,
                 ["CostDate"] = c.CostDate,
-                ["Description"] = c.Description,
-                ["Amount"] = c.Amount,
+                ["Description"] = c.Status == CostStatus.Replaced
+                    ? $"Bút toán đảo chi phí ngày {c.CostDate:dd/MM/yyyy}: {c.Description}"
+                    : c.Description,
+                ["Amount"] = c.Status == CostStatus.Replaced ? -c.Amount : c.Amount,
+                ["Status"] = c.Status,
                 ["CostType"] = c.CostType
             }
         }).ToList();
@@ -1075,10 +1081,10 @@ public class BookRenderingService : IBookRenderingService
         var (items, _) = await _uow.Revenues.SearchAsync(query);
         return items
             .Where(r => r.Status != RevenueStatus.Cancelled
-                && r.Status != RevenueStatus.Replaced
                 && r.BusinessTypeId.HasValue)
             .GroupBy(r => r.BusinessTypeId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+            .ToDictionary(g => g.Key, g => g.Sum(x =>
+                x.Status == RevenueStatus.Replaced ? -x.Amount : x.Amount));
     }
 
     private async Task<Dictionary<Guid, decimal>> LoadCostByBusinessTypeAsync(BookRenderContext context)
@@ -1095,10 +1101,10 @@ public class BookRenderingService : IBookRenderingService
         var (items, _) = await _uow.Costs.SearchAsync(query);
         return items
             .Where(c => c.Status != CostStatus.Cancelled
-                && c.Status != CostStatus.Replaced
                 && c.BusinessTypeId.HasValue)
             .GroupBy(c => c.BusinessTypeId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+            .ToDictionary(g => g.Key, g => g.Sum(x =>
+                x.Status == CostStatus.Replaced ? -x.Amount : x.Amount));
     }
 
     private static string ResolveRowLabel(string? label, int groupIndex, string groupName)
@@ -1146,12 +1152,9 @@ public class BookRenderingService : IBookRenderingService
         {
             var amounts = await LoadRevenueByBusinessTypeAsync(context);
 
-            // Use all business types that actually have revenue in this period
+            // Use all business types that have any revenue rows in this period
             // (not limited to context.BusinessTypeIds which is derived from products only)
-            var activeIds = amounts
-                .Where(kv => kv.Value != 0m)
-                .Select(kv => kv.Key)
-                .ToList();
+            var activeIds = amounts.Keys.ToList();
 
             var names = await LoadBusinessTypeNamesAsync(activeIds);
 

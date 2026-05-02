@@ -176,7 +176,6 @@ namespace BizFlow.Infrastructure.Repositories
             var query = _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
                     && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to);
 
@@ -185,8 +184,12 @@ namespace BizFlow.Infrastructure.Repositories
 
             return aggType.ToUpper() switch
             {
-                "SUM" => await query.SumAsync(r => r.Amount),
-                "AVG" => await query.AnyAsync() ? await query.AverageAsync(r => r.Amount) : 0m,
+                "SUM" => await query.SumAsync(r =>
+                    r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount),
+                "AVG" => await query.AnyAsync()
+                    ? await query.AverageAsync(r =>
+                        r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount)
+                    : 0m,
                 "COUNT" => await query.CountAsync(),
                 _ => 0m
             };
@@ -198,14 +201,14 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
                     && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced
                     && r.BusinessTypeId.HasValue
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to)
                 .GroupBy(r => r.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
-                    g => g.Sum(r => r.Amount));
+                    g => g.Sum(r =>
+                        r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount));
         }
     }
 }
