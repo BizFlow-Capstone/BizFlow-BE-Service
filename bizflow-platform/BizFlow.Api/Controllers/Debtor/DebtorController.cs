@@ -82,7 +82,6 @@ namespace BizFlow.Api.Controllers.Debtor
         /// </summary>
         [HttpPost]
         [SwaggerOperation(Summary = "Create debtor")]
-        [RequireFeature(FeatureCodes.DebtMgmt, useOwnerScope: true)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
