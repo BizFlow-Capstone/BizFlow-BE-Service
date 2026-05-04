@@ -108,8 +108,22 @@ public partial class Revenue
     /// </summary>
     public string? DocumentNumberNormalized { get; set; }
 
+    /// <summary>
+    /// TRUE when this row reverses another revenue (append-only audit; Amount is negative of the original).
+    /// </summary>
+    public bool IsReversal { get; set; }
+
+    /// <summary>
+    /// Original <see cref="RevenueId"/> this reversal offsets (self-reference).
+    /// </summary>
+    public long? ReversedRevenueId { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
     public virtual BusinessType? BusinessType { get; set; }
 
     public virtual Revenue? RefRevenue { get; set; }
+
+    public virtual Revenue? ReversedRevenue { get; set; }
+
+    public virtual ICollection<Revenue> InverseReversedRevenue { get; set; } = new List<Revenue>();
 }

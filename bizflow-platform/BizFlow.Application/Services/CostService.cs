@@ -21,6 +21,7 @@ namespace BizFlow.Application.Services
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IReferenceLabelService _labels;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
+        private readonly IMessageService _messageService;
 
         public CostService(
             IUnitOfWork uow,
@@ -29,7 +30,8 @@ namespace BizFlow.Application.Services
             IImageService imageService,
             IGeneralLedgerService generalLedgerService,
             IReferenceLabelService labels,
-            IDocumentNumberRegistryService documentNumberRegistry)
+            IDocumentNumberRegistryService documentNumberRegistry,
+            IMessageService messageService)
         {
             _uow = uow;
             _mapper = mapper;
@@ -38,6 +40,7 @@ namespace BizFlow.Application.Services
             _generalLedgerService = generalLedgerService;
             _labels = labels;
             _documentNumberRegistry = documentNumberRegistry;
+            _messageService = messageService;
         }
 
         private CostDto ToDto(Cost cost)
@@ -423,6 +426,10 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
 
             await _generalLedgerService.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostDeletedReversalReason);
+            await AppendCostReversalAfterGlReverseAsync(
+                cost,
+                userId,
+                MessageKeys.ManualCostDeletedReversalReason);
             await _uow.SaveChangesAsync();
         }
 
@@ -533,8 +540,46 @@ namespace BizFlow.Application.Services
                 _uow.Costs.Update(cost);
             }
 
-            await _generalLedgerService.ReverseCostEntriesAsync(cost, reason ?? MessageKeys.ImportCancelledReversalReason);
+            var reasonKey = reason ?? MessageKeys.ImportCancelledReversalReason;
+            await _generalLedgerService.ReverseCostEntriesAsync(cost, reasonKey);
+            await AppendCostReversalAfterGlReverseAsync(cost, userId, reasonKey);
             await _uow.SaveChangesAsync();
+        }
+
+        private async Task AppendCostReversalAfterGlReverseAsync(
+            Cost original,
+            Guid userId,
+            string reversalMessageKey,
+            CancellationToken cancellationToken = default)
+        {
+            if (original.IsReversal)
+                return;
+
+            if (await _uow.Costs.HasReversalForOriginalCostAsync(original.CostId, cancellationToken))
+                return;
+
+            var reasonMessage = _messageService.GetMessage(reversalMessageKey);
+            var reversalDescription = _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
+
+            var reversal = new Cost
+            {
+                BusinessLocationId = original.BusinessLocationId,
+                BusinessTypeId = original.BusinessTypeId,
+                CostType = original.CostType,
+                ImportId = null,
+                Description = reversalDescription,
+                Amount = -original.Amount,
+                Status = CostStatus.Posted,
+                CostDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                PaymentMethod = original.PaymentMethod,
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                IsReversal = true,
+                ReversedCostId = original.CostId
+            };
+
+            await _uow.Costs.AddAsync(reversal);
         }
 
         private async Task<Guid> ResolveOwnerIdAsync(int locationId)

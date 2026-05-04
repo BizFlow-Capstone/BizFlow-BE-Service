@@ -25,6 +25,7 @@ namespace BizFlow.Application.Services
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IReferenceLabelService _labels;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
+        private readonly IRevenueService _revenueService;
 
         public OrderService(
             IUnitOfWork uow,
@@ -35,7 +36,8 @@ namespace BizFlow.Application.Services
             IMessageService messageService,
             IBackgroundJobScheduler backgroundJobScheduler,
             IReferenceLabelService labels,
-            IDocumentNumberRegistryService documentNumberRegistry)
+            IDocumentNumberRegistryService documentNumberRegistry,
+            IRevenueService revenueService)
         {
             _uow = uow;
             _mapper = mapper;
@@ -46,6 +48,7 @@ namespace BizFlow.Application.Services
             _backgroundJobScheduler = backgroundJobScheduler;
             _labels = labels;
             _documentNumberRegistry = documentNumberRegistry;
+            _revenueService = revenueService;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -364,7 +367,13 @@ namespace BizFlow.Application.Services
                     }
 
                     foreach (var revenue in saleRevenues)
+                    {
                         await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.OrderCancelledReversalReason);
+                        await _revenueService.AppendReversalRowAfterGlReverseAsync(
+                            revenue,
+                            userId,
+                            MessageKeys.OrderCancelledReversalReason);
+                    }
                 }
 
                 order.Status = OrderStatus.Cancelled;
@@ -603,7 +612,13 @@ namespace BizFlow.Application.Services
                 }
 
                 foreach (var revenue in oldSaleRevenues)
+                {
                     await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.OrderCancelledReversalReason);
+                    await _revenueService.AppendReversalRowAfterGlReverseAsync(
+                        revenue,
+                        userId,
+                        MessageKeys.OrderCancelledReversalReason);
+                }
 
                 oldOrder.Status = OrderStatus.Cancelled;
                 oldOrder.CancelledAt = DateTime.UtcNow;

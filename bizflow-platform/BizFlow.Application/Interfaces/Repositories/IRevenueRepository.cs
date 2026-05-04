@@ -68,5 +68,12 @@ namespace BizFlow.Application.Interfaces.Repositories
 
         Task<Dictionary<string, decimal>> SumGroupedByBusinessTypeAsync(
             int locationId, DateOnly from, DateOnly to);
+
+        /// <summary>
+        /// True when a reversal row already references this revenue id (idempotency).
+        /// </summary>
+        Task<bool> HasReversalForOriginalRevenueAsync(
+            long originalRevenueId,
+            CancellationToken cancellationToken = default);
     }
 }

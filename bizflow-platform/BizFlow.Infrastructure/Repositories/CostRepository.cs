@@ -149,10 +149,12 @@ namespace BizFlow.Infrastructure.Repositories
 
             return await _db.Costs
                 .Where(c => businessLocationIds.Contains(c.BusinessLocationId)
-                    && c.Status != CostStatus.Cancelled
-                    && c.Status != CostStatus.Replaced
                     && c.CostDate >= fromDate
-                    && c.CostDate <= toDate)
+                    && c.CostDate <= toDate
+                    && c.Status != CostStatus.Replaced
+                    && (c.Status != CostStatus.Cancelled
+                        || c.IsReversal
+                        || _db.Costs.Any(x => x.IsReversal && x.ReversedCostId == c.CostId)))
                 .SumAsync(c => c.Amount, cancellationToken);
         }
 
@@ -162,9 +164,11 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var query = _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
-                    && c.Status != CostStatus.Cancelled
                     && c.CostDate >= from
-                    && c.CostDate <= to);
+                    && c.CostDate <= to
+                    && (c.Status != CostStatus.Cancelled
+                        || c.IsReversal
+                        || _db.Costs.Any(x => x.IsReversal && x.ReversedCostId == c.CostId)));
 
             return aggType.ToUpper() switch
             {
@@ -184,15 +188,24 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _db.Costs
                 .Where(c => c.BusinessLocationId == locationId
-                    && c.Status != CostStatus.Cancelled
                     && c.BusinessTypeId.HasValue
                     && c.CostDate >= from
-                    && c.CostDate <= to)
+                    && c.CostDate <= to
+                    && (c.Status != CostStatus.Cancelled
+                        || c.IsReversal
+                        || _db.Costs.Any(x => x.IsReversal && x.ReversedCostId == c.CostId)))
                 .GroupBy(c => c.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
                     g => g.Sum(c =>
                         c.Status == CostStatus.Replaced ? -c.Amount : c.Amount));
         }
+
+        public Task<bool> HasReversalForOriginalCostAsync(
+            long originalCostId,
+            CancellationToken cancellationToken = default)
+            => _db.Costs.AnyAsync(
+                c => c.IsReversal && c.ReversedCostId == originalCostId,
+                cancellationToken);
     }
 }

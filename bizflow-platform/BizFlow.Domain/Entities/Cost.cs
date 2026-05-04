@@ -110,6 +110,16 @@ public partial class Cost
     /// </summary>
     public string? DocumentNumberNormalized { get; set; }
 
+    /// <summary>
+    /// TRUE when this row reverses another cost (append-only audit; Amount is negative of the original).
+    /// </summary>
+    public bool IsReversal { get; set; }
+
+    /// <summary>
+    /// Original <see cref="CostId"/> this reversal offsets (self-reference).
+    /// </summary>
+    public long? ReversedCostId { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
 
     public virtual BusinessType? BusinessType { get; set; }
@@ -117,4 +127,8 @@ public partial class Cost
     public virtual Import? Import { get; set; }
 
     public virtual Cost? RefCost { get; set; }
+
+    public virtual Cost? ReversedCost { get; set; }
+
+    public virtual ICollection<Cost> InverseReversedCost { get; set; } = new List<Cost>();
 }

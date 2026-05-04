@@ -22,6 +22,7 @@ namespace BizFlow.Application.Services
         private readonly IReferenceLabelService _labels;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
+        private readonly IMessageService _messageService;
 
         public RevenueService(
             IUnitOfWork uow,
@@ -31,7 +32,8 @@ namespace BizFlow.Application.Services
             IGeneralLedgerService generalLedgerService,
             IReferenceLabelService labels,
             IBackgroundJobScheduler backgroundJobScheduler,
-            IDocumentNumberRegistryService documentNumberRegistry)
+            IDocumentNumberRegistryService documentNumberRegistry,
+            IMessageService messageService)
         {
             _uow = uow;
             _mapper = mapper;
@@ -41,6 +43,7 @@ namespace BizFlow.Application.Services
             _labels = labels;
             _backgroundJobScheduler = backgroundJobScheduler;
             _documentNumberRegistry = documentNumberRegistry;
+            _messageService = messageService;
         }
 
         private RevenueDto ToDto(Revenue revenue)
@@ -150,6 +153,7 @@ namespace BizFlow.Application.Services
                 return new ManualRevenueUpdateResponseDto
                 {
                     IsReplacement = true,
+                    Revenue = ToDto(existingReplacement),
                     Replacement = new PostedRecordReplacementResultDto
                     {
                         OldRecordId = revenueId,
@@ -253,6 +257,7 @@ namespace BizFlow.Application.Services
             return new ManualRevenueUpdateResponseDto
             {
                 IsReplacement = true,
+                Revenue = ToDto(newRevenue),
                 Replacement = new PostedRecordReplacementResultDto
                 {
                     OldRecordId = revenueId,
@@ -383,8 +388,48 @@ namespace BizFlow.Application.Services
                 _uow.Revenues.Update(revenue);
 
                 await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueDeletedReversalReason);
+                await AppendReversalRowAfterGlReverseAsync(
+                    revenue,
+                    userId,
+                    MessageKeys.ManualRevenueDeletedReversalReason,
+                    ct);
                 await _uow.SaveChangesAsync(ct);
             });
+        }
+
+        public async Task AppendReversalRowAfterGlReverseAsync(
+            Revenue original,
+            Guid userId,
+            string reversalMessageKey,
+            CancellationToken cancellationToken = default)
+        {
+            if (original.IsReversal)
+                return;
+
+            if (await _uow.Revenues.HasReversalForOriginalRevenueAsync(original.RevenueId, cancellationToken))
+                return;
+
+            var reasonMessage = _messageService.GetMessage(reversalMessageKey);
+            var reversalDescription = _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
+
+            var reversal = new Revenue
+            {
+                BusinessLocationId = original.BusinessLocationId,
+                BusinessTypeId = original.BusinessTypeId,
+                OrderId = original.OrderId,
+                RevenueType = original.RevenueType,
+                Amount = -original.Amount,
+                Status = RevenueStatus.Posted,
+                RevenueDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                Description = reversalDescription,
+                MoneyChannel = original.MoneyChannel,
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow,
+                IsReversal = true,
+                ReversedRevenueId = original.RevenueId
+            };
+
+            await _uow.Revenues.AddAsync(reversal);
         }
 
         private static Guid EnsureBusinessTypeRequired(Guid? businessTypeId)

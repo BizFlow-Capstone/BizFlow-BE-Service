@@ -65,6 +65,7 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == businessLocationId
                     && r.RevenueType == RevenueType.Sale
+                    && !r.IsReversal
                     && r.Status != RevenueStatus.Cancelled
                     && r.Status != RevenueStatus.Replaced
                     && r.OrderId == orderId)
@@ -165,8 +166,13 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => businessLocationIds.Contains(r.BusinessLocationId)
                     && r.RevenueDate >= fromDate
-                    && r.RevenueDate <= toDate)
-                .SumAsync(r => r.Amount, cancellationToken);
+                    && r.RevenueDate <= toDate
+                    && (r.Status != RevenueStatus.Cancelled
+                        || r.IsReversal
+                        || _db.Revenues.Any(x => x.IsReversal && x.ReversedRevenueId == r.RevenueId)))
+                .SumAsync(
+                    r => r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount,
+                    cancellationToken);
         }
 
         public async Task<decimal> AggregateByLocationAndPeriodAsync(
@@ -175,9 +181,11 @@ namespace BizFlow.Infrastructure.Repositories
         {
             var query = _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
-                    && r.Status != RevenueStatus.Cancelled
                     && r.RevenueDate >= from
-                    && r.RevenueDate <= to);
+                    && r.RevenueDate <= to
+                    && (r.Status != RevenueStatus.Cancelled
+                        || r.IsReversal
+                        || _db.Revenues.Any(x => x.IsReversal && x.ReversedRevenueId == r.RevenueId)));
 
             if (revenueTypes.Length > 0)
                 query = query.Where(r => revenueTypes.Contains(r.RevenueType));
@@ -200,15 +208,24 @@ namespace BizFlow.Infrastructure.Repositories
         {
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == locationId
-                    && r.Status != RevenueStatus.Cancelled
                     && r.BusinessTypeId.HasValue
                     && r.RevenueDate >= from
-                    && r.RevenueDate <= to)
+                    && r.RevenueDate <= to
+                    && (r.Status != RevenueStatus.Cancelled
+                        || r.IsReversal
+                        || _db.Revenues.Any(x => x.IsReversal && x.ReversedRevenueId == r.RevenueId)))
                 .GroupBy(r => r.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
                     g => g.Sum(r =>
                         r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount));
         }
+
+        public Task<bool> HasReversalForOriginalRevenueAsync(
+            long originalRevenueId,
+            CancellationToken cancellationToken = default)
+            => _db.Revenues.AnyAsync(
+                r => r.IsReversal && r.ReversedRevenueId == originalRevenueId,
+                cancellationToken);
     }
 }
