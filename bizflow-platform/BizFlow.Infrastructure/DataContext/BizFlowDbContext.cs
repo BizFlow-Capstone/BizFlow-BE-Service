@@ -326,7 +326,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ReversedCostId, "idx_cost_reversed");
 
-            entity.HasOne(d => d.ReversedCost).WithMany(p => p.InverseReversedCost)
+            entity.HasOne(d => d.ReversedCost).WithMany()
                 .HasForeignKey(d => d.ReversedCostId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_cost_reversed_cost");
@@ -1211,7 +1211,7 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.ReversedRevenueId, "idx_revenue_reversed");
 
-            entity.HasOne(d => d.ReversedRevenue).WithMany(p => p.InverseReversedRevenue)
+            entity.HasOne(d => d.ReversedRevenue).WithMany()
                 .HasForeignKey(d => d.ReversedRevenueId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_revenue_reversed_revenue");

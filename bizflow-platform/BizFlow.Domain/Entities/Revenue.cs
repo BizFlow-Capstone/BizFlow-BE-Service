@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace BizFlow.Domain.Entities;
 
@@ -108,8 +107,7 @@ public partial class Revenue
     /// </summary>
     public string? DocumentNumberNormalized { get; set; }
 
-    /// <summary>
-    /// TRUE when this row reverses another revenue (append-only audit; Amount is negative of the original).
+    /// TRUE when this row offsets another revenue (append-only; Amount is typically negative).
     /// </summary>
     public bool IsReversal { get; set; }
 
@@ -124,6 +122,4 @@ public partial class Revenue
     public virtual Revenue? RefRevenue { get; set; }
 
     public virtual Revenue? ReversedRevenue { get; set; }
-
-    public virtual ICollection<Revenue> InverseReversedRevenue { get; set; } = new List<Revenue>();
 }

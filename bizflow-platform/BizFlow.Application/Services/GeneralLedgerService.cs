@@ -486,6 +486,98 @@ namespace BizFlow.Application.Services
             return candidates.Count;
         }
 
+        public async Task<GeneralLedgerEntry> RecordRevenueLedgerLineFromRowAsync(Revenue revenue)
+        {
+            var transactionType = revenue.RevenueType.Equals(RevenueType.Sale, StringComparison.OrdinalIgnoreCase)
+                ? GeneralLedgerTransactionType.Sale
+                : GeneralLedgerTransactionType.ManualRevenue;
+
+            var abs = Math.Abs(revenue.Amount);
+            var debit = revenue.Amount >= 0 ? abs : 0;
+            var credit = revenue.Amount >= 0 ? 0 : abs;
+
+            var reversedGlId = await ResolveReversedGlEntryIdAsync(
+                revenue.BusinessLocationId,
+                GeneralLedgerReferenceType.Revenue,
+                revenue.ReversedRevenueId);
+
+            var entry = new GeneralLedgerEntry
+            {
+                BusinessLocationId = revenue.BusinessLocationId,
+                TransactionType = transactionType,
+                ReferenceType = GeneralLedgerReferenceType.Revenue,
+                ReferenceId = revenue.RevenueId,
+                EntryDate = revenue.RevenueDate,
+                Description = revenue.Description,
+                DebitAmount = debit,
+                CreditAmount = credit,
+                MoneyChannel = revenue.MoneyChannel,
+                IsReversal = revenue.IsReversal,
+                ReversedEntryId = reversedGlId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _uow.GeneralLedgerEntries.AddAsync(entry);
+            return entry;
+        }
+
+        public async Task<GeneralLedgerEntry> RecordCostLedgerLineFromRowAsync(Cost cost)
+        {
+            var transactionType = cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase)
+                ? GeneralLedgerTransactionType.ImportCost
+                : GeneralLedgerTransactionType.ManualCost;
+
+            var abs = Math.Abs(cost.Amount);
+            var debit = cost.Amount >= 0 ? 0 : abs;
+            var credit = cost.Amount >= 0 ? abs : 0;
+
+            var reversedGlId = await ResolveReversedGlEntryIdAsync(
+                cost.BusinessLocationId,
+                GeneralLedgerReferenceType.Cost,
+                cost.ReversedCostId);
+
+            var entry = new GeneralLedgerEntry
+            {
+                BusinessLocationId = cost.BusinessLocationId,
+                TransactionType = transactionType,
+                ReferenceType = GeneralLedgerReferenceType.Cost,
+                ReferenceId = cost.CostId,
+                EntryDate = cost.CostDate,
+                Description = cost.Description,
+                DebitAmount = debit,
+                CreditAmount = credit,
+                MoneyChannel = cost.PaymentMethod,
+                IsReversal = cost.IsReversal,
+                ReversedEntryId = reversedGlId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _uow.GeneralLedgerEntries.AddAsync(entry);
+            return entry;
+        }
+
+        private async Task<long?> ResolveReversedGlEntryIdAsync(
+            int businessLocationId,
+            string referenceType,
+            long? reversedSourceEntityId)
+        {
+            if (!reversedSourceEntityId.HasValue)
+                return null;
+
+            var originals = (await _uow.GeneralLedgerEntries.GetNonReversalByReferenceAsync(
+                    businessLocationId,
+                    referenceType,
+                    reversedSourceEntityId.Value))
+                .ToList();
+
+            if (!originals.Any())
+                return null;
+
+            var reversedEntryIds = await _uow.GeneralLedgerEntries.GetReversedEntryIdsAsync(originals.Select(o => o.EntryId));
+            var candidate = originals.FirstOrDefault(o => !reversedEntryIds.Contains(o.EntryId));
+            return candidate?.EntryId;
+        }
+
         private static GeneralLedgerEntry BuildCostEntry(Cost cost, string transactionType)
         {
             return new GeneralLedgerEntry

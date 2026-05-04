@@ -20,35 +20,35 @@ namespace BizFlow.Application.Services
         private readonly IMapper _mapper;
         private readonly IBusinessLocationService _locationService;
         private readonly IStockMovementService _stockMovementService;
-        private readonly IGeneralLedgerService _generalLedgerService;
+        private readonly IRevenueService _revenueService;
+        private readonly IDebtorService _debtorService;
         private readonly IMessageService _messageService;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IReferenceLabelService _labels;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
-        private readonly IRevenueService _revenueService;
 
         public OrderService(
             IUnitOfWork uow,
             IMapper mapper,
             IBusinessLocationService locationService,
             IStockMovementService stockMovementService,
-            IGeneralLedgerService generalLedgerService,
+            IRevenueService revenueService,
+            IDebtorService debtorService,
             IMessageService messageService,
             IBackgroundJobScheduler backgroundJobScheduler,
             IReferenceLabelService labels,
-            IDocumentNumberRegistryService documentNumberRegistry,
-            IRevenueService revenueService)
+            IDocumentNumberRegistryService documentNumberRegistry)
         {
             _uow = uow;
             _mapper = mapper;
             _locationService = locationService;
             _stockMovementService = stockMovementService;
-            _generalLedgerService = generalLedgerService;
+            _revenueService = revenueService;
+            _debtorService = debtorService;
             _messageService = messageService;
             _backgroundJobScheduler = backgroundJobScheduler;
             _labels = labels;
             _documentNumberRegistry = documentNumberRegistry;
-            _revenueService = revenueService;
         }
 
         public async Task<OrderActionResultDto> CreateAsync(Guid userId, CreateOrderRequest request)
@@ -269,8 +269,7 @@ namespace BizFlow.Application.Services
 
                 await _uow.SaveChangesAsync();
 
-                foreach (var revenue in revenues)
-                    await _generalLedgerService.RecordSaleRevenueAsync(revenue);
+                await _revenueService.RecordPostedSaleRevenuesToLedgerAsync(revenues, ct);
 
                 await _uow.SaveChangesAsync();
             });
@@ -331,49 +330,35 @@ namespace BizFlow.Application.Services
                         var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                             ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
 
-                    var rollbackTx = new DebtorPaymentTransaction
-                    {
-                        DebtorId = debtor.DebtorId,
-                        Amount = debtAmountToRollback,
-                        PaymentMethod = PaymentMethods.System,
-                        Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
-                        BalanceBefore = debtor.CurrentBalance,
-                        BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
-                            debtor.CurrentBalance,
-                            debtAmountToRollback),
-                        CreatedByUserId = userId,
-                        PaidAt = DateTime.UtcNow
-                    };
+                        var rollbackTx = new DebtorPaymentTransaction
+                        {
+                            DebtorId = debtor.DebtorId,
+                            Amount = debtAmountToRollback,
+                            PaymentMethod = PaymentMethods.System,
+                            Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
+                            BalanceBefore = debtor.CurrentBalance,
+                            BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
+                                debtor.CurrentBalance,
+                                debtAmountToRollback),
+                            CreatedByUserId = userId,
+                            PaidAt = DateTime.UtcNow
+                        };
 
-                    debtor.CurrentBalance = rollbackTx.BalanceAfter;
-                    debtor.UpdatedAt = DateTime.UtcNow;
+                        debtor.CurrentBalance = rollbackTx.BalanceAfter;
+                        debtor.UpdatedAt = DateTime.UtcNow;
 
-                    await _uow.Debtors.AddPaymentAsync(rollbackTx);
-                    _uow.Debtors.Update(debtor);
-                    await _uow.SaveChangesAsync();
+                        await _uow.Debtors.AddPaymentAsync(rollbackTx);
+                        _uow.Debtors.Update(debtor);
+                        await _uow.SaveChangesAsync();
 
-                    await _generalLedgerService.RecordDebtPaymentAsync(
-                        rollbackTx,
-                        locationId,
-                        DebtPaymentActions.SystemRollback);
-                }
-
-                    foreach (var revenue in saleRevenues)
-                    {
-                        revenue.Status = RevenueStatus.Cancelled;
-                        revenue.CancelledAt = DateTime.UtcNow;
-                        revenue.CancelledBy = userId;
-                        _uow.Revenues.Update(revenue);
+                        await _debtorService.RecordSystemDebtRollbackLedgerEntryAsync(rollbackTx, locationId);
                     }
 
-                    foreach (var revenue in saleRevenues)
-                    {
-                        await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.OrderCancelledReversalReason);
-                        await _revenueService.AppendReversalRowAfterGlReverseAsync(
-                            revenue,
-                            userId,
-                            MessageKeys.OrderCancelledReversalReason);
-                    }
+                    await _revenueService.ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
+                        saleRevenues,
+                        MessageKeys.OrderCancelledReversalReason,
+                        RevenueStatus.Replaced,
+                        userId);
                 }
 
                 order.Status = OrderStatus.Cancelled;
@@ -543,8 +528,7 @@ namespace BizFlow.Application.Services
 
                 await _uow.SaveChangesAsync(); // Need RevenueId before GL reference entries.
 
-                foreach (var revenue in newOrderRevenues)
-                    await _generalLedgerService.RecordSaleRevenueAsync(revenue);
+                await _revenueService.RecordPostedSaleRevenuesToLedgerAsync(newOrderRevenues, ct);
 
                 // Cancel old completed order after replacement order is completed.
                 foreach (var detail in oldOrder.OrderDetails)
@@ -597,28 +581,14 @@ namespace BizFlow.Application.Services
                     _uow.Debtors.Update(oldDebtor);
                     await _uow.SaveChangesAsync();
 
-                    await _generalLedgerService.RecordDebtPaymentAsync(
-                        rollbackTx,
-                        locationId,
-                        DebtPaymentActions.SystemRollback);
+                    await _debtorService.RecordSystemDebtRollbackLedgerEntryAsync(rollbackTx, locationId);
                 }
 
-                foreach (var revenue in oldSaleRevenues)
-                {
-                    revenue.Status = RevenueStatus.Cancelled;
-                    revenue.CancelledAt = DateTime.UtcNow;
-                    revenue.CancelledBy = userId;
-                    _uow.Revenues.Update(revenue);
-                }
-
-                foreach (var revenue in oldSaleRevenues)
-                {
-                    await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.OrderCancelledReversalReason);
-                    await _revenueService.AppendReversalRowAfterGlReverseAsync(
-                        revenue,
-                        userId,
-                        MessageKeys.OrderCancelledReversalReason);
-                }
+                await _revenueService.ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
+                    oldSaleRevenues,
+                    MessageKeys.OrderCancelledReversalReason,
+                    RevenueStatus.Replaced,
+                    userId);
 
                 oldOrder.Status = OrderStatus.Cancelled;
                 oldOrder.CancelledAt = DateTime.UtcNow;

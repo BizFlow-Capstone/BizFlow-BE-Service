@@ -11,13 +11,20 @@ namespace BizFlow.Application.Interfaces.Services
         Task<PaginatedResponse<RevenueDto>> ListAsync(Guid userId, RevenueQueryParams query);
         Task DeleteManualAsync(Guid userId, long revenueId);
 
-        /// <summary>
-        /// Inserts an append-only reversal row after GL reversal (idempotent). Call inside the same unit-of-work transaction as the cancel.
+        /// Posts GL sale entries for order-backed revenues already persisted (RevenueId assigned). Caller owns SaveChanges.
         /// </summary>
-        Task AppendReversalRowAfterGlReverseAsync(
-            Revenue original,
-            Guid userId,
+        Task RecordPostedSaleRevenuesToLedgerAsync(
+            IEnumerable<Revenue> revenues,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Append-only reversal rows + one GL line per reversal (order cancel). Caller must not mutate the passed revenue entities.
+        /// </summary>
+        Task ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
+            IEnumerable<Revenue> revenues,
             string reversalMessageKey,
+            string supersededStatus,
+            Guid? reversalCreatedBy = null,
             CancellationToken cancellationToken = default);
     }
 }

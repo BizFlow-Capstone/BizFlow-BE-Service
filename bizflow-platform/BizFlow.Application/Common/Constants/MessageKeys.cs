@@ -29,6 +29,12 @@ namespace BizFlow.Application.Common.Constants
         public const string ImageInvalidFileType = "IMAGE_INVALID_FILE_TYPE";
         public const string ImageUploadFailed = "IMAGE_UPLOAD_FAILED";
         public const string ReversalDescriptionFormat = "LEDGER_REVERSAL_DESCRIPTION_FORMAT";
+
+        /// <summary>Prefix for replace-flow reversal: then old revenue date + old document number in code.</summary>
+        public const string LedgerRevenueReplaceReversalPrefix = "LEDGER_REVENUE_REPLACE_REVERSAL_PREFIX";
+
+        /// <summary>Prefix for replace-flow reversal: then old cost date + old document number in code.</summary>
+        public const string LedgerCostReplaceReversalPrefix = "LEDGER_COST_REPLACE_REVERSAL_PREFIX";
         public const string LedgerDebtPaymentDescription = "LEDGER_DEBT_PAYMENT_DESCRIPTION";
         public const string LedgerDebtDecreaseDescription = "LEDGER_DEBT_DECREASE_DESCRIPTION";
         public const string LedgerDebtIncreaseDescription = "LEDGER_DEBT_INCREASE_DESCRIPTION";

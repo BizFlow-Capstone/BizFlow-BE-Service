@@ -1,3 +1,4 @@
+using System.Globalization;
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
@@ -116,7 +117,7 @@ namespace BizFlow.Application.Services
                 await _uow.Costs.AddAsync(cost);
                 await _uow.SaveChangesAsync(ct);
 
-                await _generalLedgerService.RecordManualCostAsync(cost);
+                await _generalLedgerService.RecordCostLedgerLineFromRowAsync(cost);
                 await _uow.SaveChangesAsync(ct);
 
                 return cost;
@@ -196,6 +197,8 @@ namespace BizFlow.Application.Services
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
 
+            var replacementCostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
             var newCost = await _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Costs.LockCostRowForUpdateAsync(costId, ct);
@@ -222,7 +225,27 @@ namespace BizFlow.Application.Services
                         cancellationToken: ct);
                 }
 
-                await _generalLedgerService.ReverseCostEntriesAsync(old, MessageKeys.CostReplacedReason);
+                var replaceReversalDesc = BuildReplacePostedManualCostReversalDescription(old);
+                var costReversal = new Cost
+                {
+                    BusinessLocationId = old.BusinessLocationId,
+                    BusinessTypeId = old.BusinessTypeId,
+                    CostType = old.CostType,
+                    ImportId = old.ImportId,
+                    Description = replaceReversalDesc,
+                    Amount = -old.Amount,
+                    Status = CostStatus.Posted,
+                    CostDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod = old.PaymentMethod,
+                    IsReversal = true,
+                    ReversedCostId = old.CostId,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _uow.Costs.AddAsync(costReversal);
+                await _uow.SaveChangesAsync(ct);
+                await _generalLedgerService.RecordCostLedgerLineFromRowAsync(costReversal);
+                await _uow.SaveChangesAsync(ct);
 
                 old.Status = CostStatus.Replaced;
                 old.CancelledAt = DateTime.UtcNow;
@@ -255,7 +278,7 @@ namespace BizFlow.Application.Services
                     Description = request.Description.Trim(),
                     Amount = request.Amount,
                     Status = CostStatus.Posted,
-                    CostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                    CostDate = replacementCostDate,
                     PaymentMethod = normalizedPaymentMethod,
                     DocumentNumber = docNumberNormalized,
                     DocumentDate = request.DocumentDate,
@@ -270,7 +293,7 @@ namespace BizFlow.Application.Services
                 await _uow.Costs.AddAsync(created);
                 await _uow.SaveChangesAsync(ct);
 
-                await _generalLedgerService.RecordManualCostAsync(created);
+                await _generalLedgerService.RecordCostLedgerLineFromRowAsync(created);
                 await _uow.SaveChangesAsync(ct);
 
                 return created;
@@ -417,20 +440,44 @@ namespace BizFlow.Application.Services
                 return;
             }
 
-            cost.Status = CostStatus.Cancelled;
-            cost.CancelledAt = DateTime.UtcNow;
-            cost.CancelledBy = userId;
-            cost.UpdatedAt = DateTime.UtcNow;
-            _uow.Costs.Update(cost);
+            await _uow.ExecuteResilientAsync(async ct =>
+            {
+                await _uow.Costs.LockCostRowForUpdateAsync(costId, ct);
 
-            await _uow.SaveChangesAsync();
+                var current = await _uow.Costs.GetByIdAsync(costId)
+                    ?? throw new NotFoundException(MessageKeys.CostNotFound);
+                if (await _uow.Costs.HasActiveReversalForCostAsync(current.CostId, ct))
+                    return;
 
-            await _generalLedgerService.ReverseCostEntriesAsync(cost, MessageKeys.ManualCostDeletedReversalReason);
-            await AppendCostReversalAfterGlReverseAsync(
-                cost,
-                userId,
-                MessageKeys.ManualCostDeletedReversalReason);
-            await _uow.SaveChangesAsync();
+                var deleteReversalDesc = BuildReplacePostedManualCostReversalDescription(current);
+                var reversal = new Cost
+                {
+                    BusinessLocationId = current.BusinessLocationId,
+                    BusinessTypeId = current.BusinessTypeId,
+                    CostType = current.CostType,
+                    ImportId = current.ImportId,
+                    Description = deleteReversalDesc,
+                    Amount = -current.Amount,
+                    Status = CostStatus.Posted,
+                    CostDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod = current.PaymentMethod,
+                    IsReversal = true,
+                    ReversedCostId = current.CostId,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Costs.AddAsync(reversal);
+                await _uow.SaveChangesAsync(ct);
+                await _generalLedgerService.RecordCostLedgerLineFromRowAsync(reversal);
+
+                current.Status = CostStatus.Replaced;
+                current.CancelledAt = DateTime.UtcNow;
+                current.CancelledBy = userId;
+                current.UpdatedAt = DateTime.UtcNow;
+                _uow.Costs.Update(current);
+                await _uow.SaveChangesAsync(ct);
+            });
         }
 
         public Task<Cost> CreateImportCostAsync(
@@ -473,7 +520,8 @@ namespace BizFlow.Application.Services
             var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
             if (existing != null)
             {
-                if (string.Equals(existing.Status, CostStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(existing.Status, CostStatus.Cancelled, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(existing.Status, CostStatus.Replaced, StringComparison.OrdinalIgnoreCase))
                 {
                     if (docNumberNormalized != null
                         && !string.Equals(docNumberNormalized, existing.DocumentNumberNormalized, StringComparison.Ordinal))
@@ -484,12 +532,13 @@ namespace BizFlow.Application.Services
 
                     existing.Status = CostStatus.Posted;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    existing.Description = ResolveImportCostDescription(import);
                     existing.DocumentNumber = docNumberNormalized;
                     existing.DocumentDate = documentDate;
                     existing.PaymentMethod = normalizedPaymentMethod;
                     _uow.Costs.Update(existing);
 
-                    await _generalLedgerService.RecordImportCostAsync(existing);
+                    await _generalLedgerService.RecordCostLedgerLineFromRowAsync(existing);
                 }
 
                 return existing;
@@ -506,7 +555,7 @@ namespace BizFlow.Application.Services
                 BusinessLocationId = import.BusinessLocationId,
                 CostType = CostType.Import,
                 ImportId = import.ImportId,
-                Description = $"Nhập hàng {import.ImportCode ?? import.ImportId.ToString()}",
+                Description = ResolveImportCostDescription(import),
                 Amount = import.TotalAmount,
                 Status = CostStatus.Posted,
                 CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
@@ -520,9 +569,17 @@ namespace BizFlow.Application.Services
             await _uow.Costs.AddAsync(cost);
             await _uow.SaveChangesAsync(cancellationToken);
 
-            await _generalLedgerService.RecordImportCostAsync(cost);
+            await _generalLedgerService.RecordCostLedgerLineFromRowAsync(cost);
 
             return cost;
+        }
+
+        private static string ResolveImportCostDescription(Import import)
+        {
+            if (!string.IsNullOrWhiteSpace(import.Note))
+                return import.Note.Trim();
+
+            return $"Nhập hàng {import.ImportCode ?? import.ImportId.ToString()}";
         }
 
         public async Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null)
@@ -531,55 +588,59 @@ namespace BizFlow.Application.Services
             if (cost == null)
                 return;
 
-            if (!CostStatus.IsTerminal(cost.Status))
-            {
-                cost.Status = CostStatus.Cancelled;
-                cost.CancelledAt = DateTime.UtcNow;
-                cost.CancelledBy = userId;
-                cost.UpdatedAt = DateTime.UtcNow;
-                _uow.Costs.Update(cost);
-            }
-
-            var reasonKey = reason ?? MessageKeys.ImportCancelledReversalReason;
-            await _generalLedgerService.ReverseCostEntriesAsync(cost, reasonKey);
-            await AppendCostReversalAfterGlReverseAsync(cost, userId, reasonKey);
-            await _uow.SaveChangesAsync();
-        }
-
-        private async Task AppendCostReversalAfterGlReverseAsync(
-            Cost original,
-            Guid userId,
-            string reversalMessageKey,
-            CancellationToken cancellationToken = default)
-        {
-            if (original.IsReversal)
+            if (cost.IsReversal)
                 return;
 
-            if (await _uow.Costs.HasReversalForOriginalCostAsync(original.CostId, cancellationToken))
+            if (await _uow.Costs.HasActiveReversalForCostAsync(cost.CostId))
                 return;
 
-            var reasonMessage = _messageService.GetMessage(reversalMessageKey);
-            var reversalDescription = _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
-
+            var reversalDesc = BuildReplacePostedManualCostReversalDescription(cost);
             var reversal = new Cost
             {
-                BusinessLocationId = original.BusinessLocationId,
-                BusinessTypeId = original.BusinessTypeId,
-                CostType = original.CostType,
+                BusinessLocationId = cost.BusinessLocationId,
+                BusinessTypeId = cost.BusinessTypeId,
+                CostType = CostType.Import,
                 ImportId = null,
-                Description = reversalDescription,
-                Amount = -original.Amount,
+                Description = reversalDesc,
+                Amount = -cost.Amount,
                 Status = CostStatus.Posted,
                 CostDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                PaymentMethod = original.PaymentMethod,
-                CreatedBy = userId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
+                PaymentMethod = cost.PaymentMethod,
                 IsReversal = true,
-                ReversedCostId = original.CostId
+                ReversedCostId = cost.CostId,
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow
             };
 
             await _uow.Costs.AddAsync(reversal);
+            await _uow.SaveChangesAsync();
+            await _generalLedgerService.RecordCostLedgerLineFromRowAsync(reversal);
+
+            cost.Status = CostStatus.Replaced;
+            cost.CancelledAt = DateTime.UtcNow;
+            cost.CancelledBy = userId;
+            cost.UpdatedAt = DateTime.UtcNow;
+            _uow.Costs.Update(cost);
+            await _uow.SaveChangesAsync();
+        }
+
+        private string BuildLedgerReversalDescription(string reversalReasonMessageKey)
+        {
+            var reasonMessage = _messageService.GetMessage(reversalReasonMessageKey);
+            return _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
+        }
+
+        /// <summary>Same pattern as revenue: prefix + source cost date + document (replace or delete posted).</summary>
+        private string BuildReplacePostedManualCostReversalDescription(Cost supersededCost)
+        {
+            var prefix = _messageService.GetMessage(MessageKeys.LedgerCostReplaceReversalPrefix);
+            var datePart = supersededCost.CostDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var doc = !string.IsNullOrWhiteSpace(supersededCost.DocumentNumber)
+                ? supersededCost.DocumentNumber.Trim()
+                : supersededCost.DocumentNumberNormalized?.Trim();
+            if (string.IsNullOrWhiteSpace(doc))
+                return $"{prefix} {datePart}";
+            return $"{prefix} {datePart} {doc}";
         }
 
         private async Task<Guid> ResolveOwnerIdAsync(int locationId)

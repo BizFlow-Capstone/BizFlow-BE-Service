@@ -57,7 +57,15 @@ namespace BizFlow.Infrastructure.Repositories
             => _db.Costs.FirstOrDefaultAsync(c => c.CostId == costId);
 
         public Task<Cost?> GetByImportIdAsync(long importId)
-            => _db.Costs.FirstOrDefaultAsync(c => c.ImportId == importId);
+            => _db.Costs
+                .Where(c => c.ImportId == importId && !c.IsReversal)
+                .OrderByDescending(c => c.CostId)
+                .FirstOrDefaultAsync();
+
+        public Task<bool> HasActiveReversalForCostAsync(long costId, CancellationToken cancellationToken = default)
+            => _db.Costs.AnyAsync(
+                c => c.IsReversal && c.ReversedCostId == costId,
+                cancellationToken);
 
         public async Task<IEnumerable<Cost>> GetByIdsAsync(IEnumerable<long> costIds)
         {
@@ -172,11 +180,9 @@ namespace BizFlow.Infrastructure.Repositories
 
             return aggType.ToUpper() switch
             {
-                "SUM" => await query.SumAsync(c =>
-                    c.Status == CostStatus.Replaced ? -c.Amount : c.Amount),
+                "SUM" => await query.SumAsync(c => c.Amount),
                 "AVG" => await query.AnyAsync()
-                    ? await query.AverageAsync(c =>
-                        c.Status == CostStatus.Replaced ? -c.Amount : c.Amount)
+                    ? await query.AverageAsync(c => c.Amount)
                     : 0m,
                 "COUNT" => await query.CountAsync(),
                 _ => 0m
@@ -197,8 +203,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .GroupBy(c => c.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
-                    g => g.Sum(c =>
-                        c.Status == CostStatus.Replaced ? -c.Amount : c.Amount));
+                    g => g.Sum(c => c.Amount));
         }
 
         public Task<bool> HasReversalForOriginalCostAsync(

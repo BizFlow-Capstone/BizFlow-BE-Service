@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace BizFlow.Domain.Entities;
 
@@ -110,8 +109,7 @@ public partial class Cost
     /// </summary>
     public string? DocumentNumberNormalized { get; set; }
 
-    /// <summary>
-    /// TRUE when this row reverses another cost (append-only audit; Amount is negative of the original).
+    /// TRUE when this row offsets another cost (append-only; Amount is typically negative).
     /// </summary>
     public bool IsReversal { get; set; }
 
@@ -129,6 +127,4 @@ public partial class Cost
     public virtual Cost? RefCost { get; set; }
 
     public virtual Cost? ReversedCost { get; set; }
-
-    public virtual ICollection<Cost> InverseReversedCost { get; set; } = new List<Cost>();
 }
