@@ -1,3 +1,4 @@
+using System.Globalization;
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
@@ -22,6 +23,7 @@ namespace BizFlow.Application.Services
         private readonly IReferenceLabelService _labels;
         private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
+        private readonly IMessageService _messageService;
 
         public RevenueService(
             IUnitOfWork uow,
@@ -31,7 +33,8 @@ namespace BizFlow.Application.Services
             IGeneralLedgerService generalLedgerService,
             IReferenceLabelService labels,
             IBackgroundJobScheduler backgroundJobScheduler,
-            IDocumentNumberRegistryService documentNumberRegistry)
+            IDocumentNumberRegistryService documentNumberRegistry,
+            IMessageService messageService)
         {
             _uow = uow;
             _mapper = mapper;
@@ -41,6 +44,7 @@ namespace BizFlow.Application.Services
             _labels = labels;
             _backgroundJobScheduler = backgroundJobScheduler;
             _documentNumberRegistry = documentNumberRegistry;
+            _messageService = messageService;
         }
 
         private RevenueDto ToDto(Revenue revenue)
@@ -102,7 +106,7 @@ namespace BizFlow.Application.Services
                 await _uow.Revenues.AddAsync(entity);
                 await _uow.SaveChangesAsync(ct);
 
-                await _generalLedgerService.RecordManualRevenueAsync(entity);
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(entity);
                 await _uow.SaveChangesAsync(ct);
 
                 return entity;
@@ -192,7 +196,28 @@ namespace BizFlow.Application.Services
                         cancellationToken: ct);
                 }
 
-                await _generalLedgerService.ReverseRevenueEntriesAsync(old, MessageKeys.RevenueReplacedReason);
+                var replacementRevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                var replaceReversalDesc = BuildReplacePostedManualRevenueReversalDescription(old);
+                var revenueReversal = new Revenue
+                {
+                    BusinessLocationId = old.BusinessLocationId,
+                    BusinessTypeId = old.BusinessTypeId,
+                    OrderId = old.OrderId,
+                    RevenueType = old.RevenueType,
+                    Amount = -old.Amount,
+                    Status = RevenueStatus.Posted,
+                    RevenueDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Description = replaceReversalDesc,
+                    MoneyChannel = old.MoneyChannel,
+                    IsReversal = true,
+                    ReversedRevenueId = old.RevenueId,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _uow.Revenues.AddAsync(revenueReversal);
+                await _uow.SaveChangesAsync(ct);
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(revenueReversal);
+                await _uow.SaveChangesAsync(ct);
 
                 old.Status = RevenueStatus.Replaced;
                 old.CancelledAt = DateTime.UtcNow;
@@ -225,7 +250,7 @@ namespace BizFlow.Application.Services
                     RevenueType = RevenueType.Manual,
                     Amount = request.Amount,
                     Status = RevenueStatus.Posted,
-                    RevenueDate = request.RevenueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                    RevenueDate = replacementRevenueDate,
                     Description = request.Description.Trim(),
                     MoneyChannel = request.MoneyChannel.Trim().ToLower(),
                     DocumentUrl = docUrl,
@@ -241,7 +266,7 @@ namespace BizFlow.Application.Services
                 await _uow.Revenues.AddAsync(created);
                 await _uow.SaveChangesAsync(ct);
 
-                await _generalLedgerService.RecordManualRevenueAsync(created);
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(created);
                 await _uow.SaveChangesAsync(ct);
 
                 return created;
@@ -377,14 +402,107 @@ namespace BizFlow.Application.Services
 
             await _uow.ExecuteResilientAsync(async ct =>
             {
-                revenue.Status = RevenueStatus.Cancelled;
-                revenue.CancelledAt = DateTime.UtcNow;
-                revenue.CancelledBy = userId;
-                _uow.Revenues.Update(revenue);
+                await _uow.Revenues.LockRevenueRowForUpdateAsync(revenueId, ct);
 
-                await _generalLedgerService.ReverseRevenueEntriesAsync(revenue, MessageKeys.ManualRevenueDeletedReversalReason);
+                var current = await _uow.Revenues.GetByIdAsync(revenueId)
+                    ?? throw new NotFoundException(MessageKeys.RevenueNotFound);
+
+                if (await _uow.Revenues.HasActiveReversalForRevenueAsync(current.RevenueId, ct))
+                    return;
+
+                var deleteReversalDesc = BuildReplacePostedManualRevenueReversalDescription(current);
+                var reversal = new Revenue
+                {
+                    BusinessLocationId = current.BusinessLocationId,
+                    BusinessTypeId = current.BusinessTypeId,
+                    OrderId = current.OrderId,
+                    RevenueType = current.RevenueType,
+                    Amount = -current.Amount,
+                    Status = RevenueStatus.Posted,
+                    RevenueDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Description = deleteReversalDesc,
+                    MoneyChannel = current.MoneyChannel,
+                    IsReversal = true,
+                    ReversedRevenueId = current.RevenueId,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Revenues.AddAsync(reversal);
+                await _uow.SaveChangesAsync(ct);
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(reversal);
                 await _uow.SaveChangesAsync(ct);
             });
+        }
+
+        public async Task RecordPostedSaleRevenuesToLedgerAsync(
+            IEnumerable<Revenue> revenues,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var revenue in revenues)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(revenue);
+            }
+        }
+
+        public async Task ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
+            IEnumerable<Revenue> revenues,
+            string reversalMessageKey,
+            Guid? reversalCreatedBy = null,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var revenue in revenues)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (await _uow.Revenues.HasActiveReversalForRevenueAsync(revenue.RevenueId, cancellationToken))
+                    continue;
+
+                var desc = BuildLedgerReversalDescription(reversalMessageKey);
+                var createdBy = reversalCreatedBy ?? revenue.CreatedBy;
+                var reversal = new Revenue
+                {
+                    BusinessLocationId = revenue.BusinessLocationId,
+                    BusinessTypeId = revenue.BusinessTypeId,
+                    OrderId = revenue.OrderId,
+                    RevenueType = revenue.RevenueType,
+                    Amount = -revenue.Amount,
+                    Status = RevenueStatus.Posted,
+                    RevenueDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Description = desc,
+                    MoneyChannel = revenue.MoneyChannel,
+                    IsReversal = true,
+                    ReversedRevenueId = revenue.RevenueId,
+                    CreatedBy = createdBy,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _uow.Revenues.AddAsync(reversal);
+                await _uow.SaveChangesAsync(cancellationToken);
+                await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(reversal);
+                await _uow.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private string BuildLedgerReversalDescription(string reversalReasonMessageKey)
+        {
+            var reasonMessage = _messageService.GetMessage(reversalReasonMessageKey);
+            return _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
+        }
+
+        /// <summary>
+        /// Reversal row description: prefix + source manual revenue date + document number (replace or delete posted).
+        /// </summary>
+        private string BuildReplacePostedManualRevenueReversalDescription(Revenue supersededRevenue)
+        {
+            var prefix = _messageService.GetMessage(MessageKeys.LedgerRevenueReplaceReversalPrefix);
+            var datePart = supersededRevenue.RevenueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var doc = !string.IsNullOrWhiteSpace(supersededRevenue.DocumentNumber)
+                ? supersededRevenue.DocumentNumber.Trim()
+                : supersededRevenue.DocumentNumberNormalized?.Trim();
+            if (string.IsNullOrWhiteSpace(doc))
+                return $"{prefix} {datePart}";
+            return $"{prefix} {datePart} {doc}";
         }
 
         private static Guid EnsureBusinessTypeRequired(Guid? businessTypeId)

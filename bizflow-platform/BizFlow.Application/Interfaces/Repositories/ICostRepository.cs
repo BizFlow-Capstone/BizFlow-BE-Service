@@ -8,6 +8,10 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<(IEnumerable<Cost> Items, int TotalCount)> SearchAsync(CostQueryParams query);
         Task<Cost?> GetByIdAsync(long costId);
         Task<Cost?> GetByImportIdAsync(long importId);
+
+        /// <summary>True when an append-only reversal row already offsets this cost.</summary>
+        Task<bool> HasActiveReversalForCostAsync(long costId, CancellationToken cancellationToken = default);
+
         Task<IEnumerable<Cost>> GetByIdsAsync(IEnumerable<long> costIds);
         Task<Cost> AddAsync(Cost cost);
         void Update(Cost cost);

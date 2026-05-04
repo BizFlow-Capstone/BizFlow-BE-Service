@@ -35,6 +35,11 @@ namespace BizFlow.Application.DTOs.Revenue
         /// Original Revenue this record replaces (replace-when-posted flow). Null when this is a fresh record.
         /// </summary>
         public long? RefRevenueId { get; set; }
+
+        public bool IsReversal { get; set; }
+
+        /// <summary>When set, this row is an append-only reversal for the given <see cref="RevenueId"/>.</summary>
+        public long? ReversedRevenueId { get; set; }
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
     }

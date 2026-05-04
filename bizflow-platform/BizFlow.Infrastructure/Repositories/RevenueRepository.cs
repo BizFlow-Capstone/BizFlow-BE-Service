@@ -65,12 +65,19 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => r.BusinessLocationId == businessLocationId
                     && r.RevenueType == RevenueType.Sale
-                    && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced
-                    && r.OrderId == orderId)
+                    && r.Status == RevenueStatus.Posted
+                    && !r.IsReversal
+                    && r.OrderId == orderId
+                    && !_db.Revenues.Any(rv =>
+                        rv.IsReversal && rv.ReversedRevenueId == r.RevenueId))
                 .OrderBy(r => r.RevenueId)
                 .ToListAsync();
         }
+
+        public Task<bool> HasActiveReversalForRevenueAsync(long revenueId, CancellationToken cancellationToken = default)
+            => _db.Revenues.AnyAsync(
+                r => r.IsReversal && r.ReversedRevenueId == revenueId,
+                cancellationToken);
 
         public async Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds)
         {
@@ -165,7 +172,9 @@ namespace BizFlow.Infrastructure.Repositories
             return await _db.Revenues
                 .Where(r => businessLocationIds.Contains(r.BusinessLocationId)
                     && r.RevenueDate >= fromDate
-                    && r.RevenueDate <= toDate)
+                    && r.RevenueDate <= toDate
+                    && r.Status != RevenueStatus.Cancelled
+                    && r.Status != RevenueStatus.Replaced)
                 .SumAsync(r => r.Amount, cancellationToken);
         }
 
@@ -184,11 +193,9 @@ namespace BizFlow.Infrastructure.Repositories
 
             return aggType.ToUpper() switch
             {
-                "SUM" => await query.SumAsync(r =>
-                    r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount),
+                "SUM" => await query.SumAsync(r => r.Amount),
                 "AVG" => await query.AnyAsync()
-                    ? await query.AverageAsync(r =>
-                        r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount)
+                    ? await query.AverageAsync(r => r.Amount)
                     : 0m,
                 "COUNT" => await query.CountAsync(),
                 _ => 0m
@@ -207,8 +214,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .GroupBy(r => r.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),
-                    g => g.Sum(r =>
-                        r.Status == RevenueStatus.Replaced ? -r.Amount : r.Amount));
+                    g => g.Sum(r => r.Amount));
         }
     }
 }

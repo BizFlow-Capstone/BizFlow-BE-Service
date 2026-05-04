@@ -20,5 +20,15 @@ namespace BizFlow.Application.Interfaces.Services
         Task<GeneralLedgerEntry> RecordSaleRevenueAsync(Revenue revenue);
         Task<GeneralLedgerEntry> RecordManualRevenueAsync(Revenue revenue);
         Task<int> ReverseRevenueEntriesAsync(Revenue revenue, string reversalReason);
+
+        /// <summary>
+        /// One GL line per <see cref="Revenue"/> row (supports negative <see cref="Revenue.Amount"/> as credit).
+        /// </summary>
+        Task<GeneralLedgerEntry> RecordRevenueLedgerLineFromRowAsync(Revenue revenue);
+
+        /// <summary>
+        /// One GL line per <see cref="Cost"/> row (supports negative <see cref="Cost.Amount"/> as debit).
+        /// </summary>
+        Task<GeneralLedgerEntry> RecordCostLedgerLineFromRowAsync(Cost cost);
     }
 }

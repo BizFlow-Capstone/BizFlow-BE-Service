@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace BizFlow.Domain.Entities;
 
@@ -108,8 +107,20 @@ public partial class Revenue
     /// </summary>
     public string? DocumentNumberNormalized { get; set; }
 
+    /// <summary>
+    /// TRUE when this row offsets another revenue (append-only; Amount is typically negative).
+    /// </summary>
+    public bool IsReversal { get; set; }
+
+    /// <summary>
+    /// Original <see cref="RevenueId"/> this reversal offsets (self-reference).
+    /// </summary>
+    public long? ReversedRevenueId { get; set; }
+
     public virtual BusinessLocation BusinessLocation { get; set; } = null!;
     public virtual BusinessType? BusinessType { get; set; }
 
     public virtual Revenue? RefRevenue { get; set; }
+
+    public virtual Revenue? ReversedRevenue { get; set; }
 }

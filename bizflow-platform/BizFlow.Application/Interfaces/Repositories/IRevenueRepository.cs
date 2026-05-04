@@ -8,6 +8,10 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<(IEnumerable<Revenue> Items, int TotalCount)> SearchAsync(RevenueQueryParams query);
         Task<Revenue?> GetByIdAsync(long revenueId);
         Task<List<Revenue>> GetSaleByOrderIdAsync(int businessLocationId, long orderId);
+
+        /// <summary>True when an append-only reversal row already offsets this revenue.</summary>
+        Task<bool> HasActiveReversalForRevenueAsync(long revenueId, CancellationToken cancellationToken = default);
+
         Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds);
         Task<Revenue> AddAsync(Revenue revenue);
         void Update(Revenue revenue);
