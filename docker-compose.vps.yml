@@ -34,7 +34,6 @@ services:
 
   bizflow-ai:
     image: ${DOCKERHUB_USERNAME}/bizflow-ai:${IMAGE_TAG}
-    build: null
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
