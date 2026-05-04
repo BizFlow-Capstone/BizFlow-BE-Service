@@ -59,16 +59,16 @@ namespace BizFlow.Application.Services
 
             var normalizedType = request.CostType.Trim().ToLower();
             if (!CostType.IsValid(normalizedType))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostTypeInvalid);
 
             if (normalizedType == CostType.Import)
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
 
             string? normalizedPaymentMethod = null;
             if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
             {
                 if (!PaymentMethods.IsValid(request.PaymentMethod))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostPaymentMethodInvalid);
 
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
@@ -134,7 +134,7 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateOwnerAsync(userId, costPreview.BusinessLocationId);
 
             if (costPreview.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
 
             if (CostStatus.IsTerminal(costPreview.Status))
                 throw new BadRequestException(MessageKeys.CostCannotEditCancelledOrReplaced);
@@ -182,17 +182,17 @@ namespace BizFlow.Application.Services
             {
                 normalizedCostType = request.CostType.Trim().ToLower();
                 if (!CostType.IsValid(normalizedCostType))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostTypeInvalid);
 
                 if (normalizedCostType == CostType.Import)
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
             }
 
             string? normalizedPaymentMethod = null;
             if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
             {
                 if (!PaymentMethods.IsValid(request.PaymentMethod))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostPaymentMethodInvalid);
 
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
@@ -315,24 +315,24 @@ namespace BizFlow.Application.Services
         private async Task<CostDto> UpdateManualDraftInPlaceAsync(Guid userId, Cost cost, UpdateManualCostRequest request)
         {
             if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
 
             string? normalizedCostType = cost.CostType;
             if (!string.IsNullOrWhiteSpace(request.CostType))
             {
                 normalizedCostType = request.CostType.Trim().ToLower();
                 if (!CostType.IsValid(normalizedCostType))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostTypeInvalid);
 
                 if (normalizedCostType == CostType.Import)
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
             }
 
             string? normalizedPaymentMethod = null;
             if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
             {
                 if (!PaymentMethods.IsValid(request.PaymentMethod))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostPaymentMethodInvalid);
 
                 normalizedPaymentMethod = request.PaymentMethod.Trim().ToLower();
             }
@@ -389,7 +389,7 @@ namespace BizFlow.Application.Services
 
             if (!string.IsNullOrWhiteSpace(query.CostType)
                 && !CostType.IsValid(query.CostType.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostTypeInvalid);
 
             if (!string.IsNullOrWhiteSpace(query.Status)
                 && !CostStatus.IsValid(query.Status.Trim()))
@@ -397,7 +397,7 @@ namespace BizFlow.Application.Services
 
             if (!string.IsNullOrWhiteSpace(query.PaymentMethod)
                 && !PaymentMethods.IsValid(query.PaymentMethod.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostPaymentMethodInvalid);
 
             if (!string.IsNullOrWhiteSpace(query.CostType))
                 query.CostType = query.CostType.Trim().ToLowerInvariant();
@@ -424,7 +424,10 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateOwnerAsync(userId, cost.BusinessLocationId);
 
             if (cost.CostType.Equals(CostType.Import, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.CostManualOnlyOperation);
+
+            if (cost.IsReversal)
+                throw new BadRequestException(MessageKeys.CostCannotDeleteReversal);
 
             if (CostStatus.IsTerminal(cost.Status))
                 throw new BadRequestException(MessageKeys.CostCannotEditCancelledOrReplaced);
@@ -510,7 +513,7 @@ namespace BizFlow.Application.Services
             if (!string.IsNullOrWhiteSpace(paymentMethod))
             {
                 if (!PaymentMethods.IsValid(paymentMethod))
-                    throw new BadRequestException(MessageKeys.BadRequest);
+                    throw new BadRequestException(MessageKeys.CostPaymentMethodInvalid);
 
                 normalizedPaymentMethod = paymentMethod.Trim().ToLowerInvariant();
             }
@@ -624,23 +627,14 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
         }
 
-        private string BuildLedgerReversalDescription(string reversalReasonMessageKey)
-        {
-            var reasonMessage = _messageService.GetMessage(reversalReasonMessageKey);
-            return _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
-        }
-
-        /// <summary>Same pattern as revenue: prefix + source cost date + document (replace or delete posted).</summary>
         private string BuildReplacePostedManualCostReversalDescription(Cost supersededCost)
         {
-            var prefix = _messageService.GetMessage(MessageKeys.LedgerCostReplaceReversalPrefix);
-            var datePart = supersededCost.CostDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var doc = !string.IsNullOrWhiteSpace(supersededCost.DocumentNumber)
-                ? supersededCost.DocumentNumber.Trim()
-                : supersededCost.DocumentNumberNormalized?.Trim();
-            if (string.IsNullOrWhiteSpace(doc))
-                return $"{prefix} {datePart}";
-            return $"{prefix} {datePart} {doc}";
+            var datePart = supersededCost.CostDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            var baseDescription = $"Bút toán đảo của chi phí {datePart}";
+            var sourceDescription = supersededCost.Description?.Trim();
+            return string.IsNullOrWhiteSpace(sourceDescription)
+                ? baseDescription
+                : $"{baseDescription}: {sourceDescription}";
         }
 
         private async Task<Guid> ResolveOwnerIdAsync(int locationId)

@@ -62,7 +62,7 @@ namespace BizFlow.Application.Services
             var businessTypeId = EnsureBusinessTypeRequired(request.BusinessTypeId);
 
             if (!PaymentMethods.IsValid(request.MoneyChannel))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueMoneyChannelInvalid);
 
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
             var ownerId = await ResolveOwnerIdAsync(request.BusinessLocationId);
@@ -126,7 +126,7 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateOwnerAsync(userId, revenuePreview.BusinessLocationId);
 
             if (!revenuePreview.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueManualOnlyOperation);
 
             if (RevenueStatus.IsTerminal(revenuePreview.Status))
                 throw new BadRequestException(MessageKeys.RevenueCannotEditCancelledOrReplaced);
@@ -166,7 +166,7 @@ namespace BizFlow.Application.Services
             }
 
             if (!PaymentMethods.IsValid(request.MoneyChannel))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueMoneyChannelInvalid);
 
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
             var ownerId = await ResolveOwnerIdAsync(revenuePreview.BusinessLocationId);
@@ -293,7 +293,7 @@ namespace BizFlow.Application.Services
         private async Task<RevenueDto> UpdateManualDraftInPlaceAsync(Guid userId, Revenue revenue, UpdateManualRevenueRequest request)
         {
             if (!PaymentMethods.IsValid(request.MoneyChannel))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueMoneyChannelInvalid);
 
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
             var ownerId = await ResolveOwnerIdAsync(revenue.BusinessLocationId);
@@ -349,7 +349,7 @@ namespace BizFlow.Application.Services
 
             if (!string.IsNullOrWhiteSpace(query.RevenueType)
                 && !RevenueType.IsValid(query.RevenueType.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueTypeInvalid);
 
             if (!string.IsNullOrWhiteSpace(query.Status)
                 && !RevenueStatus.IsValid(query.Status.Trim()))
@@ -357,7 +357,7 @@ namespace BizFlow.Application.Services
 
             if (!string.IsNullOrWhiteSpace(query.MoneyChannel)
                 && !MoneyChannelType.IsValid(query.MoneyChannel.Trim()))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueMoneyChannelInvalid);
 
             if (!string.IsNullOrWhiteSpace(query.RevenueType))
                 query.RevenueType = query.RevenueType.Trim().ToLowerInvariant();
@@ -384,7 +384,10 @@ namespace BizFlow.Application.Services
             await _locationService.ValidateOwnerAsync(userId, revenue.BusinessLocationId);
 
             if (!revenue.RevenueType.Equals(RevenueType.Manual, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueManualOnlyOperation);
+
+            if (revenue.IsReversal)
+                throw new BadRequestException(MessageKeys.RevenueCannotDeleteReversal);
 
             if (RevenueStatus.IsTerminal(revenue.Status))
                 throw new BadRequestException(MessageKeys.RevenueCannotEditCancelledOrReplaced);
@@ -460,7 +463,7 @@ namespace BizFlow.Application.Services
         {
             if (!string.Equals(supersededStatus, RevenueStatus.Cancelled, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(supersededStatus, RevenueStatus.Replaced, StringComparison.OrdinalIgnoreCase))
-                throw new BadRequestException(MessageKeys.BadRequest);
+                throw new BadRequestException(MessageKeys.RevenueInvalidStatus);
 
             foreach (var revenue in revenues)
             {
@@ -503,25 +506,14 @@ namespace BizFlow.Application.Services
             }
         }
 
-        private string BuildLedgerReversalDescription(string reversalReasonMessageKey)
-        {
-            var reasonMessage = _messageService.GetMessage(reversalReasonMessageKey);
-            return _messageService.GetMessage(MessageKeys.ReversalDescriptionFormat, reasonMessage);
-        }
-
-        /// <summary>
-        /// Reversal row description: prefix + source manual revenue date + document number (replace or delete posted).
-        /// </summary>
         private string BuildReplacePostedManualRevenueReversalDescription(Revenue supersededRevenue)
         {
-            var prefix = _messageService.GetMessage(MessageKeys.LedgerRevenueReplaceReversalPrefix);
-            var datePart = supersededRevenue.RevenueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var doc = !string.IsNullOrWhiteSpace(supersededRevenue.DocumentNumber)
-                ? supersededRevenue.DocumentNumber.Trim()
-                : supersededRevenue.DocumentNumberNormalized?.Trim();
-            if (string.IsNullOrWhiteSpace(doc))
-                return $"{prefix} {datePart}";
-            return $"{prefix} {datePart} {doc}";
+            var datePart = supersededRevenue.RevenueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            var baseDescription = $"Bút toán đảo của doanh thu {datePart}";
+            var sourceDescription = supersededRevenue.Description?.Trim();
+            return string.IsNullOrWhiteSpace(sourceDescription)
+                ? baseDescription
+                : $"{baseDescription}: {sourceDescription}";
         }
 
         private static Guid EnsureBusinessTypeRequired(Guid? businessTypeId)
