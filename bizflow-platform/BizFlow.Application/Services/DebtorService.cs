@@ -9,6 +9,7 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Application.Mappers;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 
 namespace BizFlow.Application.Services
 {
@@ -198,6 +199,15 @@ namespace BizFlow.Application.Services
 
             return ToDto(transaction);
         }
+
+        public Task RecordSystemDebtRollbackLedgerEntryAsync(
+            DebtorPaymentTransaction persistedRollback,
+            int businessLocationId,
+            CancellationToken cancellationToken = default)
+            => _generalLedgerService.RecordDebtPaymentAsync(
+                persistedRollback,
+                businessLocationId,
+                DebtPaymentActions.SystemRollback);
 
         public async Task<IEnumerable<DebtorPaymentDto>> GetPaymentsAsync(Guid userId, long debtorId)
         {

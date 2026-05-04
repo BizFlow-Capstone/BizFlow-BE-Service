@@ -317,6 +317,19 @@ public partial class BizFlowDbContext : DbContext
                 .HasForeignKey(d => d.BusinessTypeId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_cost_business_type");
+
+            entity.Property(e => e.IsReversal)
+                .HasDefaultValue(false)
+                .HasComment("TRUE when this row is a reversal entry");
+
+            entity.Property(e => e.ReversedCostId).HasComment("Original CostId this reversal offsets");
+
+            entity.HasIndex(e => e.ReversedCostId, "idx_cost_reversed");
+
+            entity.HasOne(d => d.ReversedCost).WithMany()
+                .HasForeignKey(d => d.ReversedCostId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_cost_reversed_cost");
         });
 
         modelBuilder.Entity<Credential>(entity =>
@@ -1189,6 +1202,19 @@ public partial class BizFlowDbContext : DbContext
             entity.HasOne(d => d.BusinessType).WithMany(p => p.Revenues)
                 .HasForeignKey(d => d.BusinessTypeId)
                 .HasConstraintName("fk_revenue_business_type");
+
+            entity.Property(e => e.IsReversal)
+                .HasDefaultValue(false)
+                .HasComment("TRUE when this row is a reversal entry");
+
+            entity.Property(e => e.ReversedRevenueId).HasComment("Original RevenueId this reversal offsets");
+
+            entity.HasIndex(e => e.ReversedRevenueId, "idx_revenue_reversed");
+
+            entity.HasOne(d => d.ReversedRevenue).WithMany()
+                .HasForeignKey(d => d.ReversedRevenueId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_revenue_reversed_revenue");
         });
 
         modelBuilder.Entity<Role>(entity =>

@@ -35,6 +35,13 @@ namespace BizFlow.Application.DTOs.Cost
         /// Original Cost this record replaces (replace-when-posted flow). Null when this is a fresh record.
         /// </summary>
         public long? RefCostId { get; set; }
+
+        /// <summary>True when this row is an append-only reversal (Amount is negative of the original).</summary>
+        public bool IsReversal { get; set; }
+
+        /// <summary>Original <see cref="CostId"/> reversed by this row, when <see cref="IsReversal"/>.</summary>
+        public long? ReversedCostId { get; set; }
+
         public Guid CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

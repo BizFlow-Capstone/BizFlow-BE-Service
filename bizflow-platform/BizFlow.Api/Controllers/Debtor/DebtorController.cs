@@ -1,5 +1,6 @@
 using BizFlow.Api.Common.Controllers;
 using BizFlow.Api.Common.Extensions;
+using BizFlow.Api.Common.Filters;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
