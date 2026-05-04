@@ -471,6 +471,12 @@ namespace BizFlow.Application.Services
                 await _uow.Costs.AddAsync(reversal);
                 await _uow.SaveChangesAsync(ct);
                 await _generalLedgerService.RecordCostLedgerLineFromRowAsync(reversal);
+
+                current.Status = CostStatus.Replaced;
+                current.CancelledAt = DateTime.UtcNow;
+                current.CancelledBy = userId;
+                current.UpdatedAt = DateTime.UtcNow;
+                _uow.Costs.Update(current);
                 await _uow.SaveChangesAsync(ct);
             });
         }
@@ -515,7 +521,8 @@ namespace BizFlow.Application.Services
             var existing = await _uow.Costs.GetByImportIdAsync(import.ImportId);
             if (existing != null)
             {
-                if (string.Equals(existing.Status, CostStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(existing.Status, CostStatus.Cancelled, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(existing.Status, CostStatus.Replaced, StringComparison.OrdinalIgnoreCase))
                 {
                     if (docNumberNormalized != null
                         && !string.Equals(docNumberNormalized, existing.DocumentNumberNormalized, StringComparison.Ordinal))
@@ -526,6 +533,7 @@ namespace BizFlow.Application.Services
 
                     existing.Status = CostStatus.Posted;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    existing.Description = ResolveImportCostDescription(import);
                     existing.DocumentNumber = docNumberNormalized;
                     existing.DocumentDate = documentDate;
                     existing.PaymentMethod = normalizedPaymentMethod;
@@ -548,7 +556,7 @@ namespace BizFlow.Application.Services
                 BusinessLocationId = import.BusinessLocationId,
                 CostType = CostType.Import,
                 ImportId = import.ImportId,
-                Description = $"Nhập hàng {import.ImportCode ?? import.ImportId.ToString()}",
+                Description = ResolveImportCostDescription(import),
                 Amount = import.TotalAmount,
                 Status = CostStatus.Posted,
                 CostDate = DateOnly.FromDateTime(import.ReceivedAt ?? import.ConfirmedAt ?? import.CreatedAt),
@@ -567,6 +575,14 @@ namespace BizFlow.Application.Services
             return cost;
         }
 
+        private static string ResolveImportCostDescription(Import import)
+        {
+            if (!string.IsNullOrWhiteSpace(import.Note))
+                return import.Note.Trim();
+
+            return $"Nhập hàng {import.ImportCode ?? import.ImportId.ToString()}";
+        }
+
         public async Task ReverseImportCostAsync(Guid userId, Import import, string? reason = null)
         {
             var cost = await _uow.Costs.GetByImportIdAsync(import.ImportId);
@@ -579,8 +595,7 @@ namespace BizFlow.Application.Services
             if (await _uow.Costs.HasActiveReversalForCostAsync(cost.CostId))
                 return;
 
-            var reasonKey = reason ?? MessageKeys.ImportCancelledReversalReason;
-            var reversalDesc = BuildLedgerReversalDescription(reasonKey);
+            var reversalDesc = BuildReplacePostedManualCostReversalDescription(cost);
             var reversal = new Cost
             {
                 BusinessLocationId = cost.BusinessLocationId,
@@ -601,6 +616,12 @@ namespace BizFlow.Application.Services
             await _uow.Costs.AddAsync(reversal);
             await _uow.SaveChangesAsync();
             await _generalLedgerService.RecordCostLedgerLineFromRowAsync(reversal);
+
+            cost.Status = CostStatus.Replaced;
+            cost.CancelledAt = DateTime.UtcNow;
+            cost.CancelledBy = userId;
+            cost.UpdatedAt = DateTime.UtcNow;
+            _uow.Costs.Update(cost);
             await _uow.SaveChangesAsync();
         }
 
