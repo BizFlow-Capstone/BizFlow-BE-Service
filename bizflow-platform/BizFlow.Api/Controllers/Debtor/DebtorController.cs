@@ -6,10 +6,12 @@ using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Debtor;
 using BizFlow.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BizFlow.Api.Controllers.Debtor
@@ -186,6 +188,20 @@ namespace BizFlow.Api.Controllers.Debtor
             var userId = GetCurrentUserId();
             var result = await _debtorService.GetPaymentsAsync(userId, debtorId);
             return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
+        /// <summary>
+        /// Maintenance endpoint: recalculates debtor current balance from debtor payment ledger
+        /// (sum of BalanceAfter - BalanceBefore across all payment transactions, including system transactions).
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("sync-current-balance")]
+        [SwaggerOperation(Summary = "Sync debtor current balances (maintenance, no auth)")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> SyncCurrentBalance([FromQuery] long? debtorId = null, CancellationToken cancellationToken = default)
+        {
+            var result = await _debtorService.SyncCurrentBalancesAsync(debtorId, cancellationToken);
+            return Ok(result, MessageKeys.DataUpdatedSuccessfully);
         }
 
         #region Private Helper Methods

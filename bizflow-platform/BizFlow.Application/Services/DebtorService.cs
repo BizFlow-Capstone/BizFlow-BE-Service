@@ -182,12 +182,7 @@ namespace BizFlow.Application.Services
                 throw new BadRequestException(MessageKeys.DebtorPaymentActionInvalid);
 
             var transaction = DebtorProfile.ToEntity(request, debtorId, userId, debtor.CurrentBalance);
-
-            debtor.CurrentBalance = transaction.BalanceAfter;
-            debtor.UpdatedAt = DateTime.UtcNow;
-
-            await _uow.Debtors.AddPaymentAsync(transaction);
-            _uow.Debtors.Update(debtor);
+            await ApplyDebtTransactionAsync(debtor, transaction);
             await _uow.SaveChangesAsync();
 
             // Log debt payment transaction to GL.
@@ -198,6 +193,62 @@ namespace BizFlow.Application.Services
             await _uow.SaveChangesAsync();
 
             return ToDto(transaction);
+        }
+
+        public async Task<DebtorPaymentTransaction> RecordSystemDebtIncreaseAsync(
+            Guid userId,
+            long debtorId,
+            decimal amount,
+            string note)
+        {
+            if (amount <= 0)
+                throw new BadRequestException(MessageKeys.DebtorPaymentAmountZero);
+
+            var debtor = await _uow.Debtors.GetByIdAsync(debtorId)
+                ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
+
+            var transaction = new DebtorPaymentTransaction
+            {
+                DebtorId = debtor.DebtorId,
+                Amount = amount,
+                PaymentMethod = PaymentMethods.System,
+                Notes = note,
+                BalanceBefore = debtor.CurrentBalance,
+                BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(debtor.CurrentBalance, amount),
+                CreatedByUserId = userId,
+                PaidAt = DateTime.UtcNow
+            };
+
+            await ApplyDebtTransactionAsync(debtor, transaction);
+            return transaction;
+        }
+
+        public async Task<DebtorPaymentTransaction> RecordSystemDebtRollbackAsync(
+            Guid userId,
+            long debtorId,
+            decimal amount,
+            string note)
+        {
+            if (amount <= 0)
+                throw new BadRequestException(MessageKeys.DebtorPaymentAmountZero);
+
+            var debtor = await _uow.Debtors.GetByIdAsync(debtorId)
+                ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
+
+            var transaction = new DebtorPaymentTransaction
+            {
+                DebtorId = debtor.DebtorId,
+                Amount = amount,
+                PaymentMethod = PaymentMethods.System,
+                Notes = note,
+                BalanceBefore = debtor.CurrentBalance,
+                BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(debtor.CurrentBalance, amount),
+                CreatedByUserId = userId,
+                PaidAt = DateTime.UtcNow
+            };
+
+            await ApplyDebtTransactionAsync(debtor, transaction);
+            return transaction;
         }
 
         public Task RecordSystemDebtRollbackLedgerEntryAsync(
@@ -220,6 +271,18 @@ namespace BizFlow.Application.Services
                 .ToList();
         }
 
+        public async Task<DebtorBalanceSyncResultDto> SyncCurrentBalancesAsync(
+            long? debtorId = null,
+            CancellationToken cancellationToken = default)
+        {
+            var (matchedCount, updatedCount) = await _uow.Debtors.SyncCurrentBalancesAsync(debtorId, cancellationToken);
+            return new DebtorBalanceSyncResultDto
+            {
+                MatchedDebtorCount = matchedCount,
+                UpdatedDebtorCount = updatedCount
+            };
+        }
+
         #region Private Helpers
 
         private async Task VerifyLocationOwnerAsync(Guid userId, int locationId)
@@ -238,6 +301,15 @@ namespace BizFlow.Application.Services
                 DebtDirection.Increase => DebtPaymentActions.IncreaseDebt,
                 _ => DebtPaymentActions.DecreaseDebt
             };
+        }
+
+        private async Task ApplyDebtTransactionAsync(Debtor debtor, DebtorPaymentTransaction transaction)
+        {
+            debtor.CurrentBalance = transaction.BalanceAfter;
+            debtor.UpdatedAt = DateTime.UtcNow;
+
+            await _uow.Debtors.AddPaymentAsync(transaction);
+            _uow.Debtors.Update(debtor);
         }
 
         private async Task<Debtor> GetDebtorAndVerifyOwnerAsync(Guid userId, long debtorId)

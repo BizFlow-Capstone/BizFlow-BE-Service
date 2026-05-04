@@ -237,9 +237,11 @@ namespace BizFlow.Application.Services
 
                 if (order.DebtorId.HasValue && order.DebtAmount > 0)
                 {
-                    var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
-                        ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-                    await RecordSystemDebtIncreaseAsync(debtor, order.DebtAmount, order.OrderCode, userId);
+                    await _debtorService.RecordSystemDebtIncreaseAsync(
+                        userId,
+                        order.DebtorId.Value,
+                        order.DebtAmount,
+                        _messageService.GetMessage(MessageKeys.OrderAutoDebtIncreaseNote, order.OrderCode));
                 }
 
                 order.Status = OrderStatus.Completed;
@@ -322,28 +324,11 @@ namespace BizFlow.Application.Services
 
                     if (order.DebtorId.HasValue && debtAmountToRollback > 0)
                     {
-                        var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
-                            ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-
-                        var rollbackTx = new DebtorPaymentTransaction
-                        {
-                            DebtorId = debtor.DebtorId,
-                            Amount = debtAmountToRollback,
-                            PaymentMethod = PaymentMethods.System,
-                            Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode),
-                            BalanceBefore = debtor.CurrentBalance,
-                            BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
-                                debtor.CurrentBalance,
-                                debtAmountToRollback),
-                            CreatedByUserId = userId,
-                            PaidAt = DateTime.UtcNow
-                        };
-
-                        debtor.CurrentBalance = rollbackTx.BalanceAfter;
-                        debtor.UpdatedAt = DateTime.UtcNow;
-
-                        await _uow.Debtors.AddPaymentAsync(rollbackTx);
-                        _uow.Debtors.Update(debtor);
+                        var rollbackTx = await _debtorService.RecordSystemDebtRollbackAsync(
+                            userId,
+                            order.DebtorId.Value,
+                            debtAmountToRollback,
+                            _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, order.OrderCode));
                         await _uow.SaveChangesAsync();
 
                         await _debtorService.RecordSystemDebtRollbackLedgerEntryAsync(rollbackTx, locationId);
@@ -491,9 +476,11 @@ namespace BizFlow.Application.Services
 
                 if (newOrder.DebtorId.HasValue && newOrder.DebtAmount > 0)
                 {
-                    var newDebtor = await _uow.Debtors.GetByIdAsync(newOrder.DebtorId.Value)
-                        ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-                    await RecordSystemDebtIncreaseAsync(newDebtor, newOrder.DebtAmount, newOrder.OrderCode, userId);
+                    await _debtorService.RecordSystemDebtIncreaseAsync(
+                        userId,
+                        newOrder.DebtorId.Value,
+                        newOrder.DebtAmount,
+                        _messageService.GetMessage(MessageKeys.OrderAutoDebtIncreaseNote, newOrder.OrderCode));
                 }
 
                 newOrder.Status = OrderStatus.Completed;
@@ -547,28 +534,11 @@ namespace BizFlow.Application.Services
 
                 if (oldOrder.DebtorId.HasValue && oldDebtAmountToRollback > 0)
                 {
-                    var oldDebtor = await _uow.Debtors.GetByIdAsync(oldOrder.DebtorId.Value)
-                        ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-
-                    var rollbackTx = new DebtorPaymentTransaction
-                    {
-                        DebtorId = oldDebtor.DebtorId,
-                        Amount = oldDebtAmountToRollback,
-                        PaymentMethod = PaymentMethods.System,
-                        Notes = _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, oldOrder.OrderCode),
-                        BalanceBefore = oldDebtor.CurrentBalance,
-                        BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtRollback(
-                            oldDebtor.CurrentBalance,
-                            oldDebtAmountToRollback),
-                        CreatedByUserId = userId,
-                        PaidAt = DateTime.UtcNow
-                    };
-
-                    oldDebtor.CurrentBalance = rollbackTx.BalanceAfter;
-                    oldDebtor.UpdatedAt = DateTime.UtcNow;
-
-                    await _uow.Debtors.AddPaymentAsync(rollbackTx);
-                    _uow.Debtors.Update(oldDebtor);
+                    var rollbackTx = await _debtorService.RecordSystemDebtRollbackAsync(
+                        userId,
+                        oldOrder.DebtorId.Value,
+                        oldDebtAmountToRollback,
+                        _messageService.GetMessage(MessageKeys.OrderAutoRollbackNote, oldOrder.OrderCode));
                     await _uow.SaveChangesAsync();
 
                     await _debtorService.RecordSystemDebtRollbackLedgerEntryAsync(rollbackTx, locationId);
@@ -640,33 +610,6 @@ namespace BizFlow.Application.Services
 
         private static string GenerateOrderCode()
             => $"ORD-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
-
-        private async Task RecordSystemDebtIncreaseAsync(
-            Debtor debtor,
-            decimal debtAmount,
-            string orderCode,
-            Guid userId)
-        {
-            var increaseTx = new DebtorPaymentTransaction
-            {
-                DebtorId = debtor.DebtorId,
-                Amount = debtAmount,
-                PaymentMethod = PaymentMethods.System,
-                Notes = _messageService.GetMessage(MessageKeys.OrderAutoDebtIncreaseNote, orderCode),
-                BalanceBefore = debtor.CurrentBalance,
-                BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
-                    debtor.CurrentBalance,
-                    debtAmount),
-                CreatedByUserId = userId,
-                PaidAt = DateTime.UtcNow
-            };
-
-            debtor.CurrentBalance = increaseTx.BalanceAfter;
-            debtor.UpdatedAt = DateTime.UtcNow;
-
-            await _uow.Debtors.AddPaymentAsync(increaseTx);
-            _uow.Debtors.Update(debtor);
-        }
 
         private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
         {

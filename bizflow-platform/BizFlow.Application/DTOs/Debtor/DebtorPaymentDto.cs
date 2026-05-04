@@ -2,6 +2,12 @@ using BizFlow.Application.DTOs.Reference;
 
 namespace BizFlow.Application.DTOs.Debtor
 {
+    public class DebtorBalanceSyncResultDto
+    {
+        public int MatchedDebtorCount { get; set; }
+        public int UpdatedDebtorCount { get; set; }
+    }
+
     public class DebtorPaymentDto
     {
         public long TransactionId { get; set; }

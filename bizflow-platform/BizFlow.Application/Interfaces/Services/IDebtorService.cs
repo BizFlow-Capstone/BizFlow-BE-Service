@@ -15,6 +15,9 @@ namespace BizFlow.Application.Interfaces.Services
         Task<IEnumerable<DebtorMinimalDto>> GetActiveDebtorsByLocationAsync(Guid userId, int locationId);
         Task<DebtorPaymentDto> RecordPaymentAsync(Guid userId, long debtorId, RecordDebtPaymentRequest request);
         Task<IEnumerable<DebtorPaymentDto>> GetPaymentsAsync(Guid userId, long debtorId);
+        Task<DebtorBalanceSyncResultDto> SyncCurrentBalancesAsync(long? debtorId = null, CancellationToken cancellationToken = default);
+        Task<DebtorPaymentTransaction> RecordSystemDebtIncreaseAsync(Guid userId, long debtorId, decimal amount, string note);
+        Task<DebtorPaymentTransaction> RecordSystemDebtRollbackAsync(Guid userId, long debtorId, decimal amount, string note);
 
         /// <summary>
         /// Writes a system debt-rollback line to the general ledger (e.g. order cancel). Transaction must already be persisted. Caller owns SaveChanges after.
