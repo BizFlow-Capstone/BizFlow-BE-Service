@@ -357,6 +357,7 @@ namespace BizFlow.Application.Services
                     await _revenueService.ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
                         saleRevenues,
                         MessageKeys.OrderCancelledReversalReason,
+                        RevenueStatus.Replaced,
                         userId);
                 }
 
@@ -586,6 +587,7 @@ namespace BizFlow.Application.Services
                 await _revenueService.ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
                     oldSaleRevenues,
                     MessageKeys.OrderCancelledReversalReason,
+                    RevenueStatus.Replaced,
                     userId);
 
                 oldOrder.Status = OrderStatus.Cancelled;

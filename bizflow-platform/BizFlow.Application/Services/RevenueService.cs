@@ -449,16 +449,25 @@ namespace BizFlow.Application.Services
         public async Task ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
             IEnumerable<Revenue> revenues,
             string reversalMessageKey,
+            string supersededStatus,
             Guid? reversalCreatedBy = null,
             CancellationToken cancellationToken = default)
         {
+            if (!string.Equals(supersededStatus, RevenueStatus.Cancelled, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(supersededStatus, RevenueStatus.Replaced, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
             foreach (var revenue in revenues)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (!string.Equals(revenue.Status, RevenueStatus.Posted, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (await _uow.Revenues.HasActiveReversalForRevenueAsync(revenue.RevenueId, cancellationToken))
                     continue;
 
-                var desc = BuildLedgerReversalDescription(reversalMessageKey);
+                var desc = BuildReplacePostedManualRevenueReversalDescription(revenue);
                 var createdBy = reversalCreatedBy ?? revenue.CreatedBy;
                 var reversal = new Revenue
                 {
@@ -480,6 +489,11 @@ namespace BizFlow.Application.Services
                 await _uow.Revenues.AddAsync(reversal);
                 await _uow.SaveChangesAsync(cancellationToken);
                 await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(reversal);
+
+                revenue.Status = supersededStatus.Trim().ToLowerInvariant();
+                revenue.CancelledAt = DateTime.UtcNow;
+                revenue.CancelledBy = createdBy;
+                _uow.Revenues.Update(revenue);
                 await _uow.SaveChangesAsync(cancellationToken);
             }
         }

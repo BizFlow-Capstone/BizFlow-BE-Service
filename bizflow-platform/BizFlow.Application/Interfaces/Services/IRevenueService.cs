@@ -24,6 +24,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task ReversePostedSaleRevenuesLedgerForOrderCancelAsync(
             IEnumerable<Revenue> revenues,
             string reversalMessageKey,
+            string supersededStatus,
             Guid? reversalCreatedBy = null,
             CancellationToken cancellationToken = default);
     }
