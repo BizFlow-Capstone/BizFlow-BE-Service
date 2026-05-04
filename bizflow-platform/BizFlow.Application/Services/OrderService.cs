@@ -239,12 +239,7 @@ namespace BizFlow.Application.Services
                 {
                     var debtor = await _uow.Debtors.GetByIdAsync(order.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-
-                    debtor.CurrentBalance = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
-                        debtor.CurrentBalance,
-                        order.DebtAmount);
-                    debtor.UpdatedAt = DateTime.UtcNow;
-                    _uow.Debtors.Update(debtor);
+                    await RecordSystemDebtIncreaseAsync(debtor, order.DebtAmount, order.OrderCode, userId);
                 }
 
                 order.Status = OrderStatus.Completed;
@@ -498,12 +493,7 @@ namespace BizFlow.Application.Services
                 {
                     var newDebtor = await _uow.Debtors.GetByIdAsync(newOrder.DebtorId.Value)
                         ?? throw new NotFoundException(MessageKeys.DebtorNotFound);
-
-                    newDebtor.CurrentBalance = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
-                        newDebtor.CurrentBalance,
-                        newOrder.DebtAmount);
-                    newDebtor.UpdatedAt = DateTime.UtcNow;
-                    _uow.Debtors.Update(newDebtor);
+                    await RecordSystemDebtIncreaseAsync(newDebtor, newOrder.DebtAmount, newOrder.OrderCode, userId);
                 }
 
                 newOrder.Status = OrderStatus.Completed;
@@ -650,6 +640,33 @@ namespace BizFlow.Application.Services
 
         private static string GenerateOrderCode()
             => $"ORD-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+
+        private async Task RecordSystemDebtIncreaseAsync(
+            Debtor debtor,
+            decimal debtAmount,
+            string orderCode,
+            Guid userId)
+        {
+            var increaseTx = new DebtorPaymentTransaction
+            {
+                DebtorId = debtor.DebtorId,
+                Amount = debtAmount,
+                PaymentMethod = PaymentMethods.System,
+                Notes = _messageService.GetMessage(MessageKeys.OrderAutoDebtIncreaseNote, orderCode),
+                BalanceBefore = debtor.CurrentBalance,
+                BalanceAfter = DebtBalanceSemanticHelper.ApplyOrderDebtIncrease(
+                    debtor.CurrentBalance,
+                    debtAmount),
+                CreatedByUserId = userId,
+                PaidAt = DateTime.UtcNow
+            };
+
+            debtor.CurrentBalance = increaseTx.BalanceAfter;
+            debtor.UpdatedAt = DateTime.UtcNow;
+
+            await _uow.Debtors.AddPaymentAsync(increaseTx);
+            _uow.Debtors.Update(debtor);
+        }
 
         private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
         {

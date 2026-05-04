@@ -47,6 +47,7 @@ namespace BizFlow.Application.Common.Constants
         public const string OrderCancelledReversalReason = "LEDGER_ORDER_CANCELLED_REASON";
         public const string OrderReplacedReason = "ORDER_REPLACED_REASON";
         public const string OrderAutoRollbackNote = "ORDER_AUTO_ROLLBACK_NOTE";
+        public const string OrderAutoDebtIncreaseNote = "ORDER_AUTO_DEBT_INCREASE_NOTE";
         public const string OrderRevenueDescriptionFormat = "ORDER_REVENUE_DESCRIPTION_FORMAT";
         public const string InvalidLookbackUnit = "LEDGER_INVALID_LOOKBACK_UNIT";
         public const string LedgerDateOutOfRange = "LEDGER_DATE_OUT_OF_RANGE";
@@ -223,6 +224,10 @@ namespace BizFlow.Application.Common.Constants
         public const string CostDeleted = "COST_DELETED";
         public const string CostReplacementCreated = "COST_REPLACEMENT_CREATED";
         public const string CostCannotEditCancelledOrReplaced = "COST_CANNOT_EDIT_CANCELLED_OR_REPLACED";
+        public const string CostCannotDeleteReversal = "COST_CANNOT_DELETE_REVERSAL";
+        public const string CostManualOnlyOperation = "COST_MANUAL_ONLY_OPERATION";
+        public const string CostTypeInvalid = "COST_TYPE_INVALID";
+        public const string CostPaymentMethodInvalid = "COST_PAYMENT_METHOD_INVALID";
         public const string CostEditPostedRequiresIdempotencyKey = "COST_EDIT_POSTED_REQUIRES_IDEMPOTENCY_KEY";
         public const string CostReplacedReason = "COST_REPLACED_REASON";
         public const string CostInvalidStatus = "COST_INVALID_STATUS";
@@ -234,6 +239,10 @@ namespace BizFlow.Application.Common.Constants
         public const string RevenueDeleted = "REVENUE_DELETED";
         public const string RevenueReplacementCreated = "REVENUE_REPLACEMENT_CREATED";
         public const string RevenueCannotEditCancelledOrReplaced = "REVENUE_CANNOT_EDIT_CANCELLED_OR_REPLACED";
+        public const string RevenueCannotDeleteReversal = "REVENUE_CANNOT_DELETE_REVERSAL";
+        public const string RevenueManualOnlyOperation = "REVENUE_MANUAL_ONLY_OPERATION";
+        public const string RevenueTypeInvalid = "REVENUE_TYPE_INVALID";
+        public const string RevenueMoneyChannelInvalid = "REVENUE_MONEY_CHANNEL_INVALID";
         public const string RevenueEditPostedRequiresIdempotencyKey = "REVENUE_EDIT_POSTED_REQUIRES_IDEMPOTENCY_KEY";
         public const string RevenueReplacedReason = "REVENUE_REPLACED_REASON";
         public const string RevenueInvalidStatus = "REVENUE_INVALID_STATUS";
