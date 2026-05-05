@@ -222,11 +222,11 @@ namespace BizFlow.Application.Services
                     if (product.TrackInventory != true)
                         continue;
 
-                    product.Stock -= detail.Quantity;
+                    product.Stock -= detail.Quantity * detail.SaleItem.Quantity;
 
                     var movement = _stockMovementService.CreateStockMovement(
                         product,
-                        -detail.Quantity,
+                        -(detail.Quantity * detail.SaleItem.Quantity),
                         StockMovementReferenceType.Order,
                         order.OrderId,
                         order.Note);
@@ -309,11 +309,12 @@ namespace BizFlow.Application.Services
                         if (product.TrackInventory != true)
                             continue;
 
-                        product.Stock += detail.Quantity;
+                        var baseQty = detail.Quantity * detail.SaleItem.Quantity;
+                        product.Stock += baseQty;
 
                         var movement = _stockMovementService.CreateStockMovement(
                             product,
-                            detail.Quantity,
+                            baseQty,
                             StockMovementReferenceType.Order,
                             order.OrderId,
                             request.CancelReason);
@@ -463,10 +464,11 @@ namespace BizFlow.Application.Services
                     if (product.TrackInventory != true)
                         continue;
 
-                    product.Stock -= detail.Quantity;
+                    var baseQtyNew = detail.Quantity * detail.SaleItem.Quantity;
+                    product.Stock -= baseQtyNew;
                     var movement = _stockMovementService.CreateStockMovement(
                         product,
-                        -detail.Quantity,
+                        -baseQtyNew,
                         StockMovementReferenceType.Order,
                         newOrder.OrderId,
                         newOrder.Note);
@@ -514,10 +516,11 @@ namespace BizFlow.Application.Services
                     if (product.TrackInventory != true)
                         continue;
 
-                    product.Stock += detail.Quantity;
+                    var baseQtyOld = detail.Quantity * detail.SaleItem.Quantity;
+                    product.Stock += baseQtyOld;
                     var movement = _stockMovementService.CreateStockMovement(
                         product,
-                        detail.Quantity,
+                        baseQtyOld,
                         StockMovementReferenceType.Order,
                         newOrder.OrderId,
                         _messageService.GetMessage(MessageKeys.OrderReplacedReason, newOrder.OrderCode));
@@ -676,7 +679,7 @@ namespace BizFlow.Application.Services
             foreach (var detail in orderDetails)
             {
                 var product = detail.SaleItem.Product;
-                if (product.TrackInventory == true && detail.Quantity > product.Stock)
+                if (product.TrackInventory == true && detail.Quantity * detail.SaleItem.Quantity > product.Stock)
                 {
                     warnings.Add(MessageKeys.LowStockConfirmRequired);
                 }
@@ -744,7 +747,7 @@ namespace BizFlow.Application.Services
                 discount += item.Discount;
                 total += lineAmount;
 
-                if (saleItem.Product.TrackInventory == true && item.Quantity > saleItem.Product.Stock/saleItem.Quantity)
+                if (saleItem.Product.TrackInventory == true && item.Quantity * saleItem.Quantity > saleItem.Product.Stock)
                 {
                     warnings.Add(MessageKeys.LowStockConfirmRequired);
                 }
