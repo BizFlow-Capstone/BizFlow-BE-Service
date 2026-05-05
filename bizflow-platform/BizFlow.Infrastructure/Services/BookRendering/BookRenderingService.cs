@@ -696,13 +696,12 @@ public class BookRenderingService : IBookRenderingService
             ToDate = ctx.PeriodEnd,
             PageNumber = pageNumber,
             PageSize = safeBatchSize + 1, // +1 to check hasMore
-            IncludeReversal = true
+            IncludeReversal = true,
+            ExcludeCancelled = true   // push filter to DB so hasMore/cursor is accurate
         };
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
-        var list = items
-            .Where(r => r.Status != RevenueStatus.Cancelled)
-            .ToList();
+        var list = items.ToList();
 
         var hasMore = list.Count > safeBatchSize;
         if (hasMore) list = list.Take(safeBatchSize).ToList();
@@ -806,11 +805,12 @@ public class BookRenderingService : IBookRenderingService
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
             PageNumber = pageNumber,
-            PageSize = safeBatchSize + 1
+            PageSize = safeBatchSize + 1,
+            ExcludeReversal = true   // push filter to DB so hasMore/cursor is accurate
         };
 
         var (items, totalCount) = await _uow.GeneralLedgerEntries.SearchAsync(query);
-        var list = items.Where(e => !e.IsReversal).ToList();
+        var list = items.ToList();
 
         var hasMore = list.Count > safeBatchSize;
         if (hasMore) list = list.Take(safeBatchSize).ToList();

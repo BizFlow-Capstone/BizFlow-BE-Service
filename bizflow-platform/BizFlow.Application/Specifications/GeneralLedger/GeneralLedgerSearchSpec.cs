@@ -43,6 +43,9 @@ namespace BizFlow.Application.Specifications.GeneralLedger
             if (query.ToDate.HasValue)
                 AddCriteria(e => e.EntryDate <= query.ToDate.Value);
 
+            if (query.ExcludeReversal)
+                AddCriteria(e => !e.IsReversal);
+
             var viewMode = (query.ViewMode ?? GeneralLedgerViewMode.Audit).Trim().ToLowerInvariant();
             if (viewMode == GeneralLedgerViewMode.Effective)
             {

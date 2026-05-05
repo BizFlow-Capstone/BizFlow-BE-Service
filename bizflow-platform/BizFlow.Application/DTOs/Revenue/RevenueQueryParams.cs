@@ -11,6 +11,12 @@ namespace BizFlow.Application.DTOs.Revenue
 
         public bool IncludeReversal { get; set; }
 
+        /// <summary>
+        /// When true, rows with Status == Cancelled are excluded at the DB level.
+        /// Use this for accounting book queries so that hasMore / cursor logic is correct.
+        /// </summary>
+        public bool ExcludeCancelled { get; set; }
+
         public string? RevenueType { get; set; }
         public string? Status { get; set; }
         public string? MoneyChannel { get; set; }
