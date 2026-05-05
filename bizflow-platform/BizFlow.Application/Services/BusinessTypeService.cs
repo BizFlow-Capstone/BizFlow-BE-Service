@@ -29,5 +29,23 @@ namespace BizFlow.Application.Services
                 Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status),
             });
         }
+
+        public async Task<BusinessTypeDto> GetActiveByIdAsync(Guid businessTypeId)
+        {
+            var bt = await _unitOfWork.BusinessTypes.GetActiveByIdAsync(businessTypeId);
+            if (bt is null)
+            {
+                throw new KeyNotFoundException(MessageKeys.NotFound);
+            }
+
+            return new BusinessTypeDto
+            {
+                BusinessTypeId = bt.BusinessTypeId,
+                Code = bt.Code,
+                Name = bt.Name,
+                Description = bt.Description,
+                Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status),
+            };
+        }
     }
 }

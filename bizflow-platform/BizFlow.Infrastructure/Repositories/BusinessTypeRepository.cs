@@ -27,6 +27,14 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync(bt => bt.BusinessTypeId == id);
         }
 
+        public async Task<BusinessType?> GetActiveByIdAsync(Guid id)
+        {
+            return await _context.BusinessTypes
+                .FirstOrDefaultAsync(bt =>
+                    bt.BusinessTypeId == id &&
+                    bt.Status == "active");
+        }
+
         public async Task<BusinessType?> GetByCodeAsync(string code)
         {
             return await _context.BusinessTypes

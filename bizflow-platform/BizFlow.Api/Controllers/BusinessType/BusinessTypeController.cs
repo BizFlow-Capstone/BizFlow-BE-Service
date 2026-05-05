@@ -27,17 +27,22 @@ namespace BizFlow.Api.Controllers.BusinessType
         }
 
         /// <summary>
-        /// Get all business types
+        /// Get active business type by id
         /// </summary>
-        [HttpGet]
-        [SwaggerOperation(Summary = "Get all business types", Description = "Returns all available business types.")]
+        [HttpGet("{businessTypeId:guid}")]
+        [SwaggerOperation(Summary = "Get active business type by id", Description = "Returns one active business type by id.")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAll()
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetActiveById(Guid businessTypeId)
         {
             try
             {
-                var businessTypes = await _businessTypeService.GetAllAsync();
-                return Ok(businessTypes, MessageKeys.DataRetrievedSuccessfully);
+                var businessType = await _businessTypeService.GetActiveByIdAsync(businessTypeId);
+                return Ok(businessType, MessageKeys.DataRetrievedSuccessfully);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(MessageKeys.NotFound);
             }
             catch (Exception ex)
             {
