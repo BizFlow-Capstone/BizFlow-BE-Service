@@ -176,7 +176,7 @@ public class AdminAccountingController : BaseApiController
     public async Task<IActionResult> DeleteFormula(long formulaId)
     {
         EnsureAdminOnly();
-        await _adminAccountingService.DeleteFormulaAsync(formulaId, User.GetRequiredUserId());
+        await _adminAccountingService.DeleteFormulaAsync(formulaId);
         return Ok(MessageKeys.DataDeletedSuccessfully);
     }
 

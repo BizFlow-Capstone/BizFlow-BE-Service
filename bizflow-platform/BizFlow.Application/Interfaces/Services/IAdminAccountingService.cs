@@ -22,7 +22,7 @@ public interface IAdminAccountingService
     Task<AdminFormulaDto> CreateFormulaAsync(CreateFormulaRequest request, Guid actorUserId);
     Task<AdminFormulaDto> UpdateFormulaForTestingAsync(long formulaId, UpdateFormulaForTestingRequest request);
     Task<AdminFormulaDto> CloneFormulaAsync(long formulaId, CloneFormulaRequest request);
-    Task<bool> DeleteFormulaAsync(long formulaId, Guid actorUserId);
+    Task<bool> DeleteFormulaAsync(long formulaId);
 
     Task<AdminTaxRulesetDto> ActivateTaxRulesetAsync(int rulesetId);
     Task<AdminTaxRulesetDto> DeactivateTaxRulesetAsync(int rulesetId);

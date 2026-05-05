@@ -525,7 +525,7 @@ public class AdminAccountingService : IAdminAccountingService
         return MapFormula(clone);
     }
 
-    public async Task<bool> DeleteFormulaAsync(long formulaId, Guid actorUserId)
+    public async Task<bool> DeleteFormulaAsync(long formulaId)
     {
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
@@ -535,7 +535,6 @@ public class AdminAccountingService : IAdminAccountingService
             throw new BadRequestException(MessageKeys.FormulaCannotDeleteActive);
         }
 
-        _ = actorUserId;
         _uow.FormulaDefinitions.Delete(formula);
         await _uow.SaveChangesAsync();
         return true;
