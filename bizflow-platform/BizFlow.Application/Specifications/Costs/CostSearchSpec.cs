@@ -10,7 +10,8 @@ namespace BizFlow.Application.Specifications.Costs
         public CostSearchSpec(CostQueryParams query, bool isCount = false, bool filterOnly = false)
             : base(c => c.BusinessLocationId == query.BusinessLocationId)
         {
-            AddCriteria(c => !c.IsReversal);
+            if (!query.IncludeReversal)
+                AddCriteria(c => !c.IsReversal);
 
             if (!string.IsNullOrWhiteSpace(query.CostType))
             {

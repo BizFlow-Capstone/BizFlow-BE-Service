@@ -9,6 +9,8 @@ namespace BizFlow.Application.DTOs.Revenue
         [Range(1, int.MaxValue)]
         public int BusinessLocationId { get; set; }
 
+        public bool IncludeReversal { get; set; }
+
         public string? RevenueType { get; set; }
         public string? Status { get; set; }
         public string? MoneyChannel { get; set; }

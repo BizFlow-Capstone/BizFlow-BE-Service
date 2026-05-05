@@ -9,6 +9,8 @@ namespace BizFlow.Application.DTOs.Cost
         [Range(1, int.MaxValue)]
         public int BusinessLocationId { get; set; }
 
+        public bool IncludeReversal { get; set; }
+
         /// <summary>
         /// Filter by business type (industry)
         /// </summary>

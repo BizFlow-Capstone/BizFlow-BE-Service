@@ -9,7 +9,8 @@ namespace BizFlow.Application.Specifications.Revenues
         public RevenueSearchSpec(RevenueQueryParams query, bool isCount, bool filterOnly = false)
             : base(r => r.BusinessLocationId == query.BusinessLocationId)
         {
-            AddCriteria(r => !r.IsReversal);
+            if (!query.IncludeReversal)
+                AddCriteria(r => !r.IsReversal);
 
             if (!string.IsNullOrWhiteSpace(query.RevenueType))
             {

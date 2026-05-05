@@ -695,7 +695,8 @@ public class BookRenderingService : IBookRenderingService
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
             PageNumber = pageNumber,
-            PageSize = safeBatchSize + 1 // +1 to check hasMore
+            PageSize = safeBatchSize + 1, // +1 to check hasMore
+            IncludeReversal = true
         };
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
@@ -747,7 +748,8 @@ public class BookRenderingService : IBookRenderingService
             FromDate = ctx.PeriodStart,
             ToDate = ctx.PeriodEnd,
             PageNumber = 1,
-            PageSize = int.MaxValue
+            PageSize = int.MaxValue,
+            IncludeReversal = true
         };
         var (costItems, _) = await _uow.Costs.SearchAsync(costQuery);
 
@@ -1077,7 +1079,8 @@ public class BookRenderingService : IBookRenderingService
             FromDate = context.PeriodStart,
             ToDate = context.PeriodEnd,
             PageNumber = 1,
-            PageSize = int.MaxValue
+            PageSize = int.MaxValue,
+            IncludeReversal = true
         };
 
         var (items, _) = await _uow.Revenues.SearchAsync(query);
@@ -1096,7 +1099,8 @@ public class BookRenderingService : IBookRenderingService
             FromDate = context.PeriodStart,
             ToDate = context.PeriodEnd,
             PageNumber = 1,
-            PageSize = int.MaxValue
+            PageSize = int.MaxValue,
+            IncludeReversal = true
         };
 
         var (items, _) = await _uow.Costs.SearchAsync(query);
