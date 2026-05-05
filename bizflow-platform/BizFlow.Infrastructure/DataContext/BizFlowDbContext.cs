@@ -275,6 +275,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => new { e.BusinessLocationId, e.CostType }, "idx_cost_type");
 
+            entity.HasIndex(e => e.CostCode, "idx_cost_code").IsUnique();
+
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
                 .HasComment("Expense amount");
@@ -283,6 +285,9 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.CostType)
                 .HasMaxLength(30)
                 .HasComment("import | salary | rent | utilities | transport | marketing | maintenance | other | manual");
+            entity.Property(e => e.CostCode)
+                .HasMaxLength(50)
+                .HasComment("Auto-generated cost code");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime");
@@ -769,7 +774,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasComment("URL of attached image/document");
             entity.Property(e => e.ImportCode)
                 .HasMaxLength(50)
-                .HasComment("Auto-generated import code (e.g. PNK-2026-001)");
+                .HasComment("Auto-generated import code, format: IMP-YYYYMMDD-LOCATIONID-NNN");
             entity.Property(e => e.ImportType)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'INVOICE'")
@@ -904,7 +909,7 @@ public partial class BizFlowDbContext : DbContext
                 .HasColumnType("text");
             entity.Property(e => e.OrderCode)
                 .HasMaxLength(50)
-                .HasComment("Unique order code, format: ORD-YYYYMMDD-NNN");
+                .HasComment("Unique order code, format: ORD-YYYYMMDD-LOCATIONID-NNNNN");
             entity.Property(e => e.RefOrderId).HasComment("Self-FK: original order replaced when editing a completed order");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
@@ -1167,6 +1172,8 @@ public partial class BizFlowDbContext : DbContext
 
             entity.HasIndex(e => e.RevenueType, "idx_revenue_type");
 
+            entity.HasIndex(e => e.RevenueCode, "idx_revenue_code").IsUnique();
+
             entity.Property(e => e.Amount)
                 .HasPrecision(15, 2)
                 .HasComment("Revenue amount");
@@ -1193,6 +1200,9 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.RevenueType)
                 .HasMaxLength(20)
                 .HasComment("sale | manual");
+            entity.Property(e => e.RevenueCode)
+                .HasMaxLength(50)
+                .HasComment("Auto-generated revenue code");
 
             entity.HasOne(d => d.BusinessLocation).WithMany(p => p.Revenues)
                 .HasForeignKey(d => d.BusinessLocationId)

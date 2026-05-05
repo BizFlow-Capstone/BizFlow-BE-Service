@@ -2,6 +2,7 @@ using System.Globalization;
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Accounting;
@@ -67,7 +68,7 @@ namespace BizFlow.Application.Services
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
             var ownerId = await ResolveOwnerIdAsync(request.BusinessLocationId);
 
-            var revenue = await _uow.ExecuteResilientAsync(async ct =>
+            var revenue = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 if (docNumberNormalized != null)
                 {
@@ -87,6 +88,7 @@ namespace BizFlow.Application.Services
 
                 var entity = new Revenue
                 {
+                    RevenueCode = EntityCodeGenerator.Generate("REV", DateTime.UtcNow, request.BusinessLocationId, 5),
                     BusinessLocationId = request.BusinessLocationId,
                     BusinessTypeId = businessTypeId,
                     RevenueType = RevenueType.Manual,
@@ -110,7 +112,7 @@ namespace BizFlow.Application.Services
                 await _uow.SaveChangesAsync(ct);
 
                 return entity;
-            });
+            }));
 
             _backgroundJobScheduler.EnqueueAiAnomalyCheck(
                 revenue.BusinessLocationId, "revenue", revenue.RevenueId);
@@ -171,7 +173,7 @@ namespace BizFlow.Application.Services
             var docNumberNormalized = _documentNumberRegistry.NormalizeOrNull(request.DocumentNumber);
             var ownerId = await ResolveOwnerIdAsync(revenuePreview.BusinessLocationId);
 
-            var newRevenue = await _uow.ExecuteResilientAsync(async ct =>
+            var newRevenue = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Revenues.LockRevenueRowForUpdateAsync(revenueId, ct);
 
@@ -201,6 +203,9 @@ namespace BizFlow.Application.Services
                 var replaceReversalDesc = BuildReplacePostedManualRevenueReversalDescription(old);
                 var revenueReversal = new Revenue
                 {
+                    RevenueCode = string.IsNullOrWhiteSpace(old.RevenueCode)
+                        ? EntityCodeGenerator.Generate("REV", DateTime.UtcNow, old.BusinessLocationId, 5)
+                        : $"R{old.RevenueCode}",
                     BusinessLocationId = old.BusinessLocationId,
                     BusinessTypeId = old.BusinessTypeId,
                     OrderId = old.OrderId,
@@ -246,6 +251,7 @@ namespace BizFlow.Application.Services
 
                 var created = new Revenue
                 {
+                    RevenueCode = EntityCodeGenerator.Generate("REV", DateTime.UtcNow, old.BusinessLocationId, 5),
                     BusinessLocationId = old.BusinessLocationId,
                     BusinessTypeId = businessTypeId,
                     RevenueType = RevenueType.Manual,
@@ -271,7 +277,7 @@ namespace BizFlow.Application.Services
                 await _uow.SaveChangesAsync(ct);
 
                 return created;
-            });
+            }));
 
             _backgroundJobScheduler.EnqueueAiAnomalyCheck(
                 newRevenue.BusinessLocationId, "revenue", newRevenue.RevenueId);
@@ -405,7 +411,7 @@ namespace BizFlow.Application.Services
                 return;
             }
 
-            await _uow.ExecuteResilientAsync(async ct =>
+            await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Revenues.LockRevenueRowForUpdateAsync(revenueId, ct);
                 var current = await _uow.Revenues.GetByIdAsync(revenueId)
@@ -417,6 +423,9 @@ namespace BizFlow.Application.Services
                 var deleteReversalDesc = BuildReplacePostedManualRevenueReversalDescription(current);
                 var reversal = new Revenue
                 {
+                    RevenueCode = string.IsNullOrWhiteSpace(current.RevenueCode)
+                        ? EntityCodeGenerator.Generate("REV", DateTime.UtcNow, current.BusinessLocationId, 5)
+                        : $"R{current.RevenueCode}",
                     BusinessLocationId = current.BusinessLocationId,
                     BusinessTypeId = current.BusinessTypeId,
                     OrderId = current.OrderId,
@@ -441,7 +450,7 @@ namespace BizFlow.Application.Services
                 current.CancelledBy = userId;
                 _uow.Revenues.Update(current);
                 await _uow.SaveChangesAsync(ct);
-            });
+            }));
         }
         public async Task RecordPostedSaleRevenuesToLedgerAsync(
             IEnumerable<Revenue> revenues,
@@ -479,6 +488,9 @@ namespace BizFlow.Application.Services
                 var createdBy = reversalCreatedBy ?? revenue.CreatedBy;
                 var reversal = new Revenue
                 {
+                    RevenueCode = string.IsNullOrWhiteSpace(revenue.RevenueCode)
+                        ? EntityCodeGenerator.Generate("REV", DateTime.UtcNow, revenue.BusinessLocationId, 5)
+                        : $"R{revenue.RevenueCode}",
                     BusinessLocationId = revenue.BusinessLocationId,
                     BusinessTypeId = revenue.BusinessTypeId,
                     OrderId = revenue.OrderId,
@@ -509,7 +521,7 @@ namespace BizFlow.Application.Services
         private string BuildReplacePostedManualRevenueReversalDescription(Revenue supersededRevenue)
         {
             var datePart = supersededRevenue.RevenueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-            var baseDescription = $"Bút toán đảo của doanh thu {datePart}";
+            var baseDescription = $"Bút toán đảo của doanh thu ngày {datePart}";
             var sourceDescription = supersededRevenue.Description?.Trim();
             return string.IsNullOrWhiteSpace(sourceDescription)
                 ? baseDescription

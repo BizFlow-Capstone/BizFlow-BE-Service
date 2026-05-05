@@ -1,3 +1,6 @@
+using BizFlow.Application.Common.Constants;
+using BizFlow.Application.DTOs.Reference;
+
 namespace BizFlow.Application.DTOs.Import
 {
     /// <summary>
@@ -6,6 +9,12 @@ namespace BizFlow.Application.DTOs.Import
     public class ImportDetailDto : ImportSummaryDto
     {
         public string? ImageUrl { get; set; }
+        /// <summary>
+        /// Payment method (optional). <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>system</c>}
+        /// (see <see cref="PaymentMethods"/>).
+        /// <c>Label</c> is localized by <c>Accept-Language</c>.
+        /// </summary>
+        public ReferenceOptionDto? PaymentMethod { get; set; }
         public List<ImportItemDetailDto> Items { get; set; } = new();
     }
 

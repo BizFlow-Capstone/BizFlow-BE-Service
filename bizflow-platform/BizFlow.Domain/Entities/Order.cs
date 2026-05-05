@@ -11,7 +11,7 @@ public partial class Order
     public long OrderId { get; set; }
 
     /// <summary>
-    /// Unique order code, format: ORD-YYYYMMDD-NNN
+    /// Unique order code, format: ORD-YYYYMMDD-LOCATIONID-NNNNN
     /// </summary>
     public string OrderCode { get; set; } = null!;
 

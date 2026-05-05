@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.Common.Models;
@@ -9,11 +10,13 @@ using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
+using System.Text.Json.Nodes;
 
 namespace BizFlow.Application.Services
 {
     public class ImportService : IImportService
     {
+        private const string DraftPaymentMethodMetadataKey = "paymentMethod";
         private readonly IUnitOfWork _unitOfWork;
         private readonly IImageService _imageService;
         private readonly IStockMovementService _stockMovementService;
@@ -51,11 +54,16 @@ namespace BizFlow.Application.Services
             return dto;
         }
 
-        private ImportDetailDto ToDetailDto(Import import)
+        private async Task<ImportDetailDto> ToDetailDtoAsync(Import import)
         {
             var dto = _mapper.Map<ImportDetailDto>(import);
             dto.ImportType = _labels.ToOption(ReferenceCategory.ImportType, import.ImportType);
             dto.Status = _labels.ToOption(ReferenceCategory.ImportStatus, import.Status);
+            var importCost = await _unitOfWork.Costs.GetByImportIdAsync(import.ImportId);
+            var paymentMethodCode = importCost?.PaymentMethod ?? GetDraftPaymentMethodFromMetadata(import.SchemaDataJson);
+            dto.PaymentMethod = _labels.ToOptionOrNull(
+                ReferenceCategory.PaymentMethod,
+                paymentMethodCode);
             return dto;
         }
 
@@ -104,14 +112,7 @@ namespace BizFlow.Application.Services
             if (!request.SaveAsDraft && (request.Items == null || request.Items.Count == 0))
                 throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
 
-            string? normalizedPaymentMethod = null;
-            if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
-            {
-                if (!PaymentMethods.IsValid(request.PaymentMethod))
-                    throw new BadRequestException(MessageKeys.BadRequest);
-
-                normalizedPaymentMethod = request.PaymentMethod.Trim().ToLowerInvariant();
-            }
+            var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
 
             // Validate and build items
             var (items, totalAmount) = await BuildImportItemsAsync(request.BusinessLocationId, request.Items);
@@ -129,7 +130,8 @@ namespace BizFlow.Application.Services
                 receivedAt: request.SaveAsDraft ? null : request.ReceivedAt,
                 imageStream: request.ImageStream,
                 imageFileName: request.ImageFileName,
-                applyToStock: !request.SaveAsDraft);
+                applyToStock: !request.SaveAsDraft,
+                draftPaymentMethod: request.SaveAsDraft ? normalizedPaymentMethod : null);
 
             // Auto create import cost + GL when created directly as CONFIRMED.
             if (status == ImportStatus.Confirmed)
@@ -200,6 +202,15 @@ namespace BizFlow.Application.Services
                 import.ImagePublicId = imageInfo.PublicId;
             }
 
+            if (request.PaymentMethod != null)
+            {
+                var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
+                import.SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+                    import.SchemaDataJson,
+                    normalizedPaymentMethod,
+                    removeWhenNull: true);
+            }
+
             foreach (var old in import.ProductsImports.ToList())
                 _unitOfWork.Imports.DeleteItem(old);
 
@@ -262,10 +273,11 @@ namespace BizFlow.Application.Services
             var receivedAt = request.ReceivedAt ?? oldPreview.ReceivedAt;
             if (!receivedAt.HasValue)
                 throw new BadRequestException(MessageKeys.ImportDateRequiredOnConfirm);
+            var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
 
             Import newImportResult = null!;
 
-            await _unitOfWork.ExecuteResilientAsync(async ct =>
+            await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _unitOfWork.ExecuteResilientAsync(async ct =>
             {
                 await _unitOfWork.Imports.LockImportRowForUpdateAsync(oldImportId, ct);
 
@@ -282,7 +294,7 @@ namespace BizFlow.Application.Services
                     return;
                 }
 
-                var newCode = GenerateImportCode();
+                var newCode = EntityCodeGenerator.Generate("IMP", DateTime.UtcNow, old.BusinessLocationId, 3);
 
                 if (!string.IsNullOrWhiteSpace(request.ImportType)
                     && !ImportType.IsValid(request.ImportType.Trim()))
@@ -359,11 +371,11 @@ namespace BizFlow.Application.Services
                     newImport,
                     request.DocumentNumber,
                     request.DocumentDate,
-                    request.PaymentMethod,
+                    normalizedPaymentMethod,
                     cancellationToken: ct);
 
                 newImportResult = newImport;
-            });
+            }));
 
             _backgroundJobScheduler.EnqueueAiAnomalyCheck(newImportResult.BusinessLocationId, "import", newImportResult.ImportId);
 
@@ -402,6 +414,10 @@ namespace BizFlow.Application.Services
             if (import.ProductsImports == null || import.ProductsImports.Count == 0)
                 throw new BadRequestException(MessageKeys.ImportItemsRequiredOnConfirm);
 
+            var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
+            var paymentMethodForCost = normalizedPaymentMethod
+                ?? GetDraftPaymentMethodFromMetadata(import.SchemaDataJson);
+
             // Add quantity to product stock and update CostPrice
             await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId, import.Note);
 
@@ -416,7 +432,14 @@ namespace BizFlow.Application.Services
                 import,
                 request.DocumentNumber,
                 request.DocumentDate,
-                request.PaymentMethod);
+                paymentMethodForCost);
+
+            import.SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+                import.SchemaDataJson,
+                null,
+                removeWhenNull: true);
+            _unitOfWork.Imports.Update(import);
+            await _unitOfWork.SaveChangesAsync();
 
             // Fire-and-forget: enqueue AI anomaly check via Hangfire.
             // If AI Service is down, the job will retry — does not block user.
@@ -479,7 +502,7 @@ namespace BizFlow.Application.Services
 
             await EnsureAccessToLocationAsync(userId, import.BusinessLocationId);
 
-            return ToDetailDto(import);
+            return await ToDetailDtoAsync(import);
         }
 
         #endregion
@@ -518,7 +541,8 @@ namespace BizFlow.Application.Services
                 receivedAt: DateTime.UtcNow,
                 imageStream: null,
                 imageFileName: null,
-                applyToStock: true);
+                applyToStock: true,
+                draftPaymentMethod: null);
 
             await _costService.CreateImportCostAsync(userId, import);
 
@@ -630,11 +654,6 @@ namespace BizFlow.Application.Services
             }
         }
 
-        private static string GenerateImportCode()
-        {
-            return Guid.NewGuid().ToString("N")[..12].ToUpper();
-        }
-
         private async Task<Import> CreateImportRecordAsync(
             string importType,
             string status,
@@ -646,23 +665,29 @@ namespace BizFlow.Application.Services
             DateTime? receivedAt,
             Stream? imageStream,
             string? imageFileName,
-            bool applyToStock)
+            bool applyToStock,
+            string? draftPaymentMethod = null)
         {
-            return await _unitOfWork.ExecuteResilientAsync(async _ =>
+            return await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _unitOfWork.ExecuteResilientAsync(async _ =>
             {
+                var now = DateTime.UtcNow;
                 var import = new Import
                 {
-                    ImportCode = GenerateImportCode(),
+                    ImportCode = EntityCodeGenerator.Generate("IMP", now, businessLocationId, 3),
                     ImportType = importType,
                     Status = status,
                     BusinessLocationId = businessLocationId,
                     Supplier = supplier,
                     Note = memo,
                     ReceivedAt = receivedAt,
+                    SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+                        schemaDataJson: null,
+                        paymentMethod: draftPaymentMethod,
+                        removeWhenNull: false),
                     TotalAmount = totalAmount,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = status == ImportStatus.Draft ? null : DateTime.UtcNow,
-                    ConfirmedAt = status == ImportStatus.Confirmed ? DateTime.UtcNow : null
+                    CreatedAt = now,
+                    UpdatedAt = status == ImportStatus.Draft ? null : now,
+                    ConfirmedAt = status == ImportStatus.Confirmed ? now : null
                 };
 
                 if (imageStream != null)
@@ -685,7 +710,7 @@ namespace BizFlow.Application.Services
 
                 await _unitOfWork.SaveChangesAsync();
                 return import;
-            });
+            }));
         }
 
         private async Task<(List<ProductImport> items, decimal totalAmount)> BuildImportItemsAsync(
@@ -732,6 +757,72 @@ namespace BizFlow.Application.Services
 
             if (costPrice < 0)
                 throw new BadRequestException(MessageKeys.BadRequest);
+        }
+
+        private static string? NormalizePaymentMethodOrThrow(string? paymentMethod)
+        {
+            if (string.IsNullOrWhiteSpace(paymentMethod))
+                return null;
+
+            if (!PaymentMethods.IsValid(paymentMethod))
+                throw new BadRequestException(MessageKeys.BadRequest);
+
+            return paymentMethod.Trim().ToLowerInvariant();
+        }
+
+        private static string? GetDraftPaymentMethodFromMetadata(string? schemaDataJson)
+        {
+            if (string.IsNullOrWhiteSpace(schemaDataJson))
+                return null;
+
+            try
+            {
+                var node = JsonNode.Parse(schemaDataJson);
+                if (node is not JsonObject jsonObject
+                    || !jsonObject.TryGetPropertyValue(DraftPaymentMethodMetadataKey, out var paymentMethodNode))
+                    return null;
+
+                var paymentMethod = paymentMethodNode?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(paymentMethod) || !PaymentMethods.IsValidInternal(paymentMethod))
+                    return null;
+
+                return paymentMethod.Trim().ToLowerInvariant();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string? UpsertDraftPaymentMethodMetadata(
+            string? schemaDataJson,
+            string? paymentMethod,
+            bool removeWhenNull)
+        {
+            JsonObject jsonObject;
+
+            try
+            {
+                jsonObject = string.IsNullOrWhiteSpace(schemaDataJson)
+                    ? new JsonObject()
+                    : JsonNode.Parse(schemaDataJson) as JsonObject ?? new JsonObject();
+            }
+            catch
+            {
+                jsonObject = new JsonObject();
+            }
+
+            if (string.IsNullOrWhiteSpace(paymentMethod))
+            {
+                if (removeWhenNull)
+                    jsonObject.Remove(DraftPaymentMethodMetadataKey);
+            }
+            else
+            {
+                jsonObject[DraftPaymentMethodMetadataKey] = paymentMethod;
+            }
+
+            return jsonObject.Count == 0 ? null : jsonObject.ToJsonString();
         }
 
         private async Task EnsureOwnerOfLocationAsync(Guid userId, int locationId)

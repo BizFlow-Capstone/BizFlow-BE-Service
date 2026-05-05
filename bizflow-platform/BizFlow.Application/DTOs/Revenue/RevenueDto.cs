@@ -5,6 +5,7 @@ namespace BizFlow.Application.DTOs.Revenue
     public class RevenueDto
     {
         public long RevenueId { get; set; }
+        public string? RevenueCode { get; set; }
         public int BusinessLocationId { get; set; }
         public Guid BusinessTypeId { get; set; }
         public string? BusinessTypeName { get; set; }

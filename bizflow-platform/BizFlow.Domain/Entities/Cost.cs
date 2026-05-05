@@ -10,6 +10,11 @@ public partial class Cost
     public long CostId { get; set; }
 
     /// <summary>
+    /// Auto-generated cost code.
+    /// </summary>
+    public string? CostCode { get; set; }
+
+    /// <summary>
     /// FK to BusinessLocations
     /// </summary>
     public int BusinessLocationId { get; set; }

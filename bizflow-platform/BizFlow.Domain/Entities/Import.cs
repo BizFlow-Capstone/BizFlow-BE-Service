@@ -8,7 +8,7 @@ public partial class Import
     public long ImportId { get; set; }
 
     /// <summary>
-    /// Auto-generated import code (e.g. PNK-2026-001)
+    /// Auto-generated import code, format: IMP-YYYYMMDD-LOCATIONID-NNN
     /// </summary>
     public string? ImportCode { get; set; }
 
