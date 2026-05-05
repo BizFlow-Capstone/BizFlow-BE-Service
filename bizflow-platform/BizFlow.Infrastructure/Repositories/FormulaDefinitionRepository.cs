@@ -56,6 +56,11 @@ public class FormulaDefinitionRepository : IFormulaDefinitionRepository
         return formula;
     }
 
+    public void Delete(FormulaDefinition formula)
+    {
+        _context.Set<FormulaDefinition>().Remove(formula);
+    }
+
     public void Update(FormulaDefinition formula)
     {
         _context.Set<FormulaDefinition>().Update(formula);

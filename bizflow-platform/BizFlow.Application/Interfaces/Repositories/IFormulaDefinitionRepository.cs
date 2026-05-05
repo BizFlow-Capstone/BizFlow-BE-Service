@@ -10,5 +10,6 @@ public interface IFormulaDefinitionRepository
     Task<List<FormulaDefinition>> GetAllAsync();
     Task<FormulaDefinition?> GetByIdAsync(long formulaId);
     Task<FormulaDefinition> AddAsync(FormulaDefinition formula);
+    void Delete(FormulaDefinition formula);
     void Update(FormulaDefinition formula);
 }

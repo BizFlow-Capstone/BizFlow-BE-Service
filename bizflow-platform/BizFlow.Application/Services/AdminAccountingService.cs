@@ -525,6 +525,28 @@ public class AdminAccountingService : IAdminAccountingService
         return MapFormula(clone);
     }
 
+    public async Task<bool> DeleteFormulaAsync(long formulaId, Guid actorUserId)
+    {
+        _ = actorUserId;
+        var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        try
+        {
+            _uow.FormulaDefinitions.Delete(formula);
+            await _uow.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex) when (IsForeignKeyDeleteConstraintViolation(ex))
+        {
+            formula.IsActive = false;
+            formula.UpdatedAt = DateTime.UtcNow;
+            _uow.FormulaDefinitions.Update(formula);
+            await _uow.SaveChangesAsync();
+            return false;
+        }
+    }
+
     public async Task<AdminTaxRulesetDto> ActivateTaxRulesetAsync(int rulesetId)
     {
         var rulesets = await _uow.TaxRulesets.GetAllWithRulesAsync();
