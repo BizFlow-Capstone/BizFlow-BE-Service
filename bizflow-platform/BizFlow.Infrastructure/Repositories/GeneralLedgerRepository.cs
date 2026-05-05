@@ -169,5 +169,23 @@ namespace BizFlow.Infrastructure.Repositories
                 _ => 0m
             };
         }
+
+        public async Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerTotalsQueryParams query)
+        {
+            var baseQuery = _db.GeneralLedgerEntries
+                .Where(e => e.BusinessLocationId == query.BusinessLocationId
+                    && e.EntryDate >= query.FromDate!.Value
+                    && e.EntryDate <= query.ToDate!.Value);
+
+            var totalRevenue = await baseQuery
+                .Where(e => e.ReferenceType == GeneralLedgerReferenceType.Revenue)
+                .SumAsync(e => e.DebitAmount - e.CreditAmount);
+
+            var totalCost = await baseQuery
+                .Where(e => e.ReferenceType == GeneralLedgerReferenceType.Cost)
+                .SumAsync(e => e.CreditAmount - e.DebitAmount);
+
+            return (totalRevenue, totalCost);
+        }
     }
 }

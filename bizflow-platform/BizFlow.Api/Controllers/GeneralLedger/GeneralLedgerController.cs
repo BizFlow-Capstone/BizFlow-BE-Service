@@ -48,6 +48,21 @@ namespace BizFlow.Api.Controllers.GeneralLedger
             return OkPaginated(result, MessageKeys.DataRetrievedSuccessfully);
         }
 
+        [HttpGet("gl-totals")]
+        [SwaggerOperation(
+            Summary = "Tổng doanh thu và tổng chi phí (sổ cái)",
+            Description = "Cộng dồn chỉ từ general_ledger_entry: doanh thu theo reference_type=revenue (net Nợ−Có), " +
+                          "chi phí theo reference_type=cost (net Có−Nợ). Không đọc bảng revenues/costs.")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetTotals([FromQuery] GeneralLedgerTotalsQueryParams query)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _generalLedgerService.GetTotalsAsync(userId, query);
+            return Ok(result, MessageKeys.DataRetrievedSuccessfully);
+        }
+
         private Guid GetCurrentUserId() => User.GetRequiredUserId();
     }
 }

@@ -39,6 +39,139 @@ namespace BizFlow.Application.Services
 
         public async Task<PaginatedResponse<GeneralLedgerEntryDto>> ListAsync(Guid userId, GeneralLedgerQueryParams query)
         {
+            await ValidateAndNormalizeLedgerQueryAsync(userId, query);
+
+            var (items, total) = await _uow.GeneralLedgerEntries.SearchAsync(query);
+            var itemList = items.ToList();
+            var dtos = _mapper.Map<List<GeneralLedgerEntryDto>>(itemList);
+
+            // Enrich i18n reference fields (dto fields ignored by AutoMapper profile)
+            // plus track the raw reference_type code for downstream processing.
+            var rawReferenceTypes = new string[dtos.Count];
+            for (var i = 0; i < dtos.Count; i++)
+            {
+                var entity = itemList[i];
+                var dto = dtos[i];
+
+                dto.TransactionType = _labels.ToOption(ReferenceCategory.GeneralLedgerTransactionType, entity.TransactionType);
+                dto.MoneyChannel = entity.MoneyChannel != null
+                    && entity.MoneyChannel.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, entity.MoneyChannel);
+
+                if (dto.Source != null)
+                {
+                    dto.Source.ReferenceType = _labels.ToOption(ReferenceCategory.GeneralLedgerReferenceType, entity.ReferenceType);
+                    rawReferenceTypes[i] = entity.ReferenceType;
+                }
+            }
+
+            var asOfDate = query.ToDate!.Value;
+            var pageEntryIds = dtos.Select(d => d.EntryId).ToList();
+
+            var reversalSummary = await _uow.GeneralLedgerEntries.GetReversalSummaryAsOfAsync(pageEntryIds, asOfDate);
+
+            // if it reverses another entry, it is not reversed, it is a reversal entry
+            // if it is reversed by another entry, it is reversed
+            // if it is not reversed by another entry, it is active
+            foreach (var dto in dtos)
+            {
+                string effectiveStatusCode;
+
+                // check if it is a reversal entry
+                if (dto.IsReversal)
+                {
+                    dto.IsReversed = false;
+                    dto.ReversalEntryId = null;
+                    dto.ReversalCount = 0;
+                    effectiveStatusCode = "reversal";
+                }
+                else if (reversalSummary.TryGetValue(dto.EntryId, out var summary))
+                {
+                    // check if it is reversed by another entry
+                    dto.IsReversed = true;
+                    dto.ReversalCount = summary.ReversalCount;
+                    dto.ReversalEntryId = summary.LatestReversalEntryId;
+                    effectiveStatusCode = "reversed";
+                }
+                else
+                {
+                    dto.IsReversed = false;
+                    dto.ReversalCount = 0;
+                    dto.ReversalEntryId = null;
+                    effectiveStatusCode = "active";
+                }
+
+                dto.EffectiveStatus = _labels.ToOption(ReferenceCategory.LedgerEffectiveStatus, effectiveStatusCode);
+            }
+
+            if (query.ViewMode == GeneralLedgerViewMode.Audit && dtos.Count > 0)
+            {
+                // Build ancestry links in batches so each row can expose its full audit chain.
+                var linkMap = await BuildEntryLinkMapAsync(dtos.Select(d => d.EntryId));
+
+                foreach (var dto in dtos)
+                {
+                    var chain = new List<long>();
+                    var seen = new HashSet<long>();
+                    var cursor = dto.EntryId;
+
+                    while (seen.Add(cursor))
+                    {
+                        chain.Add(cursor);
+
+                        if (!linkMap.TryGetValue(cursor, out var previous) || !previous.HasValue)
+                            break;
+
+                        cursor = previous.Value;
+                    }
+
+                    chain.Reverse();
+                    dto.HistoryChainEntryIds = chain;
+                }
+            }
+
+            var pageNumber = query.PageNumber ?? 1;
+            var pageSize = query.PageSize ?? 20;
+
+            await PopulateSourceLinksAsync(dtos, rawReferenceTypes);
+
+            return new PaginatedResponse<GeneralLedgerEntryDto>(dtos, total, pageNumber, pageSize);
+        }
+
+        public async Task<GeneralLedgerTotalsDto> GetTotalsAsync(Guid userId, GeneralLedgerTotalsQueryParams query)
+        {
+            await ValidateAndNormalizeTotalsQueryAsync(userId, query);
+            var (totalRevenue, totalCost) = await _uow.GeneralLedgerEntries.SumRevenueAndCostAsync(query);
+            return new GeneralLedgerTotalsDto
+            {
+                TotalRevenue = totalRevenue,
+                TotalCost = totalCost
+            };
+        }
+
+        private async Task ValidateAndNormalizeTotalsQueryAsync(Guid userId, GeneralLedgerTotalsQueryParams query)
+        {
+            await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var earliestAllowedDate = ResolveEarliestAllowedDate(today);
+
+            if (query.FromDate.HasValue && (query.FromDate.Value < earliestAllowedDate || query.FromDate.Value > today))
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
+
+            if (query.ToDate.HasValue && (query.ToDate.Value < earliestAllowedDate || query.ToDate.Value > today))
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
+
+            query.ToDate ??= today;
+            query.FromDate ??= earliestAllowedDate;
+
+            if (query.FromDate > query.ToDate)
+                throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
+        }
+
+        private async Task ValidateAndNormalizeLedgerQueryAsync(Guid userId, GeneralLedgerQueryParams query)
+        {
             await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);
 
             var viewMode = (query.ViewMode ?? GeneralLedgerViewMode.Audit).Trim().ToLowerInvariant();
@@ -88,103 +221,6 @@ namespace BizFlow.Application.Services
 
             if (query.FromDate > query.ToDate)
                 throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
-
-            var (items, total) = await _uow.GeneralLedgerEntries.SearchAsync(query);
-            var itemList = items.ToList();
-            var dtos = _mapper.Map<List<GeneralLedgerEntryDto>>(itemList);
-
-            // Enrich i18n reference fields (dto fields ignored by AutoMapper profile)
-            // plus track the raw reference_type code for downstream processing.
-            var rawReferenceTypes = new string[dtos.Count];
-            for (var i = 0; i < dtos.Count; i++)
-            {
-                var entity = itemList[i];
-                var dto = dtos[i];
-
-                dto.TransactionType = _labels.ToOption(ReferenceCategory.GeneralLedgerTransactionType, entity.TransactionType);
-                dto.MoneyChannel = entity.MoneyChannel != null
-                    && entity.MoneyChannel.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : _labels.ToOptionOrNull(ReferenceCategory.MoneyChannelType, entity.MoneyChannel);
-
-                if (dto.Source != null)
-                {
-                    dto.Source.ReferenceType = _labels.ToOption(ReferenceCategory.GeneralLedgerReferenceType, entity.ReferenceType);
-                    rawReferenceTypes[i] = entity.ReferenceType;
-                }
-            }
-
-            var asOfDate = query.ToDate.Value;
-            var pageEntryIds = dtos.Select(d => d.EntryId).ToList();
-
-            var reversalSummary = await _uow.GeneralLedgerEntries.GetReversalSummaryAsOfAsync(pageEntryIds, asOfDate);
-
-            // if it reverses another entry, it is not reversed, it is a reversal entry
-            // if it is reversed by another entry, it is reversed
-            // if it is not reversed by another entry, it is active
-            foreach (var dto in dtos)
-            {
-                string effectiveStatusCode;
-
-                // check if it is a reversal entry
-                if (dto.IsReversal)
-                {
-                    dto.IsReversed = false;
-                    dto.ReversalEntryId = null;
-                    dto.ReversalCount = 0;
-                    effectiveStatusCode = "reversal";
-                }
-                else if (reversalSummary.TryGetValue(dto.EntryId, out var summary))
-                {
-                    // check if it is reversed by another entry
-                    dto.IsReversed = true;
-                    dto.ReversalCount = summary.ReversalCount;
-                    dto.ReversalEntryId = summary.LatestReversalEntryId;
-                    effectiveStatusCode = "reversed";
-                }
-                else
-                {
-                    dto.IsReversed = false;
-                    dto.ReversalCount = 0;
-                    dto.ReversalEntryId = null;
-                    effectiveStatusCode = "active";
-                }
-
-                dto.EffectiveStatus = _labels.ToOption(ReferenceCategory.LedgerEffectiveStatus, effectiveStatusCode);
-            }
-
-            if (viewMode == GeneralLedgerViewMode.Audit && dtos.Count > 0)
-            {
-                // Build ancestry links in batches so each row can expose its full audit chain.
-                var linkMap = await BuildEntryLinkMapAsync(dtos.Select(d => d.EntryId));
-
-                foreach (var dto in dtos)
-                {
-                    var chain = new List<long>();
-                    var seen = new HashSet<long>();
-                    var cursor = dto.EntryId;
-
-                    while (seen.Add(cursor))
-                    {
-                        chain.Add(cursor);
-
-                        if (!linkMap.TryGetValue(cursor, out var previous) || !previous.HasValue)
-                            break;
-
-                        cursor = previous.Value;
-                    }
-
-                    chain.Reverse();
-                    dto.HistoryChainEntryIds = chain;
-                }
-            }
-
-            var pageNumber = query.PageNumber ?? 1;
-            var pageSize = query.PageSize ?? 20;
-
-            await PopulateSourceLinksAsync(dtos, rawReferenceTypes);
-
-            return new PaginatedResponse<GeneralLedgerEntryDto>(dtos, total, pageNumber, pageSize);
         }
 
         private async Task PopulateSourceLinksAsync(List<GeneralLedgerEntryDto> dtos, string[] rawReferenceTypes)
