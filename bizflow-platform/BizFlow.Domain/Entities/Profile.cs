@@ -23,6 +23,11 @@ public partial class Profile
     public string? AvatarUrl { get; set; }
 
     /// <summary>
+    /// Cloudinary public ID for avatar deletion/cleanup
+    /// </summary>
+    public string? AvatarPublicId { get; set; }
+
+    /// <summary>
     /// Personal tax identification number
     /// </summary>
     public string? TaxCode { get; set; }

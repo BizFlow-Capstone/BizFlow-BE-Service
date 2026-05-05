@@ -1102,6 +1102,9 @@ public partial class BizFlowDbContext : DbContext
             entity.Property(e => e.AvatarUrl)
                 .HasMaxLength(500)
                 .HasComment("Profile avatar URL");
+            entity.Property(e => e.AvatarPublicId)
+                .HasMaxLength(255)
+                .HasComment("Cloudinary public ID for avatar deletion/cleanup");
             entity.Property(e => e.FullName).HasComment("Full name");
             entity.Property(e => e.StripeCustomerId)
                 .HasMaxLength(255)

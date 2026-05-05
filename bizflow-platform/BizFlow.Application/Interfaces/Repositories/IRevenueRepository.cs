@@ -15,6 +15,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<IEnumerable<Revenue>> GetByIdsAsync(IEnumerable<long> revenueIds);
         Task<Revenue> AddAsync(Revenue revenue);
         void Update(Revenue revenue);
+        Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds);
 
         // ── DocumentNumber uniqueness helpers (replace-when-posted flow) ──
 

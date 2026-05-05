@@ -850,11 +850,13 @@ namespace BizFlow.Infrastructure.Services
                         request.AvatarFileName,
                         ImageUploadTarget.Avatars);
                     profile.AvatarUrl = imageInfo.Url;
+                    profile.AvatarPublicId = imageInfo.PublicId;
                 }
             }
             else if (hasRemoveAvatar)
             {
                 profile.AvatarUrl = null;
+                profile.AvatarPublicId = null;
             }
 
             profile.UpdatedAt = DateTime.UtcNow;
