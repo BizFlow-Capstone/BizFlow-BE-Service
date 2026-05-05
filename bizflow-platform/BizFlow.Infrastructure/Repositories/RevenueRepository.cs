@@ -74,6 +74,43 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<Dictionary<long, (string? DocumentNumber, DateOnly? DocumentDate)>> GetSaleDocumentInfoByOrderIdsAsync(
+            IReadOnlyCollection<long> orderIds)
+        {
+            if (orderIds == null || orderIds.Count == 0)
+            {
+                return new Dictionary<long, (string? DocumentNumber, DateOnly? DocumentDate)>();
+            }
+
+            var rows = await _db.Revenues
+                .Where(r => r.OrderId.HasValue
+                    && orderIds.Contains(r.OrderId.Value)
+                    && r.RevenueType == RevenueType.Sale
+                    && r.Status == RevenueStatus.Posted
+                    && !r.IsReversal)
+                .OrderBy(r => r.RevenueId)
+                .Select(r => new
+                {
+                    OrderId = r.OrderId!.Value,
+                    r.DocumentNumber,
+                    r.DocumentDate
+                })
+                .ToListAsync();
+
+            return rows
+                .GroupBy(x => x.OrderId)
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var firstWithDocument = g.FirstOrDefault(x =>
+                            !string.IsNullOrWhiteSpace(x.DocumentNumber) || x.DocumentDate.HasValue)
+                            ?? g.First();
+
+                        return (firstWithDocument.DocumentNumber, firstWithDocument.DocumentDate);
+                    });
+        }
+
         public Task<bool> HasActiveReversalForRevenueAsync(long revenueId, CancellationToken cancellationToken = default)
             => _db.Revenues.AnyAsync(
                 r => r.IsReversal && r.ReversedRevenueId == revenueId,

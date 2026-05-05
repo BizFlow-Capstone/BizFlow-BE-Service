@@ -615,6 +615,20 @@ namespace BizFlow.Application.Services
         {
             var dto = _mapper.Map<OrderDto>(order);
             dto.Status = _labels.ToOption(ReferenceCategory.OrderStatus, order.Status);
+            var (metadataDocumentNumber, metadataDocumentDate) = ExtractDocumentInfoFromBillMetadata(order.BillMetadata);
+            dto.DocumentNumber = metadataDocumentNumber;
+            dto.DocumentDate = metadataDocumentDate;
+
+            if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
+            {
+                var revenueDocumentInfoByOrderId = await _uow.Revenues.GetSaleDocumentInfoByOrderIdsAsync([order.OrderId]);
+                if (revenueDocumentInfoByOrderId.TryGetValue(order.OrderId, out var revenueDocumentInfo))
+                {
+                    dto.DocumentNumber = revenueDocumentInfo.DocumentNumber ?? dto.DocumentNumber;
+                    dto.DocumentDate = revenueDocumentInfo.DocumentDate ?? dto.DocumentDate;
+                }
+            }
+
             if (order.CreatedBy is { } creatorId)
             {
                 var profile = await _uow.Profiles.GetByIdAsync(creatorId);
@@ -631,9 +645,26 @@ namespace BizFlow.Application.Services
             if (dtos.Count == 0)
                 return dtos;
 
+            var completedOrderIds = orderList
+                .Where(o => o.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
+                .Select(o => o.OrderId)
+                .ToList();
+            var revenueDocumentInfoByOrderId = completedOrderIds.Count > 0
+                ? await _uow.Revenues.GetSaleDocumentInfoByOrderIdsAsync(completedOrderIds)
+                : new Dictionary<long, (string? DocumentNumber, DateOnly? DocumentDate)>();
+
             for (var i = 0; i < orderList.Count; i++)
             {
                 dtos[i].Status = _labels.ToOption(ReferenceCategory.OrderStatus, orderList[i].Status);
+                var (metadataDocumentNumber, metadataDocumentDate) = ExtractDocumentInfoFromBillMetadata(orderList[i].BillMetadata);
+                dtos[i].DocumentNumber = metadataDocumentNumber;
+                dtos[i].DocumentDate = metadataDocumentDate;
+
+                if (revenueDocumentInfoByOrderId.TryGetValue(orderList[i].OrderId, out var revenueDocumentInfo))
+                {
+                    dtos[i].DocumentNumber = revenueDocumentInfo.DocumentNumber ?? dtos[i].DocumentNumber;
+                    dtos[i].DocumentDate = revenueDocumentInfo.DocumentDate ?? dtos[i].DocumentDate;
+                }
             }
 
             var creatorIds = orderList.Select(o => o.CreatedBy).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();

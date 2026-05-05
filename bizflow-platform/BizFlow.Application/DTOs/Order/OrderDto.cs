@@ -16,6 +16,8 @@ namespace BizFlow.Application.DTOs.Order
         public decimal CashAmount { get; set; }
         public decimal BankAmount { get; set; }
         public decimal DebtAmount { get; set; }
+        public string? DocumentNumber { get; set; }
+        public DateOnly? DocumentDate { get; set; }
         /// <summary>
         /// Order status. <c>Code</c> ∈ {<c>pending</c>, <c>completed</c>, <c>cancelled</c>}.
         /// <c>Label</c> is localized by <c>Accept-Language</c>.
