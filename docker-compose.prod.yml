@@ -72,7 +72,7 @@ services:
     volumes:
       - ./backups:/backups
       - ./docker/scripts/backup.sh:/backup.sh:ro
-    command: /bin/bash -c "chmod +x /backup.sh && while true; do /backup.sh; sleep 86400; done"
+    command: /bin/bash -c "while true; do bash /backup.sh; sleep 86400; done"
     networks:
       - bizflow-network
     deploy:
