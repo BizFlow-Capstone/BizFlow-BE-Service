@@ -1,4 +1,3 @@
-using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.DTOs.Debtor;
 using BizFlow.Application.Interfaces.Repositories;
 using BizFlow.Application.Specifications.Debtors;
@@ -180,22 +179,25 @@ namespace BizFlow.Infrastructure.Repositories
             return (debtors.Count, updatedCount);
         }
 
-        public async Task<decimal> SumOutstandingDebtByLocationsAsync(
+        public async Task<decimal> SumDebtBalanceChangeByLocationsAndPaidAtUtcRangeAsync(
             IReadOnlyCollection<int> businessLocationIds,
+            DateTime fromUtcInclusive,
+            DateTime toUtcInclusive,
             CancellationToken cancellationToken = default
         )
         {
             if (businessLocationIds == null || businessLocationIds.Count == 0)
                 return 0m;
 
-            var debtors = await _db
-                .Debtors.Where(d =>
-                    businessLocationIds.Contains(d.BusinessLocationId) && d.IsActive == true
-                )
-                .Select(d => d.CurrentBalance)
-                .ToListAsync(cancellationToken);
-
-            return debtors.Sum(DebtBalanceSemanticHelper.CalculateOutstandingDebt);
+            return await (
+                from t in _db.DebtorPaymentTransactions
+                join d in _db.Debtors on t.DebtorId equals d.DebtorId
+                where businessLocationIds.Contains(d.BusinessLocationId)
+                    && d.IsActive == true
+                    && t.PaidAt >= fromUtcInclusive
+                    && t.PaidAt <= toUtcInclusive
+                select t.BalanceAfter - t.BalanceBefore
+            ).SumAsync(cancellationToken);
         }
     }
 }

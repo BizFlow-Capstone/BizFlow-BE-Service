@@ -15,9 +15,9 @@ public class DashboardSummaryResponse
     public decimal TotalCost { get; set; }
     public int TotalCompletedOrders { get; set; }
 
-    /// <summary>Total amount customers still owe (sum of -CurrentBalance for negative balances). Snapshot at query time.</summary>
-    public decimal TotalOutstandingDebt { get; set; }
-
-    /// <summary>UTC timestamp when outstanding debt was computed.</summary>
-    public DateTime OutstandingDebtAsOfUtc { get; set; }
+    /// <summary>
+    /// Net change in debtor balance (sum of BalanceAfter − BalanceBefore) for all debt transactions
+    /// with <c>PaidAt</c> in <see cref="FromDate"/>–<see cref="ToDate"/> (inclusive, UTC day bounds). Positive = more owed to the business.
+    /// </summary>
+    public decimal OutstandingDebtNetChangeInPeriod { get; set; }
 }

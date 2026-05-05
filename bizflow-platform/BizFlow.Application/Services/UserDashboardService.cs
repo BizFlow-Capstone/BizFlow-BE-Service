@@ -60,8 +60,6 @@ public class UserDashboardService : IUserDashboardService
         var (completedFromUtc, completedToUtc) =
             DashboardPeriodResolver.ToUtcInclusiveDateTimeRange(fromDate, toDate);
 
-        var debtAsOfUtc = DateTime.UtcNow;
-
         // Same scoped DbContext: do not run EF queries concurrently (Task.WhenAll).
         var totalRevenue = await _uow.Revenues.SumAmountByLocationsAndDateRangeAsync(
             locationIds,
@@ -81,9 +79,12 @@ public class UserDashboardService : IUserDashboardService
             completedToUtc,
             cancellationToken).ConfigureAwait(false);
 
-        var totalOutstandingDebt = await _uow.Debtors.SumOutstandingDebtByLocationsAsync(
-            locationIds,
-            cancellationToken).ConfigureAwait(false);
+        var outstandingDebtNetChangeInPeriod =
+            await _uow.Debtors.SumDebtBalanceChangeByLocationsAndPaidAtUtcRangeAsync(
+                locationIds,
+                completedFromUtc,
+                completedToUtc,
+                cancellationToken).ConfigureAwait(false);
 
         return new DashboardSummaryResponse
         {
@@ -94,8 +95,7 @@ public class UserDashboardService : IUserDashboardService
             TotalRevenue = totalRevenue,
             TotalCost = totalCost,
             TotalCompletedOrders = totalCompletedOrders,
-            TotalOutstandingDebt = totalOutstandingDebt,
-            OutstandingDebtAsOfUtc = debtAsOfUtc
+            OutstandingDebtNetChangeInPeriod = outstandingDebtNetChangeInPeriod
         };
     }
 

@@ -22,8 +22,10 @@ namespace BizFlow.Application.Interfaces.Repositories
             long? debtorId = null,
             CancellationToken cancellationToken = default);
 
-        Task<decimal> SumOutstandingDebtByLocationsAsync(
+        Task<decimal> SumDebtBalanceChangeByLocationsAndPaidAtUtcRangeAsync(
             IReadOnlyCollection<int> businessLocationIds,
+            DateTime fromUtcInclusive,
+            DateTime toUtcInclusive,
             CancellationToken cancellationToken = default);
     }
 }
