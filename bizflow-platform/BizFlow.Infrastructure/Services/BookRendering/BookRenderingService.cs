@@ -4,6 +4,7 @@ using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Constants;
 using BizFlow.Domain.Entities;
 using BizFlow.Domain.Enums;
+using BizFlow.Infrastructure.Services.FormulaEngine;
 using Microsoft.Extensions.Logging;
 
 namespace BizFlow.Infrastructure.Services.BookRendering;
@@ -151,14 +152,14 @@ public class BookRenderingService : IBookRenderingService
         if (perSectionDefs.Count > 0)
         {
             var (sectionSections, sectionTaxTotals, nextIndex) = await BuildPerSectionSectionsAsync(
-                context, perSectionDefs, formulaIdToValue, taxRateLookup, groupIndex);
+                context, perSectionDefs, formulaIdToValue, taxRateLookup, formulaValues, groupIndex);
             sections.AddRange(sectionSections);
             MergeTotals(groupedTaxTotals, sectionTaxTotals);
             groupIndex = nextIndex;
         }
 
         var footerRows = await BuildFooterRowsAsync(
-            context, footerDefs, formulaIdToValue, formulaIdToBreakdown, taxRates, taxRateLookup, groupedTaxTotals);
+            context, footerDefs, formulaIdToValue, formulaIdToBreakdown, taxRates, taxRateLookup, formulaValues, groupedTaxTotals);
 
         return new BookSectionsRenderResult
         {
@@ -294,6 +295,7 @@ public class BookRenderingService : IBookRenderingService
             List<TemplateRowDefinition> perSectionDefs,
             IReadOnlyDictionary<long, decimal> formulaIdToValue,
             IReadOnlyDictionary<string, decimal> taxRateLookup,
+            IReadOnlyDictionary<string, decimal> formulaValues,
             int startGroupIndex)
     {
         var sections = new List<BookSectionDto>();
@@ -372,7 +374,8 @@ public class BookRenderingService : IBookRenderingService
                     var taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? formulaVal ?? 0m;
 
                     row[valueField] = taxAmount;
-                    row["explanation"] = $"Formula = {taxAmount:#,0}";
+                    var formulaExplanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, taxAmount);
+                    row["explanation"] = formulaExplanation ?? $"Formula = {taxAmount:#,0}";
                     var rateSource = GetTaxRateSource(rowDef.Formula);
                     var taxRate = ResolveTaxRate(
                         rateSource,
@@ -390,6 +393,13 @@ public class BookRenderingService : IBookRenderingService
                     };
                     if (!string.IsNullOrWhiteSpace(taxType))
                         taxTotals[taxType] = taxTotals.GetValueOrDefault(taxType) + taxAmount;
+                }
+
+                if (rowDef.Formula != null && !row.ContainsKey("explanation"))
+                {
+                    var explanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, formulaVal);
+                    if (!string.IsNullOrWhiteSpace(explanation))
+                        row["explanation"] = explanation;
                 }
 
                 sectionRows.Add(row);
@@ -418,6 +428,7 @@ public class BookRenderingService : IBookRenderingService
         IReadOnlyDictionary<long, Dictionary<string, decimal>> formulaIdToBreakdown,
         List<IndustryTaxRate> taxRates,
         IReadOnlyDictionary<string, decimal> taxRateLookup,
+        IReadOnlyDictionary<string, decimal> formulaValues,
         Dictionary<string, decimal> groupedTaxTotals)
     {
         var footerRows = new List<Dictionary<string, object?>>();
@@ -426,6 +437,8 @@ public class BookRenderingService : IBookRenderingService
         Dictionary<Guid, string>? btNamesCache = null;
         Dictionary<Guid, decimal>? revenueByBtCache = null;
         Dictionary<Guid, decimal>? costByBtCache = null;
+        decimal? revenueTotalCache = null;
+        decimal? costTotalCache = null;
 
         foreach (var rowDef in footerDefs)
         {
@@ -443,9 +456,9 @@ public class BookRenderingService : IBookRenderingService
                 && !groupedTaxTotals.ContainsKey(taxType))
             {
                 var taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
+                var isS2c = context.TemplateCode.Equals("S2c", StringComparison.OrdinalIgnoreCase);
 
                 row[footerValueField] = taxAmount;
-                row["explanation"] = $"Formula = {taxAmount:#,0}";
                 var rateSource = GetTaxRateSource(rowDef.Formula);
                 var taxRate = ResolveTaxRate(
                     rateSource,
@@ -462,8 +475,24 @@ public class BookRenderingService : IBookRenderingService
                     ["source"] = "FORMULA"
                 };
 
+                if (isS2c && taxRate.HasValue)
+                {
+                    revenueTotalCache ??= await LoadRevenueTotalAsync(context);
+                    costTotalCache ??= await LoadCostTotalAsync(context);
+                    var grossProfit = revenueTotalCache.Value - costTotalCache.Value;
+
+                    row["explanation"] =
+                        $"({FormatNumber(revenueTotalCache.Value)} - {FormatNumber(costTotalCache.Value)} = {FormatNumber(grossProfit)}) x {taxRate.Value:P4} = {FormatNumber(taxAmount)}";
+                }
+                else
+                {
+                    var formulaExplanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, taxAmount);
+                    row["explanation"] = formulaExplanation ?? $"Formula = {taxAmount:#,0}";
+                }
+
                 // Build taxBreakdown from formula breakdown if available
-                if (rowDef.FormulaId.HasValue
+                if (!isS2c
+                    && rowDef.FormulaId.HasValue
                     && formulaIdToBreakdown.TryGetValue(rowDef.FormulaId.Value, out var breakdown)
                     && breakdown.Count > 0)
                 {
@@ -549,6 +578,13 @@ public class BookRenderingService : IBookRenderingService
                 var formulaVal = ResolveFormulaValue(rowDef, formulaIdToValue);
                 if (formulaVal.HasValue)
                     row[footerValueField] = formulaVal.Value;
+
+                if (rowDef.Formula != null && !row.ContainsKey("explanation"))
+                {
+                    var explanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, formulaVal);
+                    if (!string.IsNullOrWhiteSpace(explanation))
+                        row["explanation"] = explanation;
+                }
             }
 
             // Add default taxMetadata if not already set for tax_line rows
@@ -594,6 +630,188 @@ public class BookRenderingService : IBookRenderingService
         foreach (var kv in source)
             target[kv.Key] = target.GetValueOrDefault(kv.Key) + kv.Value;
     }
+
+    private static string? BuildFormulaExplanation(
+        FormulaDefinition? formula,
+        IReadOnlyDictionary<string, decimal> formulaValues,
+        decimal? resultValue)
+    {
+        if (formula == null || resultValue == null || string.IsNullOrWhiteSpace(formula.ExpressionJson))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(formula.ExpressionJson);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(AstNode.Foreach, out _))
+                return null;
+
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(AstNode.Apply, out var apply))
+                root = apply;
+
+            if (!TryExplainNode(root, formulaValues, out var text, out _))
+                return null;
+
+            return $"{text} = {FormatNumber(resultValue.Value)}";
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool TryExplainNode(
+        JsonElement node,
+        IReadOnlyDictionary<string, decimal> formulaValues,
+        out string text,
+        out decimal? value)
+    {
+        text = string.Empty;
+        value = null;
+
+        if (node.ValueKind == JsonValueKind.Object)
+        {
+            if (node.TryGetProperty("literal", out var literal))
+            {
+                var val = literal.GetDecimal();
+                text = FormatNumber(val);
+                value = val;
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Ref, out var refNode))
+            {
+                var refCode = refNode.GetString();
+                if (!string.IsNullOrWhiteSpace(refCode)
+                    && formulaValues.TryGetValue(refCode, out var refVal))
+                {
+                    text = FormatNumber(refVal);
+                    value = refVal;
+                }
+                else
+                {
+                    text = refCode ?? "?";
+                }
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Aggregate, out var aggNode))
+            {
+                var aggType = aggNode.GetString() ?? "SUM";
+                var source = node.TryGetProperty(AstNode.Source, out var src) ? src.GetString() : "?";
+                var field = node.TryGetProperty(AstNode.Field, out var fld) ? fld.GetString() : "?";
+                text = $"{aggType}({source}.{field})";
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Lookup, out var lookupNode))
+            {
+                var entity = lookupNode.TryGetProperty(AstNode.Entity, out var ent) ? ent.GetString() : "?";
+                var field = lookupNode.TryGetProperty(AstNode.Field, out var fld) ? fld.GetString() : "?";
+                text = $"Lookup({entity}.{field})";
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Context, out var contextNode))
+            {
+                var contextKey = contextNode.GetString();
+                if (!string.IsNullOrWhiteSpace(contextKey)
+                    && (formulaValues.TryGetValue(contextKey, out var contextVal)
+                        || formulaValues.TryGetValue(contextKey.ToUpperInvariant(), out contextVal)
+                        || formulaValues.TryGetValue(contextKey.ToLowerInvariant(), out contextVal)))
+                {
+                    text = FormatNumber(contextVal);
+                    value = contextVal;
+                }
+                else
+                {
+                    text = $"[{contextKey ?? "context"}]";
+                }
+
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Apply, out var applyNode))
+            {
+                return TryExplainNode(applyNode, formulaValues, out text, out value);
+            }
+
+            if (node.TryGetProperty(AstNode.Op, out var opNode))
+            {
+                var op = opNode.GetString() ?? "";
+                TryExplainNode(node.GetProperty(AstNode.Left), formulaValues, out var leftText, out var leftVal);
+                TryExplainNode(node.GetProperty(AstNode.Right), formulaValues, out var rightText, out var rightVal);
+
+                var symbol = op.ToUpperInvariant() switch
+                {
+                    OpType.Add => "+",
+                    OpType.Subtract => "-",
+                    OpType.Multiply => "x",
+                    OpType.Divide => "/",
+                    _ => op
+                };
+
+                text = $"{leftText} {symbol} {rightText}";
+
+                if (leftVal.HasValue && rightVal.HasValue)
+                    value = ComputeOp(op, leftVal.Value, rightVal.Value);
+
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Fn, out var fnNode))
+            {
+                var fn = fnNode.GetString() ?? "";
+                var argTexts = new List<string>();
+                var argValues = new List<decimal>();
+
+                if (node.TryGetProperty(AstNode.Args, out var argsNode))
+                {
+                    foreach (var arg in argsNode.EnumerateArray())
+                    {
+                        TryExplainNode(arg, formulaValues, out var argText, out var argVal);
+                        argTexts.Add(argText);
+                        if (argVal.HasValue)
+                            argValues.Add(argVal.Value);
+                    }
+                }
+
+                text = $"{fn.ToUpperInvariant()}({string.Join(", ", argTexts)})";
+                if (argValues.Count == argTexts.Count && argValues.Count > 0)
+                    value = ComputeFn(fn, argValues);
+
+                return true;
+            }
+
+            if (node.TryGetProperty(AstNode.Foreach, out _))
+                return false;
+        }
+
+        return false;
+    }
+
+    private static decimal ComputeOp(string op, decimal left, decimal right) =>
+        op.ToUpperInvariant() switch
+        {
+            OpType.Add => left + right,
+            OpType.Subtract => left - right,
+            OpType.Multiply => left * right,
+            OpType.Divide => right != 0 ? left / right : 0m,
+            _ => 0m
+        };
+
+    private static decimal ComputeFn(string fn, IReadOnlyList<decimal> args) =>
+        fn.ToUpperInvariant() switch
+        {
+            FnType.Max => args.Count > 0 ? args.Max() : 0m,
+            FnType.Min => args.Count > 0 ? args.Min() : 0m,
+            FnType.Abs => args.Count > 0 ? Math.Abs(args[0]) : 0m,
+            _ => 0m
+        };
+
+    private static string FormatNumber(decimal value) => value.ToString("#,0.##");
 
     private enum TaxRateSourceType
     {
@@ -1293,6 +1511,24 @@ public class BookRenderingService : IBookRenderingService
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
     }
 
+    private async Task<decimal> LoadRevenueTotalAsync(BookRenderContext context)
+    {
+        var query = new Application.DTOs.Revenue.RevenueQueryParams
+        {
+            BusinessLocationId = context.BusinessLocationId,
+            FromDate = context.PeriodStart,
+            ToDate = context.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue,
+            IncludeReversal = true
+        };
+
+        var (items, _) = await _uow.Revenues.SearchAsync(query);
+        return items
+            .Where(r => r.Status != RevenueStatus.Cancelled)
+            .Sum(r => r.Amount);
+    }
+
     private async Task<Dictionary<Guid, decimal>> LoadCostByBusinessTypeAsync(BookRenderContext context)
     {
         var query = new Application.DTOs.Cost.CostQueryParams
@@ -1311,6 +1547,24 @@ public class BookRenderingService : IBookRenderingService
                 && c.BusinessTypeId.HasValue)
             .GroupBy(c => c.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+    }
+
+    private async Task<decimal> LoadCostTotalAsync(BookRenderContext context)
+    {
+        var query = new Application.DTOs.Cost.CostQueryParams
+        {
+            BusinessLocationId = context.BusinessLocationId,
+            FromDate = context.PeriodStart,
+            ToDate = context.PeriodEnd,
+            PageNumber = 1,
+            PageSize = int.MaxValue,
+            IncludeReversal = true
+        };
+
+        var (items, _) = await _uow.Costs.SearchAsync(query);
+        return items
+            .Where(c => c.Status != CostStatus.Cancelled)
+            .Sum(c => c.Amount);
     }
 
     private static string ResolveRowLabel(string? label, int groupIndex, string groupName)
