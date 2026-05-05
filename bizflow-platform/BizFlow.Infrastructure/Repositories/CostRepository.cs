@@ -174,8 +174,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(c => c.BusinessLocationId == locationId
                     && c.CostDate >= from
                     && c.CostDate <= to
-                    && c.Status != CostStatus.Cancelled
-                    && c.Status != CostStatus.Replaced);
+                    && c.Status != CostStatus.Cancelled);
 
             return aggType.ToUpper() switch
             {
@@ -196,8 +195,7 @@ namespace BizFlow.Infrastructure.Repositories
                     && c.BusinessTypeId.HasValue
                     && c.CostDate >= from
                     && c.CostDate <= to
-                    && c.Status != CostStatus.Cancelled
-                    && c.Status != CostStatus.Replaced)
+                    && c.Status != CostStatus.Cancelled)
                 .GroupBy(c => c.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),

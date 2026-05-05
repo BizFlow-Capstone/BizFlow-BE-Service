@@ -186,8 +186,7 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(r => r.BusinessLocationId == locationId
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to
-                    && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced);
+                    && r.Status != RevenueStatus.Cancelled);
 
             if (revenueTypes.Length > 0)
                 query = query.Where(r => revenueTypes.Contains(r.RevenueType));
@@ -211,8 +210,7 @@ namespace BizFlow.Infrastructure.Repositories
                     && r.BusinessTypeId.HasValue
                     && r.RevenueDate >= from
                     && r.RevenueDate <= to
-                    && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced)
+                    && r.Status != RevenueStatus.Cancelled)
                 .GroupBy(r => r.BusinessTypeId!.Value)
                 .ToDictionaryAsync(
                     g => g.Key.ToString(),

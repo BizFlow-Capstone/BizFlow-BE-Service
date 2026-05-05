@@ -700,7 +700,7 @@ public class BookRenderingService : IBookRenderingService
 
         var (items, totalCount) = await _uow.Revenues.SearchAsync(query);
         var list = items
-            .Where(r => r.Status != RevenueStatus.Cancelled && r.Status != RevenueStatus.Replaced)
+            .Where(r => r.Status != RevenueStatus.Cancelled)
             .ToList();
 
         var hasMore = list.Count > safeBatchSize;
@@ -719,6 +719,9 @@ public class BookRenderingService : IBookRenderingService
                     ["Description"] = r.Description,
                     ["Amount"] = r.Amount,
                     ["Status"] = r.Status,
+                    ["IsReversal"] = r.IsReversal,
+                    ["ReversedRevenueId"] = r.ReversedRevenueId,
+                    ["RefRevenueId"] = r.RefRevenueId,
                     ["RevenueType"] = r.RevenueType,
                     ["MoneyChannel"] = r.MoneyChannel,
                     ["OrderId"] = r.OrderId,
@@ -748,7 +751,7 @@ public class BookRenderingService : IBookRenderingService
         };
         var (costItems, _) = await _uow.Costs.SearchAsync(costQuery);
 
-        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled && c.Status != CostStatus.Replaced).Select(c => new SourceRow
+        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled).Select(c => new SourceRow
         {
             Date = c.CostDate,
             Id = c.CostId,
@@ -760,6 +763,9 @@ public class BookRenderingService : IBookRenderingService
                 ["Description"] = c.Description,
                 ["Amount"] = c.Amount,
                 ["Status"] = c.Status,
+                ["IsReversal"] = c.IsReversal,
+                ["ReversedCostId"] = c.ReversedCostId,
+                ["RefCostId"] = c.RefCostId,
                 ["CostType"] = c.CostType
             }
         }).ToList();
@@ -1077,7 +1083,6 @@ public class BookRenderingService : IBookRenderingService
         var (items, _) = await _uow.Revenues.SearchAsync(query);
         return items
             .Where(r => r.Status != RevenueStatus.Cancelled
-                && r.Status != RevenueStatus.Replaced
                 && r.BusinessTypeId.HasValue)
             .GroupBy(r => r.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
@@ -1097,7 +1102,6 @@ public class BookRenderingService : IBookRenderingService
         var (items, _) = await _uow.Costs.SearchAsync(query);
         return items
             .Where(c => c.Status != CostStatus.Cancelled
-                && c.Status != CostStatus.Replaced
                 && c.BusinessTypeId.HasValue)
             .GroupBy(c => c.BusinessTypeId!.Value)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
