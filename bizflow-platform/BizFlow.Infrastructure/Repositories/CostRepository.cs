@@ -159,10 +159,8 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(c => businessLocationIds.Contains(c.BusinessLocationId)
                     && c.CostDate >= fromDate
                     && c.CostDate <= toDate
-                    && c.Status != CostStatus.Replaced
-                    && (c.Status != CostStatus.Cancelled
-                        || c.IsReversal
-                        || _db.Costs.Any(x => x.IsReversal && x.ReversedCostId == c.CostId)))
+                    && c.Status == CostStatus.Posted
+                    && !c.IsReversal)
                 .SumAsync(c => c.Amount, cancellationToken);
         }
 

@@ -173,8 +173,8 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(r => businessLocationIds.Contains(r.BusinessLocationId)
                     && r.RevenueDate >= fromDate
                     && r.RevenueDate <= toDate
-                    && r.Status != RevenueStatus.Cancelled
-                    && r.Status != RevenueStatus.Replaced)
+                    && r.Status == RevenueStatus.Posted
+                    && !r.IsReversal)
                 .SumAsync(r => r.Amount, cancellationToken);
         }
 
