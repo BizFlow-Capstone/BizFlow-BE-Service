@@ -350,6 +350,7 @@ public class FormulaEngine : IFormulaEngine
         FormulaDefinition formula)
     {
         var resolved = new Dictionary<string, decimal>(context.ResolvedValues);
+        await PrecomputeTraceDependenciesAsync(context, resolved, formula);
         var counter = new StepCounter();
 
         var rootTrace = await TraceElementAsync(context, resolved, JsonDocument.Parse(formula.ExpressionJson).RootElement, counter);
@@ -360,6 +361,132 @@ public class FormulaEngine : IFormulaEngine
             FinalValue = finalValue,
             Steps = new List<FormulaTraceNode> { rootTrace }
         };
+    }
+
+    private async Task PrecomputeTraceDependenciesAsync(
+        FormulaEvaluationContext ctx,
+        Dictionary<string, decimal> resolved,
+        FormulaDefinition formula)
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ordered = new List<FormulaDefinition>();
+        var cache = new Dictionary<string, FormulaDefinition?>(StringComparer.OrdinalIgnoreCase);
+
+        await CollectDependencyFormulasAsync(formula, visited, visiting, ordered, cache, includeSelf: false);
+
+        foreach (var dep in ordered)
+        {
+            if (resolved.ContainsKey(dep.Code))
+                continue;
+
+            try
+            {
+                var value = await EvaluateNodeAsync(ctx, resolved, dep);
+                value = ApplyRounding(value, dep);
+                resolved[dep.Code] = value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to precompute dependency formula {Code} for trace, defaulting to 0", dep.Code);
+                resolved[dep.Code] = 0m;
+            }
+        }
+    }
+
+    private async Task CollectDependencyFormulasAsync(
+        FormulaDefinition formula,
+        HashSet<string> visited,
+        HashSet<string> visiting,
+        List<FormulaDefinition> ordered,
+        Dictionary<string, FormulaDefinition?> cache,
+        bool includeSelf)
+    {
+        var code = formula.Code;
+        if (visited.Contains(code))
+            return;
+
+        if (!visiting.Add(code))
+        {
+            _logger.LogWarning("Circular formula dependency detected at {Code}", code);
+            return;
+        }
+
+        foreach (var refCode in ExtractRefCodes(formula.ExpressionJson))
+        {
+            if (string.Equals(refCode, code, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var dep = await GetFormulaByCodeAsync(refCode, cache);
+            if (dep == null)
+                continue;
+
+            await CollectDependencyFormulasAsync(dep, visited, visiting, ordered, cache, includeSelf: true);
+        }
+
+        visiting.Remove(code);
+
+        if (includeSelf && !visited.Contains(code))
+        {
+            visited.Add(code);
+            ordered.Add(formula);
+        }
+    }
+
+    private async Task<FormulaDefinition?> GetFormulaByCodeAsync(
+        string code,
+        Dictionary<string, FormulaDefinition?> cache)
+    {
+        if (cache.TryGetValue(code, out var cached))
+            return cached;
+
+        var formula = (await _uow.FormulaDefinitions.GetByCodesAsync(new[] { code }))
+            .FirstOrDefault();
+        cache[code] = formula;
+        return formula;
+    }
+
+    private static IReadOnlyCollection<string> ExtractRefCodes(string? expressionJson)
+    {
+        if (string.IsNullOrWhiteSpace(expressionJson))
+            return Array.Empty<string>();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(expressionJson);
+            var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            CollectRefCodes(doc.RootElement, refs);
+            return refs;
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static void CollectRefCodes(JsonElement node, HashSet<string> refs)
+    {
+        if (node.ValueKind == JsonValueKind.Object)
+        {
+            if (node.TryGetProperty(AstNode.Ref, out var refNode))
+            {
+                var code = refNode.GetString();
+                if (!string.IsNullOrWhiteSpace(code))
+                    refs.Add(code);
+            }
+
+            foreach (var prop in node.EnumerateObject())
+            {
+                CollectRefCodes(prop.Value, refs);
+            }
+        }
+        else if (node.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in node.EnumerateArray())
+            {
+                CollectRefCodes(item, refs);
+            }
+        }
     }
 
     private class StepCounter { public int Value; public int Next() => ++Value; }
