@@ -17,10 +17,13 @@ namespace BizFlow.Application.Services
             _labels = labels;
         }
 
-        public async Task<IEnumerable<BusinessTypeDto>> GetAllAsync()
+        public async Task<IEnumerable<BusinessTypeDto>> GetAllActiveAsync()
         {
             var businessTypes = await _unitOfWork.BusinessTypes.GetAllAsync();
-            return businessTypes.Select(bt => new BusinessTypeDto
+            var activeBusinessTypes = businessTypes
+                .Where(bt => string.Equals(bt.Status, "active", StringComparison.OrdinalIgnoreCase));
+
+            return activeBusinessTypes.Select(bt => new BusinessTypeDto
             {
                 BusinessTypeId = bt.BusinessTypeId,
                 Code = bt.Code,
@@ -28,24 +31,6 @@ namespace BizFlow.Application.Services
                 Description = bt.Description,
                 Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status),
             });
-        }
-
-        public async Task<BusinessTypeDto> GetActiveByIdAsync(Guid businessTypeId)
-        {
-            var bt = await _unitOfWork.BusinessTypes.GetActiveByIdAsync(businessTypeId);
-            if (bt is null)
-            {
-                throw new KeyNotFoundException(MessageKeys.NotFound);
-            }
-
-            return new BusinessTypeDto
-            {
-                BusinessTypeId = bt.BusinessTypeId,
-                Code = bt.Code,
-                Name = bt.Name,
-                Description = bt.Description,
-                Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status),
-            };
         }
     }
 }

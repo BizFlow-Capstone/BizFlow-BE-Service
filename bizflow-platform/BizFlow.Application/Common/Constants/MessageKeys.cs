@@ -255,6 +255,7 @@ namespace BizFlow.Application.Common.Constants
         // ============ IMPORT SCHEMA ============
         public const string ImportSchemaCannotDeleteActive = "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE";
         public const string ImportSchemaTemplateCodeConflict = "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT";
+        public const string FormulaCannotDeleteActive = "FORMULA_CANNOT_DELETE_ACTIVE";
 
         // ============ ACCOUNTING PERIOD ============
         public const string PeriodCreatedSuccessfully = "PERIOD_CREATED";

@@ -226,6 +226,7 @@
   "IMPORT_SCHEMA_DELETED": "Import schema deleted successfully",
   "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Cannot delete an active import schema. Deactivate it first",
   "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "An import schema with this TemplateCode already exists",
+  "FORMULA_CANNOT_DELETE_ACTIVE": "Cannot delete an active formula. Switch it to draft/inactive first",
   "PERIOD_CREATED": "Accounting period created successfully",
   "PERIOD_FINALIZED": "Accounting period finalized successfully",
   "PERIOD_REOPENED": "Accounting period reopened successfully",

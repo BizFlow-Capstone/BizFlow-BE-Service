@@ -4,7 +4,6 @@ namespace BizFlow.Application.Interfaces.Services
 {
     public interface IBusinessTypeService
     {
-        Task<IEnumerable<BusinessTypeDto>> GetAllAsync();
-    Task<BusinessTypeDto> GetActiveByIdAsync(Guid businessTypeId);
+        Task<IEnumerable<BusinessTypeDto>> GetAllActiveAsync();
     }
 }

@@ -232,6 +232,7 @@
   "IMPORT_SCHEMA_DELETED": "Xóa schema nhập kho thành công",
   "IMPORT_SCHEMA_CANNOT_DELETE_ACTIVE": "Không thể xóa schema đang hoạt động. Vui lòng hủy kích hoạt trước",
   "IMPORT_SCHEMA_TEMPLATE_CODE_CONFLICT": "Đã tồn tại import schema với TemplateCode này",
+  "FORMULA_CANNOT_DELETE_ACTIVE": "Không thể xóa công thức đang hoạt động. Vui lòng chuyển về draft/inactive trước",
   "PERIOD_CREATED": "Tạo kỳ kế toán thành công",
   "PERIOD_FINALIZED": "Chốt kỳ kế toán thành công",
   "PERIOD_REOPENED": "Mở lại kỳ kế toán thành công",

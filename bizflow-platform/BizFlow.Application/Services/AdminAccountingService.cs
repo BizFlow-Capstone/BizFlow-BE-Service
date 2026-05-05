@@ -527,24 +527,18 @@ public class AdminAccountingService : IAdminAccountingService
 
     public async Task<bool> DeleteFormulaAsync(long formulaId, Guid actorUserId)
     {
-        _ = actorUserId;
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
-        try
+        if (formula.IsActive)
         {
-            _uow.FormulaDefinitions.Delete(formula);
-            await _uow.SaveChangesAsync();
-            return true;
+            throw new BadRequestException(MessageKeys.FormulaCannotDeleteActive);
         }
-        catch (Exception ex) when (IsForeignKeyDeleteConstraintViolation(ex))
-        {
-            formula.IsActive = false;
-            formula.UpdatedAt = DateTime.UtcNow;
-            _uow.FormulaDefinitions.Update(formula);
-            await _uow.SaveChangesAsync();
-            return false;
-        }
+
+        _ = actorUserId;
+        _uow.FormulaDefinitions.Delete(formula);
+        await _uow.SaveChangesAsync();
+        return true;
     }
 
     public async Task<AdminTaxRulesetDto> ActivateTaxRulesetAsync(int rulesetId)

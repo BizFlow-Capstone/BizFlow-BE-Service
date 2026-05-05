@@ -172,14 +172,12 @@ public class AdminAccountingController : BaseApiController
     [HttpDelete("formulas/{formulaId:long}")]
     [SwaggerOperation(
         Summary = "Delete formula (Admin only)",
-        Description = "Try hard-delete first; if constrained by DB references, fallback to inactive.")]
+        Description = "Only inactive/draft formulas can be hard-deleted. Active formulas are rejected.")]
     public async Task<IActionResult> DeleteFormula(long formulaId)
     {
         EnsureAdminOnly();
-        var isHardDeleted = await _adminAccountingService.DeleteFormulaAsync(formulaId, User.GetRequiredUserId());
-        return isHardDeleted
-            ? Ok(MessageKeys.DataDeletedSuccessfully)
-            : Ok(MessageKeys.DataUpdatedSuccessfully);
+        await _adminAccountingService.DeleteFormulaAsync(formulaId, User.GetRequiredUserId());
+        return Ok(MessageKeys.DataDeletedSuccessfully);
     }
 
     [HttpPost("rulesets/{rulesetId:int}/activate")]

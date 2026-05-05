@@ -20,34 +20,26 @@ namespace BizFlow.Api.Controllers.BusinessType
         public BusinessTypeController(
             IBusinessTypeService businessTypeService,
             IMessageService messageService,
-            ILogger<BusinessTypeController> logger)
+            ILogger<BusinessTypeController> logger
+        )
             : base(messageService, logger)
         {
             _businessTypeService = businessTypeService;
         }
 
         /// <summary>
-        /// Get active business type by id
+        /// Get all active business types
         /// </summary>
-        [HttpGet("{businessTypeId:guid}")]
-        [SwaggerOperation(Summary = "Get active business type by id", Description = "Returns one active business type by id.")]
+        [HttpGet]
+        [SwaggerOperation(
+            Summary = "Get active business types",
+            Description = "Returns all active business types."
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetActiveById(Guid businessTypeId)
+        public async Task<IActionResult> GetAllActive()
         {
-            try
-            {
-                var businessType = await _businessTypeService.GetActiveByIdAsync(businessTypeId);
-                return Ok(businessType, MessageKeys.DataRetrievedSuccessfully);
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound(MessageKeys.NotFound);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            var businessTypes = await _businessTypeService.GetAllActiveAsync();
+            return Ok(businessTypes, MessageKeys.DataRetrievedSuccessfully);
         }
     }
 }
