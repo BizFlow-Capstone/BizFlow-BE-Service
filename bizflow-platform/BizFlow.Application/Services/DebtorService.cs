@@ -266,7 +266,6 @@ namespace BizFlow.Application.Services
 
             var transactions = await _uow.Debtors.GetPaymentsAsync(debtorId);
             return transactions
-                .Where(t => !t.PaymentMethod.Equals(PaymentMethods.System, StringComparison.OrdinalIgnoreCase))
                 .Select(ToDto)
                 .ToList();
         }

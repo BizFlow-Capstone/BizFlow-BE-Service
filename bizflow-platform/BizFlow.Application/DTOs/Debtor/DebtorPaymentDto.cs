@@ -14,7 +14,7 @@ namespace BizFlow.Application.DTOs.Debtor
         public long DebtorId { get; set; }
         public decimal Amount { get; set; }
         /// <summary>
-        /// Payment method. <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>}.
+        /// Payment method. <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>system</c>}.
         /// <c>Label</c> is localized by <c>Accept-Language</c>.
         /// </summary>
         public ReferenceOptionDto PaymentMethod { get; set; } = null!;
