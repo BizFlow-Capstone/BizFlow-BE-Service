@@ -187,7 +187,7 @@ public class BookRenderingService : IBookRenderingService
         var groupByField = perGroupDefs.Select(d => d.GroupByField).FirstOrDefault(f => !string.IsNullOrWhiteSpace(f));
         var sectionType = perGroupDefs.Select(d => d.SectionType).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "group";
 
-        var (groupKeys, groupNames, groupAmounts, _) = await ResolveGroupDataAsync(context, groupByField);
+        var (groupKeys, groupNames, groupAmounts, groupTaxRates) = await ResolveGroupDataAsync(context, groupByField);
 
         foreach (var groupKey in groupKeys)
         {
@@ -233,10 +233,14 @@ public class BookRenderingService : IBookRenderingService
                     else
                         taxAmount = ResolveFormulaValue(rowDef, formulaIdToValue) ?? 0m;
 
-                    var rateEntry = taxRates.FirstOrDefault(r =>
-                        r.BusinessTypeId.ToString() == groupKey
-                        && string.Equals(NormalizeTaxType(r.TaxType), taxType, StringComparison.OrdinalIgnoreCase));
-                    var taxRate = rateEntry?.TaxRate;
+                    var rateSource = GetTaxRateSource(rowDef.Formula);
+                    var taxRate = ResolveTaxRate(
+                        rateSource,
+                        groupKey,
+                        taxType,
+                        groupTaxRates,
+                        taxRates,
+                        null);
 
                     row[GetValueFieldCode(rowDef)] = taxAmount;
                     row["taxMetadata"] = new Dictionary<string, object?>
@@ -369,10 +373,19 @@ public class BookRenderingService : IBookRenderingService
 
                     row[valueField] = taxAmount;
                     row["explanation"] = $"Formula = {taxAmount:#,0}";
+                    var rateSource = GetTaxRateSource(rowDef.Formula);
+                    var taxRate = ResolveTaxRate(
+                        rateSource,
+                        null,
+                        taxType,
+                        null,
+                        Array.Empty<IndustryTaxRate>(),
+                        taxRateLookup);
+
                     row["taxMetadata"] = new Dictionary<string, object?>
                     {
                         ["taxType"] = rowDef.TaxType,
-                        ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
+                        ["rate"] = taxRate,
                         ["source"] = "FORMULA"
                     };
                     if (!string.IsNullOrWhiteSpace(taxType))
@@ -433,10 +446,19 @@ public class BookRenderingService : IBookRenderingService
 
                 row[footerValueField] = taxAmount;
                 row["explanation"] = $"Formula = {taxAmount:#,0}";
+                var rateSource = GetTaxRateSource(rowDef.Formula);
+                var taxRate = ResolveTaxRate(
+                    rateSource,
+                    null,
+                    taxType,
+                    null,
+                    taxRates,
+                    taxRateLookup);
+
                 row["taxMetadata"] = new Dictionary<string, object?>
                 {
                     ["taxType"] = rowDef.TaxType,
-                    ["rate"] = taxRateLookup.GetValueOrDefault(taxType),
+                    ["rate"] = taxRate,
                     ["source"] = "FORMULA"
                 };
 
@@ -453,6 +475,24 @@ public class BookRenderingService : IBookRenderingService
                         btNamesCache = await LoadBusinessTypeNamesAsync(allBtIds);
                     }
 
+                    Dictionary<(string, string), decimal>? breakdownTaxRates = null;
+                    if (rateSource.Type == TaxRateSourceType.Lookup)
+                    {
+                        var btIds = breakdown.Keys
+                            .Select(k => Guid.TryParse(k, out var gid) ? (Guid?)gid : null)
+                            .Where(g => g.HasValue)
+                            .Select(g => g!.Value)
+                            .ToList();
+
+                        var rateList = taxRates;
+                        if (rateList.Count == 0 && btIds.Count > 0)
+                            rateList = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(context.RulesetId, btIds);
+
+                        breakdownTaxRates = rateList
+                            .GroupBy(x => (x.BusinessTypeId.ToString(), NormalizeTaxType(x.TaxType)))
+                            .ToDictionary(g => g.Key, g => g.First().TaxRate);
+                    }
+
                     row["taxBreakdown"] = breakdown.Select(kv =>
                     {
                         var groupKey = kv.Key;
@@ -461,12 +501,13 @@ public class BookRenderingService : IBookRenderingService
                         var cost = Guid.TryParse(groupKey, out var btId2) ? costByBtCache.GetValueOrDefault(btId2) : 0m;
                         var profit = Math.Max(0m, revenue - cost);
 
-                        var rateEntry = Guid.TryParse(groupKey, out var rateGid)
-                            ? taxRates.FirstOrDefault(r =>
-                                r.BusinessTypeId == rateGid
-                                && string.Equals(NormalizeTaxType(r.TaxType), taxType, StringComparison.OrdinalIgnoreCase))
-                            : null;
-                        var rate = rateEntry?.TaxRate;
+                        var rate = ResolveTaxRate(
+                            rateSource,
+                            groupKey,
+                            taxType,
+                            breakdownTaxRates,
+                            taxRates,
+                            taxRateLookup);
 
                         string? itemExplanation = null;
                         if (rate.HasValue)
@@ -552,6 +593,167 @@ public class BookRenderingService : IBookRenderingService
     {
         foreach (var kv in source)
             target[kv.Key] = target.GetValueOrDefault(kv.Key) + kv.Value;
+    }
+
+    private enum TaxRateSourceType
+    {
+        None,
+        Literal,
+        Lookup
+    }
+
+    private readonly record struct TaxRateSource(TaxRateSourceType Type, decimal? Literal, string? TaxType);
+
+    private static TaxRateSource GetTaxRateSource(FormulaDefinition? formula)
+    {
+        if (string.IsNullOrWhiteSpace(formula?.ExpressionJson))
+            return new TaxRateSource(TaxRateSourceType.None, null, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(formula.ExpressionJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("foreach", out _) && root.TryGetProperty("apply", out var apply))
+                root = apply;
+
+            return TryFindRateSource(root, out var source)
+                ? source
+                : new TaxRateSource(TaxRateSourceType.None, null, null);
+        }
+        catch
+        {
+            return new TaxRateSource(TaxRateSourceType.None, null, null);
+        }
+    }
+
+    private static bool TryFindRateSource(JsonElement node, out TaxRateSource source)
+    {
+        source = new TaxRateSource(TaxRateSourceType.None, null, null);
+
+        if (node.ValueKind == JsonValueKind.Object)
+        {
+            if (node.TryGetProperty("op", out var opNode)
+                && string.Equals(opNode.GetString(), "MULTIPLY", StringComparison.OrdinalIgnoreCase))
+            {
+                var left = node.GetProperty("left");
+                var right = node.GetProperty("right");
+
+                var leftIsRate = TryReadRateNode(left, out var leftRate);
+                var rightIsRate = TryReadRateNode(right, out var rightRate);
+
+                if (leftIsRate && !rightIsRate)
+                {
+                    source = leftRate;
+                    return true;
+                }
+
+                if (rightIsRate && !leftIsRate)
+                {
+                    source = rightRate;
+                    return true;
+                }
+
+                if (leftIsRate)
+                {
+                    source = leftRate;
+                    return true;
+                }
+
+                if (rightIsRate)
+                {
+                    source = rightRate;
+                    return true;
+                }
+            }
+
+            foreach (var prop in node.EnumerateObject())
+            {
+                if (TryFindRateSource(prop.Value, out source))
+                    return true;
+            }
+        }
+        else if (node.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in node.EnumerateArray())
+            {
+                if (TryFindRateSource(item, out source))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryReadRateNode(JsonElement node, out TaxRateSource source)
+    {
+        source = new TaxRateSource(TaxRateSourceType.None, null, null);
+
+        if (node.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (node.TryGetProperty("literal", out var literal))
+        {
+            var value = literal.GetDecimal();
+            source = new TaxRateSource(TaxRateSourceType.Literal, value, null);
+            return true;
+        }
+
+        if (node.TryGetProperty("lookup", out var lookup))
+        {
+            string? taxType = null;
+            if (lookup.TryGetProperty("filter", out var filter)
+                && filter.TryGetProperty("TaxType", out var taxTypeNode))
+            {
+                taxType = taxTypeNode.GetString();
+            }
+
+            source = new TaxRateSource(TaxRateSourceType.Lookup, null, taxType);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static decimal? ResolveTaxRate(
+        TaxRateSource rateSource,
+        string? groupKey,
+        string? defaultTaxType,
+        IReadOnlyDictionary<(string, string), decimal>? groupTaxRates,
+        IReadOnlyList<IndustryTaxRate> taxRates,
+        IReadOnlyDictionary<string, decimal>? taxRateLookup)
+    {
+        if (rateSource.Type == TaxRateSourceType.Literal)
+            return rateSource.Literal;
+
+        if (rateSource.Type != TaxRateSourceType.Lookup)
+            return null;
+
+        var taxType = NormalizeTaxType(rateSource.TaxType ?? defaultTaxType);
+        if (string.IsNullOrWhiteSpace(taxType))
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(groupKey))
+        {
+            if (groupTaxRates != null
+                && groupTaxRates.TryGetValue((groupKey, taxType), out var groupRate))
+                return groupRate;
+
+            if (Guid.TryParse(groupKey, out var gid))
+            {
+                var rateEntry = taxRates.FirstOrDefault(r =>
+                    r.BusinessTypeId == gid
+                    && string.Equals(NormalizeTaxType(r.TaxType), taxType, StringComparison.OrdinalIgnoreCase));
+                if (rateEntry != null)
+                    return rateEntry.TaxRate;
+            }
+
+            return null;
+        }
+
+        if (taxRateLookup != null && taxRateLookup.TryGetValue(taxType, out var lookupRate))
+            return lookupRate;
+
+        return null;
     }
 
     // ────────────────────────────────────────────────────────
