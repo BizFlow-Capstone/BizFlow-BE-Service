@@ -1,6 +1,7 @@
 using BizFlow.Application.Common.Specifications;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Domain.Entities;
+using BizFlow.Domain.Enums;
 
 namespace BizFlow.Application.Specifications.Revenues
 {
@@ -11,6 +12,9 @@ namespace BizFlow.Application.Specifications.Revenues
         {
             if (!query.IncludeReversal)
                 AddCriteria(r => !r.IsReversal);
+
+            if (query.ExcludeCancelled)
+                AddCriteria(r => r.Status != RevenueStatus.Cancelled);
 
             if (!string.IsNullOrWhiteSpace(query.RevenueType))
             {

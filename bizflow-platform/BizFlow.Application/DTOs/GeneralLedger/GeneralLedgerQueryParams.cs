@@ -16,5 +16,11 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         public DateOnly? FromDate { get; set; }
         public DateOnly? ToDate { get; set; }
         public string ViewMode { get; set; } = GeneralLedgerViewMode.Audit;
+
+        /// <summary>
+        /// When true, reversal entries (IsReversal == true) are excluded at the DB level.
+        /// Use this for accounting book queries so that hasMore / cursor logic is correct.
+        /// </summary>
+        public bool ExcludeReversal { get; set; }
     }
 }
