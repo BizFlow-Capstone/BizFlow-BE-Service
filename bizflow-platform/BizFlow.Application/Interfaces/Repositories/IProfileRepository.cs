@@ -7,6 +7,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Profile?> GetByIdAsync(Guid profileId);
         Task<Profile?> GetByAccountIdAsync(Guid accountId);
         Task<List<Profile>> GetByIdsAsync(IEnumerable<Guid> profileIds);
+        Task<HashSet<string>> GetExistingAvatarPublicIdsAsync(IEnumerable<string> publicIds);
         /// <summary>
         /// For forgot-password OTP: returns profile <see cref="Profile.FullName"/> when there is an email credential
         /// for an active, non-deleted account with a profile; otherwise <c>null</c> (normalized email).

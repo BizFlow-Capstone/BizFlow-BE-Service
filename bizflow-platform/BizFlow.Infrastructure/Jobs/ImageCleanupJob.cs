@@ -14,6 +14,9 @@ namespace BizFlow.Infrastructure.Jobs
         private readonly ICloudinaryService _cloudinaryService;
         private readonly IProductRepository _productRepository;
         private readonly IImportRepository _importRepository;
+        private readonly IRevenueRepository _revenueRepository;
+        private readonly ICostRepository _costRepository;
+        private readonly IProfileRepository _profileRepository;
         private readonly ILogger<ImageCleanupJob> _logger;
 
         /// <summary>
@@ -26,11 +29,17 @@ namespace BizFlow.Infrastructure.Jobs
             ICloudinaryService cloudinaryService,
             IProductRepository productRepository,
             IImportRepository importRepository,
+            IRevenueRepository revenueRepository,
+            ICostRepository costRepository,
+            IProfileRepository profileRepository,
             ILogger<ImageCleanupJob> logger)
         {
             _cloudinaryService = cloudinaryService;
             _productRepository = productRepository;
             _importRepository = importRepository;
+            _revenueRepository = revenueRepository;
+            _costRepository = costRepository;
+            _profileRepository = profileRepository;
             _logger = logger;
         }
 
@@ -69,14 +78,29 @@ namespace BizFlow.Infrastructure.Jobs
                     // 3. Batch check against DB — which PublicIds are still referenced?
                     var existsInProducts = await _productRepository.GetExistingPublicIdsAsync(candidates);
                     var existsInImports = await _importRepository.GetExistingPublicIdsAsync(candidates);
+                    var existsInRevenues = await _revenueRepository.GetExistingPublicIdsAsync(candidates);
+                    var existsInCosts = await _costRepository.GetExistingPublicIdsAsync(candidates);
+                    var existsInProfiles = await _profileRepository.GetExistingAvatarPublicIdsAsync(candidates);
 
                     var orphans = candidates
-                        .Where(id => !existsInProducts.Contains(id) && !existsInImports.Contains(id))
+                        .Where(id =>
+                            !existsInProducts.Contains(id)
+                            && !existsInImports.Contains(id)
+                            && !existsInRevenues.Contains(id)
+                            && !existsInCosts.Contains(id)
+                            && !existsInProfiles.Contains(id))
                         .ToList();
 
                     _logger.LogInformation(
-                        "Page: {Total} scanned, {Candidates} checked, {Orphans} orphans found",
-                        page.Resources.Count, candidates.Count, orphans.Count);
+                        "Page: {Total} scanned, {Candidates} checked, refs Product={ProductRefs}, Import={ImportRefs}, Revenue={RevenueRefs}, Cost={CostRefs}, Profile={ProfileRefs}, {Orphans} orphans found",
+                        page.Resources.Count,
+                        candidates.Count,
+                        existsInProducts.Count,
+                        existsInImports.Count,
+                        existsInRevenues.Count,
+                        existsInCosts.Count,
+                        existsInProfiles.Count,
+                        orphans.Count);
 
                     if (orphans.Count == 0) continue;
 

@@ -98,6 +98,19 @@ namespace BizFlow.Infrastructure.Repositories
         public void Update(Revenue revenue)
             => _db.Revenues.Update(revenue);
 
+        public async Task<HashSet<string>> GetExistingPublicIdsAsync(IEnumerable<string> publicIds)
+        {
+            var ids = publicIds.ToList();
+            if (ids.Count == 0) return new HashSet<string>();
+
+            var existing = await _db.Revenues
+                .Where(r => r.DocumentPublicId != null && ids.Contains(r.DocumentPublicId))
+                .Select(r => r.DocumentPublicId!)
+                .ToListAsync();
+
+            return new HashSet<string>(existing);
+        }
+
         public Task LockRevenueRowForUpdateAsync(long revenueId, CancellationToken cancellationToken = default)
             => _db.Database.ExecuteSqlRawAsync(
                 "SELECT RevenueId FROM `Revenues` WHERE RevenueId = {0} LIMIT 1 FOR UPDATE",

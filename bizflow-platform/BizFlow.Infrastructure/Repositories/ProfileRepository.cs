@@ -39,6 +39,19 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<HashSet<string>> GetExistingAvatarPublicIdsAsync(IEnumerable<string> publicIds)
+        {
+            var ids = publicIds.ToList();
+            if (ids.Count == 0) return new HashSet<string>();
+
+            var existing = await _context.Profiles
+                .Where(p => p.AvatarPublicId != null && ids.Contains(p.AvatarPublicId))
+                .Select(p => p.AvatarPublicId!)
+                .ToListAsync();
+
+            return new HashSet<string>(existing);
+        }
+
         public Task<string?> GetFullNameForEligibleForgotPasswordEmailAsync(string normalizedEmail, CancellationToken ct = default)
         {
             return _context.Credentials
