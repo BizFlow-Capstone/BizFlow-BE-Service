@@ -9,6 +9,8 @@ namespace BizFlow.Application.DTOs.Import
     public class ImportDetailDto : ImportSummaryDto
     {
         public string? ImageUrl { get; set; }
+        public string? DocumentNumber { get; set; }
+        public DateOnly? DocumentDate { get; set; }
         /// <summary>
         /// Payment method (optional). <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>system</c>}
         /// (see <see cref="PaymentMethods"/>).

@@ -17,6 +17,8 @@ namespace BizFlow.Application.Services
     public class ImportService : IImportService
     {
         private const string DraftPaymentMethodMetadataKey = "paymentMethod";
+        private const string DraftDocumentNumberMetadataKey = "documentNumber";
+        private const string DraftDocumentDateMetadataKey = "documentDate";
         private readonly IUnitOfWork _unitOfWork;
         private readonly IImageService _imageService;
         private readonly IStockMovementService _stockMovementService;
@@ -60,6 +62,8 @@ namespace BizFlow.Application.Services
             dto.ImportType = _labels.ToOption(ReferenceCategory.ImportType, import.ImportType);
             dto.Status = _labels.ToOption(ReferenceCategory.ImportStatus, import.Status);
             var importCost = await _unitOfWork.Costs.GetByImportIdAsync(import.ImportId);
+            dto.DocumentNumber = importCost?.DocumentNumber ?? GetDraftDocumentNumberFromMetadata(import.SchemaDataJson);
+            dto.DocumentDate = importCost?.DocumentDate ?? GetDraftDocumentDateFromMetadata(import.SchemaDataJson);
             var paymentMethodCode = importCost?.PaymentMethod ?? GetDraftPaymentMethodFromMetadata(import.SchemaDataJson);
             dto.PaymentMethod = _labels.ToOptionOrNull(
                 ReferenceCategory.PaymentMethod,
@@ -131,7 +135,9 @@ namespace BizFlow.Application.Services
                 imageStream: request.ImageStream,
                 imageFileName: request.ImageFileName,
                 applyToStock: !request.SaveAsDraft,
-                draftPaymentMethod: request.SaveAsDraft ? normalizedPaymentMethod : null);
+                draftPaymentMethod: request.SaveAsDraft ? normalizedPaymentMethod : null,
+                draftDocumentNumber: request.SaveAsDraft ? request.DocumentNumber : null,
+                draftDocumentDate: request.SaveAsDraft ? request.DocumentDate : null);
 
             // Auto create import cost + GL when created directly as CONFIRMED.
             if (status == ImportStatus.Confirmed)
@@ -205,9 +211,11 @@ namespace BizFlow.Application.Services
             if (request.PaymentMethod != null)
             {
                 var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
-                import.SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+                import.SchemaDataJson = UpsertDraftMetadata(
                     import.SchemaDataJson,
-                    normalizedPaymentMethod,
+                    paymentMethod: normalizedPaymentMethod,
+                    documentNumber: GetDraftDocumentNumberFromMetadata(import.SchemaDataJson),
+                    documentDate: GetDraftDocumentDateFromMetadata(import.SchemaDataJson),
                     removeWhenNull: true);
             }
 
@@ -417,6 +425,10 @@ namespace BizFlow.Application.Services
             var normalizedPaymentMethod = NormalizePaymentMethodOrThrow(request.PaymentMethod);
             var paymentMethodForCost = normalizedPaymentMethod
                 ?? GetDraftPaymentMethodFromMetadata(import.SchemaDataJson);
+            var documentNumberForCost = request.DocumentNumber
+                ?? GetDraftDocumentNumberFromMetadata(import.SchemaDataJson);
+            var documentDateForCost = request.DocumentDate
+                ?? GetDraftDocumentDateFromMetadata(import.SchemaDataJson);
 
             // Add quantity to product stock and update CostPrice
             await ApplyImportToProductsAsync(import.ProductsImports, import.ImportId, import.Note);
@@ -430,13 +442,15 @@ namespace BizFlow.Application.Services
             await _costService.CreateImportCostAsync(
                 userId,
                 import,
-                request.DocumentNumber,
-                request.DocumentDate,
+                documentNumberForCost,
+                documentDateForCost,
                 paymentMethodForCost);
 
-            import.SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+            import.SchemaDataJson = UpsertDraftMetadata(
                 import.SchemaDataJson,
-                null,
+                paymentMethod: null,
+                documentNumber: null,
+                documentDate: null,
                 removeWhenNull: true);
             _unitOfWork.Imports.Update(import);
             await _unitOfWork.SaveChangesAsync();
@@ -666,7 +680,9 @@ namespace BizFlow.Application.Services
             Stream? imageStream,
             string? imageFileName,
             bool applyToStock,
-            string? draftPaymentMethod = null)
+            string? draftPaymentMethod = null,
+            string? draftDocumentNumber = null,
+            DateOnly? draftDocumentDate = null)
         {
             return await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _unitOfWork.ExecuteResilientAsync(async _ =>
             {
@@ -680,9 +696,11 @@ namespace BizFlow.Application.Services
                     Supplier = supplier,
                     Note = memo,
                     ReceivedAt = receivedAt,
-                    SchemaDataJson = UpsertDraftPaymentMethodMetadata(
+                    SchemaDataJson = UpsertDraftMetadata(
                         schemaDataJson: null,
                         paymentMethod: draftPaymentMethod,
+                        documentNumber: draftDocumentNumber,
+                        documentDate: draftDocumentDate,
                         removeWhenNull: false),
                     TotalAmount = totalAmount,
                     CreatedAt = now,
@@ -794,9 +812,60 @@ namespace BizFlow.Application.Services
             }
         }
 
-        private static string? UpsertDraftPaymentMethodMetadata(
+        private static string? GetDraftDocumentNumberFromMetadata(string? schemaDataJson)
+        {
+            if (string.IsNullOrWhiteSpace(schemaDataJson))
+                return null;
+
+            try
+            {
+                var node = JsonNode.Parse(schemaDataJson);
+                if (node is not JsonObject jsonObject
+                    || !jsonObject.TryGetPropertyValue(DraftDocumentNumberMetadataKey, out var documentNumberNode))
+                    return null;
+
+                var documentNumber = documentNumberNode?.GetValue<string>();
+                return string.IsNullOrWhiteSpace(documentNumber)
+                    ? null
+                    : documentNumber.Trim();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static DateOnly? GetDraftDocumentDateFromMetadata(string? schemaDataJson)
+        {
+            if (string.IsNullOrWhiteSpace(schemaDataJson))
+                return null;
+
+            try
+            {
+                var node = JsonNode.Parse(schemaDataJson);
+                if (node is not JsonObject jsonObject
+                    || !jsonObject.TryGetPropertyValue(DraftDocumentDateMetadataKey, out var documentDateNode))
+                    return null;
+
+                var documentDateRaw = documentDateNode?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(documentDateRaw))
+                    return null;
+
+                return DateOnly.TryParse(documentDateRaw.Trim(), out var documentDate)
+                    ? documentDate
+                    : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string? UpsertDraftMetadata(
             string? schemaDataJson,
             string? paymentMethod,
+            string? documentNumber,
+            DateOnly? documentDate,
             bool removeWhenNull)
         {
             JsonObject jsonObject;
@@ -820,6 +889,26 @@ namespace BizFlow.Application.Services
             else
             {
                 jsonObject[DraftPaymentMethodMetadataKey] = paymentMethod;
+            }
+
+            if (string.IsNullOrWhiteSpace(documentNumber))
+            {
+                if (removeWhenNull)
+                    jsonObject.Remove(DraftDocumentNumberMetadataKey);
+            }
+            else
+            {
+                jsonObject[DraftDocumentNumberMetadataKey] = documentNumber.Trim();
+            }
+
+            if (!documentDate.HasValue)
+            {
+                if (removeWhenNull)
+                    jsonObject.Remove(DraftDocumentDateMetadataKey);
+            }
+            else
+            {
+                jsonObject[DraftDocumentDateMetadataKey] = documentDate.Value.ToString("yyyy-MM-dd");
             }
 
             return jsonObject.Count == 0 ? null : jsonObject.ToJsonString();
