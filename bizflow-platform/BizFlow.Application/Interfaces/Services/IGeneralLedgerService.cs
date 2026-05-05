@@ -11,7 +11,7 @@ namespace BizFlow.Application.Interfaces.Services
         /// <summary>
         /// Tổng doanh thu / chi phí chỉ từ sổ cái (reference_type revenue | cost), không đọc bảng Revenue/Cost.
         /// </summary>
-        Task<GeneralLedgerTotalsDto> GetTotalsAsync(Guid userId, GeneralLedgerQueryParams query);
+        Task<GeneralLedgerTotalsDto> GetTotalsAsync(Guid userId, GeneralLedgerTotalsQueryParams query);
 
         Task<GeneralLedgerEntry> RecordImportCostAsync(Cost cost);
         Task<GeneralLedgerEntry> RecordManualCostAsync(Cost cost);

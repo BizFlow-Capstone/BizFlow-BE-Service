@@ -139,15 +139,35 @@ namespace BizFlow.Application.Services
             return new PaginatedResponse<GeneralLedgerEntryDto>(dtos, total, pageNumber, pageSize);
         }
 
-        public async Task<GeneralLedgerTotalsDto> GetTotalsAsync(Guid userId, GeneralLedgerQueryParams query)
+        public async Task<GeneralLedgerTotalsDto> GetTotalsAsync(Guid userId, GeneralLedgerTotalsQueryParams query)
         {
-            await ValidateAndNormalizeLedgerQueryAsync(userId, query);
+            await ValidateAndNormalizeTotalsQueryAsync(userId, query);
             var (totalRevenue, totalCost) = await _uow.GeneralLedgerEntries.SumRevenueAndCostAsync(query);
             return new GeneralLedgerTotalsDto
             {
                 TotalRevenue = totalRevenue,
                 TotalCost = totalCost
             };
+        }
+
+        private async Task ValidateAndNormalizeTotalsQueryAsync(Guid userId, GeneralLedgerTotalsQueryParams query)
+        {
+            await _locationService.ValidateOwnerAsync(userId, query.BusinessLocationId);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var earliestAllowedDate = ResolveEarliestAllowedDate(today);
+
+            if (query.FromDate.HasValue && (query.FromDate.Value < earliestAllowedDate || query.FromDate.Value > today))
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
+
+            if (query.ToDate.HasValue && (query.ToDate.Value < earliestAllowedDate || query.ToDate.Value > today))
+                throw new BadRequestException(MessageKeys.LedgerDateOutOfRange);
+
+            query.ToDate ??= today;
+            query.FromDate ??= earliestAllowedDate;
+
+            if (query.FromDate > query.ToDate)
+                throw new BadRequestException(MessageKeys.LedgerInvalidDateRange);
         }
 
         private async Task ValidateAndNormalizeLedgerQueryAsync(Guid userId, GeneralLedgerQueryParams query)

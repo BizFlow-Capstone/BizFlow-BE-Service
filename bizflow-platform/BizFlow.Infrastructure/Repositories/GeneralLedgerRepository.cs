@@ -170,10 +170,12 @@ namespace BizFlow.Infrastructure.Repositories
             };
         }
 
-        public async Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerQueryParams query)
+        public async Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerTotalsQueryParams query)
         {
-            var spec = new GeneralLedgerSearchSpec(query, isCount: false, filterOnly: true);
-            var baseQuery = SpecificationEvaluator<GeneralLedgerEntry>.GetQuery(_db.GeneralLedgerEntries.AsQueryable(), spec);
+            var baseQuery = _db.GeneralLedgerEntries
+                .Where(e => e.BusinessLocationId == query.BusinessLocationId
+                    && e.EntryDate >= query.FromDate!.Value
+                    && e.EntryDate <= query.ToDate!.Value);
 
             var totalRevenue = await baseQuery
                 .Where(e => e.ReferenceType == GeneralLedgerReferenceType.Revenue)

@@ -21,9 +21,9 @@ namespace BizFlow.Application.Interfaces.Repositories
             string? moneyChannel, string? transactionType);
 
         /// <summary>
-        /// Tổng doanh thu (net Nợ - Có trên dòng revenue) và tổng chi phí (net Có - Nợ trên dòng cost),
-        /// cùng điều kiện lọc với <see cref="SearchAsync"/>.
+        /// Tổng doanh thu (net Nợ - Có trên dòng revenue) và tổng chi phí (net Có - Nợ trên dòng cost)
+        /// theo location và khoảng ngày, chỉ đọc từ general_ledger_entry.
         /// </summary>
-        Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerQueryParams query);
+        Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerTotalsQueryParams query);
     }
 }
