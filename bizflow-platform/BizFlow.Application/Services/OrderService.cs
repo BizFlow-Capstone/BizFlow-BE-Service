@@ -69,12 +69,12 @@ namespace BizFlow.Application.Services
             if (prepared.RequiresConfirmation)
                 return new OrderActionResultDto { RequiresConfirmation = true, Warnings = prepared.Warnings };
 
-            var order = await _uow.ExecuteResilientAsync(async _ =>
+            var order = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async _ =>
             {
                 var now = DateTime.UtcNow;
                 var created = new Order
                 {
-                    OrderCode = GenerateOrderCode(),
+                    OrderCode = EntityCodeGenerator.Generate("ORD", now, request.BusinessLocationId, 5),
                     DebtorId = request.DebtorId,
                     CustomerName = request.CustomerName?.Trim(),
                     CustomerPhone = request.CustomerPhone?.Trim(),
@@ -102,7 +102,7 @@ namespace BizFlow.Application.Services
                 await _uow.OrderDetails.AddRangeAsync(prepared.Details);
 
                 return created;
-            });
+            }));
 
             var created = await _uow.Orders.GetByIdWithDetailsAsync(order.OrderId) ?? order;
             var createdDto = await MapOrderWithCreatorAsync(created);
@@ -206,7 +206,7 @@ namespace BizFlow.Application.Services
                 };
             }
 
-            await _uow.ExecuteResilientAsync(async ct =>
+            await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Orders.LockOrderRowForUpdateAsync(orderId, ct);
 
@@ -269,7 +269,7 @@ namespace BizFlow.Application.Services
                 await _revenueService.RecordPostedSaleRevenuesToLedgerAsync(revenues, ct);
 
                 await _uow.SaveChangesAsync();
-            });
+            }));
 
             var completed = await _uow.Orders.GetByIdWithDetailsAsync(orderId) ?? throw new NotFoundException(MessageKeys.NotFound);
             var completedDto = await MapOrderWithCreatorAsync(completed);
@@ -419,12 +419,12 @@ namespace BizFlow.Application.Services
             if (prepared.RequiresConfirmation)
                 throw new BadRequestException(MessageKeys.BadRequest);
 
-            var newOrderId = await _uow.ExecuteResilientAsync(async ct =>
+            var newOrderId = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 var now = DateTime.UtcNow;
                 var newOrder = new Order
                 {
-                    OrderCode = GenerateOrderCode(),
+                    OrderCode = EntityCodeGenerator.Generate("ORD", now, locationId, 5),
                     RefOrderId = oldOrderId,
                     DebtorId = request.DebtorId,
                     CustomerName = request.CustomerName?.Trim(),
@@ -562,7 +562,7 @@ namespace BizFlow.Application.Services
                 _uow.Orders.Update(oldOrder);
 
                 return newOrder.OrderId;
-            });
+            }));
 
             return new EditCompletedSaveResultDto
             {
@@ -610,9 +610,6 @@ namespace BizFlow.Application.Services
             var pageSize = query.PageSize ?? 20;
             return new PaginatedResponse<OrderDto>(dtos, totalCount, pageNumber, pageSize);
         }
-
-        private static string GenerateOrderCode()
-            => $"ORD-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
 
         private async Task<OrderDto> MapOrderWithCreatorAsync(Order order)
         {
@@ -894,6 +891,7 @@ namespace BizFlow.Application.Services
 
                 result.Add(new Revenue
                 {
+                    RevenueCode = EntityCodeGenerator.Generate("REV", now, businessLocationId, 5),
                     BusinessLocationId = businessLocationId,
                     BusinessTypeId = allocations[i].BusinessTypeId,
                     OrderId = orderId,

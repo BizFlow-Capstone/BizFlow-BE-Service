@@ -1,6 +1,7 @@
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.DTOs.Accounting;
 using BizFlow.Application.Common.Models;
@@ -265,7 +266,7 @@ namespace BizFlow.Application.Services
 
             Import newImportResult = null!;
 
-            await _unitOfWork.ExecuteResilientAsync(async ct =>
+            await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _unitOfWork.ExecuteResilientAsync(async ct =>
             {
                 await _unitOfWork.Imports.LockImportRowForUpdateAsync(oldImportId, ct);
 
@@ -282,7 +283,7 @@ namespace BizFlow.Application.Services
                     return;
                 }
 
-                var newCode = GenerateImportCode();
+                var newCode = EntityCodeGenerator.Generate("IMP", DateTime.UtcNow, old.BusinessLocationId, 3);
 
                 if (!string.IsNullOrWhiteSpace(request.ImportType)
                     && !ImportType.IsValid(request.ImportType.Trim()))
@@ -363,7 +364,7 @@ namespace BizFlow.Application.Services
                     cancellationToken: ct);
 
                 newImportResult = newImport;
-            });
+            }));
 
             _backgroundJobScheduler.EnqueueAiAnomalyCheck(newImportResult.BusinessLocationId, "import", newImportResult.ImportId);
 
@@ -630,11 +631,6 @@ namespace BizFlow.Application.Services
             }
         }
 
-        private static string GenerateImportCode()
-        {
-            return Guid.NewGuid().ToString("N")[..12].ToUpper();
-        }
-
         private async Task<Import> CreateImportRecordAsync(
             string importType,
             string status,
@@ -648,11 +644,12 @@ namespace BizFlow.Application.Services
             string? imageFileName,
             bool applyToStock)
         {
-            return await _unitOfWork.ExecuteResilientAsync(async _ =>
+            return await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _unitOfWork.ExecuteResilientAsync(async _ =>
             {
+                var now = DateTime.UtcNow;
                 var import = new Import
                 {
-                    ImportCode = GenerateImportCode(),
+                    ImportCode = EntityCodeGenerator.Generate("IMP", now, businessLocationId, 3),
                     ImportType = importType,
                     Status = status,
                     BusinessLocationId = businessLocationId,
@@ -660,9 +657,9 @@ namespace BizFlow.Application.Services
                     Note = memo,
                     ReceivedAt = receivedAt,
                     TotalAmount = totalAmount,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = status == ImportStatus.Draft ? null : DateTime.UtcNow,
-                    ConfirmedAt = status == ImportStatus.Confirmed ? DateTime.UtcNow : null
+                    CreatedAt = now,
+                    UpdatedAt = status == ImportStatus.Draft ? null : now,
+                    ConfirmedAt = status == ImportStatus.Confirmed ? now : null
                 };
 
                 if (imageStream != null)
@@ -685,7 +682,7 @@ namespace BizFlow.Application.Services
 
                 await _unitOfWork.SaveChangesAsync();
                 return import;
-            });
+            }));
         }
 
         private async Task<(List<ProductImport> items, decimal totalAmount)> BuildImportItemsAsync(

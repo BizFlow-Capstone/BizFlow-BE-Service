@@ -2,6 +2,7 @@ using System.Globalization;
 using AutoMapper;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.Common.Interfaces;
 using BizFlow.Application.Common.Models;
 using BizFlow.Application.DTOs.Accounting;
@@ -88,7 +89,7 @@ namespace BizFlow.Application.Services
 
             var ownerId = await ResolveOwnerIdAsync(request.BusinessLocationId);
 
-            var entity = await _uow.ExecuteResilientAsync(async ct =>
+            var entity = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 if (docNumberNormalized != null)
                 {
@@ -98,6 +99,7 @@ namespace BizFlow.Application.Services
 
                 var cost = new Cost
                 {
+                    CostCode = EntityCodeGenerator.Generate("COST", DateTime.UtcNow, request.BusinessLocationId, 5),
                     BusinessLocationId = request.BusinessLocationId,
                     BusinessTypeId = request.BusinessTypeId,
                     CostType = normalizedType,
@@ -121,7 +123,7 @@ namespace BizFlow.Application.Services
                 await _uow.SaveChangesAsync(ct);
 
                 return cost;
-            });
+            }));
 
             return ToDto(entity);
         }
@@ -199,7 +201,7 @@ namespace BizFlow.Application.Services
 
             var replacementCostDate = request.CostDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-            var newCost = await _uow.ExecuteResilientAsync(async ct =>
+            var newCost = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Costs.LockCostRowForUpdateAsync(costId, ct);
 
@@ -228,6 +230,9 @@ namespace BizFlow.Application.Services
                 var replaceReversalDesc = BuildReplacePostedManualCostReversalDescription(old);
                 var costReversal = new Cost
                 {
+                    CostCode = string.IsNullOrWhiteSpace(old.CostCode)
+                        ? EntityCodeGenerator.Generate("COST", DateTime.UtcNow, old.BusinessLocationId, 5)
+                        : $"R{old.CostCode}",
                     BusinessLocationId = old.BusinessLocationId,
                     BusinessTypeId = old.BusinessTypeId,
                     CostType = old.CostType,
@@ -272,6 +277,7 @@ namespace BizFlow.Application.Services
 
                 var created = new Cost
                 {
+                    CostCode = EntityCodeGenerator.Generate("COST", DateTime.UtcNow, old.BusinessLocationId, 5),
                     BusinessLocationId = old.BusinessLocationId,
                     BusinessTypeId = request.BusinessTypeId,
                     CostType = normalizedCostType!,
@@ -297,7 +303,7 @@ namespace BizFlow.Application.Services
                 await _uow.SaveChangesAsync(ct);
 
                 return created;
-            });
+            }));
 
             return new ManualCostUpdateResponseDto
             {
@@ -443,7 +449,7 @@ namespace BizFlow.Application.Services
                 return;
             }
 
-            await _uow.ExecuteResilientAsync(async ct =>
+            await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
                 await _uow.Costs.LockCostRowForUpdateAsync(costId, ct);
 
@@ -455,6 +461,9 @@ namespace BizFlow.Application.Services
                 var deleteReversalDesc = BuildReplacePostedManualCostReversalDescription(current);
                 var reversal = new Cost
                 {
+                    CostCode = string.IsNullOrWhiteSpace(current.CostCode)
+                        ? EntityCodeGenerator.Generate("COST", DateTime.UtcNow, current.BusinessLocationId, 5)
+                        : $"R{current.CostCode}",
                     BusinessLocationId = current.BusinessLocationId,
                     BusinessTypeId = current.BusinessTypeId,
                     CostType = current.CostType,
@@ -480,7 +489,7 @@ namespace BizFlow.Application.Services
                 current.UpdatedAt = DateTime.UtcNow;
                 _uow.Costs.Update(current);
                 await _uow.SaveChangesAsync(ct);
-            });
+            }));
         }
 
         public Task<Cost> CreateImportCostAsync(
@@ -489,7 +498,9 @@ namespace BizFlow.Application.Services
             string? documentNumber = null,
             DateOnly? documentDate = null,
             string? paymentMethod = null)
-            => _uow.ExecuteResilientAsync(ct => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, paymentMethod, ct));
+            => EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(
+                () => _uow.ExecuteResilientAsync(
+                    ct => CreateImportCostCoreAsync(userId, import, documentNumber, documentDate, paymentMethod, ct)));
 
         public Task<Cost> CreateImportCostInCurrentTransactionAsync(
             Guid userId,
@@ -555,6 +566,7 @@ namespace BizFlow.Application.Services
 
             var cost = new Cost
             {
+                CostCode = EntityCodeGenerator.Generate("COST", DateTime.UtcNow, import.BusinessLocationId, 5),
                 BusinessLocationId = import.BusinessLocationId,
                 CostType = CostType.Import,
                 ImportId = import.ImportId,
@@ -600,6 +612,9 @@ namespace BizFlow.Application.Services
             var reversalDesc = BuildReplacePostedManualCostReversalDescription(cost);
             var reversal = new Cost
             {
+                CostCode = string.IsNullOrWhiteSpace(cost.CostCode)
+                    ? EntityCodeGenerator.Generate("COST", DateTime.UtcNow, cost.BusinessLocationId, 5)
+                    : $"R{cost.CostCode}",
                 BusinessLocationId = cost.BusinessLocationId,
                 BusinessTypeId = cost.BusinessTypeId,
                 CostType = CostType.Import,

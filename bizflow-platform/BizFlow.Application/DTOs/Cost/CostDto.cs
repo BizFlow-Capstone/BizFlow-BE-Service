@@ -5,6 +5,7 @@ namespace BizFlow.Application.DTOs.Cost
     public class CostDto
     {
         public long CostId { get; set; }
+        public string? CostCode { get; set; }
         public int BusinessLocationId { get; set; }
         public Guid? BusinessTypeId { get; set; }
         public long? ImportId { get; set; }

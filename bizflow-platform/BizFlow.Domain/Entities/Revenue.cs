@@ -10,6 +10,11 @@ public partial class Revenue
     public long RevenueId { get; set; }
 
     /// <summary>
+    /// Auto-generated revenue code.
+    /// </summary>
+    public string? RevenueCode { get; set; }
+
+    /// <summary>
     /// FK to BusinessLocations
     /// </summary>
     public int BusinessLocationId { get; set; }
