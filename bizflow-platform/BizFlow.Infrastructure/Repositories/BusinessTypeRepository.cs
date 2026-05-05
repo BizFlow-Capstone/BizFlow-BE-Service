@@ -39,6 +39,11 @@ namespace BizFlow.Infrastructure.Repositories
             return businessType;
         }
 
+        public void Delete(BusinessType businessType)
+        {
+            _context.BusinessTypes.Remove(businessType);
+        }
+
         public void Update(BusinessType businessType)
         {
             _context.BusinessTypes.Update(businessType);

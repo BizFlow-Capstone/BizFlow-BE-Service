@@ -68,6 +68,7 @@ public interface IAdminAccountingService
     Task<List<AdminBusinessTypesWithRatesDto>> GetBusinessTypesWithRatesAsync(int rulesetId);
     Task<AdminBusinessTypeDetailDto> CreateBusinessTypeAsync(CreateBusinessTypeRequest request, Guid actorUserId);
     Task<AdminBusinessTypeDetailDto> UpdateBusinessTypeAsync(Guid businessTypeId, UpdateBusinessTypeRequest request, Guid actorUserId);
+    Task<bool> DeleteBusinessTypeAsync(Guid businessTypeId, Guid actorUserId);
     Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request);
 
     // ── TaxRuleset CRUD ──

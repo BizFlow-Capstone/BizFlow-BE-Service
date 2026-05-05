@@ -8,6 +8,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<BusinessType?> GetByIdAsync(Guid id);
         Task<BusinessType?> GetByCodeAsync(string code);
         Task<BusinessType> AddAsync(BusinessType businessType);
+        void Delete(BusinessType businessType);
         void Update(BusinessType businessType);
     }
 }

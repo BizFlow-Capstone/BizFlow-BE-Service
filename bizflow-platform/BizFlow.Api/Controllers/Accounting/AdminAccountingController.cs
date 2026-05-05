@@ -399,6 +399,19 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataUpdatedSuccessfully);
     }
 
+    [HttpDelete("business-types/{businessTypeId:guid}")]
+    [SwaggerOperation(
+        Summary = "Delete business type (Admin only)",
+        Description = "Try hard-delete first; if constrained by DB references, fallback to inactive.")]
+    public async Task<IActionResult> DeleteBusinessType(Guid businessTypeId)
+    {
+        EnsureAdminOnly();
+        var isHardDeleted = await _adminAccountingService.DeleteBusinessTypeAsync(businessTypeId, User.GetRequiredUserId());
+        return isHardDeleted
+            ? Ok(MessageKeys.DataDeletedSuccessfully)
+            : Ok(MessageKeys.DataUpdatedSuccessfully);
+    }
+
     [HttpPut("rulesets/{rulesetId:int}/business-types/{businessTypeId:guid}/tax-rates")]
     [SwaggerOperation(Summary = "Full replace of IndustryTaxRates for a business type within a ruleset")]
     public async Task<IActionResult> UpsertIndustryTaxRates(int rulesetId, Guid businessTypeId, [FromBody] UpsertIndustryTaxRatesRequest request)

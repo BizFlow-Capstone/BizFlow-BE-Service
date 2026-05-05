@@ -1482,6 +1482,37 @@ public class AdminAccountingService : IAdminAccountingService
         };
     }
 
+    public async Task<bool> DeleteBusinessTypeAsync(Guid businessTypeId, Guid actorUserId)
+    {
+        var bt = await _uow.BusinessTypes.GetByIdAsync(businessTypeId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        try
+        {
+            _uow.BusinessTypes.Delete(bt);
+            await _uow.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex) when (IsForeignKeyDeleteConstraintViolation(ex))
+        {
+            bt.Status = BusinessTypeConstants.Inactive;
+            bt.ModifiedBy = actorUserId;
+            bt.LastModifiedAt = DateTime.UtcNow;
+            _uow.BusinessTypes.Update(bt);
+            await _uow.SaveChangesAsync();
+            return false;
+        }
+    }
+
+    private static bool IsForeignKeyDeleteConstraintViolation(Exception ex)
+    {
+        // MySQL FK delete violation usually includes this phrase and/or errno 1451.
+        var message = ex.ToString();
+        return message.Contains("foreign key constraint fails", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Cannot delete or update a parent row", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("1451", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<List<AdminIndustryTaxRateDto>> UpsertIndustryTaxRatesAsync(
         int rulesetId, Guid businessTypeId, UpsertIndustryTaxRatesRequest request)
     {

@@ -26,7 +26,7 @@ namespace BizFlow.Application.Services
                 Code = bt.Code,
                 Name = bt.Name,
                 Description = bt.Description,
-                Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status)
+                Status = _labels.ToOption(ReferenceCategory.BusinessTypeStatus, bt.Status),
             });
         }
     }
