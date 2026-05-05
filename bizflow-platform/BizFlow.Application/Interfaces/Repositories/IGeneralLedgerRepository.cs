@@ -19,5 +19,11 @@ namespace BizFlow.Application.Interfaces.Repositories
             int locationId, DateOnly from, DateOnly to,
             string aggType, string field,
             string? moneyChannel, string? transactionType);
+
+        /// <summary>
+        /// Tổng doanh thu (net Nợ - Có trên dòng revenue) và tổng chi phí (net Có - Nợ trên dòng cost),
+        /// cùng điều kiện lọc với <see cref="SearchAsync"/>.
+        /// </summary>
+        Task<(decimal TotalRevenue, decimal TotalCost)> SumRevenueAndCostAsync(GeneralLedgerQueryParams query);
     }
 }
