@@ -630,7 +630,7 @@ namespace BizFlow.Application.Services
         private string BuildReplacePostedManualCostReversalDescription(Cost supersededCost)
         {
             var datePart = supersededCost.CostDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-            var baseDescription = $"Bút toán đảo của chi phí {datePart}";
+            var baseDescription = $"Bút toán đảo của chi phí ngày {datePart}";
             var sourceDescription = supersededCost.Description?.Trim();
             return string.IsNullOrWhiteSpace(sourceDescription)
                 ? baseDescription

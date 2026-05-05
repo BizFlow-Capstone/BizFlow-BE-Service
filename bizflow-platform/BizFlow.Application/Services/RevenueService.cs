@@ -509,7 +509,7 @@ namespace BizFlow.Application.Services
         private string BuildReplacePostedManualRevenueReversalDescription(Revenue supersededRevenue)
         {
             var datePart = supersededRevenue.RevenueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-            var baseDescription = $"Bút toán đảo của doanh thu {datePart}";
+            var baseDescription = $"Bút toán đảo của doanh thu ngày {datePart}";
             var sourceDescription = supersededRevenue.Description?.Trim();
             return string.IsNullOrWhiteSpace(sourceDescription)
                 ? baseDescription
