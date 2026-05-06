@@ -399,9 +399,25 @@ public class AdminAccountingService : IAdminAccountingService
             mapping.AggregationType = request.AggregationType;
         if (request.FormulaId.HasValue)
         {
+            var oldFormulaId = mapping.FormulaId;
             mapping.FormulaId = request.FormulaId;
             // When formula ID changes, clear expression text so rendering uses formula ID instead
             mapping.FormulaExpression = null;
+
+            // Cascade: update any RowDefinition in the same version that still references the old formula.
+            // This keeps tax_line / balance_row rows in sync when admin remaps a formula-type field mapping.
+            if (oldFormulaId.HasValue
+                && oldFormulaId.Value != request.FormulaId.Value
+                && string.Equals(mapping.SourceType, "formula", StringComparison.OrdinalIgnoreCase))
+            {
+                var rowDefs = await _uow.AccountingTemplates.GetRowDefinitionsAsync(mapping.TemplateVersionId);
+                var affected = rowDefs.Where(r => r.FormulaId == oldFormulaId.Value).ToList();
+                foreach (var rd in affected)
+                {
+                    rd.FormulaId = request.FormulaId.Value;
+                    _uow.AccountingTemplates.UpdateRowDefinition(rd);
+                }
+            }
         }
         if (request.FormulaExpression != null)
             mapping.FormulaExpression = request.FormulaExpression;
@@ -1516,6 +1532,7 @@ public class AdminAccountingService : IAdminAccountingService
         return new AdminFullStructureDto
         {
             TemplateVersionId = version.TemplateVersionId,
+            TemplateId = version.TemplateId,
             TemplateCode = version.Template?.TemplateCode ?? string.Empty,
             TemplateName = version.Template?.Name ?? string.Empty,
             VersionLabel = version.VersionLabel,
@@ -1892,6 +1909,10 @@ public class AdminAccountingService : IAdminAccountingService
             VisibleFieldCodes = r.VisibleFieldCodes,
             FormulaId = r.FormulaId,
             FormulaCode = r.Formula?.Code,
+            FormulaName = r.Formula?.Name,
+            // EffectiveFormulaExpression: the actual expression that will be evaluated.
+            // FormulaExpression (testing override) takes priority; fallback to the linked formula's JSON.
+            EffectiveFormulaExpression = r.Formula?.ExpressionJson,
             TaxType = r.TaxType
         };
     }

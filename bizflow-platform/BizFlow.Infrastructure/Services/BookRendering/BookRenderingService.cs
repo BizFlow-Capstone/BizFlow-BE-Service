@@ -113,8 +113,8 @@ public class BookRenderingService : IBookRenderingService
             })
             .ToList();
 
-        var (formulaValues, _, formulaBreakdowns) = await EvaluateTemplateFormulasAsync(context, version);
-        var (formulaIdToValue, formulaIdToBreakdown) = BuildFormulaLookups(rowDefinitions, formulaValues, formulaBreakdowns);
+        var (formulaValues, formulaIdToCode, formulaBreakdowns) = await EvaluateTemplateFormulasAsync(context, version, rowDefinitions);
+        var (formulaIdToValue, formulaIdToBreakdown) = BuildFormulaLookups(rowDefinitions, formulaValues, formulaIdToCode, formulaBreakdowns);
 
         var taxRates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(context.RulesetId, context.BusinessTypeIds);
         var taxRateLookup = taxRates
@@ -624,15 +624,23 @@ public class BookRenderingService : IBookRenderingService
         BuildFormulaLookups(
             IEnumerable<TemplateRowDefinition> rowDefinitions,
             IReadOnlyDictionary<string, decimal> formulaValues,
+            IReadOnlyDictionary<long, string> formulaIdToCode,
             IReadOnlyDictionary<string, Dictionary<string, decimal>> formulaBreakdowns)
     {
         var idToValue = new Dictionary<long, decimal>();
         var idToBreakdown = new Dictionary<long, Dictionary<string, decimal>>();
-        foreach (var rd in rowDefinitions.Where(r => r.FormulaId.HasValue && r.Formula != null))
+        foreach (var rd in rowDefinitions.Where(r => r.FormulaId.HasValue))
         {
-            if (formulaValues.TryGetValue(rd.Formula!.Code, out var val))
+            // Prefer the code from the evaluation result (draft-aware) over the stale navigation property
+            var code = formulaIdToCode.TryGetValue(rd.FormulaId!.Value, out var evaluatedCode)
+                ? evaluatedCode
+                : rd.Formula?.Code;
+
+            if (code == null) continue;
+
+            if (formulaValues.TryGetValue(code, out var val))
                 idToValue[rd.FormulaId!.Value] = val;
-            if (formulaBreakdowns.TryGetValue(rd.Formula!.Code, out var bd))
+            if (formulaBreakdowns.TryGetValue(code, out var bd))
                 idToBreakdown[rd.FormulaId!.Value] = bd;
         }
         return (idToValue, idToBreakdown);
@@ -1074,11 +1082,19 @@ public class BookRenderingService : IBookRenderingService
     }
 
     private async Task<(Dictionary<string, decimal> FormulaValues, Dictionary<long, string> FormulaIdToCode, Dictionary<string, Dictionary<string, decimal>> FormulaBreakdowns)>
-        EvaluateTemplateFormulasAsync(BookRenderContext context, AccountingTemplateVersion version)
+        EvaluateTemplateFormulasAsync(
+            BookRenderContext context,
+            AccountingTemplateVersion version,
+            IEnumerable<TemplateRowDefinition>? rowDefinitions = null)
     {
         var formulaIds = version.FieldMappings
             .Where(m => m.FormulaId != null)
             .Select(m => m.FormulaId!.Value)
+            // Also collect FormulaIds from RowDefinitions (tax_line, balance_row etc.)
+            // so draft-mapped formulas on those rows are evaluated via GetByIdsAsync.
+            .Concat(rowDefinitions?
+                .Where(r => r.FormulaId.HasValue)
+                .Select(r => r.FormulaId!.Value) ?? Enumerable.Empty<long>())
             .Distinct()
             .ToHashSet();
 

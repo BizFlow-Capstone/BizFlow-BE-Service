@@ -334,6 +334,14 @@ public class AdminRowDefinitionDto
     public string? VisibleFieldCodes { get; set; }
     public long? FormulaId { get; set; }
     public string? FormulaCode { get; set; }
+    /// <summary>Human-readable name of the linked formula.</summary>
+    public string? FormulaName { get; set; }
+    /// <summary>
+    /// The expression that will actually be evaluated for this row definition.
+    /// This is the ExpressionJson of the currently-linked formula, so FE and preview
+    /// always reflect the formula remapped on the draft without needing a separate call.
+    /// </summary>
+    public string? EffectiveFormulaExpression { get; set; }
     public string? TaxType { get; set; }
 }
 
@@ -474,6 +482,7 @@ public class AdminColumnGroupDto
 public class AdminFullStructureDto
 {
     public int TemplateVersionId { get; set; }
+    public int TemplateId { get; set; }
     public string TemplateCode { get; set; } = string.Empty;
     public string TemplateName { get; set; } = string.Empty;
     public string VersionLabel { get; set; } = string.Empty;
