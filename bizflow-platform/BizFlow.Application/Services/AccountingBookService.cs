@@ -67,11 +67,13 @@ public class AccountingBookService : IAccountingBookService
                     throw new BadRequestException(MessageKeys.TemplateNotApplicableMethod, new { templateCode = code, request.TaxMethod }, code, request.TaxMethod);
             }
 
-            // Pick the active version that is in effect for the period's start date.
-            // If multiple active versions exist (different EffectiveFrom), choose the
-            // most recently effective one that has already taken effect by period.StartDate.
+            // Pick the most recently effective active version as of the book creation date.
+            // EffectiveFrom governs when a version became the "current" template design,
+            // not which period dates it covers — new books always use the latest version
+            // that has already taken effect by today, regardless of period.StartDate.
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var version = template.Versions
-                .Where(v => v.IsActive && (v.EffectiveFrom == null || v.EffectiveFrom <= period.StartDate))
+                .Where(v => v.IsActive && (v.EffectiveFrom == null || v.EffectiveFrom <= today))
                 .OrderByDescending(v => v.EffectiveFrom ?? DateOnly.MinValue)
                 .FirstOrDefault()
                 ?? throw new BadRequestException(MessageKeys.TemplateNoActiveVersion, new { templateCode = code }, code);
