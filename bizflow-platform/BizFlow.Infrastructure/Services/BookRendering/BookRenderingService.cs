@@ -220,7 +220,7 @@ public class BookRenderingService : IBookRenderingService
                 {
                     var subtotalValue = ResolveFormulaValue(rowDef, formulaIdToValue) ?? subtotal;
                     row[GetValueFieldCode(rowDef)] = subtotalValue;
-                    row["explanation"] = $"Tổng doanh thu nhóm \"{groupName}\": {FormatNumber(subtotalValue ?? 0m)} đ";
+                    row["explanation"] = $"Tổng doanh thu nhóm \"{groupName}\": {FormatNumber(subtotalValue)} đ";
                 }
                 else if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                 {
@@ -593,7 +593,7 @@ public class BookRenderingService : IBookRenderingService
                 var grandTotalValue = ResolveFormulaValue(rowDef, formulaIdToValue)
                     ?? groupedTaxTotals.GetValueOrDefault(taxType);
                 row[footerValueField] = grandTotalValue;
-                row["explanation"] = $"Tổng cộng: {FormatNumber(grandTotalValue ?? 0m)} đ";
+                row["explanation"] = $"Tổng cộng: {FormatNumber(grandTotalValue)} đ";
             }
             else
             {
