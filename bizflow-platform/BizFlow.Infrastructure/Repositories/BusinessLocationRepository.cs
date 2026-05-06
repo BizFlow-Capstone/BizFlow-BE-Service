@@ -175,6 +175,22 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<bool> HasAnyActiveAssignmentWithOwnerAsync(Guid ownerId, Guid employeeId)
+        {
+            return await (
+                from employeeAssignment in _context.UserLocationAssignments
+                where employeeAssignment.UserId == employeeId
+                      && !employeeAssignment.IsOwner
+                      && employeeAssignment.IsActive == true
+                join ownerAssignment in _context.UserLocationAssignments
+                    on employeeAssignment.BusinessLocationId equals ownerAssignment.BusinessLocationId
+                where ownerAssignment.UserId == ownerId
+                      && ownerAssignment.IsOwner
+                      && ownerAssignment.IsActive == true
+                select employeeAssignment.UserLocationAssignmentId
+            ).AnyAsync();
+        }
+
         public async Task<IEnumerable<(Guid UserId, string FullName, string Email, string? Phone)>> GetEmployeesByLocationIdAsync(int locationId)
         {
             return await _context.UserLocationAssignments

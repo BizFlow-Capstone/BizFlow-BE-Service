@@ -55,6 +55,11 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<IEnumerable<Guid>> GetAssignedEmployeeIdsAsync(int locationId);
 
         /// <summary>
+        /// Checks whether employee still has any active assignment under the same owner.
+        /// </summary>
+        Task<bool> HasAnyActiveAssignmentWithOwnerAsync(Guid ownerId, Guid employeeId);
+
+        /// <summary>
         /// Gets basic info of employees assigned to a location
         /// </summary>
         Task<IEnumerable<(Guid UserId, string FullName, string Email, string? Phone)>> GetEmployeesByLocationIdAsync(int locationId);

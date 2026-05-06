@@ -151,6 +151,12 @@ namespace BizFlow.Application.Services
             await EnsureOwnershipAsync(ownerId, locationId);
             await _unitOfWork.BusinessLocations.RemoveEmployeeFromLocationAsync(locationId, employeeId);
             await _unitOfWork.SaveChangesAsync();
+
+            var stillAssignedToOwner = await _unitOfWork.BusinessLocations.HasAnyActiveAssignmentWithOwnerAsync(ownerId, employeeId);
+            if (!stillAssignedToOwner)
+            {
+                await _subscriptionService.RevokeAccessGrantAsync(ownerId, employeeId);
+            }
         }
 
         public async Task DeleteLocationAsync(Guid userId, int locationId)
