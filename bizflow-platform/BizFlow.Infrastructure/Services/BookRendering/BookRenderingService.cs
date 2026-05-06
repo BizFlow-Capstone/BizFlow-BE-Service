@@ -220,7 +220,7 @@ public class BookRenderingService : IBookRenderingService
                 {
                     var subtotalValue = ResolveFormulaValue(rowDef, formulaIdToValue) ?? subtotal;
                     row[GetValueFieldCode(rowDef)] = subtotalValue;
-                    row["explanation"] = $"Tong doanh thu nhom \"{groupName}\" = {subtotalValue:#,0} VND";
+                    row["explanation"] = $"Tổng doanh thu nhóm \"{groupName}\": {FormatNumber(subtotalValue ?? 0m)} đ";
                 }
                 else if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
                 {
@@ -257,12 +257,12 @@ public class BookRenderingService : IBookRenderingService
                     {
                         var expected = Math.Round(subtotal * taxRate.Value, 0, MidpointRounding.AwayFromZero);
                         explanation = expected != Math.Round(taxAmount, 0, MidpointRounding.AwayFromZero)
-                            ? $"{subtotal:#,0} x {taxRate.Value:P4} → {taxAmount:#,0} (sau giam tru)"
-                            : $"{subtotal:#,0} x {taxRate.Value:P4} = {taxAmount:#,0}";
+                            ? $"{subtotal:#,0} x {taxRate.Value * 100:0.##}% → {taxAmount:#,0} đ (sau giảm trừ)"
+                            : $"{subtotal:#,0} x {taxRate.Value * 100:0.##}% = {taxAmount:#,0} đ";
                     }
                     else
                     {
-                        explanation = $"Formula = {taxAmount:#,0}";
+                        explanation = $"Thuế: {FormatNumber(taxAmount)} đ";
                     }
                     row["explanation"] = explanation;
 
@@ -349,7 +349,7 @@ public class BookRenderingService : IBookRenderingService
                     if (!string.IsNullOrWhiteSpace(rowDef.RowLabel))
                         row["dien_giai"] = rowDef.RowLabel;
                     row[GetValueFieldCode(rowDef)] = amount;
-                    row["explanation"] = $"SUM(chi phi: {string.Join(", ", costTypes)}) = {FormatNumber(amount)}";
+                    row["explanation"] = $"Tổng: {FormatNumber(amount)} đ";
                     sectionRows.Add(row);
                     continue;
                 }
@@ -362,7 +362,7 @@ public class BookRenderingService : IBookRenderingService
                 if (formulaVal.HasValue)
                     row[valueField] = formulaVal.Value;
 
-                // For subtotal rows in revenue sections, attach per-industry revenue breakdown
+                // For subtotal rows in revenue/cost sections, build a concise Vietnamese explanation
                 if (rowDef.RowType == RowDefinitionConstants.RowType.SectionSubtotal
                     && sectionFilterValue.Equals("revenue", StringComparison.OrdinalIgnoreCase))
                 {
@@ -370,16 +370,16 @@ public class BookRenderingService : IBookRenderingService
                     if (revenueByBtCache.Count > 0)
                     {
                         btNamesCache ??= await LoadBusinessTypeNamesAsync(revenueByBtCache.Keys);
-                        row["revenueBreakdown"] = revenueByBtCache
+                        var breakdownText = string.Join("; ", revenueByBtCache
                             .OrderByDescending(kv => kv.Value)
-                            .Select(kv => new Dictionary<string, object?>
-                            {
-                                ["businessTypeId"] = kv.Key,
-                                ["businessTypeName"] = btNamesCache.GetValueOrDefault(kv.Key) ?? kv.Key.ToString(),
-                                ["amount"] = kv.Value
-                            })
-                            .ToList();
+                            .Select(kv => $"{btNamesCache.GetValueOrDefault(kv.Key) ?? kv.Key.ToString()}: {FormatNumber(kv.Value)} đ"));
+                        row["explanation"] = $"Gồm: {breakdownText}";
                     }
+                }
+                else if (rowDef.RowType == RowDefinitionConstants.RowType.SectionSubtotal
+                    && sectionFilterValue.Equals("cost", StringComparison.OrdinalIgnoreCase))
+                {
+                    row["explanation"] = $"Tổng chi phí hợp lý: {FormatNumber(formulaVal ?? 0m)} đ";
                 }
 
                 if (rowDef.RowType == RowDefinitionConstants.RowType.TaxLine)
@@ -389,7 +389,7 @@ public class BookRenderingService : IBookRenderingService
 
                     row[valueField] = taxAmount;
                     var formulaExplanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, taxAmount);
-                    row["explanation"] = formulaExplanation ?? $"Formula = {taxAmount:#,0}";
+                    row["explanation"] = formulaExplanation ?? $"Thuế: {FormatNumber(taxAmount)} đ";
                     var rateSource = GetTaxRateSource(rowDef.Formula);
                     var taxRate = ResolveTaxRate(
                         rateSource,
@@ -496,12 +496,12 @@ public class BookRenderingService : IBookRenderingService
                     var grossProfit = revenueTotalCache.Value - costTotalCache.Value;
 
                     row["explanation"] =
-                        $"({FormatNumber(revenueTotalCache.Value)} - {FormatNumber(costTotalCache.Value)} = {FormatNumber(grossProfit)}) x {taxRate.Value:P4} = {FormatNumber(taxAmount)}";
+                        $"(Doanh thu {FormatNumber(revenueTotalCache.Value)} - Chi phí {FormatNumber(costTotalCache.Value)} = Lợi nhuận {FormatNumber(grossProfit)}) x {taxRate.Value * 100:0.##}% = {FormatNumber(taxAmount)} đ";
                 }
                 else
                 {
                     var formulaExplanation = BuildFormulaExplanation(rowDef.Formula, formulaValues, taxAmount);
-                    row["explanation"] = formulaExplanation ?? $"Formula = {taxAmount:#,0}";
+                    row["explanation"] = formulaExplanation ?? $"Thuế: {FormatNumber(taxAmount)} đ";
                 }
 
                 // Build taxBreakdown from formula breakdown if available
@@ -556,9 +556,9 @@ public class BookRenderingService : IBookRenderingService
                         if (rate.HasValue)
                         {
                             var baseLabel = cost != 0m
-                                ? $"({revenue:#,0} - {cost:#,0} = {profit:#,0})"
-                                : $"{revenue:#,0}";
-                            itemExplanation = $"{baseLabel} x {rate.Value:P4} = {taxAmt:#,0}";
+                                ? $"(Doanh thu {revenue:#,0} - Chi phí {cost:#,0} = Lợi nhuận {profit:#,0})"
+                                : $"Doanh thu {revenue:#,0}";
+                            itemExplanation = $"{baseLabel} x {rate.Value * 100:0.##}% = {taxAmt:#,0} đ";
                         }
 
                         return new Dictionary<string, object?>
@@ -573,6 +573,14 @@ public class BookRenderingService : IBookRenderingService
                             ["explanation"] = itemExplanation
                         };
                     }).ToList();
+
+                    var taxBreakdownList = (List<Dictionary<string, object?>>)row["taxBreakdown"]!;
+                    if (taxBreakdownList.Count > 0)
+                    {
+                        var condensed = string.Join("; ", taxBreakdownList
+                            .Select(item => $"{item["businessTypeName"]}: {FormatNumber((decimal)(item["taxAmount"] ?? 0m))} đ"));
+                        row["explanation"] = $"Gồm: {condensed}";
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(taxType))
@@ -585,7 +593,7 @@ public class BookRenderingService : IBookRenderingService
                 var grandTotalValue = ResolveFormulaValue(rowDef, formulaIdToValue)
                     ?? groupedTaxTotals.GetValueOrDefault(taxType);
                 row[footerValueField] = grandTotalValue;
-                row["explanation"] = $"Tong cong = {grandTotalValue:#,0} VND";
+                row["explanation"] = $"Tổng cộng: {FormatNumber(grandTotalValue ?? 0m)} đ";
             }
             else
             {
