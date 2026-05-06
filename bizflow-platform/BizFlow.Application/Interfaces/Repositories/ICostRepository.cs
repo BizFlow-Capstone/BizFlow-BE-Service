@@ -77,6 +77,9 @@ namespace BizFlow.Application.Interfaces.Repositories
         Task<Dictionary<string, decimal>> SumGroupedByBusinessTypeAsync(
             int locationId, DateOnly from, DateOnly to);
 
+        Task<Dictionary<string, decimal>> SumGroupedByCostTypeAsync(
+            int locationId, DateOnly from, DateOnly to);
+
         /// <summary>
         /// True when a reversal row already references this cost id (idempotency).
         /// </summary>

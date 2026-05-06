@@ -213,6 +213,20 @@ namespace BizFlow.Infrastructure.Repositories
                     g => g.Sum(c => c.Amount));
         }
 
+        public async Task<Dictionary<string, decimal>> SumGroupedByCostTypeAsync(
+            int locationId, DateOnly from, DateOnly to)
+        {
+            return await _db.Costs
+                .Where(c => c.BusinessLocationId == locationId
+                    && c.CostDate >= from
+                    && c.CostDate <= to
+                    && c.Status != CostStatus.Cancelled)
+                .GroupBy(c => c.CostType)
+                .ToDictionaryAsync(
+                    g => g.Key,
+                    g => g.Sum(c => c.Amount));
+        }
+
         public Task<bool> HasReversalForOriginalCostAsync(
             long originalCostId,
             CancellationToken cancellationToken = default)

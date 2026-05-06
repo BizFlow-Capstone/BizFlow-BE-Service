@@ -94,11 +94,14 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-stt.json
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
       - GOOGLE_STT_MODEL=${GOOGLE_STT_MODEL:-long}
       - AI_DB_URL=${AI_DB_URL}
       # Shared secret — must match AiService__InternalSecret in the BE service
       - INTERNAL_API_SECRET=${AI_SERVICE_INTERNAL_SECRET:-change_in_production}
+      # Disable ChromaDB anonymous telemetry (fixes "capture() takes 1 positional argument" bug in v0.5.x)
+      - ANONYMIZED_TELEMETRY=False
     volumes:
       - ./docker/credentials:/app/credentials:ro
     healthcheck:

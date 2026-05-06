@@ -18,12 +18,13 @@ public static class RowDefinitionConstants
         public const string MonthlyTotal = "monthly_total";
         public const string QuarterlyTotal = "quarterly_total";
         public const string ProfitRow = "profit_row";
+        public const string CostTypeSubtotal = "cost_type_subtotal";
 
         public static readonly string[] All =
         {
             IndustryHeader, DataPlaceholder, Subtotal, TaxLine,
             GrandTotal, SectionHeader, SectionSubtotal,
-            BalanceRow, MonthlyTotal, QuarterlyTotal, ProfitRow
+            BalanceRow, MonthlyTotal, QuarterlyTotal, ProfitRow, CostTypeSubtotal
         };
     }
 

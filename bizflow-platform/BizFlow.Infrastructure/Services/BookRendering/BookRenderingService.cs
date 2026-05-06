@@ -306,6 +306,7 @@ public class BookRenderingService : IBookRenderingService
         // Lazy-loaded cache — at most one DB call per data type across the entire path
         Dictionary<Guid, decimal>? revenueByBtCache = null;
         Dictionary<Guid, string>? btNamesCache = null;
+        Dictionary<string, decimal>? costByTypeCache = null;
 
         foreach (var (headerDef, bodyDefs) in logicalSections)
         {
@@ -336,6 +337,19 @@ public class BookRenderingService : IBookRenderingService
                         ["businessTypeId"] = null,
                         ["section"] = sectionFilterValue
                     };
+                    sectionRows.Add(row);
+                    continue;
+                }
+
+                if (rowDef.RowType == RowDefinitionConstants.RowType.CostTypeSubtotal)
+                {
+                    costByTypeCache ??= await LoadCostByCostTypeAsync(context);
+                    var costTypes = ParseCostTypeFilter(rowDef.SectionFilterValue);
+                    var amount = costTypes.Sum(ct => costByTypeCache.GetValueOrDefault(ct, 0m));
+                    if (!string.IsNullOrWhiteSpace(rowDef.RowLabel))
+                        row["dien_giai"] = rowDef.RowLabel;
+                    row[GetValueFieldCode(rowDef)] = amount;
+                    row["explanation"] = $"SUM(chi phi: {string.Join(", ", costTypes)}) = {FormatNumber(amount)}";
                     sectionRows.Add(row);
                     continue;
                 }
@@ -1565,6 +1579,17 @@ public class BookRenderingService : IBookRenderingService
         return items
             .Where(c => c.Status != CostStatus.Cancelled)
             .Sum(c => c.Amount);
+    }
+
+    private async Task<Dictionary<string, decimal>> LoadCostByCostTypeAsync(BookRenderContext context)
+        => await _uow.Costs.SumGroupedByCostTypeAsync(
+            context.BusinessLocationId, context.PeriodStart, context.PeriodEnd);
+
+    private static string[] ParseCostTypeFilter(string? sectionFilterValue)
+    {
+        if (string.IsNullOrWhiteSpace(sectionFilterValue))
+            return [];
+        return sectionFilterValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static string ResolveRowLabel(string? label, int groupIndex, string groupName)
