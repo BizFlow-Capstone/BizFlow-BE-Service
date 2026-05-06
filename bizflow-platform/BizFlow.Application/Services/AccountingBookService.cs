@@ -39,32 +39,32 @@ public class AccountingBookService : IAccountingBookService
 
         // 1. Validate period exists and is NOT finalized
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(locationId, request.PeriodId)
-            ?? throw new NotFoundException("PERIOD_NOT_FOUND");
+            ?? throw new NotFoundException(MessageKeys.PeriodNotFound);
         if (period.Status == AccountingPeriodConstants.PeriodStatuses.Finalized)
-            throw new BadRequestException("PERIOD_FINALIZED");
+            throw new BadRequestException(MessageKeys.PeriodAlreadyFinalized);
 
         // 2. Validate active ruleset
         var ruleset = await _uow.TaxRulesets.GetActiveRulesetAsync()
-            ?? throw new BadRequestException("NO_ACTIVE_RULESET");
+            ?? throw new BadRequestException(MessageKeys.NoActiveRuleset);
 
         // 3. Validate & get template versions
         var templateVersions = new List<(AccountingTemplate Template, AccountingTemplateVersion Version)>();
         foreach (var code in request.TemplateCodes.Distinct())
         {
             var template = await _uow.AccountingTemplates.GetByCodeAsync(code)
-                ?? throw new BadRequestException($"TEMPLATE_NOT_FOUND:{code}");
+                ?? throw new BadRequestException(MessageKeys.TemplateNotFound, new { templateCode = code }, code);
 
             // Validate applicable group
             var groups = JsonSerializer.Deserialize<List<int>>(template.ApplicableGroups) ?? new();
             if (!groups.Contains(request.GroupNumber))
-                throw new BadRequestException($"TEMPLATE_NOT_APPLICABLE_GROUP:{code}");
+                throw new BadRequestException(MessageKeys.TemplateNotApplicableGroup, new { templateCode = code, request.GroupNumber }, code, request.GroupNumber);
 
             // Validate applicable methods
             if (template.ApplicableMethods != null)
             {
                 var methods = JsonSerializer.Deserialize<List<string>>(template.ApplicableMethods) ?? new();
                 if (methods.Count > 0 && !methods.Contains(request.TaxMethod))
-                    throw new BadRequestException($"TEMPLATE_NOT_APPLICABLE_METHOD:{code}");
+                    throw new BadRequestException(MessageKeys.TemplateNotApplicableMethod, new { templateCode = code, request.TaxMethod }, code, request.TaxMethod);
             }
 
             // Pick the active version that is in effect for the period's start date.
@@ -74,7 +74,7 @@ public class AccountingBookService : IAccountingBookService
                 .Where(v => v.IsActive && (v.EffectiveFrom == null || v.EffectiveFrom <= period.StartDate))
                 .OrderByDescending(v => v.EffectiveFrom ?? DateOnly.MinValue)
                 .FirstOrDefault()
-                ?? throw new BadRequestException($"TEMPLATE_NO_ACTIVE_VERSION:{code}");
+                ?? throw new BadRequestException(MessageKeys.TemplateNoActiveVersion, new { templateCode = code }, code);
 
             templateVersions.Add((template, version));
         }
@@ -82,7 +82,7 @@ public class AccountingBookService : IAccountingBookService
         // 4. Get business types linked to this location (with fallback)
         var businessTypeIds = await GetBusinessTypeIdsForLocation(locationId);
         if (!businessTypeIds.Any())
-            throw new BadRequestException("NO_BUSINESS_TYPES_FOR_LOCATION");
+            throw new BadRequestException(MessageKeys.NoBusinessTypesForLocation);
 
         var allBusinessTypes = (await _uow.BusinessTypes.GetAllAsync())
             .ToDictionary(bt => bt.BusinessTypeId, bt => bt.Name);
@@ -183,19 +183,17 @@ public class AccountingBookService : IAccountingBookService
         await _locationService.ValidateOwnerAsync(userId, locationId);
 
         var book = await _uow.AccountingBooks.GetByIdWithPeriodAsync(bookId)
-            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+            ?? throw new NotFoundException(MessageKeys.BookNotFound);
 
         if (book.BusinessLocationId != locationId)
-            throw new NotFoundException("BOOK_NOT_FOUND");
+            throw new NotFoundException(MessageKeys.BookNotFound);
 
         if (book.Period.Status != AccountingPeriodConstants.PeriodStatuses.Open)
-            throw new BadRequestException("BOOK_PERIOD_NOT_OPEN",
-                "Cannot delete a book whose period is finalized or reopened.");
+            throw new BadRequestException(MessageKeys.BookPeriodNotOpen);
 
         var hasExports = await _uow.AccountingBooks.HasExportsAsync(bookId);
         if (hasExports)
-            throw new BadRequestException("BOOK_HAS_EXPORTS",
-                "Cannot delete a book that has been exported. Exports are permanent audit records.");
+            throw new BadRequestException(MessageKeys.BookHasExports);
 
         // Delete formula cache (no cascade), then the book itself.
         // AccountingBookBusinessTypes will cascade automatically.
@@ -212,7 +210,7 @@ public class AccountingBookService : IAccountingBookService
         await _locationService.ValidateOwnerAsync(userId, locationId);
 
         var book = await _uow.AccountingBooks.GetByIdWithBusinessTypesAsync(bookId)
-            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+            ?? throw new NotFoundException(MessageKeys.BookNotFound);
         if (book.BusinessLocationId != locationId)
             throw new ForbiddenException("COMMON_FORBIDDEN");
 
@@ -351,7 +349,7 @@ public class AccountingBookService : IAccountingBookService
         await _locationService.ValidateOwnerAsync(userId, locationId);
 
         var book = await _uow.AccountingBooks.GetByIdWithBusinessTypesAsync(bookId)
-            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+            ?? throw new NotFoundException(MessageKeys.BookNotFound);
         if (book.BusinessLocationId != locationId)
             throw new ForbiddenException("COMMON_FORBIDDEN");
 
@@ -384,7 +382,7 @@ public class AccountingBookService : IAccountingBookService
         await _locationService.ValidateOwnerAsync(userId, locationId);
 
         var book = await _uow.AccountingBooks.GetByIdWithBusinessTypesAsync(bookId)
-            ?? throw new NotFoundException("BOOK_NOT_FOUND");
+            ?? throw new NotFoundException(MessageKeys.BookNotFound);
         if (book.BusinessLocationId != locationId)
             throw new ForbiddenException("COMMON_FORBIDDEN");
 

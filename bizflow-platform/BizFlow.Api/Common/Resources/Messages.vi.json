@@ -296,5 +296,15 @@
   "OTP_INVALID_OR_EXPIRED": "Mã xác minh không hợp lệ hoặc đã hết hạn",
   "OTP_TOO_MANY_REQUESTS": "Vui lòng đợi 1 phút trước khi yêu cầu mã mới",
 
-  "AI_SERVICE_ERROR": "Dịch vụ AI không thể xử lý yêu cầu, vui lòng thử lại sau"
+  "AI_SERVICE_ERROR": "Dịch vụ AI không thể xử lý yêu cầu, vui lòng thử lại sau",
+
+  "NO_ACTIVE_RULESET": "Chưa cấu hình bộ thuế suất đang hoạt động. Vui lòng liên hệ hỗ trợ.",
+  "TEMPLATE_NOT_FOUND": "Không tìm thấy mẫu sổ kế toán '{0}'.",
+  "TEMPLATE_NOT_APPLICABLE_GROUP": "Mẫu sổ kế toán '{0}' không áp dụng cho nhóm đã chọn.",
+  "TEMPLATE_NOT_APPLICABLE_METHOD": "Mẫu sổ kế toán '{0}' không áp dụng cho phương pháp thuế đã chọn.",
+  "TEMPLATE_NO_ACTIVE_VERSION": "Mẫu sổ kế toán '{0}' chưa có phiên bản đang hoạt động phù hợp với kỳ này.",
+  "NO_BUSINESS_TYPES_FOR_LOCATION": "Địa điểm này chưa có ngành nghề nào. Hãy thêm sản phẩm hoặc cấu hình ngành nghề trước khi tạo sổ.",
+  "BOOK_NOT_FOUND": "Không tìm thấy sổ kế toán.",
+  "BOOK_PERIOD_NOT_OPEN": "Chỉ có thể xóa sổ thuộc kỳ đang mở.",
+  "BOOK_HAS_EXPORTS": "Không thể xóa sổ đã từng được xuất dữ liệu."
 }

@@ -272,6 +272,17 @@ namespace BizFlow.Application.Common.Constants
         public const string PeriodSuggestionNoSource = "PERIOD_SUGGESTION_NO_SOURCE";
         public const string PeriodSuggestionFromPrevious = "PERIOD_SUGGESTION_FROM_PREVIOUS";
         public const string PeriodSuggestionFormula = "PERIOD_SUGGESTION_FORMULA";
+
+        // ============ ACCOUNTING BOOKS / TEMPLATES ============
+        public const string NoActiveRuleset = "NO_ACTIVE_RULESET";
+        public const string TemplateNotFound = "TEMPLATE_NOT_FOUND";
+        public const string TemplateNotApplicableGroup = "TEMPLATE_NOT_APPLICABLE_GROUP";
+        public const string TemplateNotApplicableMethod = "TEMPLATE_NOT_APPLICABLE_METHOD";
+        public const string TemplateNoActiveVersion = "TEMPLATE_NO_ACTIVE_VERSION";
+        public const string NoBusinessTypesForLocation = "NO_BUSINESS_TYPES_FOR_LOCATION";
+        public const string BookNotFound = "BOOK_NOT_FOUND";
+        public const string BookPeriodNotOpen = "BOOK_PERIOD_NOT_OPEN";
+        public const string BookHasExports = "BOOK_HAS_EXPORTS";
         // ============ DASHBOARD (user) ============
         public const string DashboardInvalidPeriod = "DASHBOARD_INVALID_PERIOD";
         public const string DashboardCustomDatesRequired = "DASHBOARD_CUSTOM_DATES_REQUIRED";

@@ -289,5 +289,15 @@
   "OTP_INVALID_OR_EXPIRED": "Invalid or expired verification code",
   "OTP_TOO_MANY_REQUESTS": "Please wait before requesting a new code",
 
-  "AI_SERVICE_ERROR": "AI service could not process the request, please try again later"
+  "AI_SERVICE_ERROR": "AI service could not process the request, please try again later",
+
+  "NO_ACTIVE_RULESET": "No active tax ruleset is configured. Please contact support.",
+  "TEMPLATE_NOT_FOUND": "Accounting template '{0}' was not found.",
+  "TEMPLATE_NOT_APPLICABLE_GROUP": "Accounting template '{0}' is not applicable for the selected group.",
+  "TEMPLATE_NOT_APPLICABLE_METHOD": "Accounting template '{0}' is not applicable for the selected tax method.",
+  "TEMPLATE_NO_ACTIVE_VERSION": "Accounting template '{0}' has no active version effective for this period.",
+  "NO_BUSINESS_TYPES_FOR_LOCATION": "No business types are available for this location. Add products or configure business types before creating books.",
+  "BOOK_NOT_FOUND": "Accounting book was not found.",
+  "BOOK_PERIOD_NOT_OPEN": "Only books in an open period can be deleted.",
+  "BOOK_HAS_EXPORTS": "Cannot delete a book that has already been exported."
 }
