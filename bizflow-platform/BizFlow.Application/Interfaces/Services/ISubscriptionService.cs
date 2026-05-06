@@ -16,6 +16,7 @@ namespace BizFlow.Application.Interfaces.Services
         Task<CurrentSubscriptionDto> GetCurrentSubscriptionByLocationAsync(Guid profileId, int locationId);
         Task<CheckoutSessionResponseDto> CreateCheckoutSessionAsync(Guid profileId, int subscriptionPlanId, string platform = "web", int quantity = 1);
         Task RevokeAccessGrantAsync(Guid ownerProfileId, Guid memberProfileId);
+        Task GrantAccessGrantIfOwnerHasActiveSubscriptionAsync(Guid ownerProfileId, Guid memberProfileId);
         Task<List<TransactionDto>> GetTransactionsAsync(Guid profileId, int page = 1, int pageSize = 20);
         Task<AdminSubscriptionAnalyticsResponse> GetAdminAnalyticsAsync(AdminSubscriptionAnalyticsQuery query, CancellationToken cancellationToken = default);
 

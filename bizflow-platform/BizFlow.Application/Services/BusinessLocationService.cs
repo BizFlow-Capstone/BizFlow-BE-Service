@@ -14,13 +14,20 @@ namespace BizFlow.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHireService _hireService;
+        private readonly ISubscriptionService _subscriptionService;
         private readonly IMapper _mapper;
         private readonly IReferenceLabelService _labels;
 
-        public BusinessLocationService(IUnitOfWork unitOfWork, IHireService hireService, IMapper mapper, IReferenceLabelService labels)
+        public BusinessLocationService(
+            IUnitOfWork unitOfWork,
+            IHireService hireService,
+            ISubscriptionService subscriptionService,
+            IMapper mapper,
+            IReferenceLabelService labels)
         {
             _unitOfWork = unitOfWork;
             _hireService = hireService;
+            _subscriptionService = subscriptionService;
             _mapper = mapper;
             _labels = labels;
         }
@@ -269,6 +276,9 @@ namespace BizFlow.Application.Services
                     AssignedAt = DateTime.UtcNow,
                     UnassignedAt = null
                 });
+
+                // Grant Firestore usage read right away when owner already has an active subscription.
+                await _subscriptionService.GrantAccessGrantIfOwnerHasActiveSubscriptionAsync(ownerId, employeeId);
             }
         }
 

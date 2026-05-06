@@ -428,6 +428,33 @@ namespace BizFlow.Application.Services
             return _firestoreService.RevokeSubscriptionAccessGrantAsync(ownerProfileId, memberProfileId);
         }
 
+        public async Task GrantAccessGrantIfOwnerHasActiveSubscriptionAsync(Guid ownerProfileId, Guid memberProfileId)
+        {
+            if (ownerProfileId == Guid.Empty || memberProfileId == Guid.Empty || memberProfileId == ownerProfileId)
+                return;
+
+            try
+            {
+                var active = await _unitOfWork.Subscriptions.GetActiveByOwnerAsync(ownerProfileId);
+                if (active == null)
+                    return;
+
+                await _firestoreService.UpsertSubscriptionAccessGrantAsync(
+                    ownerProfileId,
+                    memberProfileId,
+                    canReadUsage: true,
+                    isActive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Auto access-grant sync on employee assignment skipped for owner {OwnerProfileId}, member {MemberProfileId}.",
+                    ownerProfileId,
+                    memberProfileId);
+            }
+        }
+
         public async Task<List<TransactionDto>> GetTransactionsAsync(Guid profileId, int page = 1, int pageSize = 20)
         {
             var transactions = await _unitOfWork.Transactions.GetByProfileAsync(profileId, page, pageSize);
