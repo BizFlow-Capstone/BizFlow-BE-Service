@@ -438,6 +438,21 @@ public class AdminAccountingService : IAdminAccountingService
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
+        if (request.Code != null)
+        {
+            var code = request.Code.Trim();
+            if (string.IsNullOrEmpty(code))
+                throw new BadRequestException(MessageKeys.AdminAccCodeRequired);
+
+            var existingWithCode = (await _uow.FormulaDefinitions.GetAllAsync())
+                .FirstOrDefault(f => f.FormulaId != formulaId
+                    && string.Equals(f.Code, code, StringComparison.OrdinalIgnoreCase));
+            if (existingWithCode != null)
+                throw new BadRequestException(MessageKeys.AdminAccFormulaCodeExists, null, code);
+
+            formula.Code = code;
+        }
+
         if (request.Name != null)
             formula.Name = request.Name;
         if (request.Description != null)
