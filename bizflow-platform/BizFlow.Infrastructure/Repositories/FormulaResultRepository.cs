@@ -58,4 +58,11 @@ public class FormulaResultRepository : IFormulaResultRepository
             .Where(x => x.BookId == bookId)
             .ExecuteDeleteAsync();
     }
+
+    public async Task DeleteByFormulaIdAsync(long formulaId, CancellationToken cancellationToken = default)
+    {
+        await _context.Set<FormulaResult>()
+            .Where(x => x.FormulaId == formulaId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 }

@@ -172,7 +172,9 @@ public class AdminAccountingController : BaseApiController
     [HttpDelete("formulas/{formulaId:long}")]
     [SwaggerOperation(
         Summary = "Delete formula (Admin only)",
-        Description = "Only inactive/draft formulas can be hard-deleted. Active formulas are rejected.")]
+        Description =
+            "Only inactive/draft formulas can be hard-deleted. Active formulas are rejected. "
+            + "Before delete, template field/row links to this formula are cleared and formula results rows are removed.")]
     public async Task<IActionResult> DeleteFormula(long formulaId)
     {
         EnsureAdminOnly();

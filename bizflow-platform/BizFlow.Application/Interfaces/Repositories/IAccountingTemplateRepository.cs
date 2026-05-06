@@ -40,4 +40,10 @@ public interface IAccountingTemplateRepository
     Task<MappableField?> GetMappableFieldByIdAsync(int fieldId);
     Task AddMappableFieldAsync(MappableField field);
     void UpdateMappableField(MappableField field);
+
+    /// <summary>
+    /// Clears <see cref="TemplateFieldMapping.FormulaId"/> and <see cref="TemplateRowDefinition.FormulaId"/>
+    /// for rows that reference the given formula (allows deleting the formula afterward).
+    /// </summary>
+    Task ClearFormulaLinksAsync(long formulaId, CancellationToken cancellationToken = default);
 }

@@ -535,6 +535,10 @@ public class AdminAccountingService : IAdminAccountingService
             throw new BadRequestException(MessageKeys.FormulaCannotDeleteActive);
         }
 
+        // Draft/inactive: remove FK blockers (template links + persisted book results), then hard-delete.
+        await _uow.AccountingTemplates.ClearFormulaLinksAsync(formulaId);
+        await _uow.FormulaResults.DeleteByFormulaIdAsync(formulaId);
+
         _uow.FormulaDefinitions.Delete(formula);
         await _uow.SaveChangesAsync();
         return true;

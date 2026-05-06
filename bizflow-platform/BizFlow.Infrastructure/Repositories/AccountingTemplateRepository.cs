@@ -223,4 +223,19 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
     {
         _context.Set<MappableField>().Update(field);
     }
+
+    public async Task ClearFormulaLinksAsync(long formulaId, CancellationToken cancellationToken = default)
+    {
+        await _context.Set<TemplateFieldMapping>()
+            .Where(m => m.FormulaId == formulaId)
+            .ExecuteUpdateAsync(
+                m => m.SetProperty(x => x.FormulaId, (long?)null),
+                cancellationToken);
+
+        await _context.Set<TemplateRowDefinition>()
+            .Where(r => r.FormulaId == formulaId)
+            .ExecuteUpdateAsync(
+                r => r.SetProperty(x => x.FormulaId, (long?)null),
+                cancellationToken);
+    }
 }

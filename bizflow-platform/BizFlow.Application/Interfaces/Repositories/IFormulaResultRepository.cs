@@ -8,4 +8,5 @@ public interface IFormulaResultRepository
     Task UpsertAsync(FormulaResult result);
     Task MarkStaleByBookIdAsync(long bookId);
     Task DeleteByBookIdAsync(long bookId);
+    Task DeleteByFormulaIdAsync(long formulaId, CancellationToken cancellationToken = default);
 }
