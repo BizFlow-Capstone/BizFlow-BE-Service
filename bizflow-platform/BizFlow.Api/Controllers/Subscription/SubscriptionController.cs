@@ -58,6 +58,14 @@ namespace BizFlow.Api.Controllers.Subscription
             return Ok(MessageKeys.DataDeletedSuccessfully);
         }
 
+        [HttpPost("access-grants/{memberProfileId:guid}/sync")]
+        public async Task<IActionResult> SyncAccessGrant(Guid memberProfileId)
+        {
+            var ownerProfileId = User.GetRequiredUserId();
+            await _subscriptionService.GrantAccessGrantIfOwnerHasActiveSubscriptionAsync(ownerProfileId, memberProfileId);
+            return Ok(MessageKeys.DataUpdatedSuccessfully);
+        }
+
         [HttpGet("payment/redirect/success")]
         [AllowAnonymous]
         public async Task<IActionResult> PaymentSuccess([FromQuery(Name = "session_id")] string? sessionId)
