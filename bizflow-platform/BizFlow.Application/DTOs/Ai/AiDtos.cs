@@ -167,6 +167,7 @@ namespace BizFlow.Application.DTOs.Ai
         public DateTime ReferenceDate { get; set; }
         public string Description { get; set; } = string.Empty;
         public string? ReferenceId { get; set; }
+        public string? RecordType { get; set; }
         public bool IsAcknowledged { get; set; }
         public DateTime GeneratedAt { get; set; }
     }

@@ -81,6 +81,7 @@ namespace BizFlow.Application.Services
                 ReferenceDate = a.ReferenceDate,
                 Description = a.Description,
                 ReferenceId = a.ReferenceId,
+                RecordType = a.RecordType,
                 IsAcknowledged = a.IsAcknowledged,
                 GeneratedAt = a.GeneratedAt,
             }).ToList();

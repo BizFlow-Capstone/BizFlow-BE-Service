@@ -40,6 +40,10 @@ namespace BizFlow.Domain.Entities
         [MaxLength(36)]
         public string? ReferenceId { get; set; }
 
+        [Column("record_type")]
+        [MaxLength(20)]
+        public string? RecordType { get; set; }
+
         [Column("is_acknowledged")]
         public bool IsAcknowledged { get; set; }
 
