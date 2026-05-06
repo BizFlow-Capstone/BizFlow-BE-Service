@@ -129,20 +129,22 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminTemplateDto> CreateTemplateAsync(CreateTemplateRequest request, Guid actorUserId)
     {
         if (string.IsNullOrWhiteSpace(request.TemplateCode))
-            throw new BadRequestException(MessageKeys.BadRequest, "TemplateCode is required.");
+            throw new BadRequestException(MessageKeys.AdminAccTemplateCodeRequired);
         if (string.IsNullOrWhiteSpace(request.Name))
-            throw new BadRequestException(MessageKeys.BadRequest, "Name is required.");
+            throw new BadRequestException(MessageKeys.AdminAccNameRequired);
         if (request.ApplicableGroups == null || request.ApplicableGroups.Count == 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "ApplicableGroups must have at least one value.");
+            throw new BadRequestException(MessageKeys.AdminAccApplicableGroupsRequired);
 
         var validDataSources = new[] { "revenues", "revenue_cost", "gl_entries", "stock_movements" };
         if (!validDataSources.Contains(request.DataSourceType))
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"Invalid DataSourceType. Valid values: {string.Join(", ", validDataSources)}.");
+            throw new BadRequestException(
+                MessageKeys.AdminAccInvalidDataSourceType,
+                null,
+                string.Join(", ", validDataSources));
 
         var code = request.TemplateCode.Trim().ToUpper();
         if (await _uow.AccountingTemplates.ExistsByCodeAsync(code))
-            throw new BadRequestException(MessageKeys.BadRequest, $"TemplateCode '{code}' already exists.");
+            throw new BadRequestException(MessageKeys.AdminAccTemplateCodeExists, null, code);
 
         var versionLabel = string.IsNullOrWhiteSpace(request.InitialVersionLabel)
             ? "v1-draft"
@@ -181,18 +183,16 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminTemplateVersionDto> CreateTemplateVersionAsync(int templateId, CreateTemplateVersionRequest request, Guid actorUserId)
     {
         if (string.IsNullOrWhiteSpace(request.VersionLabel))
-            throw new BadRequestException(MessageKeys.BadRequest, "VersionLabel is required.");
+            throw new BadRequestException(MessageKeys.AdminAccVersionLabelRequired);
         if (request.VersionLabel.Length > TemplateVersionLabelMaxLength)
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"VersionLabel cannot exceed {TemplateVersionLabelMaxLength} characters.");
+            throw new BadRequestException(MessageKeys.AdminAccVersionLabelTooLong, null, TemplateVersionLabelMaxLength);
 
         var template = await _uow.AccountingTemplates.GetByIdWithVersionsAsync(templateId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         var labelTrimmed = request.VersionLabel.Trim();
         if (template.Versions.Any(v => v.VersionLabel == labelTrimmed))
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"VersionLabel '{labelTrimmed}' already exists for this template.");
+            throw new BadRequestException(MessageKeys.AdminAccVersionLabelExists, null, labelTrimmed);
 
         var version = new AccountingTemplateVersion
         {
@@ -281,8 +281,9 @@ public class AdminAccountingService : IAdminAccountingService
             if (label.Length > TemplateVersionLabelMaxLength)
             {
                 throw new BadRequestException(
-                    MessageKeys.BadRequest,
-                    $"VersionLabel must be <= {TemplateVersionLabelMaxLength} characters");
+                    MessageKeys.AdminAccVersionLabelTooLong,
+                    null,
+                    TemplateVersionLabelMaxLength);
             }
 
             version.VersionLabel = label;
@@ -337,17 +338,15 @@ public class AdminAccountingService : IAdminAccountingService
         if (version.IsActive)
         {
             var templates = await _uow.AccountingTemplates.GetAllWithVersionsAsync();
-            var samePeriodActiveSiblings = templates
+            var activeSiblings = templates
                 .Where(t => t.TemplateId == version.TemplateId)
                 .SelectMany(t => t.Versions)
                 .Where(v => v.TemplateVersionId != templateVersionId
-                         && v.IsActive
-                         && v.EffectiveFrom == version.EffectiveFrom)
+                         && v.IsActive)
                 .ToList();
 
-            if (!samePeriodActiveSiblings.Any())
-                throw new BadRequestException(MessageKeys.BadRequest,
-                    "Cannot deactivate the only active version for this effective period. Activate another version for the same period first.");
+            if (!activeSiblings.Any())
+                throw new BadRequestException(MessageKeys.TemplateMustHaveAtLeastOneActiveVersion);
         }
 
         version.IsActive = false;
@@ -363,10 +362,10 @@ public class AdminAccountingService : IAdminAccountingService
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         if (version.IsActive)
-            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete active version");
+            throw new BadRequestException(MessageKeys.AdminAccDeleteActiveVersionNotAllowed);
 
         if (version.AccountingBooks.Any())
-            throw new BadRequestException(MessageKeys.BadRequest, "Only draft version can be deleted");
+            throw new BadRequestException(MessageKeys.AdminAccDeleteOnlyDraftAllowed);
 
         _uow.AccountingTemplates.RemoveVersion(version);
         await _uow.SaveChangesAsync();
@@ -461,18 +460,18 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminFormulaDto> CreateFormulaAsync(CreateFormulaRequest request, Guid actorUserId)
     {
         if (string.IsNullOrWhiteSpace(request.Code))
-            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+            throw new BadRequestException(MessageKeys.AdminAccCodeRequired);
         if (string.IsNullOrWhiteSpace(request.ExpressionJson))
-            throw new BadRequestException(MessageKeys.BadRequest, "ExpressionJson is required");
+            throw new BadRequestException(MessageKeys.AdminAccExpressionJsonRequired);
 
         // Validate JSON
         try { System.Text.Json.JsonDocument.Parse(request.ExpressionJson); }
-        catch { throw new BadRequestException(MessageKeys.BadRequest, "ExpressionJson is not valid JSON"); }
+        catch { throw new BadRequestException(MessageKeys.AdminAccExpressionJsonInvalid); }
 
         var existing = (await _uow.FormulaDefinitions.GetAllAsync())
             .FirstOrDefault(f => string.Equals(f.Code, request.Code.Trim(), StringComparison.OrdinalIgnoreCase));
         if (existing != null)
-            throw new BadRequestException(MessageKeys.BadRequest, $"Formula code '{request.Code}' already exists");
+            throw new BadRequestException(MessageKeys.AdminAccFormulaCodeExists, null, request.Code);
 
         var formula = new FormulaDefinition
         {
@@ -570,8 +569,7 @@ public class AdminAccountingService : IAdminAccountingService
         {
             var allRulesets = await _uow.TaxRulesets.GetAllWithRulesAsync();
             if (!allRulesets.Any(x => x.RulesetId != rulesetId && x.IsActive))
-                throw new BadRequestException(MessageKeys.BadRequest,
-                    "Cannot deactivate the only active tax ruleset. Activate another ruleset first.");
+                throw new BadRequestException(MessageKeys.AdminAccCannotDeactivateOnlyActiveTaxRuleset);
         }
 
         ruleset.IsActive = false;
@@ -584,19 +582,19 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminPreviewResponse> PreviewAsync(AdminPreviewRequest request)
     {
         if (request.BusinessLocationId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be greater than 0");
+            throw new BadRequestException(MessageKeys.AdminAccBusinessLocationIdMustBePositive);
 
         if (request.BusinessLocationId != 6)
-            throw new BadRequestException(MessageKeys.BadRequest, "Admin chỉ được phép test với BusinessLocationId = 6");
+            throw new BadRequestException(MessageKeys.AdminAccTestLocationOnly);
 
         if (request.PeriodId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be greater than 0");
+            throw new BadRequestException(MessageKeys.AdminAccPeriodIdMustBePositive);
 
         if (request.TemplateVersionId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "TemplateVersionId must be greater than 0");
+            throw new BadRequestException(MessageKeys.AdminAccTemplateVersionIdMustBePositive);
 
         if (request.RulesetId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be greater than 0");
+            throw new BadRequestException(MessageKeys.AdminAccRulesetIdMustBePositive);
 
         if (request.BatchSize < 1)
             request.BatchSize = 1;
@@ -687,13 +685,13 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request)
     {
         if (request.BusinessLocationId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccBusinessLocationIdMustBePositive);
         if (request.PeriodId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccPeriodIdMustBePositive);
         if (request.DraftVersionId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "DraftVersionId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccDraftVersionIdMustBePositive);
         if (request.RulesetId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccRulesetIdMustBePositive);
 
         // Resolve active version if not provided
         var activeVersionId = request.ActiveVersionId;
@@ -707,7 +705,7 @@ public class AdminAccountingService : IAdminAccountingService
             activeVersionId = template?.Versions.FirstOrDefault(v => v.IsActive)?.TemplateVersionId;
 
             if (!activeVersionId.HasValue)
-                throw new BadRequestException(MessageKeys.BadRequest, "No active version found for this template. Provide ActiveVersionId explicitly.");
+                throw new BadRequestException(MessageKeys.AdminAccNoActiveTemplateVersionForCompare);
         }
 
         // Run both previews
@@ -775,16 +773,16 @@ public class AdminAccountingService : IAdminAccountingService
     public async Task<AdminTraceResponse> TraceFormulaAsync(AdminTraceRequest request)
     {
         if (request.FormulaId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "FormulaId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccFormulaIdMustBePositive);
         if (request.BusinessLocationId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "BusinessLocationId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccBusinessLocationIdMustBePositive);
 
         if (request.BusinessLocationId != 6)
-            throw new BadRequestException(MessageKeys.BadRequest, "Admin chỉ được phép test với BusinessLocationId = 6");
+            throw new BadRequestException(MessageKeys.AdminAccTestLocationOnly);
         if (request.PeriodId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "PeriodId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccPeriodIdMustBePositive);
         if (request.RulesetId <= 0)
-            throw new BadRequestException(MessageKeys.BadRequest, "RulesetId must be > 0");
+            throw new BadRequestException(MessageKeys.AdminAccRulesetIdMustBePositive);
 
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(request.FormulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound, $"FormulaId={request.FormulaId}");
@@ -1038,7 +1036,7 @@ public class AdminAccountingService : IAdminAccountingService
     {
         var existing = await _uow.AccountingTemplates.GetMappableEntityByCodeAsync(request.EntityCode.Trim());
         if (existing != null)
-            throw new BadRequestException(MessageKeys.BadRequest, $"EntityCode '{request.EntityCode}' already exists");
+            throw new BadRequestException(MessageKeys.AdminAccEntityCodeExists, null, request.EntityCode);
 
         var entity = new MappableEntity
         {
@@ -1069,7 +1067,7 @@ public class AdminAccountingService : IAdminAccountingService
             {
                 var existing = await _uow.AccountingTemplates.GetMappableEntityByCodeAsync(entityCode);
                 if (existing != null && existing.EntityId != entity.EntityId)
-                    throw new BadRequestException(MessageKeys.BadRequest, $"EntityCode '{request.EntityCode}' already exists");
+                    throw new BadRequestException(MessageKeys.AdminAccEntityCodeExists, null, request.EntityCode);
             }
 
             entity.EntityCode = entityCode;
@@ -1098,8 +1096,7 @@ public class AdminAccountingService : IAdminAccountingService
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         if (entity.IsActive)
-            throw new BadRequestException(MessageKeys.BadRequest,
-                "Cannot delete an active entity. Deactivate it first (set IsActive = false).");
+            throw new BadRequestException(MessageKeys.AdminAccCannotDeleteActiveEntity);
 
         _uow.AccountingTemplates.RemoveMappableEntity(entity);
         await _uow.SaveChangesAsync();
@@ -1115,7 +1112,7 @@ public class AdminAccountingService : IAdminAccountingService
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         if (entity.Fields.Any(f => f.FieldCode == request.FieldCode.Trim()))
-            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists on this entity");
+            throw new BadRequestException(MessageKeys.AdminAccFieldCodeExistsOnEntity, null, request.FieldCode);
 
         var field = new MappableField
         {
@@ -1149,7 +1146,7 @@ public class AdminAccountingService : IAdminAccountingService
                     ?? throw new NotFoundException(MessageKeys.NotFound);
 
                 if (entity.Fields.Any(f => f.FieldId != fieldId && f.FieldCode == fieldCode))
-                    throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists on this entity");
+                    throw new BadRequestException(MessageKeys.AdminAccFieldCodeExistsOnEntity, null, request.FieldCode);
             }
 
             field.FieldCode = fieldCode;
@@ -1185,13 +1182,13 @@ public class AdminAccountingService : IAdminAccountingService
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         if (version.IsActive && version.AccountingBooks.Any())
-            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add rows to active version with books");
+            throw new BadRequestException(MessageKeys.AdminAccCannotAddRowsToActiveVersionWithBooks);
 
         if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
-            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+            throw new BadRequestException(MessageKeys.AdminAccInvalidRowType, null, request.RowType);
 
         if (!RowDefinitionConstants.Position.All.Contains(request.Position))
-            throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+            throw new BadRequestException(MessageKeys.AdminAccInvalidPosition, null, request.Position);
 
         var rowDef = new TemplateRowDefinition
         {
@@ -1223,14 +1220,14 @@ public class AdminAccountingService : IAdminAccountingService
         if (request.RowType != null)
         {
             if (!RowDefinitionConstants.RowType.All.Contains(request.RowType))
-                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid RowType: {request.RowType}");
+                throw new BadRequestException(MessageKeys.AdminAccInvalidRowType, null, request.RowType);
             rowDef.RowType = request.RowType;
         }
         if (request.RowLabel != null) rowDef.RowLabel = request.RowLabel;
         if (request.Position != null)
         {
             if (!RowDefinitionConstants.Position.All.Contains(request.Position))
-                throw new BadRequestException(MessageKeys.BadRequest, $"Invalid Position: {request.Position}");
+                throw new BadRequestException(MessageKeys.AdminAccInvalidPosition, null, request.Position);
             rowDef.Position = request.Position;
         }
         if (request.SortOrder.HasValue) rowDef.SortOrder = request.SortOrder.Value;
@@ -1254,7 +1251,7 @@ public class AdminAccountingService : IAdminAccountingService
 
         var version = rowDef.TemplateVersion;
         if (version.IsActive && version.AccountingBooks.Any())
-            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete rows from active version with books");
+            throw new BadRequestException(MessageKeys.AdminAccCannotDeleteRowsFromActiveVersionWithBooks);
 
         _uow.AccountingTemplates.RemoveRowDefinition(rowDef);
         await _uow.SaveChangesAsync();
@@ -1270,10 +1267,10 @@ public class AdminAccountingService : IAdminAccountingService
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
         if (version.IsActive && version.AccountingBooks.Any())
-            throw new BadRequestException(MessageKeys.BadRequest, "Cannot add mappings to active version with books");
+            throw new BadRequestException(MessageKeys.AdminAccCannotAddMappingsToActiveVersionWithBooks);
 
         if (version.FieldMappings.Any(m => m.FieldCode == request.FieldCode.Trim()))
-            throw new BadRequestException(MessageKeys.BadRequest, $"FieldCode '{request.FieldCode}' already exists");
+            throw new BadRequestException(MessageKeys.AdminAccFieldCodeExists, null, request.FieldCode);
 
         var mapping = new TemplateFieldMapping
         {
@@ -1323,7 +1320,7 @@ public class AdminAccountingService : IAdminAccountingService
 
         var version = mapping.TemplateVersion;
         if (version.IsActive && version.AccountingBooks.Any())
-            throw new BadRequestException(MessageKeys.BadRequest, "Cannot delete mapping from active version with books");
+            throw new BadRequestException(MessageKeys.AdminAccCannotDeleteMappingFromActiveVersionWithBooks);
 
         _uow.AccountingTemplates.RemoveMapping(mapping);
         await _uow.SaveChangesAsync();
@@ -1425,15 +1422,15 @@ public class AdminAccountingService : IAdminAccountingService
     {
         var code = request.Code?.Trim() ?? "";
         if (string.IsNullOrEmpty(code))
-            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+            throw new BadRequestException(MessageKeys.AdminAccCodeRequired);
 
         var name = request.Name?.Trim() ?? "";
         if (string.IsNullOrEmpty(name))
-            throw new BadRequestException(MessageKeys.BadRequest, "Name is required");
+            throw new BadRequestException(MessageKeys.AdminAccNameRequired);
 
         var existing = await _uow.BusinessTypes.GetByCodeAsync(code);
         if (existing != null)
-            throw new BadRequestException(MessageKeys.BadRequest, $"BusinessType with code '{code}' already exists");
+            throw new BadRequestException(MessageKeys.AdminAccBusinessTypeCodeExists, null, code);
 
         var bt = new BusinessType
         {
@@ -1471,7 +1468,7 @@ public class AdminAccountingService : IAdminAccountingService
         {
             var name = request.Name.Trim();
             if (string.IsNullOrEmpty(name))
-                throw new BadRequestException(MessageKeys.BadRequest, "Name cannot be empty");
+                throw new BadRequestException(MessageKeys.AdminAccNameCannotBeEmpty);
             bt.Name = name;
         }
 
@@ -1481,8 +1478,10 @@ public class AdminAccountingService : IAdminAccountingService
         if (request.Status != null)
         {
             if (!BusinessTypeConstants.AllowedStatuses.Contains(request.Status))
-                throw new BadRequestException(MessageKeys.BadRequest,
-                    $"Status must be one of: {string.Join(", ", BusinessTypeConstants.AllowedStatuses)}");
+                throw new BadRequestException(
+                    MessageKeys.AdminAccBusinessTypeStatusInvalid,
+                    null,
+                    string.Join(", ", BusinessTypeConstants.AllowedStatuses));
             bt.Status = request.Status.ToLowerInvariant();
         }
 
@@ -1546,8 +1545,11 @@ public class AdminAccountingService : IAdminAccountingService
             .Distinct()
             .ToList();
         if (invalidTypes.Count > 0)
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"Invalid TaxType(s): {string.Join(", ", invalidTypes)}. Allowed: {string.Join(", ", IndustryTaxRateConstants.AllowedTaxTypes)}");
+            throw new BadRequestException(
+                MessageKeys.AdminAccInvalidTaxTypes,
+                null,
+                string.Join(", ", invalidTypes),
+                string.Join(", ", IndustryTaxRateConstants.AllowedTaxTypes));
 
         var duplicates = request.Rates
             .GroupBy(r => r.TaxType, StringComparer.Ordinal)
@@ -1555,15 +1557,20 @@ public class AdminAccountingService : IAdminAccountingService
             .Select(g => g.Key)
             .ToList();
         if (duplicates.Count > 0)
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"Duplicate TaxType(s) in request: {string.Join(", ", duplicates)}");
+            throw new BadRequestException(
+                MessageKeys.AdminAccDuplicateTaxTypes,
+                null,
+                string.Join(", ", duplicates));
 
         var outOfRange = request.Rates
             .Where(r => r.TaxRate < IndustryTaxRateConstants.MinRate || r.TaxRate > IndustryTaxRateConstants.MaxRate)
             .ToList();
         if (outOfRange.Count > 0)
-            throw new BadRequestException(MessageKeys.BadRequest,
-                $"TaxRate must be between {IndustryTaxRateConstants.MinRate} and {IndustryTaxRateConstants.MaxRate} (e.g. 0.10 for 10%)");
+            throw new BadRequestException(
+                MessageKeys.AdminAccTaxRateOutOfRange,
+                null,
+                IndustryTaxRateConstants.MinRate,
+                IndustryTaxRateConstants.MaxRate);
 
         List<IndustryTaxRate> savedRates = new();
 
@@ -1593,18 +1600,18 @@ public class AdminAccountingService : IAdminAccountingService
     {
         var code = request.Code?.Trim() ?? "";
         if (string.IsNullOrEmpty(code))
-            throw new BadRequestException(MessageKeys.BadRequest, "Code is required");
+            throw new BadRequestException(MessageKeys.AdminAccCodeRequired);
 
         var name = request.Name?.Trim() ?? "";
         if (string.IsNullOrEmpty(name))
-            throw new BadRequestException(MessageKeys.BadRequest, "Name is required");
+            throw new BadRequestException(MessageKeys.AdminAccNameRequired);
 
         var version = request.Version?.Trim() ?? "";
         if (string.IsNullOrEmpty(version))
-            throw new BadRequestException(MessageKeys.BadRequest, "Version is required");
+            throw new BadRequestException(MessageKeys.AdminAccVersionRequired);
 
         if (request.EffectiveTo.HasValue && request.EffectiveTo.Value <= request.EffectiveFrom)
-            throw new BadRequestException(MessageKeys.BadRequest, "EffectiveTo must be after EffectiveFrom");
+            throw new BadRequestException(MessageKeys.AdminAccEffectiveToMustBeAfterEffectiveFrom);
 
         var ruleset = new TaxRuleset
         {
@@ -1628,8 +1635,7 @@ public class AdminAccountingService : IAdminAccountingService
             if (request.CloneFromRulesetId.HasValue)
             {
                 var source = await _uow.TaxRulesets.GetByIdWithRulesAsync(request.CloneFromRulesetId.Value)
-                    ?? throw new BadRequestException(MessageKeys.BadRequest,
-                        $"Source ruleset {request.CloneFromRulesetId.Value} not found");
+                    ?? throw new BadRequestException(MessageKeys.AdminAccSourceRulesetNotFound, null, request.CloneFromRulesetId.Value);
 
                 foreach (var srcRate in source.IndustryTaxRates)
                 {
@@ -1661,7 +1667,7 @@ public class AdminAccountingService : IAdminAccountingService
         {
             var name = request.Name.Trim();
             if (string.IsNullOrEmpty(name))
-                throw new BadRequestException(MessageKeys.BadRequest, "Name cannot be empty");
+                throw new BadRequestException(MessageKeys.AdminAccNameCannotBeEmpty);
             ruleset.Name = name;
         }
 
@@ -1672,7 +1678,7 @@ public class AdminAccountingService : IAdminAccountingService
         {
             var version = request.Version.Trim();
             if (string.IsNullOrEmpty(version))
-                throw new BadRequestException(MessageKeys.BadRequest, "Version cannot be empty");
+                throw new BadRequestException(MessageKeys.AdminAccVersionCannotBeEmpty);
             ruleset.Version = version;
         }
 
@@ -1683,7 +1689,7 @@ public class AdminAccountingService : IAdminAccountingService
             ruleset.EffectiveTo = request.EffectiveTo.Value;
 
         if (ruleset.EffectiveTo.HasValue && ruleset.EffectiveTo.Value <= ruleset.EffectiveFrom)
-            throw new BadRequestException(MessageKeys.BadRequest, "EffectiveTo must be after EffectiveFrom");
+            throw new BadRequestException(MessageKeys.AdminAccEffectiveToMustBeAfterEffectiveFrom);
 
         _uow.TaxRulesets.Update(ruleset);
         await _uow.SaveChangesAsync();
