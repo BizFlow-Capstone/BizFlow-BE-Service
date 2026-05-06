@@ -251,20 +251,11 @@ public class BookRenderingService : IBookRenderingService
                         ["source"] = "FORMULA"
                     };
 
-                    // Detect deduction case when taxAmount != subtotal × rate
-                    string explanation;
-                    if (taxRate.HasValue)
-                    {
-                        var expected = Math.Round(subtotal * taxRate.Value, 0, MidpointRounding.AwayFromZero);
-                        explanation = expected != Math.Round(taxAmount, 0, MidpointRounding.AwayFromZero)
-                            ? $"{subtotal:#,0} x {taxRate.Value * 100:0.##}% → {taxAmount:#,0} đ (sau giảm trừ)"
-                            : $"{subtotal:#,0} x {taxRate.Value * 100:0.##}% = {taxAmount:#,0} đ";
-                    }
-                    else
-                    {
-                        explanation = $"Thuế: {FormatNumber(taxAmount)} đ";
-                    }
-                    row["explanation"] = explanation;
+                    row["explanation"] = BuildPerGroupTaxExplanation(
+                        rowDef.Formula,
+                        subtotal,
+                        taxAmount,
+                        taxRate);
 
                     if (!string.IsNullOrWhiteSpace(taxType))
                         taxTotals[taxType] = taxTotals.GetValueOrDefault(taxType) + taxAmount;
@@ -834,6 +825,59 @@ public class BookRenderingService : IBookRenderingService
         };
 
     private static string FormatNumber(decimal value) => value.ToString("#,0.##");
+
+    private static string BuildPerGroupTaxExplanation(
+        FormulaDefinition? formula,
+        decimal subtotal,
+        decimal taxAmount,
+        decimal? taxRate)
+    {
+        if (!taxRate.HasValue)
+            return $"Thuế: {FormatNumber(taxAmount)} đ";
+
+        var rate = taxRate.Value;
+        if (rate <= 0m)
+            return $"Thuế: {FormatNumber(taxAmount)} đ";
+
+        var deductionAmount = TryGetForeachDeductionAmount(formula);
+        if (!deductionAmount.HasValue)
+            return $"{subtotal:#,0} x {rate * 100:0.##}% = {taxAmount:#,0.##} đ";
+
+        var taxableBase = Math.Round(taxAmount / rate, 2, MidpointRounding.AwayFromZero);
+        var deductionApplied = Math.Max(0m, subtotal - taxableBase);
+
+        if (deductionApplied <= 0m)
+            return $"{subtotal:#,0} x {rate * 100:0.##}% = {taxAmount:#,0.##} đ (không áp dụng giảm trừ)";
+
+        return
+            $"MAX(0, {subtotal:#,0} - {deductionAmount.Value:#,0}) = {taxableBase:#,0.##}; " +
+            $"giảm trừ áp dụng: {deductionApplied:#,0.##} đ (tối đa {deductionAmount.Value:#,0} đ); " +
+            $"{taxableBase:#,0.##} x {rate * 100:0.##}% = {taxAmount:#,0.##} đ";
+    }
+
+    private static decimal? TryGetForeachDeductionAmount(FormulaDefinition? formula)
+    {
+        if (string.IsNullOrWhiteSpace(formula?.ExpressionJson))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(formula.ExpressionJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty(AstNode.Foreach, out _)
+                || !root.TryGetProperty("deduction", out var deductionNode)
+                || deductionNode.ValueKind != JsonValueKind.Object
+                || !deductionNode.TryGetProperty("amount", out var amountNode))
+                return null;
+
+            return amountNode.GetDecimal();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private enum TaxRateSourceType
     {
