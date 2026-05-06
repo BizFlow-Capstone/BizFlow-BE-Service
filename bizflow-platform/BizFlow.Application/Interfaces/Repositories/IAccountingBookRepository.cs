@@ -9,7 +9,6 @@ public interface IAccountingBookRepository
     Task<AccountingBook?> GetByIdWithPeriodAsync(long bookId);
     Task<bool> HasExportsAsync(long bookId);
     Task<List<AccountingBook>> GetByLocationAndPeriodAsync(int locationId, long periodId);
-    Task<bool> ExistsForPeriodAsync(int locationId, long periodId, int templateVersionId);
     Task AddAsync(AccountingBook book);
     void Update(AccountingBook book);
     void Remove(AccountingBook book);

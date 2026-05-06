@@ -49,7 +49,7 @@ public class AccountingBookService : IAccountingBookService
 
         // 3. Validate & get template versions
         var templateVersions = new List<(AccountingTemplate Template, AccountingTemplateVersion Version)>();
-        foreach (var code in request.TemplateCodes.Distinct())
+        foreach (var code in request.TemplateCodes)
         {
             var template = await _uow.AccountingTemplates.GetByCodeAsync(code)
                 ?? throw new BadRequestException(MessageKeys.TemplateNotFound, new { templateCode = code }, code);
@@ -103,17 +103,6 @@ public class AccountingBookService : IAccountingBookService
         {
             foreach (var (template, version) in templateVersions)
             {
-                // Check if book already exists for this location + period + template.
-                var exists = await _uow.AccountingBooks.ExistsForPeriodAsync(
-                    locationId, request.PeriodId, version.TemplateVersionId);
-                if (exists)
-                {
-                    _logger.LogWarning(
-                        "Book already exists for location {LocationId}, period {PeriodId}, template {Code}",
-                        locationId, request.PeriodId, template.TemplateCode);
-                    continue;
-                }
-
                 var book = new AccountingBook
                 {
                     BusinessLocationId = locationId,

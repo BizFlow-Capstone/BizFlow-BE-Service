@@ -41,15 +41,6 @@ public class AccountingBookRepository : IAccountingBookRepository
             .ToListAsync();
     }
 
-    public async Task<bool> ExistsForPeriodAsync(int locationId, long periodId, int templateVersionId)
-    {
-        return await _context.Set<AccountingBook>()
-            .AnyAsync(x => x.BusinessLocationId == locationId
-                && x.PeriodId == periodId
-                && x.TemplateVersionId == templateVersionId
-                && x.Status == AccountingBookConstants.BookStatuses.Active);
-    }
-
     public async Task AddAsync(AccountingBook book)
     {
         await _context.Set<AccountingBook>().AddAsync(book);
