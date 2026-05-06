@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BizFlow.Application.Common.Constants;
 using BizFlow.Application.Common.Exceptions;
+using BizFlow.Application.Common.Helpers;
 using BizFlow.Application.DTOs.Admin;
 using BizFlow.Application.DTOs.Revenue;
 using BizFlow.Application.Interfaces.Repositories;
@@ -18,12 +19,18 @@ public class AdminAccountingService : IAdminAccountingService
     private readonly IUnitOfWork _uow;
     private readonly IBookRenderingService _renderingService;
     private readonly IFormulaEngine _formulaEngine;
+    private readonly IGeneralLedgerService _generalLedgerService;
 
-    public AdminAccountingService(IUnitOfWork uow, IBookRenderingService renderingService, IFormulaEngine formulaEngine)
+    public AdminAccountingService(
+        IUnitOfWork uow,
+        IBookRenderingService renderingService,
+        IFormulaEngine formulaEngine,
+        IGeneralLedgerService generalLedgerService)
     {
         _uow = uow;
         _renderingService = renderingService;
         _formulaEngine = formulaEngine;
+        _generalLedgerService = generalLedgerService;
     }
 
     public async Task<AdminAccountingOverviewDto> GetOverviewAsync()
@@ -693,6 +700,112 @@ public class AdminAccountingService : IAdminAccountingService
         };
     }
 
+    public async Task<GenerateConsultantSampleDataResponse> GenerateConsultantSampleDataAsync(
+        GenerateConsultantSampleDataRequest request,
+        Guid actorUserId)
+    {
+        if (request.BusinessLocationId <= 0)
+            throw new BadRequestException(MessageKeys.AdminAccBusinessLocationIdMustBePositive);
+
+        var location = await _uow.BusinessLocations.GetByIdAsync(request.BusinessLocationId)
+            ?? throw new NotFoundException(MessageKeys.NotFound);
+
+        var candidateBusinessTypeIds = await ResolveBusinessTypeCandidatesAsync(request.BusinessLocationId);
+        var selectedBusinessTypeId = candidateBusinessTypeIds.FirstOrDefault();
+
+        var baseDate = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var revenueSeeds = new List<(decimal Amount, string Description, string MoneyChannel, Guid? BusinessTypeId)>
+        {
+            (4200000m, "Doanh thu mẫu tư vấn theo giờ", MoneyChannelType.Bank, selectedBusinessTypeId),
+            (1850000m, "Doanh thu mẫu bán gói dịch vụ nhanh", MoneyChannelType.Cash, selectedBusinessTypeId),
+            (2760000m, "Doanh thu mẫu hỗ trợ vận hành", MoneyChannelType.Bank, selectedBusinessTypeId),
+            (1390000m, "Doanh thu mẫu đào tạo nội bộ", MoneyChannelType.Cash, selectedBusinessTypeId),
+            (3250000m, "Doanh thu mẫu tối ưu quy trình", MoneyChannelType.Bank, selectedBusinessTypeId)
+        };
+
+        var costSeeds = new List<(decimal Amount, string Description, string CostType, string PaymentMethod, Guid? BusinessTypeId)>
+        {
+            (980000m, "Chi phí mẫu thuê cộng tác viên", CostType.Salary, MoneyChannelType.Bank, selectedBusinessTypeId),
+            (540000m, "Chi phí mẫu điện nước văn phòng", CostType.Utilities, MoneyChannelType.Cash, selectedBusinessTypeId),
+            (760000m, "Chi phí mẫu quảng bá dịch vụ", CostType.Marketing, MoneyChannelType.Bank, selectedBusinessTypeId),
+            (630000m, "Chi phí mẫu di chuyển gặp khách", CostType.Transport, MoneyChannelType.Cash, selectedBusinessTypeId),
+            (450000m, "Chi phí mẫu văn phòng phẩm", CostType.Other, MoneyChannelType.Cash, selectedBusinessTypeId)
+        };
+
+        var createdRevenueIds = new List<long>();
+        var createdCostIds = new List<long>();
+
+        foreach (var (seed, index) in revenueSeeds.Select((value, idx) => (value, idx)))
+        {
+            var revenue = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() =>
+                _uow.ExecuteResilientAsync(async ct =>
+                {
+                    var entity = new Revenue
+                    {
+                        RevenueCode = EntityCodeGenerator.Generate("REV", DateTime.UtcNow, location.BusinessLocationId, 5),
+                        BusinessLocationId = location.BusinessLocationId,
+                        BusinessTypeId = seed.BusinessTypeId,
+                        RevenueType = RevenueType.Manual,
+                        Amount = seed.Amount,
+                        Status = RevenueStatus.Posted,
+                        RevenueDate = baseDate.AddDays(-index),
+                        Description = seed.Description,
+                        MoneyChannel = seed.MoneyChannel,
+                        CreatedBy = actorUserId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _uow.Revenues.AddAsync(entity);
+                    await _uow.SaveChangesAsync(ct);
+                    await _generalLedgerService.RecordRevenueLedgerLineFromRowAsync(entity);
+                    await _uow.SaveChangesAsync(ct);
+                    return entity;
+                }));
+
+            createdRevenueIds.Add(revenue.RevenueId);
+        }
+
+        foreach (var (seed, index) in costSeeds.Select((value, idx) => (value, idx)))
+        {
+            var cost = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() =>
+                _uow.ExecuteResilientAsync(async ct =>
+                {
+                    var entity = new Cost
+                    {
+                        CostCode = EntityCodeGenerator.Generate("COST", DateTime.UtcNow, location.BusinessLocationId, 5),
+                        BusinessLocationId = location.BusinessLocationId,
+                        BusinessTypeId = seed.BusinessTypeId,
+                        CostType = seed.CostType,
+                        Description = seed.Description,
+                        Amount = seed.Amount,
+                        Status = CostStatus.Posted,
+                        CostDate = baseDate.AddDays(-index),
+                        PaymentMethod = seed.PaymentMethod,
+                        CreatedBy = actorUserId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _uow.Costs.AddAsync(entity);
+                    await _uow.SaveChangesAsync(ct);
+                    await _generalLedgerService.RecordCostLedgerLineFromRowAsync(entity);
+                    await _uow.SaveChangesAsync(ct);
+                    return entity;
+                }));
+
+            createdCostIds.Add(cost.CostId);
+        }
+
+        return new GenerateConsultantSampleDataResponse
+        {
+            BusinessLocationId = request.BusinessLocationId,
+            RevenueCreatedCount = createdRevenueIds.Count,
+            CostCreatedCount = createdCostIds.Count,
+            RevenueIds = createdRevenueIds,
+            CostIds = createdCostIds
+        };
+    }
+
     // ══════════════════════════════════════════════
     // Compare API
     // ══════════════════════════════════════════════
@@ -839,6 +952,25 @@ public class AdminAccountingService : IAdminAccountingService
             Debug = node.Debug,
             Children = node.Children?.Select(MapTraceNode).ToList()
         };
+    }
+
+    private async Task<List<Guid>> ResolveBusinessTypeCandidatesAsync(int businessLocationId)
+    {
+        var fromProducts = await _uow.Products.QuickSearchByLocationAsync(businessLocationId, null);
+        var ids = fromProducts
+            .Where(p => p.DeletedAt == null)
+            .Select(p => p.BusinessTypeId)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count > 0)
+            return ids;
+
+        var businessTypes = await _uow.BusinessTypes.GetAllAsync();
+        return businessTypes
+            .Where(bt => string.Equals(bt.Status, BusinessTypeConstants.Active, StringComparison.OrdinalIgnoreCase))
+            .Select(bt => bt.BusinessTypeId)
+            .ToList();
     }
 
     // ══════════════════════════════════════════════

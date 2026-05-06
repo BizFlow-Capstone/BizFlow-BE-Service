@@ -547,6 +547,20 @@ public class AdminTraceResponse
     public List<FormulaTraceStep> Trace { get; set; } = new();
 }
 
+public class GenerateConsultantSampleDataRequest
+{
+    public int BusinessLocationId { get; set; }
+}
+
+public class GenerateConsultantSampleDataResponse
+{
+    public int BusinessLocationId { get; set; }
+    public int RevenueCreatedCount { get; set; }
+    public int CostCreatedCount { get; set; }
+    public List<long> RevenueIds { get; set; } = new();
+    public List<long> CostIds { get; set; } = new();
+}
+
 public class FormulaTraceStep
 {
     public int Step { get; set; }

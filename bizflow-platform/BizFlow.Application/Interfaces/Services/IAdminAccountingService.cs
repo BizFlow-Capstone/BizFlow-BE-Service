@@ -28,6 +28,7 @@ public interface IAdminAccountingService
     Task<AdminTaxRulesetDto> DeactivateTaxRulesetAsync(int rulesetId);
 
     Task<AdminPreviewResponse> PreviewAsync(AdminPreviewRequest request);
+    Task<GenerateConsultantSampleDataResponse> GenerateConsultantSampleDataAsync(GenerateConsultantSampleDataRequest request, Guid actorUserId);
 
     // ── Compare ──
     Task<AdminCompareResponse> CompareAsync(AdminCompareRequest request);

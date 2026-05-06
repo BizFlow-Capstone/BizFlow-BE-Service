@@ -209,6 +209,15 @@ public class AdminAccountingController : BaseApiController
         return Ok(result, MessageKeys.DataRetrievedSuccessfully);
     }
 
+    [HttpPost("testing/generate-consultant-sample-data")]
+    [SwaggerOperation(Summary = "Generate sample manual revenue/cost data for consultant testing")]
+    public async Task<IActionResult> GenerateConsultantSampleData([FromBody] GenerateConsultantSampleDataRequest request)
+    {
+        EnsureAdminOrConsultant();
+        var result = await _adminAccountingService.GenerateConsultantSampleDataAsync(request, User.GetRequiredUserId());
+        return Ok(result, MessageKeys.DataCreatedSuccessfully);
+    }
+
     [HttpPost("testing/compare")]
     [SwaggerOperation(Summary = "Compare active vs draft version rendering results")]
     public async Task<IActionResult> Compare([FromBody] AdminCompareRequest request)
