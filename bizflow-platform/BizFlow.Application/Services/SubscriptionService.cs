@@ -326,9 +326,17 @@ namespace BizFlow.Application.Services
             if (locationId <= 0)
                 throw new BadRequestException(MessageKeys.BadRequest);
 
+            var location = await _businessLocationRepository.GetByIdAsync(locationId);
+            if (location == null)
+                throw new NotFoundException(MessageKeys.NotFound);
+
             var hasAccess = await _businessLocationRepository.HasAccessToLocationAsync(profileId, locationId);
             if (!hasAccess)
                 throw new ForbiddenException(MessageKeys.Forbidden);
+
+            var isOwner = await _businessLocationRepository.IsOwnerOfLocationAsync(profileId, locationId);
+            if (!isOwner && location.IsActive == false)
+                throw new ForbiddenException(MessageKeys.LocationInactive);
 
             var ownerId = await _businessLocationRepository.GetOwnerIdByLocationAsync(locationId);
             if (!ownerId.HasValue)
@@ -354,6 +362,8 @@ namespace BizFlow.Application.Services
             var latestPrice = planEntity.Prices?.FirstOrDefault(p => p.IsActive);
             var allocatedByFeatureId = active.FeatureUsages
                 .ToDictionary(u => u.FeatureId, u => u.AllocatedLimit);
+            var usedByFeatureId = active.FeatureUsages
+                .ToDictionary(u => u.FeatureId, u => u.UsedCount);
 
             var showEndDate = planEntity.DurationDays > 0
                 || (latestPrice != null && latestPrice.GetEffectivePrice() <= 0m);
@@ -379,6 +389,7 @@ namespace BizFlow.Application.Services
                         UsageLimit = allocatedByFeatureId.TryGetValue(pf.FeatureId, out var allocated)
                             ? allocated
                             : pf.UsageLimit,
+                        UsedCount = usedByFeatureId.TryGetValue(pf.FeatureId, out var used) ? used : 0,
                         FeatureDescription = pf.Feature?.Description,
                     }).ToList()
                 }
