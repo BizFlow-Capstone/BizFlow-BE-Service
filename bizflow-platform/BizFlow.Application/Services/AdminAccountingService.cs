@@ -602,7 +602,7 @@ public class AdminAccountingService : IAdminAccountingService
             request.BatchSize = 200;
 
         var version = await _uow.AccountingTemplates.GetVersionWithMappingsAsync(request.TemplateVersionId)
-            ?? throw new NotFoundException(MessageKeys.NotFound, $"TemplateVersionId={request.TemplateVersionId}");
+            ?? throw new NotFoundException(MessageKeys.AdminAccTemplateVersionNotFound, request.TemplateVersionId);
 
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(request.BusinessLocationId, request.PeriodId)
             ?? throw new NotFoundException(
@@ -611,7 +611,7 @@ public class AdminAccountingService : IAdminAccountingService
                 $"PeriodId={request.PeriodId}");
 
         var ruleset = await _uow.TaxRulesets.GetByIdWithRulesAsync(request.RulesetId)
-            ?? throw new NotFoundException(MessageKeys.NotFound, $"RulesetId={request.RulesetId}");
+            ?? throw new NotFoundException(MessageKeys.AdminAccTaxRulesetNotFound, request.RulesetId);
 
         var businessTypeIds = request.BusinessTypeIds.Distinct().ToList();
         if (businessTypeIds.Count == 0)
@@ -698,7 +698,7 @@ public class AdminAccountingService : IAdminAccountingService
         if (!activeVersionId.HasValue || activeVersionId.Value <= 0)
         {
             var draftVersion = await _uow.AccountingTemplates.GetVersionWithMappingsAsync(request.DraftVersionId)
-                ?? throw new NotFoundException(MessageKeys.NotFound, $"DraftVersionId={request.DraftVersionId}");
+                ?? throw new NotFoundException(MessageKeys.AdminAccTemplateVersionNotFound, request.DraftVersionId);
 
             var templates = await _uow.AccountingTemplates.GetAllWithVersionsAsync();
             var template = templates.FirstOrDefault(t => t.TemplateId == draftVersion.TemplateId);
@@ -785,7 +785,7 @@ public class AdminAccountingService : IAdminAccountingService
             throw new BadRequestException(MessageKeys.AdminAccRulesetIdMustBePositive);
 
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(request.FormulaId)
-            ?? throw new NotFoundException(MessageKeys.NotFound, $"FormulaId={request.FormulaId}");
+            ?? throw new NotFoundException(MessageKeys.AdminAccFormulaNotFound, request.FormulaId);
 
         var period = await _uow.AccountingPeriods.GetByLocationAndIdAsync(request.BusinessLocationId, request.PeriodId)
             ?? throw new NotFoundException(MessageKeys.PeriodNotFound);
