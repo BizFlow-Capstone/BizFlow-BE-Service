@@ -104,6 +104,7 @@ services:
       - ANONYMIZED_TELEMETRY=False
     volumes:
       - ./docker/credentials:/app/credentials:ro
+      - chroma_data:/app/chroma_data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 30s
@@ -134,3 +135,6 @@ services:
 networks:
   bizflow-network:
     driver: bridge
+
+volumes:
+  chroma_data:
