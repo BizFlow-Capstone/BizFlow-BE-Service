@@ -323,6 +323,7 @@
   "ADMIN_ACC_TEMPLATE_VERSION_NOT_FOUND": "Không tìm thấy phiên bản template với id '{0}'.",
   "ADMIN_ACC_TAX_RULESET_NOT_FOUND": "Không tìm thấy bộ quy tắc thuế với id '{0}'.",
   "ADMIN_ACC_FORMULA_NOT_FOUND": "Không tìm thấy công thức với id '{0}'.",
+  "ADMIN_ACC_CANNOT_EDIT_ACTIVE_FORMULA": "Không thể chỉnh sửa công thức đang hoạt động. Hãy clone ra bản nháp hoặc hủy kích hoạt trước.",
   "ADMIN_ACC_ENTITY_CODE_EXISTS": "EntityCode '{0}' đã tồn tại.",
   "ADMIN_ACC_CANNOT_DELETE_ACTIVE_ENTITY": "Không thể xóa entity đang hoạt động. Hãy hủy kích hoạt trước (IsActive = false).",
   "ADMIN_ACC_FIELD_CODE_EXISTS_ON_ENTITY": "FieldCode '{0}' đã tồn tại trong entity này.",

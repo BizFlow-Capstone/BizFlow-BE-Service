@@ -461,6 +461,9 @@ public class AdminAccountingService : IAdminAccountingService
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
+        if (formula.IsActive)
+            throw new BadRequestException(MessageKeys.AdminAccCannotEditActiveFormula);
+
         if (request.Code != null)
         {
             var code = request.Code.Trim();
