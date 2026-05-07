@@ -42,6 +42,12 @@ public interface IAccountingTemplateRepository
     void UpdateMappableField(MappableField field);
 
     /// <summary>
+    /// Returns true if any active template version references the given formula
+    /// (via a field mapping or a row definition).
+    /// </summary>
+    Task<bool> IsFormulaUsedInActiveTemplateAsync(long formulaId);
+
+    /// <summary>
     /// Clears <see cref="TemplateFieldMapping.FormulaId"/> and <see cref="TemplateRowDefinition.FormulaId"/>
     /// for rows that reference the given formula (allows deleting the formula afterward).
     /// </summary>

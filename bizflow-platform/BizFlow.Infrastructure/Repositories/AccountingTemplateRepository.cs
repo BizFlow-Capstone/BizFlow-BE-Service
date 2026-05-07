@@ -224,6 +224,16 @@ public class AccountingTemplateRepository : IAccountingTemplateRepository
         _context.Set<MappableField>().Update(field);
     }
 
+    public async Task<bool> IsFormulaUsedInActiveTemplateAsync(long formulaId)
+    {
+        if (await _context.Set<TemplateFieldMapping>()
+                .AnyAsync(m => m.FormulaId == formulaId && m.TemplateVersion.IsActive))
+            return true;
+
+        return await _context.Set<TemplateRowDefinition>()
+            .AnyAsync(r => r.FormulaId == formulaId && r.TemplateVersion.IsActive);
+    }
+
     public async Task ClearFormulaLinksAsync(long formulaId, CancellationToken cancellationToken = default)
     {
         await _context.Set<TemplateFieldMapping>()

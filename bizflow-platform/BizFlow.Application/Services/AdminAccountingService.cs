@@ -468,9 +468,13 @@ public class AdminAccountingService : IAdminAccountingService
             || request.FormulaType != null
             || request.ExpressionJson != null;
 
-        // Active formulas are locked for content edits, but status toggle (active -> inactive) is allowed.
-        if (formula.IsActive && hasNonStatusChanges)
+        bool tryingToDeactivate = request.IsActive.HasValue && !request.IsActive.Value && formula.IsActive;
+
+        if (formula.IsActive && !tryingToDeactivate && hasNonStatusChanges)
             throw new BadRequestException(MessageKeys.AdminAccCannotEditActiveFormula);
+
+        if (tryingToDeactivate && await _uow.AccountingTemplates.IsFormulaUsedInActiveTemplateAsync(formulaId))
+            throw new BadRequestException(MessageKeys.AdminAccCannotDeactivateFormulaUsedInActiveTemplate);
 
         if (request.Code != null)
         {

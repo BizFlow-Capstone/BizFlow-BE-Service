@@ -307,6 +307,7 @@ namespace BizFlow.Application.Common.Constants
         public const string AdminAccTaxRulesetNotFound = "ADMIN_ACC_TAX_RULESET_NOT_FOUND";
         public const string AdminAccFormulaNotFound = "ADMIN_ACC_FORMULA_NOT_FOUND";
         public const string AdminAccCannotEditActiveFormula = "ADMIN_ACC_CANNOT_EDIT_ACTIVE_FORMULA";
+        public const string AdminAccCannotDeactivateFormulaUsedInActiveTemplate = "ADMIN_ACC_CANNOT_DEACTIVATE_FORMULA_USED_IN_ACTIVE_TEMPLATE";
         public const string AdminAccEntityCodeExists = "ADMIN_ACC_ENTITY_CODE_EXISTS";
         public const string AdminAccCannotDeleteActiveEntity = "ADMIN_ACC_CANNOT_DELETE_ACTIVE_ENTITY";
         public const string AdminAccFieldCodeExistsOnEntity = "ADMIN_ACC_FIELD_CODE_EXISTS_ON_ENTITY";
