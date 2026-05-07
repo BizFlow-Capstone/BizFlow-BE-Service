@@ -97,7 +97,7 @@ public partial class BizFlowDbContext
                 .ValueGeneratedOnAddOrUpdate()
                 .HasColumnType("datetime");
 
-            entity.HasIndex(e => new { e.BusinessLocationId, e.PeriodType, e.Year, e.Quarter }, "idx_period_unique").IsUnique();
+            entity.HasIndex(e => new { e.BusinessLocationId, e.PeriodType, e.Year, e.Quarter }, "idx_period_unique");
             entity.HasIndex(e => e.Status, "idx_period_status");
             entity.HasIndex(e => e.Year, "idx_period_year");
 

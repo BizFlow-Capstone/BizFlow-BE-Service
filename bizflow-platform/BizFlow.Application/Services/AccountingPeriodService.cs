@@ -28,12 +28,6 @@ public class AccountingPeriodService : IAccountingPeriodService
         var quarter = ValidateAndNormalizeQuarter(normalizedPeriodType, request.Quarter);
         var (startDate, endDate) = CalculatePeriodRange(normalizedPeriodType, request.Year, quarter);
 
-        var exists = await _unitOfWork.AccountingPeriods.ExistsAsync(locationId, normalizedPeriodType, request.Year, quarter);
-        if (exists)
-        {
-            throw new ConflictException(MessageKeys.PeriodAlreadyExists);
-        }
-
         var previousPeriod = await _unitOfWork.AccountingPeriods.GetPreviousPeriodAsync(locationId, normalizedPeriodType, startDate);
         var (openingCash, openingBank) = await ResolveOpeningBalancesAsync(
             locationId,
