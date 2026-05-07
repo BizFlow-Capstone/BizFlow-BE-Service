@@ -689,6 +689,7 @@ public class AdminAccountingService : IAdminAccountingService
             PeriodEnd = period.EndDate,
             TemplateVersionId = request.TemplateVersionId,
             TemplateCode = version.Template?.TemplateCode ?? string.Empty,
+            DataSourceType = version.Template?.DataSourceType ?? "revenues",
             GroupNumber = request.GroupNumber,
             TaxMethod = request.TaxMethod,
             RulesetId = ruleset.RulesetId,

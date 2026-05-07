@@ -74,6 +74,10 @@ public class BookRenderingService : IBookRenderingService
             // Attach business type identifier so client can group data rows by section.
             row["businessTypeId"] = sourceRow.Values.GetValueOrDefault("BusinessTypeId")?.ToString();
 
+            // Attach money channel for GL entry templates (S2e) so client can distinguish cash vs bank.
+            if (sourceRow.Values.ContainsKey("MoneyChannel"))
+                row["moneyChannel"] = sourceRow.Values.GetValueOrDefault("MoneyChannel")?.ToString();
+
             // Attach section for per_section templates (S2c, S2e) so client can filter by section.
             if (sourceRow.Section != null)
                 row["section"] = sourceRow.Section;
