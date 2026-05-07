@@ -111,6 +111,21 @@ namespace BizFlow.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<Dictionary<long, long?>> GetReferenceIdsByEntryIdsAsync(IEnumerable<long> entryIds)
+        {
+            var ids = entryIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (!ids.Any())
+                return [];
+
+            return await _db.GeneralLedgerEntries
+                .Where(e => ids.Contains(e.EntryId))
+                .ToDictionaryAsync(e => e.EntryId, e => e.ReferenceId);
+        }
+
         public async Task<Dictionary<long, (int ReversalCount, long? LatestReversalEntryId)>> GetReversalSummaryAsOfAsync(
             IEnumerable<long> entryIds,
             DateOnly asOfDate)

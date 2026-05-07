@@ -227,6 +227,8 @@ namespace BizFlow.Application.Services
         {
             var costIds = new List<long>();
             var revenueIds = new List<long>();
+            var debtorPaymentIds = new List<long>();
+            var reversedEntryIdsForSource = new List<long>();
 
             for (var i = 0; i < dtos.Count; i++)
             {
@@ -238,6 +240,15 @@ namespace BizFlow.Application.Services
                     costIds.Add(dto.Source.ReferenceId.Value);
                 else if (refType == GeneralLedgerReferenceType.Revenue && dto.Source.ReferenceId.HasValue)
                     revenueIds.Add(dto.Source.ReferenceId.Value);
+                else if (refType == GeneralLedgerReferenceType.DebtorPayment && dto.Source.ReferenceId.HasValue)
+                    debtorPaymentIds.Add(dto.Source.ReferenceId.Value);
+
+                if ((refType == GeneralLedgerReferenceType.Cost || refType == GeneralLedgerReferenceType.Revenue)
+                    && dto.IsReversal
+                    && dto.ReversedEntryId.HasValue)
+                {
+                    reversedEntryIdsForSource.Add(dto.ReversedEntryId.Value);
+                }
             }
 
             var costs = await _uow.Costs.GetByIdsAsync(costIds.Distinct().ToList());
@@ -246,49 +257,147 @@ namespace BizFlow.Application.Services
             var revenues = await _uow.Revenues.GetByIdsAsync(revenueIds.Distinct().ToList());
             var revenueDict = revenues.ToDictionary(r => r.RevenueId);
 
+            var orderIds = revenueDict.Values
+                .Where(r => r.OrderId.HasValue)
+                .Select(r => r.OrderId!.Value)
+                .Distinct()
+                .ToList();
+            var importIds = costDict.Values
+                .Where(c => c.ImportId.HasValue)
+                .Select(c => c.ImportId!.Value)
+                .Distinct()
+                .ToList();
+
+            var orders = await _uow.Orders.GetByIdsAsync(orderIds);
+            var imports = await _uow.Imports.GetByIdsAsync(importIds);
+
+            var orderDict = orders.ToDictionary(o => o.OrderId);
+            var importDict = imports.ToDictionary(i => i.ImportId);
+
+            var debtorPayments = await _uow.Debtors.GetPaymentsByIdsAsync(debtorPaymentIds.Distinct().ToList());
+            var debtorPaymentDict = debtorPayments.ToDictionary(p => p.DebtorPaymentTransactionId);
+            var originalReferenceByEntryId = await _uow.GeneralLedgerEntries
+                .GetReferenceIdsByEntryIdsAsync(reversedEntryIdsForSource.Distinct().ToList());
+
             for (var i = 0; i < dtos.Count; i++)
             {
+                var dto = dtos[i];
                 var source = dtos[i].Source;
                 if (source == null) continue;
                 var refType = rawReferenceTypes[i];
 
                 if (refType == GeneralLedgerReferenceType.Revenue)
                 {
-                    if (source.ReferenceId.HasValue && revenueDict.TryGetValue(source.ReferenceId.Value, out var revenue) && revenue.OrderId.HasValue)
+                    if (source.ReferenceId.HasValue && revenueDict.TryGetValue(source.ReferenceId.Value, out var revenue))
                     {
-                        source.EntityType = "order";
-                        source.EntityId = revenue.OrderId.Value;
+                        dto.Code = revenue.RevenueCode;
+                        if (revenue.OrderId.HasValue)
+                        {
+                            source.EntityType = "order";
+                            source.EntityId = revenue.OrderId.Value;
+                            source.Code = orderDict.TryGetValue(revenue.OrderId.Value, out var order)
+                                ? order.OrderCode
+                                : null;
+                        }
+                        else
+                        {
+                            source.EntityType = "revenue";
+                            source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
+                            source.Code = revenue.RevenueCode;
+                        }
                     }
                     else
                     {
+                        dto.Code = null;
                         source.EntityType = "revenue";
-                        source.EntityId = source.ReferenceId;
+                        source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
+                        source.Code = null;
                     }
                 }
                 else if (refType == GeneralLedgerReferenceType.Cost)
                 {
-                    if (source.ReferenceId.HasValue && costDict.TryGetValue(source.ReferenceId.Value, out var cost) && cost.ImportId.HasValue)
+                    if (source.ReferenceId.HasValue && costDict.TryGetValue(source.ReferenceId.Value, out var cost))
                     {
-                        source.EntityType = "import";
-                        source.EntityId = cost.ImportId;
+                        dto.Code = cost.CostCode;
+                        if (cost.ImportId.HasValue)
+                        {
+                            source.EntityType = "import";
+                            source.EntityId = cost.ImportId;
+                            source.Code = importDict.TryGetValue(cost.ImportId.Value, out var import)
+                                ? import.ImportCode
+                                : null;
+                        }
+                        else
+                        {
+                            source.EntityType = "cost";
+                            source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
+                            source.Code = cost.CostCode;
+                        }
                     }
                     else
                     {
+                        dto.Code = null;
                         source.EntityType = "cost";
-                        source.EntityId = source.ReferenceId;
+                        source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
+                        source.Code = null;
                     }
                 }
                 else if (refType == GeneralLedgerReferenceType.DebtorPayment)
                 {
                     source.EntityType = "debtor_payment";
                     source.EntityId = source.ReferenceId;
+                    if (source.ReferenceId.HasValue && debtorPaymentDict.TryGetValue(source.ReferenceId.Value, out var payment))
+                    {
+                        dto.Code = BuildDebtorCode(payment.Debtor?.Name, payment.Debtor?.Phone);
+                        source.Code = BuildDebtorCode(payment.Debtor?.Name, payment.Debtor?.Phone);
+                    }
+                    else
+                    {
+                        dto.Code = null;
+                        source.Code = null;
+                    }
                 }
                 else
                 {
+                    dto.Code = null;
                     source.EntityType = refType;
                     source.EntityId = source.ReferenceId;
+                    source.Code = null;
                 }
             }
+        }
+
+        private static long? ResolveSourceEntityId(
+            GeneralLedgerEntryDto dto,
+            long? fallbackReferenceId,
+            IReadOnlyDictionary<long, long?> originalReferenceByEntryId)
+        {
+            if (dto.IsReversal
+                && dto.ReversedEntryId.HasValue
+                && originalReferenceByEntryId.TryGetValue(dto.ReversedEntryId.Value, out var originalReferenceId)
+                && originalReferenceId.HasValue)
+            {
+                return originalReferenceId.Value;
+            }
+
+            return fallbackReferenceId;
+        }
+
+        private static string? BuildDebtorCode(string? debtorName, string? debtorPhone)
+        {
+            var name = debtorName?.Trim();
+            var phone = debtorPhone?.Trim();
+
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(phone))
+                return null;
+
+            if (string.IsNullOrWhiteSpace(name))
+                return phone;
+
+            if (string.IsNullOrWhiteSpace(phone))
+                return name;
+
+            return $"{name} - {phone}";
         }
 
         private async Task<Dictionary<long, long?>> BuildEntryLinkMapAsync(IEnumerable<long> seedEntryIds)
