@@ -228,6 +228,7 @@ namespace BizFlow.Application.Services
             var costIds = new List<long>();
             var revenueIds = new List<long>();
             var debtorPaymentIds = new List<long>();
+            var reversedEntryIdsForSource = new List<long>();
 
             for (var i = 0; i < dtos.Count; i++)
             {
@@ -241,6 +242,13 @@ namespace BizFlow.Application.Services
                     revenueIds.Add(dto.Source.ReferenceId.Value);
                 else if (refType == GeneralLedgerReferenceType.DebtorPayment && dto.Source.ReferenceId.HasValue)
                     debtorPaymentIds.Add(dto.Source.ReferenceId.Value);
+
+                if ((refType == GeneralLedgerReferenceType.Cost || refType == GeneralLedgerReferenceType.Revenue)
+                    && dto.IsReversal
+                    && dto.ReversedEntryId.HasValue)
+                {
+                    reversedEntryIdsForSource.Add(dto.ReversedEntryId.Value);
+                }
             }
 
             var costs = await _uow.Costs.GetByIdsAsync(costIds.Distinct().ToList());
@@ -268,6 +276,8 @@ namespace BizFlow.Application.Services
 
             var debtorPayments = await _uow.Debtors.GetPaymentsByIdsAsync(debtorPaymentIds.Distinct().ToList());
             var debtorPaymentDict = debtorPayments.ToDictionary(p => p.DebtorPaymentTransactionId);
+            var originalReferenceByEntryId = await _uow.GeneralLedgerEntries
+                .GetReferenceIdsByEntryIdsAsync(reversedEntryIdsForSource.Distinct().ToList());
 
             for (var i = 0; i < dtos.Count; i++)
             {
@@ -292,7 +302,7 @@ namespace BizFlow.Application.Services
                         else
                         {
                             source.EntityType = "revenue";
-                            source.EntityId = source.ReferenceId;
+                            source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
                             source.Code = revenue.RevenueCode;
                         }
                     }
@@ -300,7 +310,7 @@ namespace BizFlow.Application.Services
                     {
                         dto.Code = null;
                         source.EntityType = "revenue";
-                        source.EntityId = source.ReferenceId;
+                        source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
                         source.Code = null;
                     }
                 }
@@ -320,7 +330,7 @@ namespace BizFlow.Application.Services
                         else
                         {
                             source.EntityType = "cost";
-                            source.EntityId = source.ReferenceId;
+                            source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
                             source.Code = cost.CostCode;
                         }
                     }
@@ -328,7 +338,7 @@ namespace BizFlow.Application.Services
                     {
                         dto.Code = null;
                         source.EntityType = "cost";
-                        source.EntityId = source.ReferenceId;
+                        source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
                         source.Code = null;
                     }
                 }
@@ -355,6 +365,22 @@ namespace BizFlow.Application.Services
                     source.Code = null;
                 }
             }
+        }
+
+        private static long? ResolveSourceEntityId(
+            GeneralLedgerEntryDto dto,
+            long? fallbackReferenceId,
+            IReadOnlyDictionary<long, long?> originalReferenceByEntryId)
+        {
+            if (dto.IsReversal
+                && dto.ReversedEntryId.HasValue
+                && originalReferenceByEntryId.TryGetValue(dto.ReversedEntryId.Value, out var originalReferenceId)
+                && originalReferenceId.HasValue)
+            {
+                return originalReferenceId.Value;
+            }
+
+            return fallbackReferenceId;
         }
 
         private static string? BuildDebtorCode(string? debtorName, string? debtorPhone)
