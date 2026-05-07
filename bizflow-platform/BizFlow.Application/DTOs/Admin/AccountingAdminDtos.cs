@@ -1,3 +1,5 @@
+using BizFlow.Application.DTOs.AccountingBook;
+using BizFlow.Application.Interfaces.Services;
 using BizFlow.Domain.Constants;
 
 namespace BizFlow.Application.DTOs.Admin;
@@ -208,6 +210,9 @@ public class AdminPreviewResponse
 {
     public BookPreviewSummaryDto Summary { get; set; } = new();
     public BookPreviewRowsDto Rows { get; set; } = new();
+    public List<BookColumnDto> Columns { get; set; } = new();
+    public List<BookSectionDto> Sections { get; set; } = new();
+    public List<Dictionary<string, object?>> FooterRows { get; set; } = new();
 }
 
 public class BookPreviewSummaryDto

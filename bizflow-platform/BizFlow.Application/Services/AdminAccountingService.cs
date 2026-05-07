@@ -694,6 +694,7 @@ public class AdminAccountingService : IAdminAccountingService
 
         var summary = await _renderingService.ComputeSummaryAsync(ctx);
         var rows = await _renderingService.RenderRowsAsync(ctx, null, request.BatchSize);
+        var sectionsResult = await _renderingService.RenderSectionsAsync(ctx);
 
         return new AdminPreviewResponse
         {
@@ -712,7 +713,10 @@ public class AdminAccountingService : IAdminAccountingService
                 NextCursor = rows.NextCursor,
                 LoadedCount = rows.LoadedCount,
                 TotalEstimated = rows.TotalEstimated
-            }
+            },
+            Columns = sectionsResult.Columns,
+            Sections = sectionsResult.Sections,
+            FooterRows = sectionsResult.FooterRows
         };
     }
 
