@@ -1104,10 +1104,11 @@ public class BookRenderingService : IBookRenderingService
 
         var templatePrefix = $"{context.TemplateCode.ToUpperInvariant()}_";
 
-        // Load explicitly-referenced formulas by ID (regardless of IsActive — draft formulas must be testable)
         var explicitFormulas = formulaIds.Count > 0
-            ? await _uow.FormulaDefinitions.GetByIdsAsync(formulaIds)
-            : new List<FormulaDefinition>();
+            ? (await _uow.FormulaDefinitions.GetByIdsAsync(formulaIds))
+                .Where(f => f.IsActive)
+                .ToList()
+            : [];
 
         // Load active prefix-matched formulas for dependency resolution (ref nodes, grand totals, etc.)
         var allActiveFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
