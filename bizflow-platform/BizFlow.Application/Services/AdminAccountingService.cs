@@ -461,7 +461,15 @@ public class AdminAccountingService : IAdminAccountingService
         var formula = await _uow.FormulaDefinitions.GetByIdAsync(formulaId)
             ?? throw new NotFoundException(MessageKeys.NotFound);
 
-        if (formula.IsActive)
+        var hasNonStatusChanges =
+            request.Code != null
+            || request.Name != null
+            || request.Description != null
+            || request.FormulaType != null
+            || request.ExpressionJson != null;
+
+        // Active formulas are locked for content edits, but status toggle (active -> inactive) is allowed.
+        if (formula.IsActive && hasNonStatusChanges)
             throw new BadRequestException(MessageKeys.AdminAccCannotEditActiveFormula);
 
         if (request.Code != null)
