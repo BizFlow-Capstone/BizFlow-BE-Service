@@ -17,7 +17,9 @@ namespace BizFlow.Infrastructure.Repositories
 
         public async Task<List<UserSearchResultDto>> SearchByContactAsync(Guid ownerId, string query, int limit = 10)
         {
-            query = query.Trim();
+            var searchRaw = query.Trim();
+            var searchLower = searchRaw.ToLower();
+            var phoneVariants = PhoneSearchNormalizer.GetSearchVariants(searchRaw).ToArray();
             var excludedRoleNames = new[] { "admin", "consultant" };
 
             var matchedProfiles = await _context.Profiles
@@ -26,8 +28,9 @@ namespace BizFlow.Infrastructure.Repositories
                 .Where(profile => !excludedRoleNames.Contains(profile.Account.Role.Name.ToLower()))
                 .Where(profile => _context.Credentials.Any(credential =>
                     credential.AccountId == profile.AccountId &&
-                    (credential.Type == "phone" || credential.Type == "email") &&
-                    EF.Functions.Like(credential.Identifier, $"%{query}%")))
+                    ((credential.Type == "email" && credential.Identifier.ToLower().Contains(searchLower)) ||
+                     (credential.Type == "phone" &&
+                        phoneVariants.Any(variant => credential.Identifier.Contains(variant))))))
                 .Select(profile => new UserSearchResultDto
                 {
                     UserId = profile.ProfileId,
