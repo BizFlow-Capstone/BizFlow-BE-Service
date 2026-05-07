@@ -125,6 +125,11 @@ public class BookRenderingService : IBookRenderingService
             .GroupBy(x => NormalizeTaxType(x.TaxType))
             .ToDictionary(g => g.Key, g => g.First().TaxRate, StringComparer.OrdinalIgnoreCase);
 
+        var startOfBookDefs = rowDefinitions
+            .Where(r => r.Position == RowDefinitionConstants.Position.StartOfBook)
+            .OrderBy(r => r.SortOrder)
+            .ToList();
+
         var perGroupDefs = rowDefinitions
             .Where(r => r.Position == RowDefinitionConstants.Position.PerGroup)
             .OrderBy(r => r.SortOrder)
@@ -147,7 +152,7 @@ public class BookRenderingService : IBookRenderingService
         if (perGroupDefs.Count > 0)
         {
             var (groupSections, groupTaxTotals, nextIndex) = await BuildPerGroupSectionsAsync(
-                context, perGroupDefs, formulaIdToValue, formulaIdToBreakdown, taxRates, groupIndex);
+                context, perGroupDefs, startOfBookDefs, formulaIdToValue, formulaIdToBreakdown, taxRates, groupIndex);
             sections.AddRange(groupSections);
             MergeTotals(groupedTaxTotals, groupTaxTotals);
             groupIndex = nextIndex;
@@ -180,6 +185,7 @@ public class BookRenderingService : IBookRenderingService
         BuildPerGroupSectionsAsync(
             BookRenderContext context,
             List<TemplateRowDefinition> perGroupDefs,
+            List<TemplateRowDefinition> startOfBookDefs,
             IReadOnlyDictionary<long, decimal> formulaIdToValue,
             IReadOnlyDictionary<long, Dictionary<string, decimal>> formulaIdToBreakdown,
             List<IndustryTaxRate> taxRates,
@@ -194,6 +200,10 @@ public class BookRenderingService : IBookRenderingService
 
         var (groupKeys, groupNames, groupAmounts, groupTaxRates) = await ResolveGroupDataAsync(context, groupByField);
 
+        Dictionary<string, (decimal Qty, decimal Value)>? openingBalances = null;
+        if (startOfBookDefs.Count > 0 && "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase))
+            openingBalances = await ComputeProductOpeningBalancesAsync(context);
+
         foreach (var groupKey in groupKeys)
         {
             groupIndex++;
@@ -201,6 +211,22 @@ public class BookRenderingService : IBookRenderingService
             var groupName = groupNames.GetValueOrDefault(groupKey) ?? groupKey;
 
             var sectionRows = new List<Dictionary<string, object?>>();
+
+            if (openingBalances != null)
+            {
+                var balance = openingBalances.GetValueOrDefault(groupKey);
+                foreach (var startDef in startOfBookDefs)
+                {
+                    var openingRow = new Dictionary<string, object?> { ["lineType"] = startDef.RowType };
+                    var label = ResolveRowLabel(startDef.RowLabel, groupIndex, groupName);
+                    if (!string.IsNullOrWhiteSpace(label))
+                        openingRow["dien_giai"] = label;
+                    openingRow["sl_ton"] = balance.Qty;
+                    openingRow["tien_ton"] = balance.Value;
+                    sectionRows.Add(openingRow);
+                }
+            }
+
             foreach (var rowDef in perGroupDefs)
             {
                 var row = new Dictionary<string, object?> { ["lineType"] = rowDef.RowType };
@@ -1686,6 +1712,31 @@ public class BookRenderingService : IBookRenderingService
             return RowDefinitionConstants.TaxType.Pit;
 
         return taxType;
+    }
+
+    /// <summary>
+    private async Task<Dictionary<string, (decimal Qty, decimal Value)>> ComputeProductOpeningBalancesAsync(
+        BookRenderContext context)
+    {
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
+        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
+
+        var result = new Dictionary<string, (decimal Qty, decimal Value)>();
+        var preperiodByProduct = allMovements
+            .Where(sm => DateOnly.FromDateTime(sm.CreatedAt) < context.PeriodStart)
+            .GroupBy(sm => sm.ProductId);
+
+        foreach (var group in preperiodByProduct)
+        {
+            var last = group
+                .OrderByDescending(sm => sm.CreatedAt)
+                .ThenByDescending(sm => sm.StockMovementId)
+                .First();
+            var costPrice = GetMovementCostPrice(last, importCostLookup);
+            result[group.Key.ToString()] = (last.BalanceAfter, last.BalanceAfter * costPrice);
+        }
+
+        return result;
     }
 
     /// <summary>
