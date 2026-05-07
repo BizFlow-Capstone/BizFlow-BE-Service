@@ -561,11 +561,11 @@ if (isHangfireEnabled)
         job => job.ExecuteAsync(),
         "7 */2 * * *");
 
-    // Reconcile effective price by discount window and sync Stripe Price daily at 01:00 UTC.
+    // Reconcile effective price by discount window and sync Stripe Price every minute.
     RecurringJob.AddOrUpdate<SubscriptionPlanStripeCatalogSyncJob>(
         "subscription-plan-stripe-catalog-sync",
         job => job.ExecuteAsync(),
-        "0 1 * * *");
+        "* * * * *");
     RecurringJob.AddOrUpdate<ScheduledNotificationDispatchJob>(
         "scheduled-notification-dispatch",
         job => job.ExecuteAsync(),
