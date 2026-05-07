@@ -295,7 +295,7 @@ namespace BizFlow.Application.Services
                         {
                             source.EntityType = "order";
                             source.EntityId = revenue.OrderId.Value;
-                            source.Code = orderDict.TryGetValue(revenue.OrderId.Value, out var order)
+                            source.RootCode = orderDict.TryGetValue(revenue.OrderId.Value, out var order)
                                 ? order.OrderCode
                                 : null;
                         }
@@ -303,7 +303,7 @@ namespace BizFlow.Application.Services
                         {
                             source.EntityType = "revenue";
                             source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
-                            source.Code = revenue.RevenueCode;
+                            source.RootCode = revenue.RevenueCode;
                         }
                     }
                     else
@@ -311,7 +311,7 @@ namespace BizFlow.Application.Services
                         dto.Code = null;
                         source.EntityType = "revenue";
                         source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
-                        source.Code = null;
+                        source.RootCode = null;
                     }
                 }
                 else if (refType == GeneralLedgerReferenceType.Cost)
@@ -323,7 +323,7 @@ namespace BizFlow.Application.Services
                         {
                             source.EntityType = "import";
                             source.EntityId = cost.ImportId;
-                            source.Code = importDict.TryGetValue(cost.ImportId.Value, out var import)
+                            source.RootCode = importDict.TryGetValue(cost.ImportId.Value, out var import)
                                 ? import.ImportCode
                                 : null;
                         }
@@ -331,7 +331,7 @@ namespace BizFlow.Application.Services
                         {
                             source.EntityType = "cost";
                             source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
-                            source.Code = cost.CostCode;
+                            source.RootCode = cost.CostCode;
                         }
                     }
                     else
@@ -339,7 +339,7 @@ namespace BizFlow.Application.Services
                         dto.Code = null;
                         source.EntityType = "cost";
                         source.EntityId = ResolveSourceEntityId(dto, source.ReferenceId, originalReferenceByEntryId);
-                        source.Code = null;
+                        source.RootCode = null;
                     }
                 }
                 else if (refType == GeneralLedgerReferenceType.DebtorPayment)
@@ -349,12 +349,12 @@ namespace BizFlow.Application.Services
                     if (source.ReferenceId.HasValue && debtorPaymentDict.TryGetValue(source.ReferenceId.Value, out var payment))
                     {
                         dto.Code = BuildDebtorCode(payment.Debtor?.Name, payment.Debtor?.Phone);
-                        source.Code = BuildDebtorCode(payment.Debtor?.Name, payment.Debtor?.Phone);
+                        source.RootCode = BuildDebtorCode(payment.Debtor?.Name, payment.Debtor?.Phone);
                     }
                     else
                     {
                         dto.Code = null;
-                        source.Code = null;
+                        source.RootCode = null;
                     }
                 }
                 else
@@ -362,7 +362,7 @@ namespace BizFlow.Application.Services
                     dto.Code = null;
                     source.EntityType = refType;
                     source.EntityId = source.ReferenceId;
-                    source.Code = null;
+                    source.RootCode = null;
                 }
             }
         }

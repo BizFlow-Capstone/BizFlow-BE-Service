@@ -58,6 +58,6 @@ namespace BizFlow.Application.DTOs.GeneralLedger
 
         public string EntityType { get; set; } = null!;
         public long? EntityId { get; set; }
-        public string? Code { get; set; }
+        public string? RootCode { get; set; }
     }
 }
