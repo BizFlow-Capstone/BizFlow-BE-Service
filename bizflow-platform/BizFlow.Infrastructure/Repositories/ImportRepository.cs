@@ -61,6 +61,17 @@ namespace BizFlow.Infrastructure.Repositories
                 .FirstOrDefaultAsync(i => i.ImportId == importId);
         }
 
+        public async Task<List<Import>> GetByIdsAsync(IEnumerable<long> importIds)
+        {
+            var ids = importIds.Distinct().ToList();
+            if (ids.Count == 0)
+                return new List<Import>();
+
+            return await _dbContext.Imports
+                .Where(i => ids.Contains(i.ImportId))
+                .ToListAsync();
+        }
+
         public async Task<Import?> GetByIdWithItemsAsync(long importId)
         {
             return await _dbContext.Imports

@@ -266,7 +266,13 @@ namespace BizFlow.Application.Services
 
             var transactions = await _uow.Debtors.GetPaymentsAsync(debtorId);
             return transactions
-                .Select(ToDto)
+                .Select(transaction =>
+                {
+                    var dto = ToDto(transaction);
+                    dto.DebtorName = debtor.Name;
+                    dto.DebtorPhone = debtor.Phone;
+                    return dto;
+                })
                 .ToList();
         }
 

@@ -64,6 +64,17 @@ namespace BizFlow.Infrastructure.Repositories
         public Task<Order?> GetByIdAsync(long orderId)
             => _db.Orders.FirstOrDefaultAsync(o => o.OrderId == orderId);
 
+        public Task<List<Order>> GetByIdsAsync(IEnumerable<long> orderIds)
+        {
+            var ids = orderIds.Distinct().ToList();
+            if (ids.Count == 0)
+                return Task.FromResult(new List<Order>());
+
+            return _db.Orders
+                .Where(o => ids.Contains(o.OrderId))
+                .ToListAsync();
+        }
+
         public Task<Order?> GetByIdWithDetailsAsync(long orderId)
             => _db.Orders
                 .IgnoreQueryFilters()

@@ -128,7 +128,8 @@ namespace BizFlow.Infrastructure.Repositories
                 return [];
 
             return await _db
-                .DebtorPaymentTransactions.Where(t =>
+                .DebtorPaymentTransactions.Include(t => t.Debtor)
+                .Where(t =>
                     paymentIds.Contains(t.DebtorPaymentTransactionId)
                 )
                 .ToListAsync();

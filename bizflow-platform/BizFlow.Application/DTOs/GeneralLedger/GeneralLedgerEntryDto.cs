@@ -24,6 +24,7 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         public bool IsReversal { get; set; }
         public long? ReversedEntryId { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string? Code { get; set; }
 
         public SourceLinkDto Source { get; set; } = null!;
 
@@ -57,5 +58,6 @@ namespace BizFlow.Application.DTOs.GeneralLedger
 
         public string EntityType { get; set; } = null!;
         public long? EntityId { get; set; }
+        public string? Code { get; set; }
     }
 }

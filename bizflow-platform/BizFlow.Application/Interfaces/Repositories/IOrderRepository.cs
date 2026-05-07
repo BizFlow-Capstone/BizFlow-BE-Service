@@ -7,6 +7,7 @@ namespace BizFlow.Application.Interfaces.Repositories
     {
         Task<(IEnumerable<Order> Items, int TotalCount)> SearchAsync(OrderQueryParams query);
         Task<Order?> GetByIdAsync(long orderId);
+        Task<List<Order>> GetByIdsAsync(IEnumerable<long> orderIds);
         Task<Order?> GetByIdWithDetailsAsync(long orderId);
 
         /// <summary>Same as <see cref="GetByIdWithDetailsAsync"/> but no tracking — use before a transactional reload.</summary>

@@ -12,6 +12,8 @@ namespace BizFlow.Application.DTOs.Debtor
     {
         public long TransactionId { get; set; }
         public long DebtorId { get; set; }
+        public string DebtorName { get; set; } = null!;
+        public string? DebtorPhone { get; set; }
         public decimal Amount { get; set; }
         /// <summary>
         /// Payment method. <c>Code</c> ∈ {<c>cash</c>, <c>bank</c>, <c>system</c>}.

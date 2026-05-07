@@ -17,6 +17,7 @@ namespace BizFlow.Application.Interfaces.Repositories
         /// Get import by ID (no navigation)
         /// </summary>
         Task<Import?> GetByIdAsync(long importId);
+        Task<List<Import>> GetByIdsAsync(IEnumerable<long> importIds);
 
         /// <summary>
         /// Get import with ProductsImports → Product and BusinessLocation
