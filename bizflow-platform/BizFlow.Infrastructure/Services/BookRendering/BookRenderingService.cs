@@ -1816,6 +1816,9 @@ public class BookRenderingService : IBookRenderingService
         var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
         var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
 
+        _logger.LogDebug("[S2d closing] LocationId={LocationId} PeriodStart={PeriodStart} PeriodEnd={PeriodEnd} TotalMovements={Total}",
+            context.BusinessLocationId, context.PeriodStart, context.PeriodEnd, allMovements.Count);
+
         var result = new Dictionary<string, (decimal Qty, decimal Value)>();
         var upToPeriodEndByProduct = allMovements
             .Where(sm => DateOnly.FromDateTime(sm.CreatedAt) <= context.PeriodEnd)
@@ -1833,8 +1836,11 @@ public class BookRenderingService : IBookRenderingService
             }
 
             result[group.Key.ToString()] = (runningQty, runningValue);
+            _logger.LogDebug("[S2d closing] ProductId={ProductId} Qty={Qty} Value={Value}",
+                group.Key, runningQty, runningValue);
         }
 
+        _logger.LogDebug("[S2d closing] Keys computed: {Keys}", string.Join(", ", result.Keys));
         return result;
     }
 
