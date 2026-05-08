@@ -888,7 +888,7 @@ public class BookRenderingService : IBookRenderingService
             return $"{subtotal:#,0} x {rate * 100:0.##}% = {taxAmount:#,0.##} đ (không áp dụng giảm trừ)";
 
         return
-            $"MAX(0, {subtotal:#,0} - {deductionAmount.Value:#,0}) = {taxableBase:#,0.##}; " +
+            $"cơ sở tính thuế sau giảm trừ: {taxableBase:#,0.##}; " +
             $"giảm trừ áp dụng: {deductionApplied:#,0.##} đ (tối đa {deductionAmount.Value:#,0} đ); " +
             $"{taxableBase:#,0.##} x {rate * 100:0.##}% = {taxAmount:#,0.##} đ";
     }
@@ -1378,27 +1378,56 @@ public class BookRenderingService : IBookRenderingService
         var allMovements = await _uow.StockMovements.GetByLocationAsync(ctx.BusinessLocationId);
         var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
 
-        // Filter to current period
-        var list = allMovements
+        var allSorted = allMovements
+            .OrderBy(sm => sm.CreatedAt)
+            .ThenBy(sm => sm.StockMovementId)
+            .ToList();
+
+        // Build WAC state per product from all pre-period movements
+        var wacState = new Dictionary<long, (decimal Qty, decimal Value)>();
+        foreach (var sm in allSorted.Where(sm => DateOnly.FromDateTime(sm.CreatedAt) < ctx.PeriodStart))
+        {
+            if (!wacState.ContainsKey(sm.ProductId))
+                wacState[sm.ProductId] = (0m, 0m);
+            var (qty, val) = wacState[sm.ProductId];
+            wacState[sm.ProductId] = ApplyMovementToWac(qty, val, sm.Quantity,
+                GetMovementCostPrice(sm, importCostLookup));
+        }
+
+        var periodMovements = allSorted
             .Where(sm =>
             {
                 var d = DateOnly.FromDateTime(sm.CreatedAt);
                 return d >= ctx.PeriodStart && d <= ctx.PeriodEnd;
             })
-            .OrderBy(sm => sm.CreatedAt)
-            .ThenBy(sm => sm.StockMovementId)
             .ToList();
 
-        var totalCount = list.Count;
-        var hasMore = list.Count > safeBatchSize;
-        if (hasMore) list = list.Take(safeBatchSize).ToList();
+        var totalCount = periodMovements.Count;
+        var resultItems = new List<SourceRow>(Math.Min(safeBatchSize, totalCount));
 
-        return new SourceDataResult
+        foreach (var sm in periodMovements)
         {
-            Items = list.Select(sm =>
+            if (!wacState.ContainsKey(sm.ProductId))
+                wacState[sm.ProductId] = (0m, 0m);
+
+            var (runningQty, runningValue) = wacState[sm.ProductId];
+
+            decimal don_gia;
+            if (sm.Quantity > 0) // import — show actual purchase price
             {
-                var costPrice = GetMovementCostPrice(sm, importCostLookup);
-                return new SourceRow
+                don_gia = GetMovementCostPrice(sm, importCostLookup);
+            }
+            else // export/adjustment — use weighted average cost at this moment
+            {
+                don_gia = runningQty > 0 ? runningValue / runningQty : (sm.Product?.CostPrice ?? 0m);
+            }
+
+            wacState[sm.ProductId] = ApplyMovementToWac(runningQty, runningValue, sm.Quantity, don_gia);
+            var balanceValue = wacState[sm.ProductId].Value;
+
+            if (resultItems.Count < safeBatchSize)
+            {
+                resultItems.Add(new SourceRow
                 {
                     Date = DateOnly.FromDateTime(sm.CreatedAt),
                     Id = sm.StockMovementId,
@@ -1412,29 +1441,50 @@ public class BookRenderingService : IBookRenderingService
                         ["MovementType"] = sm.MovementType,
                         ["Description"] = sm.Memo ?? $"{sm.MovementType} — {sm.ReferenceType} #{sm.ReferenceId}",
                         ["Unit"] = sm.Product?.Unit,
-                        ["CostPrice"] = costPrice,
+                        ["CostPrice"] = don_gia,
                         ["Quantity"] = sm.Quantity,
                         ["QuantityAbs"] = Math.Abs(sm.Quantity),
-                        ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (int?)null,
-                        ["ImportValue"] = sm.Quantity > 0 ? Math.Abs(sm.Quantity) * costPrice : (decimal?)null,
-                        ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (int?)null,
-                        ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * costPrice : (decimal?)null,
+                        ["ImportQty"] = sm.Quantity > 0 ? sm.Quantity : (decimal?)null,
+                        ["ImportValue"] = sm.Quantity > 0 ? sm.Quantity * don_gia : (decimal?)null,
+                        ["ExportQty"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) : (decimal?)null,
+                        ["ExportValue"] = sm.Quantity < 0 ? Math.Abs(sm.Quantity) * don_gia : (decimal?)null,
                         ["BalanceAfter"] = sm.BalanceAfter,
-                        ["BalanceValue"] = sm.BalanceAfter * costPrice,
+                        ["BalanceValue"] = balanceValue,
                         ["ReferenceType"] = sm.ReferenceType,
                         ["ReferenceId"] = sm.ReferenceId
                     }
-                };
-            }).ToList(),
-            HasMore = hasMore,
+                });
+            }
+        }
+
+        return new SourceDataResult
+        {
+            Items = resultItems,
+            HasMore = totalCount > safeBatchSize,
             TotalEstimated = totalCount
         };
     }
 
     /// <summary>
-    /// Resolves the cost price for a stock movement:
-    /// - For IMPORT movements: uses the cost price recorded on the ProductImport line (import-time price).
-    /// - For other movements (ORDER, ADJUSTMENT): falls back to the product's current CostPrice.
+    /// Updates running WAC state after one stock movement.
+    /// Import (qty > 0): adds value at purchase price, recalculates WAC.
+    /// Export/adjustment (qty &lt; 0): reduces value at current WAC.
+    /// </summary>
+    private static (decimal Qty, decimal Value) ApplyMovementToWac(
+        decimal runningQty, decimal runningValue, decimal movementQty, decimal movementPrice)
+    {
+        if (movementQty > 0)
+            return (runningQty + movementQty, runningValue + movementQty * movementPrice);
+
+        // Export: reduce inventory value at current WAC
+        var wac = runningQty > 0 ? runningValue / runningQty : movementPrice;
+        return (Math.Max(0m, runningQty + movementQty),
+                Math.Max(0m, runningValue + movementQty * wac));
+    }
+
+    /// <summary>
+    /// Resolves the purchase price for an import movement.
+    /// Falls back to the product's current CostPrice for non-import movements.
     /// </summary>
     private static decimal GetMovementCostPrice(
         StockMovement sm,
@@ -1728,12 +1778,16 @@ public class BookRenderingService : IBookRenderingService
 
         foreach (var group in preperiodByProduct)
         {
-            var last = group
-                .OrderByDescending(sm => sm.CreatedAt)
-                .ThenByDescending(sm => sm.StockMovementId)
-                .First();
-            var costPrice = GetMovementCostPrice(last, importCostLookup);
-            result[group.Key.ToString()] = (last.BalanceAfter, last.BalanceAfter * costPrice);
+            var runningQty = 0m;
+            var runningValue = 0m;
+
+            foreach (var sm in group.OrderBy(x => x.CreatedAt).ThenBy(x => x.StockMovementId))
+            {
+                var price = GetMovementCostPrice(sm, importCostLookup);
+                (runningQty, runningValue) = ApplyMovementToWac(runningQty, runningValue, sm.Quantity, price);
+            }
+
+            result[group.Key.ToString()] = (runningQty, runningValue);
         }
 
         return result;
