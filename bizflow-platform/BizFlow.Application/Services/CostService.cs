@@ -22,6 +22,7 @@ namespace BizFlow.Application.Services
         private readonly IImageService _imageService;
         private readonly IGeneralLedgerService _generalLedgerService;
         private readonly IReferenceLabelService _labels;
+        private readonly IBackgroundJobScheduler _backgroundJobScheduler;
         private readonly IDocumentNumberRegistryService _documentNumberRegistry;
         private readonly IMessageService _messageService;
 
@@ -32,6 +33,7 @@ namespace BizFlow.Application.Services
             IImageService imageService,
             IGeneralLedgerService generalLedgerService,
             IReferenceLabelService labels,
+            IBackgroundJobScheduler backgroundJobScheduler,
             IDocumentNumberRegistryService documentNumberRegistry,
             IMessageService messageService)
         {
@@ -41,6 +43,7 @@ namespace BizFlow.Application.Services
             _imageService = imageService;
             _generalLedgerService = generalLedgerService;
             _labels = labels;
+            _backgroundJobScheduler = backgroundJobScheduler;
             _documentNumberRegistry = documentNumberRegistry;
             _messageService = messageService;
         }
@@ -124,6 +127,9 @@ namespace BizFlow.Application.Services
 
                 return cost;
             }));
+
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                entity.BusinessLocationId, "cost", entity.CostId);
 
             return ToDto(entity);
         }
@@ -305,6 +311,9 @@ namespace BizFlow.Application.Services
                 return created;
             }));
 
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                newCost.BusinessLocationId, "cost", newCost.CostId);
+
             return new ManualCostUpdateResponseDto
             {
                 IsReplacement = true,
@@ -385,6 +394,9 @@ namespace BizFlow.Application.Services
                 _uow.Costs.Update(cost);
                 await _uow.SaveChangesAsync(ct);
             });
+
+            _backgroundJobScheduler.EnqueueAiAnomalyCheck(
+                cost.BusinessLocationId, "cost", cost.CostId);
 
             return ToDto(cost);
         }
