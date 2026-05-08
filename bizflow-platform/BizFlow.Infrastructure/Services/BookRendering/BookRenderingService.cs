@@ -704,27 +704,8 @@ public class BookRenderingService : IBookRenderingService
         if (formula == null || resultValue == null || string.IsNullOrWhiteSpace(formula.ExpressionJson))
             return null;
 
-        try
-        {
-            using var doc = JsonDocument.Parse(formula.ExpressionJson);
-            var root = doc.RootElement;
-            if (root.ValueKind == JsonValueKind.Object
-                && root.TryGetProperty(AstNode.Foreach, out _))
-                return null;
-
-            if (root.ValueKind == JsonValueKind.Object
-                && root.TryGetProperty(AstNode.Apply, out var apply))
-                root = apply;
-
-            if (!TryExplainNode(root, formulaValues, out var text, out _))
-                return null;
-
-            return $"{text} = {FormatNumber(resultValue.Value)}";
-        }
-        catch
-        {
-            return null;
-        }
+        // Keep explanation simple for non-technical business users.
+        return $"Được hệ thống tính tự động: {FormatNumber(resultValue.Value)} đ";
     }
 
     private static bool TryExplainNode(
@@ -767,7 +748,7 @@ public class BookRenderingService : IBookRenderingService
                 var aggType = aggNode.GetString() ?? "SUM";
                 var source = node.TryGetProperty(AstNode.Source, out var src) ? src.GetString() : "?";
                 var field = node.TryGetProperty(AstNode.Field, out var fld) ? fld.GetString() : "?";
-                text = $"{aggType}({source}.{field})";
+                text = $"{TranslateAggregateType(aggType)} của {source}.{field}";
                 return true;
             }
 
@@ -775,7 +756,7 @@ public class BookRenderingService : IBookRenderingService
             {
                 var entity = lookupNode.TryGetProperty(AstNode.Entity, out var ent) ? ent.GetString() : "?";
                 var field = lookupNode.TryGetProperty(AstNode.Field, out var fld) ? fld.GetString() : "?";
-                text = $"Lookup({entity}.{field})";
+                text = $"Tra cứu {entity}.{field}";
                 return true;
             }
 
@@ -792,7 +773,7 @@ public class BookRenderingService : IBookRenderingService
                 }
                 else
                 {
-                    text = $"[{contextKey ?? "context"}]";
+                    text = $"Giá trị ngữ cảnh ({contextKey ?? "context"})";
                 }
 
                 return true;
@@ -843,7 +824,7 @@ public class BookRenderingService : IBookRenderingService
                     }
                 }
 
-                text = $"{fn.ToUpperInvariant()}({string.Join(", ", argTexts)})";
+                text = BuildFunctionExplanation(fn, argTexts);
                 if (argValues.Count == argTexts.Count && argValues.Count > 0)
                     value = ComputeFn(fn, argValues);
 
@@ -855,6 +836,31 @@ public class BookRenderingService : IBookRenderingService
         }
 
         return false;
+    }
+
+    private static string TranslateAggregateType(string aggregateType) =>
+        aggregateType.ToUpperInvariant() switch
+        {
+            "SUM" => "Tổng",
+            "AVG" => "Trung bình",
+            "MIN" => "Giá trị nhỏ nhất",
+            "MAX" => "Giá trị lớn nhất",
+            "COUNT" => "Số lượng",
+            _ => "Giá trị tổng hợp"
+        };
+
+    private static string BuildFunctionExplanation(string functionName, IReadOnlyList<string> args)
+    {
+        var fn = functionName.ToUpperInvariant();
+        return fn switch
+        {
+            "MAX" when args.Count == 2 && args[0] == "0"
+                => $"Phần dương của ({args[1]})",
+            "MAX" => $"Giá trị lớn nhất trong ({string.Join(", ", args)})",
+            "MIN" => $"Giá trị nhỏ nhất trong ({string.Join(", ", args)})",
+            "ABS" when args.Count == 1 => $"Giá trị tuyệt đối của {args[0]}",
+            _ => $"{functionName} của ({string.Join(", ", args)})"
+        };
     }
 
     private static decimal ComputeOp(string op, decimal left, decimal right) =>
