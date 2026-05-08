@@ -132,16 +132,32 @@ namespace BizFlow.Application.Services
 
             var previousUsageLimitByFeatureId = plan.PlanFeatures.ToDictionary(pf => pf.FeatureId, pf => pf.UsageLimit);
 
-            plan.PlanFeatures.Clear();
+            // Upsert PlanFeatures (avoids DELETE+INSERT churn that previously dropped CreatedAt
+            // and exposed the EF Core HasDefaultValueSql sentinel issue when UsageLimit = 0).
+            var requestedFeatureIds = request.Features.Select(f => f.FeatureId).ToHashSet();
+
+            foreach (var orphan in plan.PlanFeatures.Where(pf => !requestedFeatureIds.Contains(pf.FeatureId)).ToList())
+            {
+                plan.PlanFeatures.Remove(orphan);
+            }
+
             foreach (var f in request.Features)
             {
-                plan.PlanFeatures.Add(new PlanFeature
+                var existing = plan.PlanFeatures.FirstOrDefault(pf => pf.FeatureId == f.FeatureId);
+                if (existing != null)
                 {
-                    SubscriptionPlanId = planId,
-                    FeatureId = f.FeatureId,
-                    UsageLimit = f.UsageLimit,
-                    CreatedAt = now
-                });
+                    existing.UsageLimit = f.UsageLimit;
+                }
+                else
+                {
+                    plan.PlanFeatures.Add(new PlanFeature
+                    {
+                        SubscriptionPlanId = planId,
+                        FeatureId = f.FeatureId,
+                        UsageLimit = f.UsageLimit,
+                        CreatedAt = now
+                    });
+                }
             }
 
             await ResyncActiveSubscriptionsFeatureAllocationsAsync(

@@ -77,7 +77,10 @@ namespace BizFlow.Application.DTOs.Subscription
         [Required]
         public int FeatureId { get; set; }
 
+        // Semantics: -1 = unlimited, 0 = disabled, >0 = explicit quota.
+        // Range guards against accidental values like -2 or int.MinValue.
         [Required]
+        [Range(-1, int.MaxValue)]
         public int UsageLimit { get; set; } = -1;
     }
 }
