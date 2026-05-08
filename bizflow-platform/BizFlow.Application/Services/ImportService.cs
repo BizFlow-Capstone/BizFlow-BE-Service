@@ -558,7 +558,7 @@ namespace BizFlow.Application.Services
                 applyToStock: true,
                 draftPaymentMethod: null);
 
-            await _costService.CreateImportCostAsync(userId, import);
+            await _costService.CreateImportCostAsync(userId, import, paymentMethod: PaymentMethods.Cash);
 
             return import.ImportId;
         }
