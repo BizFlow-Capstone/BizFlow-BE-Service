@@ -94,6 +94,7 @@ public class BookColumnDto
 
 public class BookRowsResponse
 {
+    public DateTime LastCalculatedAt { get; set; }
     public List<Dictionary<string, object?>> Rows { get; set; } = new();
     public bool HasMore { get; set; }
     public string? NextCursor { get; set; }

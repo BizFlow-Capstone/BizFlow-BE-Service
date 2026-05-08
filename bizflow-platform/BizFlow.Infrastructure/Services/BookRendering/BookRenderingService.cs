@@ -1451,6 +1451,7 @@ public class BookRenderingService : IBookRenderingService
                     Values = new Dictionary<string, object?>
                     {
                         ["StockMovementId"] = sm.StockMovementId,
+                        ["OccurredAt"] = sm.CreatedAt,
                         ["ProductId"] = sm.ProductId,
                         ["ProductName"] = sm.Product?.ProductName,
                         ["MovementDate"] = DateOnly.FromDateTime(sm.CreatedAt),
@@ -1529,6 +1530,10 @@ public class BookRenderingService : IBookRenderingService
     // ────────────────────────────────────────────────────────
     private static object? ExtractFieldValue(SourceRow row, TemplateFieldMapping mapping)
     {
+        // Never expose internal row IDs as document number.
+        if (string.Equals(mapping.FieldCode, "so_hieu", StringComparison.OrdinalIgnoreCase))
+            return row.Values.GetValueOrDefault("DocumentNumber")?.ToString();
+
         if (!string.IsNullOrWhiteSpace(mapping.SourceField?.FieldCode))
         {
             var sourceFieldValue = ExtractBySourceFieldCode(row, mapping.SourceField.FieldCode);
@@ -1541,7 +1546,7 @@ public class BookRenderingService : IBookRenderingService
         return mapping.FieldCode switch
         {
             // Common
-            "date" or "ngay_thang" or "ngay" => row.Date,
+            "date" or "ngay_thang" or "ngay" => FormatDateValue(row.Values.GetValueOrDefault("OccurredAt"), row.Date),
             "description" or "dien_giai" => row.Values.GetValueOrDefault("Description"),
             "so_hieu" => row.Values.GetValueOrDefault("DocumentNumber")?.ToString(),
 
@@ -1617,6 +1622,30 @@ public class BookRenderingService : IBookRenderingService
             _ => row.Values.GetValueOrDefault(sourceFieldCode)
         };
     }
+
+    private static object FormatDateValue(object? occurredAt, DateOnly fallbackDate)
+    {
+        if (occurredAt is DateTime dt)
+            return ConvertToVietnamTime(dt);
+
+        if (occurredAt is DateTimeOffset dto)
+            return ConvertToVietnamTime(dto);
+
+        return fallbackDate;
+    }
+
+    private static DateTimeOffset ConvertToVietnamTime(DateTime utcDateTime)
+    {
+        var utc = utcDateTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc)
+            : utcDateTime.ToUniversalTime();
+
+        var vnOffset = TimeSpan.FromHours(7);
+        return new DateTimeOffset(utc).ToOffset(vnOffset);
+    }
+
+    private static DateTimeOffset ConvertToVietnamTime(DateTimeOffset dateTimeOffset)
+        => dateTimeOffset.ToOffset(TimeSpan.FromHours(7));
 
     // ────────────────────────────────────────────────────────
     // CURSOR HELPERS
