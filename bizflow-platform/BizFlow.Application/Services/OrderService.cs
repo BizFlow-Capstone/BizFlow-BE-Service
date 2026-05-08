@@ -171,6 +171,15 @@ namespace BizFlow.Application.Services
             if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
             {
                 var editResult = await EditCompletedSaveAsync(userId, orderId, request);
+                if (editResult.RequiresConfirmation)
+                {
+                    return new OrderActionResultDto
+                    {
+                        RequiresConfirmation = true,
+                        Warnings = editResult.Warnings ?? new List<string>()
+                    };
+                }
+
                 var replacement = await _uow.Orders.GetByIdWithDetailsAsync(editResult.NewOrderId)
                     ?? throw new NotFoundException(MessageKeys.NotFound);
 
@@ -417,7 +426,13 @@ namespace BizFlow.Application.Services
                 request.ConfirmCreditLimitExceeded);
 
             if (prepared.RequiresConfirmation)
-                throw new BadRequestException(MessageKeys.BadRequest);
+            {
+                return new EditCompletedSaveResultDto
+                {
+                    RequiresConfirmation = true,
+                    Warnings = prepared.Warnings
+                };
+            }
 
             var newOrderId = await EntityCodeGenerator.ExecuteWithDuplicateKeyRetryAsync(() => _uow.ExecuteResilientAsync(async ct =>
             {
