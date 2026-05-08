@@ -78,6 +78,23 @@ public class FormulaEvaluationContext
 
     /// <summary>Total amount across all groups (for threshold checks).</summary>
     public decimal? TotalAmount { get; set; }
+
+    // ── per-product evaluation context (S2d) ──
+
+    /// <summary>Current ProductId when evaluating formulas for a specific product (S2d per-product balance).</summary>
+    public long? CurrentProductId { get; set; }
+
+    /// <summary>
+    /// Pre-loaded stock movements for this product (already filtered by ProductId).
+    /// When set, AggregateStockMovementsAsync uses this instead of hitting the DB.
+    /// </summary>
+    public IReadOnlyList<BizFlow.Domain.Entities.StockMovement>? PreloadedMovements { get; set; }
+
+    /// <summary>
+    /// Pre-loaded import cost lookup keyed by (ImportId, ProductId).
+    /// When set, TotalValue aggregation uses this instead of hitting the DB.
+    /// </summary>
+    public IReadOnlyDictionary<(long ImportId, long ProductId), decimal>? PreloadedImportCostLookup { get; set; }
 }
 
 /// <summary>

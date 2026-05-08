@@ -200,17 +200,17 @@ public class BookRenderingService : IBookRenderingService
 
         var (groupKeys, groupNames, groupAmounts, groupTaxRates) = await ResolveGroupDataAsync(context, groupByField);
 
-        Dictionary<string, (decimal Qty, decimal Value)>? openingBalances = null;
-        if (startOfBookDefs.Count > 0 && "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase))
-            openingBalances = await ComputeProductOpeningBalancesAsync(context);
-
         var perGroupBalanceDefs = perGroupDefs
             .Where(r => r.RowType == RowDefinitionConstants.RowType.BalanceRow)
             .ToList();
 
-        Dictionary<string, (decimal Qty, decimal Value)>? closingBalances = null;
-        if (perGroupBalanceDefs.Count > 0 && "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase))
-            closingBalances = await ComputeProductClosingBalancesAsync(context);
+        // Evaluate S2D formulas per product once — replaces hardcoded WAC computation
+        Dictionary<string, Dictionary<string, decimal>>? productFormulaValues = null;
+        bool needsProductFormulas = "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase)
+            && (startOfBookDefs.Any(d => d.RowType == RowDefinitionConstants.RowType.BalanceRow)
+                || perGroupBalanceDefs.Count > 0);
+        if (needsProductFormulas)
+            productFormulaValues = await EvaluateS2dFormulasPerProductAsync(context, groupKeys);
 
         foreach (var groupKey in groupKeys)
         {
@@ -220,17 +220,17 @@ public class BookRenderingService : IBookRenderingService
 
             var sectionRows = new List<Dictionary<string, object?>>();
 
-            if (openingBalances != null)
+            if (startOfBookDefs.Count > 0 && productFormulaValues != null)
             {
-                var balance = openingBalances.GetValueOrDefault(groupKey);
+                var pv = productFormulaValues.GetValueOrDefault(groupKey) ?? new Dictionary<string, decimal>();
                 foreach (var startDef in startOfBookDefs)
                 {
                     var openingRow = new Dictionary<string, object?> { ["lineType"] = startDef.RowType };
                     var label = ResolveRowLabel(startDef.RowLabel, groupIndex, groupName);
                     if (!string.IsNullOrWhiteSpace(label))
                         openingRow["dien_giai"] = label;
-                    openingRow["sl_ton"] = balance.Qty;
-                    openingRow["tien_ton"] = balance.Value;
+                    openingRow["sl_ton"] = pv.GetValueOrDefault("S2D_OPENING_QTY");
+                    openingRow["tien_ton"] = pv.GetValueOrDefault("S2D_OPENING_VALUE");
                     sectionRows.Add(openingRow);
                 }
             }
@@ -298,11 +298,11 @@ public class BookRenderingService : IBookRenderingService
                     if (!string.IsNullOrWhiteSpace(taxType))
                         taxTotals[taxType] = taxTotals.GetValueOrDefault(taxType) + taxAmount;
                 }
-                else if (rowDef.RowType == RowDefinitionConstants.RowType.BalanceRow && closingBalances != null)
+                else if (rowDef.RowType == RowDefinitionConstants.RowType.BalanceRow && productFormulaValues != null)
                 {
-                    var closingBalance = closingBalances.GetValueOrDefault(groupKey);
-                    row["sl_ton"] = closingBalance.Qty;
-                    row["tien_ton"] = closingBalance.Value;
+                    var pv = productFormulaValues.GetValueOrDefault(groupKey) ?? new Dictionary<string, decimal>();
+                    row["sl_ton"] = pv.GetValueOrDefault("S2D_CLOSING_QTY");
+                    row["tien_ton"] = pv.GetValueOrDefault("S2D_CLOSING_VALUE");
                 }
 
                 sectionRows.Add(row);
@@ -1810,66 +1810,56 @@ public class BookRenderingService : IBookRenderingService
     }
 
     /// <summary>
-    private async Task<Dictionary<string, (decimal Qty, decimal Value)>> ComputeProductOpeningBalancesAsync(
-        BookRenderContext context)
+    /// Evaluates S2D_ formulas for every product in <paramref name="productIds"/> using pre-loaded
+    /// stock movements so the DB is hit exactly twice (GetByLocation + GetImportCostLookup) regardless
+    /// of how many products are in the book.
+    /// </summary>
+    private async Task<Dictionary<string, Dictionary<string, decimal>>> EvaluateS2dFormulasPerProductAsync(
+        BookRenderContext context,
+        IEnumerable<string> productIds)
     {
+        var allFormulas = await _uow.FormulaDefinitions.GetActiveAsync();
+        var s2dFormulas = allFormulas
+            .Where(f => f.Code.StartsWith("S2D_", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(f => f.FormulaId)
+            .ToList();
+
+        if (s2dFormulas.Count == 0)
+            return new Dictionary<string, Dictionary<string, decimal>>();
+
+        // Load all movements and import cost lookup once for the whole location
         var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
         var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
 
-        var result = new Dictionary<string, (decimal Qty, decimal Value)>();
-        var preperiodByProduct = allMovements
-            .Where(sm => DateOnly.FromDateTime(sm.CreatedAt) < context.PeriodStart)
-            .GroupBy(sm => sm.ProductId);
+        var result = new Dictionary<string, Dictionary<string, decimal>>();
 
-        foreach (var group in preperiodByProduct)
+        foreach (var productIdStr in productIds)
         {
-            var runningQty = 0m;
-            var runningValue = 0m;
+            if (!long.TryParse(productIdStr, out var productId))
+                continue;
 
-            foreach (var sm in group.OrderBy(x => x.CreatedAt).ThenBy(x => x.StockMovementId))
+            var productMovements = allMovements
+                .Where(sm => sm.ProductId == productId)
+                .ToList();
+
+            var formulaCtx = new FormulaEvaluationContext
             {
-                var price = GetMovementCostPrice(sm, importCostLookup);
-                (runningQty, runningValue) = ApplyMovementToWac(runningQty, runningValue, sm.Quantity, price);
-            }
+                BookId = context.BookId,
+                BusinessLocationId = context.BusinessLocationId,
+                PeriodId = context.PeriodId,
+                PeriodStart = context.PeriodStart,
+                PeriodEnd = context.PeriodEnd,
+                RulesetId = context.RulesetId,
+                BusinessTypeIds = context.BusinessTypeIds,
+                CurrentProductId = productId,
+                PreloadedMovements = productMovements,
+                PreloadedImportCostLookup = importCostLookup
+            };
 
-            result[group.Key.ToString()] = (runningQty, runningValue);
+            var values = await _formulaEngine.EvaluateFormulasAsync(formulaCtx, s2dFormulas);
+            result[productIdStr] = values;
         }
 
-        return result;
-    }
-
-    /// <summary>
-    private async Task<Dictionary<string, (decimal Qty, decimal Value)>> ComputeProductClosingBalancesAsync(
-        BookRenderContext context)
-    {
-        var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
-        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
-
-        _logger.LogDebug("[S2d closing] LocationId={LocationId} PeriodStart={PeriodStart} PeriodEnd={PeriodEnd} TotalMovements={Total}",
-            context.BusinessLocationId, context.PeriodStart, context.PeriodEnd, allMovements.Count);
-
-        var result = new Dictionary<string, (decimal Qty, decimal Value)>();
-        var upToPeriodEndByProduct = allMovements
-            .Where(sm => DateOnly.FromDateTime(sm.CreatedAt) <= context.PeriodEnd)
-            .GroupBy(sm => sm.ProductId);
-
-        foreach (var group in upToPeriodEndByProduct)
-        {
-            var runningQty = 0m;
-            var runningValue = 0m;
-
-            foreach (var sm in group.OrderBy(x => x.CreatedAt).ThenBy(x => x.StockMovementId))
-            {
-                var price = GetMovementCostPrice(sm, importCostLookup);
-                (runningQty, runningValue) = ApplyMovementToWac(runningQty, runningValue, sm.Quantity, price);
-            }
-
-            result[group.Key.ToString()] = (runningQty, runningValue);
-            _logger.LogDebug("[S2d closing] ProductId={ProductId} Qty={Qty} Value={Value}",
-                group.Key, runningQty, runningValue);
-        }
-
-        _logger.LogDebug("[S2d closing] Keys computed: {Keys}", string.Join(", ", result.Keys));
         return result;
     }
 

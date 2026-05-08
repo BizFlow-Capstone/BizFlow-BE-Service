@@ -198,7 +198,6 @@ public class FormulaEngine : IFormulaEngine
         Dictionary<string, string> filters,
         string? periodFilter, string? sign)
     {
-        // Compute date range at DB level based on periodFilter
         var (dbFrom, dbTo) = periodFilter switch
         {
             PeriodFilter.Before => ((DateOnly?)null, (DateOnly?)ctx.PeriodStart.AddDays(-1)),
@@ -206,24 +205,43 @@ public class FormulaEngine : IFormulaEngine
             _ => ((DateOnly?)null, (DateOnly?)null)
         };
 
+        // Explicit formula filter takes priority, then fall back to per-product context
         long? productId = filters.TryGetValue("ProductId", out var pid) && long.TryParse(pid, out var id)
-            ? id : null;
+            ? id : ctx.CurrentProductId;
 
-        var movements = await _uow.StockMovements.GetByLocationAndPeriodAsync(
-            ctx.BusinessLocationId, dbFrom, dbTo, productId);
+        IEnumerable<StockMovement> movements;
+        if (ctx.PreloadedMovements != null)
+        {
+            // Use pre-loaded set (already filtered by ProductId) — apply date range in-memory
+            movements = ctx.PreloadedMovements;
+            if (dbFrom.HasValue)
+                movements = movements.Where(sm => DateOnly.FromDateTime(sm.CreatedAt) >= dbFrom.Value);
+            if (dbTo.HasValue)
+                movements = movements.Where(sm => DateOnly.FromDateTime(sm.CreatedAt) <= dbTo.Value);
+        }
+        else
+        {
+            movements = await _uow.StockMovements.GetByLocationAndPeriodAsync(
+                ctx.BusinessLocationId, dbFrom, dbTo, productId);
+        }
 
-        // Apply sign filter in-memory (cheap after DB reduced the dataset)
+        // Apply sign filter in-memory
         var list = sign switch
         {
             SignFilter.Positive => movements.Where(sm => sm.Quantity > 0).ToList(),
             SignFilter.Negative => movements.Where(sm => sm.Quantity < 0).ToList(),
-            _ => movements
+            _ => movements.ToList()
         };
 
-        // TotalValue requires import-time cost - fetch lookup only when needed
+        // TotalValue requires import-time cost price — use preloaded lookup when available
         if (field == "TotalValue")
         {
-            var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
+            Dictionary<(long, long), decimal> importCostLookup;
+            if (ctx.PreloadedImportCostLookup != null)
+                importCostLookup = ctx.PreloadedImportCostLookup
+                    .ToDictionary(kv => kv.Key, kv => kv.Value);
+            else
+                importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(ctx.BusinessLocationId);
 
             decimal GetCostPrice(StockMovement sm)
             {
