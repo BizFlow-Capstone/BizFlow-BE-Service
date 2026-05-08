@@ -274,8 +274,16 @@ public class FormulaEngine : IFormulaEngine
                         filter[p.Name] = p.Value.GetString() ?? "";
 
                 var taxType = filter.GetValueOrDefault("TaxType", "VAT").Trim();
+
+                // When inside a foreach, the current group's business type may not be in
+                // ctx.BusinessTypeIds (which is product-derived). Include it explicitly so
+                // manual-revenue business types still get a valid rate lookup.
+                IEnumerable<Guid> lookupIds = ctx.BusinessTypeIds;
+                if (ctx.CurrentBusinessTypeId.HasValue
+                    && !ctx.BusinessTypeIds.Contains(ctx.CurrentBusinessTypeId.Value))
+                    lookupIds = ctx.BusinessTypeIds.Append(ctx.CurrentBusinessTypeId.Value);
                 var rates = await _uow.TaxRulesets.GetTaxRatesByBusinessTypeIdsAsync(
-                    ctx.RulesetId, ctx.BusinessTypeIds);
+                    ctx.RulesetId, lookupIds);
 
                 // When inside a foreach iteration, filter by the current business type
                 IndustryTaxRate? rate;
