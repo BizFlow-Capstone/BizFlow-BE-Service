@@ -1284,7 +1284,7 @@ public class BookRenderingService : IBookRenderingService
         };
         var (costItems, _) = await _uow.Costs.SearchAsync(costQuery);
 
-        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled).Select(c => new SourceRow
+        var costRows = costItems.Where(c => c.Status != CostStatus.Cancelled && c.PaymentMethod != null).Select(c => new SourceRow
         {
             Date = c.CostDate,
             Id = c.CostId,
@@ -1299,7 +1299,8 @@ public class BookRenderingService : IBookRenderingService
                 ["IsReversal"] = c.IsReversal,
                 ["ReversedCostId"] = c.ReversedCostId,
                 ["RefCostId"] = c.RefCostId,
-                ["CostType"] = c.CostType
+                ["CostType"] = c.CostType,
+                ["PaymentMethod"] = c.PaymentMethod
             }
         }).ToList();
 
