@@ -22,5 +22,11 @@ namespace BizFlow.Application.DTOs.GeneralLedger
         /// Use this for accounting book queries so that hasMore / cursor logic is correct.
         /// </summary>
         public bool ExcludeReversal { get; set; }
+
+        /// <summary>
+        /// When true, entries with null MoneyChannel are excluded at the DB level.
+        /// Use this for accounting book queries to hide unclassified cost/import entries.
+        /// </summary>
+        public bool ExcludeNullMoneyChannel { get; set; }
     }
 }

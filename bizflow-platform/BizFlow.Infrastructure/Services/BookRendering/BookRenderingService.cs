@@ -204,6 +204,14 @@ public class BookRenderingService : IBookRenderingService
         if (startOfBookDefs.Count > 0 && "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase))
             openingBalances = await ComputeProductOpeningBalancesAsync(context);
 
+        var perGroupBalanceDefs = perGroupDefs
+            .Where(r => r.RowType == RowDefinitionConstants.RowType.BalanceRow)
+            .ToList();
+
+        Dictionary<string, (decimal Qty, decimal Value)>? closingBalances = null;
+        if (perGroupBalanceDefs.Count > 0 && "ProductId".Equals(groupByField, StringComparison.OrdinalIgnoreCase))
+            closingBalances = await ComputeProductClosingBalancesAsync(context);
+
         foreach (var groupKey in groupKeys)
         {
             groupIndex++;
@@ -289,6 +297,12 @@ public class BookRenderingService : IBookRenderingService
 
                     if (!string.IsNullOrWhiteSpace(taxType))
                         taxTotals[taxType] = taxTotals.GetValueOrDefault(taxType) + taxAmount;
+                }
+                else if (rowDef.RowType == RowDefinitionConstants.RowType.BalanceRow && closingBalances != null)
+                {
+                    var closingBalance = closingBalances.GetValueOrDefault(groupKey);
+                    row["sl_ton"] = closingBalance.Qty;
+                    row["tien_ton"] = closingBalance.Value;
                 }
 
                 sectionRows.Add(row);
@@ -1339,7 +1353,8 @@ public class BookRenderingService : IBookRenderingService
             ToDate = ctx.PeriodEnd,
             PageNumber = pageNumber,
             PageSize = safeBatchSize + 1,
-            ExcludeReversal = true   // push filter to DB so hasMore/cursor is accurate
+            ExcludeReversal = true,          // push filter to DB so hasMore/cursor is accurate
+            ExcludeNullMoneyChannel = true   // exclude unclassified cost/import entries
         };
 
         var (items, totalCount) = await _uow.GeneralLedgerEntries.SearchAsync(query);
@@ -1778,6 +1793,35 @@ public class BookRenderingService : IBookRenderingService
             .GroupBy(sm => sm.ProductId);
 
         foreach (var group in preperiodByProduct)
+        {
+            var runningQty = 0m;
+            var runningValue = 0m;
+
+            foreach (var sm in group.OrderBy(x => x.CreatedAt).ThenBy(x => x.StockMovementId))
+            {
+                var price = GetMovementCostPrice(sm, importCostLookup);
+                (runningQty, runningValue) = ApplyMovementToWac(runningQty, runningValue, sm.Quantity, price);
+            }
+
+            result[group.Key.ToString()] = (runningQty, runningValue);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    private async Task<Dictionary<string, (decimal Qty, decimal Value)>> ComputeProductClosingBalancesAsync(
+        BookRenderContext context)
+    {
+        var allMovements = await _uow.StockMovements.GetByLocationAsync(context.BusinessLocationId);
+        var importCostLookup = await _uow.Imports.GetImportCostLookupByLocationAsync(context.BusinessLocationId);
+
+        var result = new Dictionary<string, (decimal Qty, decimal Value)>();
+        var upToPeriodEndByProduct = allMovements
+            .Where(sm => DateOnly.FromDateTime(sm.CreatedAt) <= context.PeriodEnd)
+            .GroupBy(sm => sm.ProductId);
+
+        foreach (var group in upToPeriodEndByProduct)
         {
             var runningQty = 0m;
             var runningValue = 0m;

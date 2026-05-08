@@ -46,6 +46,9 @@ namespace BizFlow.Application.Specifications.GeneralLedger
             if (query.ExcludeReversal)
                 AddCriteria(e => !e.IsReversal);
 
+            if (query.ExcludeNullMoneyChannel)
+                AddCriteria(e => e.MoneyChannel != null);
+
             var viewMode = (query.ViewMode ?? GeneralLedgerViewMode.Audit).Trim().ToLowerInvariant();
             if (viewMode == GeneralLedgerViewMode.Effective)
             {
