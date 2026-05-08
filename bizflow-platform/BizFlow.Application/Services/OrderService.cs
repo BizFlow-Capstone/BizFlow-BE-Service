@@ -121,7 +121,7 @@ namespace BizFlow.Application.Services
             if (!isOwner && (order.CreatedBy == null || order.CreatedBy != userId))
                 throw new ForbiddenException(MessageKeys.Forbidden);
 
-            if (order.Status.Equals(OrderStatus.Completed, StringComparison.OrdinalIgnoreCase))
+            if (order.Status.Equals(OrderStatus.Pending, StringComparison.OrdinalIgnoreCase))
             {
                 var prepared = await PrepareOrderDraftAsync(
                     userId,
